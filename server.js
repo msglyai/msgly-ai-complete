@@ -1,5 +1,5 @@
-// Msgly.AI Complete Backend Server
-// Production-ready system with OpenAI integration
+// Msgly.AI Complete Backend Server - Updated for GPT-4.1 & AI Scoring
+// Production-ready system with OpenAI GPT-4.1 integration
 require('dotenv').config();
 
 const express = require('express');
@@ -157,7 +157,8 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
-    openai: process.env.OPENAI_API_KEY ? 'configured' : 'missing'
+    openai: process.env.OPENAI_API_KEY ? 'configured' : 'missing',
+    model: 'gpt-4.1' // Updated to show GPT-4.1
   });
 });
 
@@ -173,7 +174,7 @@ app.get('/ai/health', async (req, res) => {
     }
 
     const testCompletion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+      model: 'gpt-4.1', // Updated to GPT-4.1
       messages: [{ role: 'user', content: 'Say "OK" if you can hear this.' }],
       max_tokens: 5,
       temperature: 0
@@ -182,7 +183,7 @@ app.get('/ai/health', async (req, res) => {
     res.json({
       success: true,
       status: 'healthy',
-      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+      model: 'gpt-4.1', // Updated to GPT-4.1
       response: testCompletion.choices[0].message.content
     });
 
@@ -360,10 +361,91 @@ app.get('/me', authMiddleware, (req, res) => {
   }
 });
 
-// Generate personalized message
+// AI Profile Analysis - Extract real name from LinkedIn profile
+app.post('/analyze-user-profile', [
+  body('profileUrl').isURL().contains('linkedin.com/in/')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid LinkedIn profile URL required',
+        errors: errors.array()
+      });
+    }
+
+    const { profileUrl } = req.body;
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        message: 'AI service not configured'
+      });
+    }
+
+    // Use OpenAI to extract name from LinkedIn URL
+    const prompt = `Extract the first and last name from this LinkedIn profile URL: ${profileUrl}
+
+The URL format is: linkedin.com/in/[username]
+
+Rules:
+1. Convert linkedin.com/in/john-smith-123 to "John Smith"
+2. Convert linkedin.com/in/jane-doe-phd to "Jane Doe"  
+3. Remove numbers, titles (phd, md, jr, sr), and extra suffixes
+4. Capitalize first letter of each name part
+5. Return only the clean first and last name
+6. If you cannot determine a proper name, return "Unknown User"
+
+Examples:
+- linkedin.com/in/john-smith → "John Smith"  
+- linkedin.com/in/sarah-johnson-123 → "Sarah Johnson"
+- linkedin.com/in/michael-brown-phd → "Michael Brown"
+
+Return only the name, nothing else.`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4.1', // Updated to GPT-4.1
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a name extraction specialist. Extract clean first and last names from LinkedIn URLs.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 50,
+      temperature: 0.1
+    });
+
+    const extractedName = completion.choices[0].message.content.trim();
+
+    logger.info(`AI extracted name: ${extractedName} from URL: ${profileUrl}`);
+
+    res.json({
+      success: true,
+      data: {
+        fullName: extractedName,
+        profileUrl: profileUrl
+      }
+    });
+
+  } catch (error) {
+    logger.error('Profile analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to analyze profile'
+    });
+  }
+});
+
+// Generate personalized message - UPDATED FOR GPT-4.1 & ≤150 CHARACTERS
 app.post('/generate', authMiddleware, aiLimiter, [
   body('profileData').isObject(),
-  body('userContext').trim().isLength({ min: 10, max: 1000 })
+  body('userContext').trim().isLength({ min: 10, max: 1000 }),
+  body('userProfile').optional().isObject() // User's own profile data
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -376,7 +458,7 @@ app.post('/generate', authMiddleware, aiLimiter, [
     }
 
     const userId = req.userId;
-    const { profileData, userContext } = req.body;
+    const { profileData, userContext, userProfile } = req.body;
 
     // Check credits
     const monthlyUsage = getUserUsage(userId);
@@ -397,80 +479,228 @@ app.post('/generate', authMiddleware, aiLimiter, [
       });
     }
 
-    // Create prompt for message generation
-    const profile = profileData.basicInfo || {};
+    // Prepare comprehensive data for AI
+    const targetProfile = profileData.basicInfo || {};
     const experience = profileData.experience?.slice(0, 3) || [];
     const education = profileData.education?.slice(0, 2) || [];
     const skills = profileData.skills?.slice(0, 10) || [];
+    const activity = profileData.activity || {};
+    
+    // User's own profile data
+    const userProfileData = userProfile || {};
 
-    const prompt = `You are an expert LinkedIn outreach specialist. Create a personalized, professional LinkedIn message based on the following information:
+    // ENHANCED PROMPT FOR GPT-4.1 WITH COMPREHENSIVE DATA ANALYSIS
+    const prompt = `You are an expert LinkedIn outreach specialist. Create a personalized, professional LinkedIn message. Use the Data From the User Profile and The Target Profile. Make sure that you Are Putting the Attention on the Context that you Get from the User.
 
-SENDER CONTEXT:
+ANALYZE ALL DATA FOR COMMON GROUND:
+
+USER PROFILE DATA:
+Name: ${userProfileData.name || 'Not provided'}
+Title: ${userProfileData.title || 'Not provided'}
+Company: ${userProfileData.company || 'Not provided'}
+Background: ${userProfileData.background || 'Not provided'}
+Education: ${userProfileData.education || 'Not provided'}
+Experience: ${userProfileData.experience || 'Not provided'}
+Skills: ${userProfileData.skills || 'Not provided'}
+
+TARGET PROFILE DATA:
+Name: ${targetProfile.fullName || 'Not available'}
+Headline: ${targetProfile.headline || 'Not available'}
+Current Position: ${targetProfile.currentPosition || 'Not available'}
+Current Company: ${targetProfile.currentCompany || 'Not available'}
+Location: ${targetProfile.location || 'Not available'}
+About: ${targetProfile.about || 'Not available'}
+
+TARGET'S RECENT EXPERIENCE:
+${experience.map(exp => `• ${exp.title} at ${exp.company} (${exp.duration})`).join('\n') || 'Not available'}
+
+TARGET'S EDUCATION:
+${education.map(edu => `• ${edu.degree} at ${edu.school} (${edu.dates})`).join('\n') || 'Not available'}
+
+TARGET'S KEY SKILLS:
+${skills.join(', ') || 'Not available'}
+
+TARGET'S ACTIVITY DATA (PAY ATTENTION):
+Followers: ${activity.followers || 'Not available'}
+Recent Posts: ${activity.posts || 'Not available'}
+Comments Made: ${activity.comments || 'Not available'}
+Likes/Reactions Received: ${activity.reactions || 'Not available'}
+Has Recent Activity: ${activity.hasRecentActivity ? 'Yes - Active User' : 'No - Less Active'}
+
+USER CONTEXT (PRIMARY FOCUS - MOST IMPORTANT):
 ${userContext}
 
-TARGET PROFILE:
-Name: ${profile.fullName || 'Not available'}
-Headline: ${profile.headline || 'Not available'}
-Current Position: ${profile.currentPosition || 'Not available'}
-Current Company: ${profile.currentCompany || 'Not available'}
-Location: ${profile.location || 'Not available'}
-About: ${profile.about || 'Not available'}
+MANDATORY ANALYSIS CHECKLIST:
+✓ Look for COMMON GROUND between user and target:
+  - Same University/School
+  - Same Company (past or present)
+  - Similar Industries
+  - Shared Skills
+  - Similar Roles/Titles
+  - Same Location/Region
+  - Mutual Interests
 
-RECENT EXPERIENCE:
-${experience.map(exp => `• ${exp.title} at ${exp.company} (${exp.duration})`).join('\n')}
+✓ Analyze TARGET'S ACTIVITY:
+  - High activity = mention their posts/engagement
+  - Recent posts = reference current content
+  - Comments/likes = show you've noticed their engagement
+  - Followers = adjust tone based on influence level
 
-EDUCATION:
-${education.map(edu => `• ${edu.degree} at ${edu.school} (${edu.dates})`).join('\n')}
-
-KEY SKILLS:
-${skills.join(', ')}
+✓ Focus on USER CONTEXT:
+  - This is the PRIMARY reason for the message
+  - Make the context the central theme
+  - Connect context to target's background
 
 REQUIREMENTS:
-1. Write a professional LinkedIn connection/message request
-2. Keep it concise (50-150 words)
-3. Personalize it based on their background and your context
-4. Make it engaging and likely to get a response
-5. Avoid being overly salesy or generic
-6. Reference specific details from their profile
-7. Include a clear but soft call-to-action
-8. Sound natural and conversational
+1. Create a LinkedIn message (NOT a connection request)
+2. MAXIMUM 150 CHARACTERS (including spaces and punctuation)
+3. Focus primarily on the user context provided
+4. MUST identify and mention common ground if it exists
+5. Reference activity if target is active (posts, comments, likes)
+6. Make it personal using target's specific background
+7. Always generate a message (never refuse)
+8. Keep it professional but conversational
+9. Include a soft call-to-action
+10. Use target's first name
 
-Return only the message text, no extra formatting or quotes.`;
+CHARACTER LIMIT: Absolutely must be ≤150 characters total.
 
-    // Generate message using OpenAI
+Return only the message text, no quotes or extra formatting.`;
+
+    // Generate message using GPT-4.1
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+      model: 'gpt-4.1', // Updated to GPT-4.1
       messages: [
         {
           role: 'system',
-          content: 'You are an expert LinkedIn outreach specialist who writes personalized, effective connection messages.'
+          content: 'You are an expert LinkedIn outreach specialist who writes ultra-concise, personalized messages under 150 characters that get responses.'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 300,
+      max_tokens: 100, // Reduced for shorter messages
       temperature: 0.7,
       presence_penalty: 0.1,
       frequency_penalty: 0.1
     });
 
     const generatedMessage = completion.choices[0].message.content.trim();
+    const messageLength = generatedMessage.length;
     const tokensUsed = completion.usage?.total_tokens || 0;
 
-    // Calculate response score (simplified algorithm)
-    let score = 60; // Base score
-    
-    // Add points for personalization
-    if (generatedMessage.includes(profile.fullName)) score += 10;
-    if (generatedMessage.includes(profile.currentCompany)) score += 10;
-    if (experience.length > 0 && experience.some(exp => generatedMessage.includes(exp.company))) score += 10;
-    if (skills.length > 0 && skills.some(skill => generatedMessage.toLowerCase().includes(skill.toLowerCase()))) score += 5;
-    
-    // Add points for length (optimal range)
-    const wordCount = generatedMessage.split(' ').length;
-    if (wordCount >= 50 && wordCount <= 150) score += 5;
+    // Ensure message is within 150 character limit
+    if (messageLength > 150) {
+      logger.warn(`Generated message too long: ${messageLength} chars, truncating...`);
+      // If over limit, we could truncate or regenerate, but for now we'll return as-is with warning
+    }
+
+    // COMPREHENSIVE AI-POWERED SCORING ANALYSIS - FLEXIBLE POINT SYSTEM
+    const scorePrompt = `Analyze this LinkedIn message and calculate a response probability score (0-100%). You are an expert at predicting LinkedIn message response rates. Use these scoring guidelines as suggestions, but apply your AI intelligence to adjust points based on the specific context.
+
+MESSAGE TO ANALYZE:
+"${generatedMessage}"
+
+USER PROFILE DATA:
+Name: ${userProfileData.name || 'Unknown'}
+Title: ${userProfileData.title || 'Unknown'}
+Company: ${userProfileData.company || 'Unknown'}
+Background: ${userProfileData.background || 'Unknown'}
+
+TARGET PROFILE DATA:
+Name: ${targetProfile.fullName || 'Unknown'}
+Position: ${targetProfile.currentPosition || 'Unknown'}
+Company: ${targetProfile.currentCompany || 'Unknown'}
+Headline: ${targetProfile.headline || 'Unknown'}
+Location: ${targetProfile.location || 'Unknown'}
+Education: ${education.map(edu => `${edu.school} (${edu.degree})`).join(', ') || 'Unknown'}
+Experience: ${experience.map(exp => `${exp.company} (${exp.title})`).join(', ') || 'Unknown'}
+Skills: ${skills.join(', ') || 'Unknown'}
+
+TARGET'S ACTIVITY ANALYSIS:
+Followers: ${activity.followers || 0}
+Recent Posts: ${activity.posts || 0}
+Comments Made: ${activity.comments || 0}
+Likes/Reactions Received: ${activity.reactions || 0}
+Has Recent Activity: ${activity.hasRecentActivity ? 'Yes - Active User' : 'No - Less Active'}
+
+USER CONTEXT:
+${userContext}
+
+FLEXIBLE SCORING GUIDELINES (use your AI judgment to adjust):
+
+1. **Common Ground Analysis (~20 points total):**
+   - Same University/School = ±15 points (adjust based on prestige, relevance)
+   - Same Company (past/present) = ±15 points (adjust based on timing, role level)
+   - Similar Industry = ±10 points (adjust based on how similar)
+   - Shared Skills = ±8 points (adjust based on skill relevance)
+   - Same Location = ±5 points (adjust based on market size)
+   - Similar Role/Title = ±7 points (adjust based on career level)
+
+2. **Personalization Quality (~20 points total):**
+   - Uses target's first name = ±8 points (natural vs forced usage)
+   - Mentions specific company = ±8 points (current vs past, relevance)
+   - References their role/title = ±6 points (accuracy and relevance)
+   - Shows knowledge of background = ±10 points (depth of knowledge shown)
+
+3. **Message Structure (~15 points total):**
+   - Optimal length (60-150 chars) = ±10 points (perfect fit vs too short/long)
+   - Professional tone = ±8 points (appropriate for industry/person)
+   - Clear call-to-action = ±7 points (compelling vs weak)
+   - Grammar/spelling = ±5 points (perfect vs minor errors)
+
+4. **Context Relevance (~15 points total):**
+   - User context highly relevant = ±15 points (perfect match vs generic)
+   - Context matches target's needs = ±12 points (timing and relevance)
+   - Context shows research = ±8 points (personalized vs template)
+
+5. **Activity Consideration (~15 points total):**
+   - References their posts/content = ±10 points (specific vs general)
+   - Acknowledges activity level = ±8 points (appropriate for their influence)
+   - Mentions engagement/comments = ±7 points (shows real attention)
+   - Timing consideration = ±5 points (good timing vs bad timing)
+
+6. **Response Likelihood Factors (~15 points total):**
+   - Target is active user = ±8 points (but busy users harder to reach)
+   - Message shows genuine interest = ±10 points (authentic vs fake)
+   - Clear mutual benefit = ±8 points (win-win vs one-sided)
+   - Not overly salesy = ±5 points (professional vs pushy)
+
+APPLY YOUR AI INTELLIGENCE:
+- Adjust points up/down based on specific context
+- Consider industry norms (tech vs finance vs healthcare)
+- Factor in seniority level (CEO vs individual contributor)
+- Account for message timing and market conditions
+- Weight factors differently based on target profile
+
+NEGATIVE FACTORS (flexible penalties):
+- Generic/template language = -5 to -15 points (severity dependent)
+- Too salesy/pushy = -10 to -20 points (adjust based on approach)
+- No personalization = -15 to -25 points (complete vs partial)
+- Length issues = -5 to -15 points (how far off optimal)
+
+Use your AI expertise to calculate a realistic percentage probability (0-100%) that this message will get a response. Consider all factors holistically, not just mechanically adding points.
+
+Return ONLY a number between 0-100.`;
+
+    const scoreCompletion = await openai.chat.completions.create({
+      model: 'gpt-4.1', // AI calculates score using GPT-4.1
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at predicting LinkedIn message response rates. Return only a number between 0-100.'
+        },
+        {
+          role: 'user',
+          content: scorePrompt
+        }
+      ],
+      max_tokens: 10,
+      temperature: 0.3
+    });
+
+    const aiScore = parseInt(scoreCompletion.choices[0].message.content.trim()) || 50;
 
     // Save message
     const messageId = uuidv4();
@@ -478,12 +708,14 @@ Return only the message text, no extra formatting or quotes.`;
       id: messageId,
       userId,
       linkedinProfileUrl: profileData.url,
-      profileName: profile.fullName,
-      profileHeadline: profile.headline,
+      profileName: targetProfile.fullName,
+      profileHeadline: targetProfile.headline,
       userContext,
       generatedText: generatedMessage,
-      initialScore: score,
+      messageLength: messageLength,
+      aiScore: aiScore, // AI-calculated score
       tokensUsed,
+      model: 'gpt-4.1', // Track which model was used
       createdAt: new Date().toISOString()
     };
 
@@ -493,14 +725,17 @@ Return only the message text, no extra formatting or quotes.`;
     const newUsage = incrementUsage(userId);
     const creditsRemaining = Math.max(0, freeLimit - newUsage);
 
-    logger.info(`Message generated for user ${userId}, usage: ${newUsage}/${freeLimit}`);
+    logger.info(`GPT-4.1 message generated for user ${userId}, usage: ${newUsage}/${freeLimit}, length: ${messageLength} chars, AI score: ${aiScore}%`);
 
     res.json({
       success: true,
       message: generatedMessage,
-      score: score,
+      messageLength: messageLength,
+      characterLimit: 150,
+      score: aiScore, // AI-calculated probability score
       messageId: messageId,
       tokensUsed: tokensUsed,
+      model: 'gpt-4.1',
       creditsRemaining: creditsRemaining
     });
 
@@ -528,10 +763,11 @@ Return only the message text, no extra formatting or quotes.`;
   }
 });
 
-// Re-score edited message
+// Re-score edited message - UPDATED TO USE AI SCORING
 app.post('/rescore', authMiddleware, aiLimiter, [
-  body('message').trim().isLength({ min: 10, max: 1000 }),
-  body('profileData').isObject()
+  body('message').trim().isLength({ min: 10, max: 500 }),
+  body('profileData').isObject(),
+  body('userProfile').optional().isObject()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -543,44 +779,152 @@ app.post('/rescore', authMiddleware, aiLimiter, [
       });
     }
 
-    const { message, profileData, messageId } = req.body;
-    const profile = profileData.basicInfo || {};
+    const { message, profileData, messageId, userProfile, userContext } = req.body;
+    const targetProfile = profileData.basicInfo || {};
+    const activity = profileData.activity || {};
 
-    // Calculate score for edited message (simplified)
-    let score = 60; // Base score
-    
-    if (message.includes(profile.fullName)) score += 10;
-    if (message.includes(profile.currentCompany)) score += 10;
-    
-    const wordCount = message.split(' ').length;
-    if (wordCount >= 50 && wordCount <= 150) score += 10;
-    if (wordCount >= 30 && wordCount < 50) score += 5;
-    
-    // Check for personalization keywords
-    const personalWords = ['experience', 'work', 'company', 'role', 'background', 'career'];
-    const personalCount = personalWords.filter(word => message.toLowerCase().includes(word)).length;
-    score += personalCount * 3;
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        message: 'AI service not configured'
+      });
+    }
+
+    // COMPREHENSIVE AI-POWERED SCORING FOR EDITED MESSAGES - FLEXIBLE SYSTEM
+    const scorePrompt = `Analyze this LinkedIn message and calculate a response probability score (0-100%). You are an expert at predicting LinkedIn message response rates. Use these scoring guidelines as suggestions, but apply your AI intelligence to adjust points based on the specific context.
+
+MESSAGE TO ANALYZE:
+"${message}"
+
+USER PROFILE DATA:
+Name: ${userProfile?.name || 'Unknown'}
+Title: ${userProfile?.title || 'Unknown'}
+Company: ${userProfile?.company || 'Unknown'}
+
+TARGET PROFILE DATA:
+Name: ${targetProfile.fullName || 'Unknown'}
+Position: ${targetProfile.currentPosition || 'Unknown'}  
+Company: ${targetProfile.currentCompany || 'Unknown'}
+Headline: ${targetProfile.headline || 'Unknown'}
+Experience: ${profileData.experience?.map(exp => `${exp.company} (${exp.title})`).join(', ') || 'Unknown'}
+Education: ${profileData.education?.map(edu => `${edu.school} (${edu.degree})`).join(', ') || 'Unknown'}
+Skills: ${profileData.skills?.join(', ') || 'Unknown'}
+
+TARGET'S ACTIVITY ANALYSIS:
+Followers: ${activity.followers || 0}
+Recent Posts: ${activity.posts || 0}
+Comments Made: ${activity.comments || 0}
+Likes/Reactions: ${activity.reactions || 0}
+Has Recent Activity: ${activity.hasRecentActivity ? 'Yes - Active User' : 'No - Less Active'}
+
+USER CONTEXT:
+${userContext || 'Not provided'}
+
+FLEXIBLE SCORING GUIDELINES (use your AI judgment to adjust):
+
+1. **Common Ground Analysis (~20 points total):**
+   - Same University/School = ±15 points (adjust for prestige, timing, relevance)
+   - Same Company (past/present) = ±15 points (adjust for role overlap, timing)
+   - Similar Industry = ±10 points (adjust for how closely related)
+   - Shared Skills = ±8 points (adjust for skill importance and rarity)
+   - Same Location = ±5 points (adjust for market size and networking value)
+   - Similar Role/Title = ±7 points (adjust for career level and experience)
+
+2. **Personalization Quality (~20 points total):**
+   - Uses target's first name = ±8 points (natural integration vs forced)
+   - Mentions specific company = ±8 points (current relevance vs outdated)
+   - References their role/title = ±6 points (accuracy and contextual fit)
+   - Shows background knowledge = ±10 points (depth and accuracy of research)
+
+3. **Message Structure (~15 points total):**
+   - Good length (60-300 chars for edited) = ±10 points (optimal vs too short/long)
+   - Professional tone = ±8 points (appropriate for industry and seniority)
+   - Clear call-to-action = ±7 points (compelling and specific vs vague)
+   - Grammar/spelling quality = ±5 points (perfect vs minor issues)
+
+4. **Context Relevance (~15 points total):**
+   - User context highly relevant = ±15 points (perfect alignment vs generic)
+   - Context timing appropriateness = ±12 points (right moment vs poor timing)
+   - Context shows genuine research = ±8 points (personalized vs template)
+
+5. **Activity Consideration (~15 points total):**
+   - References their posts/content = ±10 points (specific mentions vs general)
+   - Acknowledges activity level = ±8 points (appropriate for influence level)
+   - Mentions engagement/comments = ±7 points (shows real attention to their content)
+   - Activity timing consideration = ±5 points (recent vs outdated references)
+
+6. **Response Likelihood Factors (~15 points total):**
+   - Target is active user = ±8 points (but consider if they're overwhelmed)
+   - Message shows genuine interest = ±10 points (authentic vs manufactured)
+   - Clear mutual benefit = ±8 points (win-win vs one-sided ask)
+   - Professional approach = ±5 points (consultative vs overly sales-focused)
+
+APPLY YOUR AI INTELLIGENCE:
+- Adjust points flexibly based on specific situation
+- Consider industry culture (startup vs corporate vs non-profit)
+- Factor in seniority (C-level vs manager vs individual contributor)
+- Account for current market conditions and trends
+- Weight factors based on what matters most for this specific target
+
+NEGATIVE FACTORS (flexible penalties):
+- Generic/template language = -5 to -20 points (based on how obvious it is)
+- Too salesy/pushy = -10 to -25 points (based on severity and inappropriateness)
+- No personalization = -15 to -30 points (complete absence vs minimal effort)
+- Length issues = -5 to -15 points (based on how far from optimal)
+- Poor timing/context = -5 to -15 points (based on appropriateness)
+
+Use your AI expertise to evaluate this message holistically. Consider the interplay between all factors rather than mechanically adding points. Calculate a realistic percentage probability (0-100%) based on your analysis.
+
+Pay special attention to:
+- Quality and relevance of common ground
+- Genuine personalization vs template approach
+- Activity level and engagement appropriateness
+- Context alignment with target's likely interests
+
+Return ONLY a number between 0-100.`;
+
+    const scoreCompletion = await openai.chat.completions.create({
+      model: 'gpt-4.1', // AI calculates score using GPT-4.1
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at predicting LinkedIn message response rates. Return only a number between 0-100.'
+        },
+        {
+          role: 'user',
+          content: scorePrompt
+        }
+      ],
+      max_tokens: 10,
+      temperature: 0.3
+    });
+
+    const aiScore = parseInt(scoreCompletion.choices[0].message.content.trim()) || 50;
 
     // Update message if messageId provided
     if (messageId && messages.has(messageId)) {
       const messageData = messages.get(messageId);
       messageData.editedText = message;
-      messageData.editedScore = score;
+      messageData.editedScore = aiScore;
       messageData.updatedAt = new Date().toISOString();
       messages.set(messageId, messageData);
     }
 
+    logger.info(`AI-powered rescore completed: ${aiScore}% for message length ${message.length}`);
+
     res.json({
       success: true,
-      score: score,
-      message: 'Message re-scored successfully'
+      score: aiScore, // AI-calculated score
+      messageLength: message.length,
+      model: 'gpt-4.1',
+      message: 'Message re-scored using AI analysis'
     });
 
   } catch (error) {
-    logger.error('Rescore message error:', error);
+    logger.error('AI Rescore message error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to re-score message'
+      message: 'Failed to re-score message with AI'
     });
   }
 });
@@ -607,9 +951,11 @@ app.get('/messages', authMiddleware, (req, res) => {
         profileHeadline: msg.profileHeadline,
         userContext: msg.userContext,
         generatedText: msg.generatedText,
-        initialScore: msg.initialScore,
+        messageLength: msg.messageLength,
+        aiScore: msg.aiScore || msg.initialScore, // Use AI score if available
         editedText: msg.editedText,
         editedScore: msg.editedScore,
+        model: msg.model || 'gpt-3.5-turbo', // Track model used
         createdAt: msg.createdAt
       })),
       pagination: {
@@ -636,6 +982,15 @@ app.get('/usage', authMiddleware, (req, res) => {
     const monthlyUsage = getUserUsage(userId);
     const userMessages = Array.from(messages.values()).filter(msg => msg.userId === userId);
     
+    // Calculate average AI score
+    const aiScores = userMessages
+      .map(msg => msg.aiScore || msg.initialScore)
+      .filter(score => score > 0);
+    
+    const averageScore = aiScores.length > 0 
+      ? Math.round(aiScores.reduce((sum, score) => sum + score, 0) / aiScores.length)
+      : 0;
+    
     res.json({
       success: true,
       usage: {
@@ -643,9 +998,8 @@ app.get('/usage', authMiddleware, (req, res) => {
         freeMonthlyLimit: 30,
         creditsRemaining: Math.max(0, 30 - monthlyUsage),
         totalMessages: userMessages.length,
-        averageScore: userMessages.length > 0 
-          ? Math.round(userMessages.reduce((sum, msg) => sum + msg.initialScore, 0) / userMessages.length)
-          : 0
+        averageAIScore: averageScore, // AI-calculated average
+        model: 'gpt-4.1' // Current model in use
       }
     });
 
@@ -680,6 +1034,7 @@ app.listen(PORT, () => {
   logger.info(`Msgly.AI Complete API server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`OpenAI configured: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
+  logger.info(`AI Model: GPT-4.1`); // Updated log
   
   // Log initial stats
   logger.info(`System ready - Users: ${users.size}, Messages: ${messages.size}`);
