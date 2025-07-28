@@ -52,12 +52,38 @@ app.use(helmet({
   }
 }));
 
-// CORS configuration - Allow all origins for Chrome extension
+// CORS configuration - Enhanced for Chrome Extensions
 app.use(cors({
-  origin: true,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow Chrome extension origins
+    if (origin && origin.startsWith('chrome-extension://')) {
+      return callback(null, true);
+    }
+    
+    // Allow your domains
+    const allowedOrigins = [
+      'https://msgly.ai',
+      'https://www.msgly.ai',
+      'https://api.msgly.ai',
+      'https://linkedin.com',
+      'https://www.linkedin.com',
+      'http://localhost:3000',
+      'http://localhost:8080'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow all other origins for now (development mode)
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Access-Control-Allow-Origin']
 }));
 
 // Rate limiting
