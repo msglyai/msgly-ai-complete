@@ -187,6 +187,19 @@ const initDB = async () => {
             );
         `);
 
+        // Add Google OAuth columns to existing users table
+        try {
+            await pool.query(`
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
+                ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500);
+            `);
+            console.log('✅ Added Google OAuth columns to users table');
+        } catch (err) {
+            console.log('Google OAuth columns might already exist:', err.message);
+        }
+
         console.log('✅ Database tables created successfully');
     } catch (error) {
         console.error('❌ Database setup error:', error);
