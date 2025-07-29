@@ -349,26 +349,31 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Redirect to frontend with token
+            // Redirect to frontend sign-up page with token
             const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai' 
-                : 'http://localhost:3000';
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
                 
-            res.redirect(`${frontendUrl}/auth/success?token=${token}`);
+            res.redirect(`${frontendUrl}?token=${token}`);
             
         } catch (error) {
             console.error('OAuth callback error:', error);
-            res.redirect('/auth/failed');
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?error=callback_error`);
         }
     }
 );
 
 // Auth failed route
 app.get('/auth/failed', (req, res) => {
-    res.status(401).json({
-        success: false,
-        error: 'Google authentication failed'
-    });
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://msgly.ai/sign-up' 
+        : 'http://localhost:3000/sign-up';
+        
+    res.redirect(`${frontendUrl}?error=auth_failed`);
 });
 
 // ==================== EXISTING ENDPOINTS (UPDATED) ====================
