@@ -128,7 +128,7 @@ const initDB = async () => {
     try {
         console.log('🗃️ Creating database tables...');
 
-        // Updated users table with Google OAuth fields
+        // Updated users table with Google OAuth fields - FIXED: password_hash is now nullable
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -200,6 +200,16 @@ const initDB = async () => {
             console.log('Google OAuth columns might already exist:', err.message);
         }
 
+        // CRITICAL FIX: Make password_hash nullable for Google OAuth users
+        try {
+            await pool.query(`
+                ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+            `);
+            console.log('✅ Made password_hash nullable for Google OAuth users');
+        } catch (err) {
+            console.log('Password hash might already be nullable:', err.message);
+        }
+
         console.log('✅ Database tables created successfully');
     } catch (error) {
         console.error('❌ Database setup error:', error);
@@ -226,7 +236,7 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     return result.rows[0];
 };
 
-// New function for Google users
+// New function for Google users - FIXED: No password_hash required
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
         'free': 30,
@@ -339,7 +349,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// Google OAuth callback
+// Google OAuth callback - FIXED: Better error handling
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failed' }),
     async (req, res) => {
