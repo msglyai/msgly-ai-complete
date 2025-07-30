@@ -356,6 +356,22 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 profile = profile[0];
             }
             
+            // Helper function to parse connection counts
+            const parseConnectionCount = (connectionStr) => {
+                if (!connectionStr) return null;
+                if (typeof connectionStr === 'number') return connectionStr;
+                
+                // Handle strings like "500+ connections", "1,000+ connections", etc.
+                const str = connectionStr.toString().toLowerCase();
+                const numbers = str.match(/[\d,]+/);
+                if (numbers) {
+                    // Remove commas and convert to integer
+                    const cleanNumber = numbers[0].replace(/,/g, '');
+                    return parseInt(cleanNumber, 10) || null;
+                }
+                return null;
+            };
+
             // Extract and structure the data
             const extractedData = {
                 fullName: profile.name || profile.full_name || null,
@@ -365,7 +381,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 summary: profile.summary || profile.about || null,
                 location: profile.location || profile.address || null,
                 industry: profile.industry || null,
-                connectionsCount: profile.connections || profile.connections_count || null,
+                connectionsCount: parseConnectionCount(profile.connections || profile.connections_count),
                 profileImageUrl: profile.profile_image || profile.avatar || null,
                 experience: profile.experience || [],
                 education: profile.education || [],
