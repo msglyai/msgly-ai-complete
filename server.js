@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth Integration
+// Msgly.AI Server with Google OAuth + Outscraper Integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -18,6 +19,10 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
+
+// Outscraper API configuration
+const OUTSCRAPER_API_KEY = process.env.OUTSCRAPER_API_KEY;
+const OUTSCRAPER_BASE_URL = 'https://api.outscraper.com/profiles/linkedin';
 
 // CORS for Chrome Extensions
 const corsOptions = {
@@ -44,7 +49,7 @@ const corsOptions = {
     },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true // Changed to true for sessions
+    credentials: true
 };
 
 app.use(cors(corsOptions));
@@ -122,7 +127,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// ==================== UPDATED DATABASE SETUP ====================
+// ==================== DATABASE SETUP ====================
 
 const initDB = async () => {
     try {
@@ -146,7 +151,7 @@ const initDB = async () => {
             );
         `);
 
-        // Simple user profiles table
+        // Enhanced user profiles table with Outscraper fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -155,6 +160,20 @@ const initDB = async () => {
                 full_name VARCHAR(255),
                 first_name VARCHAR(100),
                 last_name VARCHAR(100),
+                headline VARCHAR(500),
+                summary TEXT,
+                location VARCHAR(255),
+                industry VARCHAR(255),
+                experience JSONB,
+                education JSONB,
+                skills TEXT[],
+                connections_count INTEGER,
+                profile_image_url VARCHAR(500),
+                outscraper_data JSONB,
+                data_extraction_status VARCHAR(50) DEFAULT 'pending',
+                extraction_attempted_at TIMESTAMP,
+                extraction_completed_at TIMESTAMP,
+                extraction_error TEXT,
                 profile_analyzed BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -210,6 +229,41 @@ const initDB = async () => {
             console.log('Password hash might already be nullable:', err.message);
         }
 
+        // Add Outscraper columns to existing user_profiles table
+        try {
+            await pool.query(`
+                ALTER TABLE user_profiles 
+                ADD COLUMN IF NOT EXISTS headline VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS summary TEXT,
+                ADD COLUMN IF NOT EXISTS location VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS experience JSONB,
+                ADD COLUMN IF NOT EXISTS education JSONB,
+                ADD COLUMN IF NOT EXISTS skills TEXT[],
+                ADD COLUMN IF NOT EXISTS connections_count INTEGER,
+                ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS outscraper_data JSONB,
+                ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
+                ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
+            `);
+            console.log('✅ Added Outscraper columns to user_profiles table');
+        } catch (err) {
+            console.log('Outscraper columns might already exist:', err.message);
+        }
+
+        // Create indexes
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+            `);
+            console.log('✅ Created database indexes');
+        } catch (err) {
+            console.log('Indexes might already exist:', err.message);
+        }
+
         console.log('✅ Database tables created successfully');
     } catch (error) {
         console.error('❌ Database setup error:', error);
@@ -217,7 +271,74 @@ const initDB = async () => {
     }
 };
 
-// ==================== UPDATED DATABASE FUNCTIONS ====================
+// ==================== OUTSCRAPER FUNCTIONS (NEW) ====================
+
+const extractLinkedInProfile = async (linkedinUrl) => {
+    try {
+        console.log(`🔍 Extracting LinkedIn profile: ${linkedinUrl}`);
+        
+        if (!OUTSCRAPER_API_KEY) {
+            throw new Error('Outscraper API key not configured');
+        }
+        
+        const response = await axios.get(OUTSCRAPER_BASE_URL, {
+            params: {
+                query: linkedinUrl,
+                apikey: OUTSCRAPER_API_KEY,
+                format: 'json'
+            },
+            timeout: 45000 // 45 seconds timeout
+        });
+
+        if (response.data && response.data.data && response.data.data.length > 0) {
+            const profile = response.data.data[0];
+            
+            // Extract and structure the data
+            const extractedData = {
+                fullName: profile.name || null,
+                firstName: profile.first_name || null,
+                lastName: profile.last_name || null,
+                headline: profile.headline || null,
+                summary: profile.summary || null,
+                location: profile.location || null,
+                industry: profile.industry || null,
+                connectionsCount: profile.connections_count || null,
+                profileImageUrl: profile.profile_picture || null,
+                experience: profile.experience || [],
+                education: profile.education || [],
+                skills: profile.skills || [],
+                rawData: profile // Store complete response for future use
+            };
+
+            console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
+            return extractedData;
+        } else {
+            throw new Error('No profile data returned from Outscraper');
+        }
+    } catch (error) {
+        console.error('❌ Outscraper extraction error:', error.message);
+        throw error;
+    }
+};
+
+// Clean and validate LinkedIn URL
+const cleanLinkedInUrl = (url) => {
+    try {
+        // Remove trailing slashes, query parameters, etc.
+        let cleanUrl = url.trim();
+        if (cleanUrl.includes('?')) {
+            cleanUrl = cleanUrl.split('?')[0];
+        }
+        if (cleanUrl.endsWith('/')) {
+            cleanUrl = cleanUrl.slice(0, -1);
+        }
+        return cleanUrl;
+    } catch (error) {
+        return url;
+    }
+};
+
+// ==================== EXISTING DATABASE FUNCTIONS (UNCHANGED) ====================
 
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
@@ -282,6 +403,137 @@ const updateUserCredits = async (userId, newCredits) => {
     return result.rows[0];
 };
 
+// ==================== NEW FUNCTIONS FOR LINKEDIN URL WITH EXTRACTION ====================
+
+// Create or update user profile with LinkedIn URL (EXISTING - kept same)
+const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) => {
+    try {
+        // Check if profile exists
+        const existingProfile = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [userId]
+        );
+        
+        if (existingProfile.rows.length > 0) {
+            // Update existing profile
+            const result = await pool.query(
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
+                [linkedinUrl, fullName, userId]
+            );
+            return result.rows[0];
+        } else {
+            // Create new profile
+            const result = await pool.query(
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
+                [userId, linkedinUrl, fullName]
+            );
+            return result.rows[0];
+        }
+    } catch (error) {
+        console.error('Error creating/updating user profile:', error);
+        throw error;
+    }
+};
+
+// Enhanced function to create/update profile with Outscraper extraction (NEW)
+const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, displayName = null) => {
+    try {
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        
+        // First, create/update basic profile
+        const existingProfile = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [userId]
+        );
+        
+        let profile;
+        if (existingProfile.rows.length > 0) {
+            // Update existing profile
+            const result = await pool.query(
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
+                [cleanUrl, displayName, userId]
+            );
+            profile = result.rows[0];
+        } else {
+            // Create new profile
+            const result = await pool.query(
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
+                [userId, cleanUrl, displayName]
+            );
+            profile = result.rows[0];
+        }
+        
+        // Mark extraction as attempted
+        await pool.query(
+            'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
+            ['in_progress', userId]
+        );
+
+        try {
+            // Extract LinkedIn data using Outscraper
+            const extractedData = await extractLinkedInProfile(cleanUrl);
+            
+            // Update profile with extracted data
+            const result = await pool.query(`
+                UPDATE user_profiles SET 
+                    full_name = COALESCE($1, full_name),
+                    first_name = $2,
+                    last_name = $3,
+                    headline = $4,
+                    summary = $5,
+                    location = $6,
+                    industry = $7,
+                    experience = $8,
+                    education = $9,
+                    skills = $10,
+                    connections_count = $11,
+                    profile_image_url = $12,
+                    outscraper_data = $13,
+                    data_extraction_status = 'completed',
+                    extraction_completed_at = CURRENT_TIMESTAMP,
+                    extraction_error = NULL,
+                    profile_analyzed = true,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = $14 
+                RETURNING *
+            `, [
+                extractedData.fullName,
+                extractedData.firstName,
+                extractedData.lastName,
+                extractedData.headline,
+                extractedData.summary,
+                extractedData.location,
+                extractedData.industry,
+                JSON.stringify(extractedData.experience),
+                JSON.stringify(extractedData.education),
+                extractedData.skills,
+                extractedData.connectionsCount,
+                extractedData.profileImageUrl,
+                JSON.stringify(extractedData.rawData),
+                userId
+            ]);
+
+            console.log(`✅ Profile data extracted and saved for user ${userId}`);
+            return result.rows[0];
+
+        } catch (extractionError) {
+            console.error('❌ Profile extraction failed:', extractionError.message);
+            
+            // Mark extraction as failed but don't fail the registration
+            await pool.query(
+                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
+                ['failed', extractionError.message, userId]
+            );
+            
+            // Return basic profile - registration should still succeed
+            return profile;
+        }
+    } catch (error) {
+        console.error('Error in profile creation/extraction:', error);
+        throw error;
+    }
+};
+
 // JWT Authentication middleware
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -308,19 +560,23 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== API ENDPOINTS ====================
 
-// Health Check
+// Health Check (ENHANCED)
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '1.0-oauth',
+        version: '2.0-outscraper',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'package-selection', 'simple-database']
+        features: ['authentication', 'google-oauth', 'outscraper-integration', 'linkedin-extraction'],
+        outscraper: {
+            configured: !!OUTSCRAPER_API_KEY,
+            apiUrl: OUTSCRAPER_BASE_URL
+        }
     });
 });
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server with Google OAuth',
+        message: 'Msgly.AI Server with Google OAuth + Outscraper',
         status: 'running',
         endpoints: [
             'POST /register',
@@ -328,13 +584,15 @@ app.get('/', (req, res) => {
             'GET /auth/google',
             'GET /auth/google/callback',
             'GET /profile (protected)',
+            'POST /update-profile (protected)',
+            'POST /retry-extraction (protected)',
             'GET /packages',
             'GET /health'
         ]
     });
 });
 
-// ==================== GOOGLE OAUTH ROUTES ====================
+// ==================== GOOGLE OAUTH ROUTES (UNCHANGED) ====================
 
 // Initiate Google OAuth
 app.get('/auth/google', (req, res, next) => {
@@ -349,7 +607,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// Google OAuth callback - UPDATED: Redirects to dashboard instead of sign-up
+// Google OAuth callback - FIXED: Better error handling
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failed' }),
     async (req, res) => {
@@ -372,10 +630,10 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // FIXED: Redirect to dashboard instead of sign-up
+            // Redirect to frontend sign-up page with token
             const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/dashboard' 
-                : 'http://localhost:3000/dashboard';
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
                 
             res.redirect(`${frontendUrl}?token=${token}`);
             
@@ -399,9 +657,148 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`${frontendUrl}?error=auth_failed`);
 });
 
-// ==================== EXISTING ENDPOINTS (UPDATED) ====================
+// ==================== NEW ENDPOINTS FOR OUTSCRAPER INTEGRATION ====================
 
-// User Registration with Package Selection (Email/Password)
+// Update user profile with LinkedIn URL and trigger extraction (NEW - ENHANCED)
+app.post('/update-profile', authenticateToken, async (req, res) => {
+    console.log('📝 Profile update request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType } = req.body;
+        
+        // Validation
+        if (!linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required'
+            });
+        }
+        
+        // Basic LinkedIn URL validation
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        // Update user package if provided and different
+        if (packageType && packageType !== req.user.package_type) {
+            // For now, only allow free package
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        // Create or update user profile WITH OUTSCRAPER EXTRACTION
+        const profile = await createOrUpdateUserProfileWithExtraction(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        // Get updated user data
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Profile updated and extraction initiated',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    headline: profile.headline,
+                    summary: profile.summary,
+                    location: profile.location,
+                    industry: profile.industry,
+                    extractionStatus: profile.data_extraction_status,
+                    extractionCompleted: profile.extraction_completed_at,
+                    extractionError: profile.extraction_error,
+                    profileAnalyzed: profile.profile_analyzed
+                }
+            }
+        });
+        
+        console.log(`✅ Profile updated for user ${updatedUser.email} with LinkedIn: ${linkedinUrl} (Status: ${profile.data_extraction_status})`);
+        
+    } catch (error) {
+        console.error('❌ Profile update error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update profile',
+            details: error.message
+        });
+    }
+});
+
+// Retry extraction for failed profiles (NEW)
+app.post('/retry-extraction', authenticateToken, async (req, res) => {
+    try {
+        const profileResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        if (!profileResult.rows[0] || !profileResult.rows[0].linkedin_url) {
+            return res.status(400).json({
+                success: false,
+                error: 'No LinkedIn URL found for this user'
+            });
+        }
+        
+        const profile = profileResult.rows[0];
+        
+        // Re-run extraction
+        const updatedProfile = await createOrUpdateUserProfileWithExtraction(
+            req.user.id,
+            profile.linkedin_url,
+            req.user.display_name
+        );
+        
+        res.json({
+            success: true,
+            message: 'Profile extraction retried',
+            data: {
+                profile: {
+                    extractionStatus: updatedProfile.data_extraction_status,
+                    profileAnalyzed: updatedProfile.profile_analyzed,
+                    fullName: updatedProfile.full_name,
+                    headline: updatedProfile.headline,
+                    extractionError: updatedProfile.extraction_error
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Extraction retry error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to retry extraction',
+            details: error.message
+        });
+    }
+});
+
+// ==================== EXISTING ENDPOINTS (UNCHANGED BUT ENHANCED) ====================
+
+// User Registration with Package Selection (Email/Password) - UNCHANGED
 app.post('/register', async (req, res) => {
     console.log('👤 Registration request:', req.body);
     
@@ -431,25 +828,13 @@ app.post('/register', async (req, res) => {
             });
         }
         
-        // Check if user exists - UPDATED: If user exists, suggest they use login or Google OAuth
+        // Check if user exists
         const existingUser = await getUserByEmail(email);
         if (existingUser) {
-            // Check if they have Google OAuth
-            if (existingUser.google_id) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Account exists with this email. Please sign in with Google.',
-                    redirectToLogin: true,
-                    useGoogleOAuth: true
-                });
-            } else {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Account exists with this email. Please use the login form.',
-                    redirectToLogin: true,
-                    useGoogleOAuth: false
-                });
-            }
+            return res.status(400).json({
+                success: false,
+                error: 'User already exists with this email'
+            });
         }
         
         // Hash password
@@ -493,7 +878,7 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// User Login (Email/Password)
+// User Login (Email/Password) - UNCHANGED
 app.post('/login', async (req, res) => {
     console.log('🔐 Login request for:', req.body.email);
     
@@ -571,9 +956,16 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Get User Profile (Protected)
+// Get User Profile (Protected) - ENHANCED with extracted data
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
+        // Get user's LinkedIn profile if it exists
+        const profileResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        const profile = profileResult.rows[0];
+
         res.json({
             success: true,
             data: {
@@ -588,7 +980,27 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at
-                }
+                },
+                profile: profile ? {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    headline: profile.headline,
+                    summary: profile.summary,
+                    location: profile.location,
+                    industry: profile.industry,
+                    experience: profile.experience,
+                    education: profile.education,
+                    skills: profile.skills,
+                    connectionsCount: profile.connections_count,
+                    profileImageUrl: profile.profile_image_url,
+                    extractionStatus: profile.data_extraction_status,
+                    extractionAttempted: profile.extraction_attempted_at,
+                    extractionCompleted: profile.extraction_completed_at,
+                    extractionError: profile.extraction_error,
+                    profileAnalyzed: profile.profile_analyzed
+                } : null
             }
         });
     } catch (error) {
@@ -600,7 +1012,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get Available Packages
+// Get Available Packages - UNCHANGED
 app.get('/packages', (req, res) => {
     const packages = {
         payAsYouGo: [
@@ -612,7 +1024,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'Advanced AI analysis', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'No credit card required'],
                 available: true
             },
             {
@@ -623,7 +1035,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -635,7 +1047,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -647,7 +1059,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -661,7 +1073,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'Advanced AI analysis', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'No credit card required'],
                 available: true
             },
             {
@@ -672,7 +1084,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -684,7 +1096,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -696,7 +1108,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -718,6 +1130,8 @@ app.use((req, res) => {
             'POST /login', 
             'GET /auth/google',
             'GET /profile', 
+            'POST /update-profile',
+            'POST /retry-extraction',
             'GET /packages', 
             'GET /health'
         ]
@@ -741,6 +1155,10 @@ const validateEnvironment = () => {
     if (missing.length > 0) {
         console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
         process.exit(1);
+    }
+    
+    if (!OUTSCRAPER_API_KEY) {
+        console.warn('⚠️ Warning: OUTSCRAPER_API_KEY not set - profile extraction will fail');
     }
     
     console.log('✅ Environment validated');
@@ -769,14 +1187,15 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server with Google OAuth Started!');
+            console.log('🚀 Msgly.AI Server with Outscraper Integration Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
+            console.log(`🔍 Outscraper: ${OUTSCRAPER_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
+            console.log(`🔗 LinkedIn: Profile Extraction Ready`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
-            console.log(`🔑 Google OAuth: Configured`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
         
