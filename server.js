@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth + ScrapingDog Integration (FIXED)
+// Msgly.AI Server with Google OAuth + ScrapingDog Integration (AUTOMATIC BACKGROUND PROCESSING)
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -20,9 +20,12 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// ScrapingDog API configuration (CHANGED FROM OUTSCRAPER)
+// ScrapingDog API configuration
 const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY;
 const SCRAPINGDOG_BASE_URL = 'https://api.scrapingdog.com/linkedin';
+
+// Background processing tracking
+const processingQueue = new Map(); // Track background jobs
 
 // CORS for Chrome Extensions
 const corsOptions = {
@@ -133,7 +136,7 @@ const initDB = async () => {
     try {
         console.log('🗃️ Creating database tables...');
 
-        // Updated users table with Google OAuth fields - FIXED: password_hash is now nullable
+        // Updated users table with Google OAuth fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -151,7 +154,7 @@ const initDB = async () => {
             );
         `);
 
-        // Enhanced user profiles table with ScrapingDog fields (CHANGED FROM OUTSCRAPER)
+        // Enhanced user profiles table with ScrapingDog fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -168,12 +171,20 @@ const initDB = async () => {
                 education JSONB,
                 skills TEXT[],
                 connections_count INTEGER,
+                followers_count INTEGER,
                 profile_image_url VARCHAR(500),
+                background_image_url VARCHAR(500),
+                public_identifier VARCHAR(255),
+                certifications JSONB,
+                volunteering JSONB,
+                languages JSONB,
+                articles JSONB,
                 scrapingdog_data JSONB,
                 data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 extraction_attempted_at TIMESTAMP,
                 extraction_completed_at TIMESTAMP,
                 extraction_error TEXT,
+                extraction_retry_count INTEGER DEFAULT 0,
                 profile_analyzed BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -206,7 +217,7 @@ const initDB = async () => {
             );
         `);
 
-        // Add Google OAuth columns to existing users table
+        // Add missing columns if they don't exist
         try {
             await pool.query(`
                 ALTER TABLE users 
@@ -214,23 +225,11 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500);
             `);
-            console.log('✅ Added Google OAuth columns to users table');
-        } catch (err) {
-            console.log('Google OAuth columns might already exist:', err.message);
-        }
-
-        // CRITICAL FIX: Make password_hash nullable for Google OAuth users
-        try {
+            
             await pool.query(`
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
-            console.log('✅ Made password_hash nullable for Google OAuth users');
-        } catch (err) {
-            console.log('Password hash might already be nullable:', err.message);
-        }
-
-        // Add ScrapingDog columns to existing user_profiles table (ENHANCED WITH FULL PROFILE FIELDS)
-        try {
+            
             await pool.query(`
                 ALTER TABLE user_profiles 
                 ADD COLUMN IF NOT EXISTS headline VARCHAR(500),
@@ -253,11 +252,13 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
-                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
+                ADD COLUMN IF NOT EXISTS extraction_error TEXT,
+                ADD COLUMN IF NOT EXISTS extraction_retry_count INTEGER DEFAULT 0;
             `);
-            console.log('✅ Added ScrapingDog columns to user_profiles table');
+
+            console.log('✅ Database columns updated successfully');
         } catch (err) {
-            console.log('ScrapingDog columns might already exist:', err.message);
+            console.log('Some columns might already exist:', err.message);
         }
 
         // Create indexes
@@ -265,6 +266,7 @@ const initDB = async () => {
             await pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_retry_count ON user_profiles(extraction_retry_count);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -278,11 +280,43 @@ const initDB = async () => {
     }
 };
 
-// ==================== SCRAPINGDOG FUNCTIONS (FIXED) ====================
+// ==================== AUTOMATIC BACKGROUND PROCESSING FUNCTIONS ====================
 
-const extractLinkedInProfile = async (linkedinUrl) => {
+// Enhanced number parsing for LinkedIn connection/follower counts
+const parseLinkedInNumber = (str) => {
+    if (!str) return null;
+    if (typeof str === 'number') return str;
+    
     try {
-        console.log(`🔍 Extracting LinkedIn profile: ${linkedinUrl}`);
+        const cleanStr = str.toString().toLowerCase().trim();
+        
+        // Handle "M" (millions) and "K" (thousands)
+        if (cleanStr.includes('m')) {
+            const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
+            return num ? Math.round(num * 1000000) : null;
+        }
+        if (cleanStr.includes('k')) {
+            const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
+            return num ? Math.round(num * 1000) : null;
+        }
+        
+        // Handle regular numbers with commas and plus signs
+        const numbers = cleanStr.match(/[\d,]+/);
+        if (numbers) {
+            const cleanNumber = numbers[0].replace(/,/g, '');
+            return parseInt(cleanNumber, 10) || null;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error parsing LinkedIn number:', str, error);
+        return null;
+    }
+};
+
+// Extract LinkedIn profile with comprehensive data
+const extractLinkedInProfile = async (linkedinUrl, retryAttempt = 0) => {
+    try {
+        console.log(`🔍 Extracting LinkedIn profile: ${linkedinUrl} (Attempt ${retryAttempt + 1})`);
         
         if (!SCRAPINGDOG_API_KEY) {
             throw new Error('ScrapingDog API key not configured');
@@ -300,113 +334,54 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         const username = match[1];
         console.log(`👤 Extracted username: ${username}`);
         
-        // First attempt - normal request
-        console.log('🔄 Attempting normal extraction...');
-        let response = await axios.get(SCRAPINGDOG_BASE_URL, {
+        // Always use private=true for complete data extraction
+        const response = await axios.get(SCRAPINGDOG_BASE_URL, {
             params: {
                 api_key: SCRAPINGDOG_API_KEY,
                 type: 'profile',
-                linkId: username
+                linkId: username,
+                private: 'true'  // Essential for complete data
             },
-            timeout: 45000
+            timeout: 60000
         });
 
-        // Handle 202 status (processing) - wait and retry
+        console.log(`📊 ScrapingDog response status: ${response.status}`);
+
+        // Handle 202 status (processing) - return special status for background processing
         if (response.status === 202) {
-            console.log('⏳ Profile is being processed by ScrapingDog, waiting 3 minutes...');
-            await new Promise(resolve => setTimeout(resolve, 180000)); // 3 minutes
-            
-            response = await axios.get(SCRAPINGDOG_BASE_URL, {
-                params: {
-                    api_key: SCRAPINGDOG_API_KEY,
-                    type: 'profile',
-                    linkId: username
-                },
-                timeout: 45000
-            });
+            console.log('⏳ Profile is being processed by ScrapingDog...');
+            return { 
+                status: 'processing', 
+                message: 'LinkedIn profile is being processed, will retry automatically',
+                retryAfter: 180 // 3 minutes
+            };
         }
 
-        // If still failing, try with private parameter
-        if (response.status !== 200 || !response.data) {
-            console.log('🔄 Attempting with private parameter...');
-            response = await axios.get(SCRAPINGDOG_BASE_URL, {
-                params: {
-                    api_key: SCRAPINGDOG_API_KEY,
-                    type: 'profile',
-                    linkId: username,
-                    private: 'true'
-                },
-                timeout: 45000
-            });
-
-            // Handle 202 with private parameter
-            if (response.status === 202) {
-                console.log('⏳ Private extraction is being processed, waiting 3 minutes...');
-                await new Promise(resolve => setTimeout(resolve, 180000)); // 3 minutes
-                
-                response = await axios.get(SCRAPINGDOG_BASE_URL, {
-                    params: {
-                        api_key: SCRAPINGDOG_API_KEY,
-                        type: 'profile',
-                        linkId: username,
-                        private: 'true'
-                    },
-                    timeout: 45000
-                });
-            }
-        }
-
-        if (response.data && response.status === 200) {
+        if (response.status === 200 && response.data) {
             // Handle both array and object responses
             let profile = response.data;
             if (Array.isArray(profile) && profile.length > 0) {
                 profile = profile[0];
             }
-            
-            // Helper function to parse numeric values from LinkedIn strings
-            const parseLinkedInNumber = (str) => {
-                if (!str) return null;
-                if (typeof str === 'number') return str;
-                
-                // Handle strings like "3 connections", "20M followers", "500+ connections", "1,000+ followers"
-                const cleanStr = str.toString().toLowerCase();
-                
-                // Handle "M" (millions) and "K" (thousands)
-                if (cleanStr.includes('m')) {
-                    const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
-                    return num ? Math.round(num * 1000000) : null;
-                }
-                if (cleanStr.includes('k')) {
-                    const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
-                    return num ? Math.round(num * 1000) : null;
-                }
-                
-                // Handle regular numbers with commas and plus signs
-                const numbers = cleanStr.match(/[\d,]+/);
-                if (numbers) {
-                    const cleanNumber = numbers[0].replace(/,/g, '');
-                    return parseInt(cleanNumber, 10) || null;
-                }
-                return null;
-            };
 
-            // Helper function to extract and clean experience data
+            console.log('📋 Raw profile data received:', Object.keys(profile));
+
+            // Helper functions to extract and clean data
             const extractExperience = (experienceArray) => {
                 if (!Array.isArray(experienceArray)) return [];
                 return experienceArray.map(exp => ({
-                    position: exp.position || exp.title || null,
-                    company: exp.company_name || exp.company || null,
-                    companyUrl: exp.company_url || null,
+                    position: exp.position || exp.title || exp.job_title || null,
+                    company: exp.company_name || exp.company || exp.company_name || null,
+                    companyUrl: exp.company_url || exp.company_linkedin_profile_url || null,
                     location: exp.location || null,
                     summary: exp.summary || exp.description || null,
                     startDate: exp.starts_at || exp.start_date || null,
                     endDate: exp.ends_at || exp.end_date || null,
                     duration: exp.duration || null,
-                    current: (exp.ends_at || exp.end_date || '').toLowerCase().includes('present')
+                    current: !exp.ends_at || (exp.ends_at || '').toLowerCase().includes('present')
                 }));
             };
 
-            // Helper function to extract and clean education data  
             const extractEducation = (educationArray) => {
                 if (!Array.isArray(educationArray)) return [];
                 return educationArray.map(edu => ({
@@ -419,16 +394,14 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 }));
             };
 
-            // Helper function to extract and clean skills data
             const extractSkills = (skillsArray) => {
                 if (!Array.isArray(skillsArray)) return [];
                 return skillsArray.map(skill => {
                     if (typeof skill === 'string') return skill;
-                    return skill.name || skill.skillName || skill.skill || skill;
+                    return skill.name || skill.skillName || skill.skill || String(skill);
                 }).filter(Boolean);
             };
 
-            // Helper function to extract certifications
             const extractCertifications = (certArray) => {
                 if (!Array.isArray(certArray)) return [];
                 return certArray.map(cert => ({
@@ -441,7 +414,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 }));
             };
 
-            // Extract and structure the data (using ScrapingDog's actual field names)
+            // Extract comprehensive profile data
             const extractedData = {
                 fullName: profile.fullName || profile.name || profile.full_name || null,
                 firstName: profile.first_name || (profile.fullName ? profile.fullName.split(' ')[0] : null),
@@ -450,15 +423,15 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 summary: profile.summary || profile.about || null,
                 location: profile.location || profile.address || null,
                 industry: profile.industry || null,
-                connectionsCount: parseLinkedInNumber(profile.connections),
-                followersCount: parseLinkedInNumber(profile.followers),
+                connectionsCount: parseLinkedInNumber(profile.connections || profile.connections_count),
+                followersCount: parseLinkedInNumber(profile.followers || profile.followers_count),
                 profileImageUrl: profile.profile_photo || profile.profile_image || profile.avatar || null,
                 backgroundImageUrl: profile.background_cover_image_url || profile.background_image || null,
                 publicIdentifier: profile.public_identifier || null,
-                experience: extractExperience(profile.experience),
-                education: extractEducation(profile.education),
-                skills: extractSkills(profile.skills),
-                certifications: extractCertifications(profile.certification || profile.certifications),
+                experience: extractExperience(profile.experience || []),
+                education: extractEducation(profile.education || []),
+                skills: extractSkills(profile.skills || []),
+                certifications: extractCertifications(profile.certification || profile.certifications || []),
                 volunteering: profile.volunteering || profile.volunteer || [],
                 languages: profile.languages || [],
                 articles: profile.articles || [],
@@ -466,7 +439,14 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             };
 
             console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
-            return extractedData;
+            console.log(`📊 Experience entries: ${extractedData.experience.length}`);
+            console.log(`🎓 Education entries: ${extractedData.education.length}`);
+            console.log(`🛠️ Skills count: ${extractedData.skills.length}`);
+            
+            return {
+                status: 'completed',
+                data: extractedData
+            };
         } else {
             throw new Error(`ScrapingDog returned status ${response.status}: ${response.statusText}`);
         }
@@ -480,10 +460,123 @@ const extractLinkedInProfile = async (linkedinUrl) => {
     }
 };
 
+// AUTOMATIC BACKGROUND PROCESSING - The key function!
+const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
+    const maxRetries = 5; // Maximum number of automatic retries
+    const retryDelay = 180000; // 3 minutes in milliseconds
+    
+    console.log(`🔄 Scheduling background extraction for user ${userId}, retry ${retryCount}`);
+    
+    // Check if we've exceeded max retries
+    if (retryCount >= maxRetries) {
+        console.log(`❌ Max retries (${maxRetries}) reached for user ${userId}`);
+        await pool.query(
+            'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
+            ['failed', `Max retries (${maxRetries}) exceeded`, userId]
+        );
+        return;
+    }
+
+    // Schedule the extraction after a delay
+    setTimeout(async () => {
+        try {
+            console.log(`🚀 Starting background extraction for user ${userId} (Retry ${retryCount})`);
+            
+            // Update retry count in database
+            await pool.query(
+                'UPDATE user_profiles SET extraction_retry_count = $1, extraction_attempted_at = CURRENT_TIMESTAMP WHERE user_id = $2',
+                [retryCount, userId]
+            );
+
+            const result = await extractLinkedInProfile(linkedinUrl, retryCount);
+            
+            if (result.status === 'processing') {
+                // Still processing, schedule another retry
+                console.log(`⏳ Still processing for user ${userId}, scheduling retry ${retryCount + 1}`);
+                await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
+            } else if (result.status === 'completed') {
+                // Success! Update database with complete data
+                console.log(`✅ Background extraction completed for user ${userId}`);
+                
+                const extractedData = result.data;
+                await pool.query(`
+                    UPDATE user_profiles SET 
+                        full_name = COALESCE($1, full_name),
+                        first_name = $2,
+                        last_name = $3,
+                        headline = $4,
+                        summary = $5,
+                        location = $6,
+                        industry = $7,
+                        experience = $8,
+                        education = $9,
+                        skills = $10,
+                        connections_count = $11,
+                        followers_count = $12,
+                        profile_image_url = $13,
+                        background_image_url = $14,
+                        public_identifier = $15,
+                        certifications = $16,
+                        volunteering = $17,
+                        languages = $18,
+                        articles = $19,
+                        scrapingdog_data = $20,
+                        data_extraction_status = 'completed',
+                        extraction_completed_at = CURRENT_TIMESTAMP,
+                        extraction_error = NULL,
+                        profile_analyzed = true,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $21 
+                `, [
+                    extractedData.fullName,
+                    extractedData.firstName,
+                    extractedData.lastName,
+                    extractedData.headline,
+                    extractedData.summary,
+                    extractedData.location,
+                    extractedData.industry,
+                    JSON.stringify(extractedData.experience),
+                    JSON.stringify(extractedData.education),
+                    extractedData.skills,
+                    extractedData.connectionsCount,
+                    extractedData.followersCount,
+                    extractedData.profileImageUrl,
+                    extractedData.backgroundImageUrl,
+                    extractedData.publicIdentifier,
+                    JSON.stringify(extractedData.certifications),
+                    JSON.stringify(extractedData.volunteering),
+                    JSON.stringify(extractedData.languages),
+                    JSON.stringify(extractedData.articles),
+                    JSON.stringify(extractedData.rawData),
+                    userId
+                ]);
+
+                console.log(`🎉 Profile data fully extracted and saved for user ${userId}`);
+                
+                // Remove from processing queue
+                processingQueue.delete(userId);
+            }
+        } catch (error) {
+            console.error(`❌ Background extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
+            
+            // If this is not the last retry, schedule another one
+            if (retryCount < maxRetries - 1) {
+                await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
+            } else {
+                // Max retries reached, mark as failed
+                await pool.query(
+                    'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
+                    ['failed', error.message, userId]
+                );
+                processingQueue.delete(userId);
+            }
+        }
+    }, retryCount === 0 ? 10000 : retryDelay); // First retry after 10 seconds, then 3 minutes
+};
+
 // Clean and validate LinkedIn URL
 const cleanLinkedInUrl = (url) => {
     try {
-        // Remove trailing slashes, query parameters, etc.
         let cleanUrl = url.trim();
         if (cleanUrl.includes('?')) {
             cleanUrl = cleanUrl.split('?')[0];
@@ -497,7 +590,7 @@ const cleanLinkedInUrl = (url) => {
     }
 };
 
-// ==================== EXISTING DATABASE FUNCTIONS (UNCHANGED) ====================
+// ==================== DATABASE FUNCTIONS ====================
 
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
@@ -516,7 +609,6 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     return result.rows[0];
 };
 
-// New function for Google users - FIXED: No password_hash required
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
         'free': 30,
@@ -535,7 +627,6 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     return result.rows[0];
 };
 
-// Link existing account with Google
 const linkGoogleAccount = async (userId, googleId) => {
     const result = await pool.query(
         'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
@@ -562,42 +653,12 @@ const updateUserCredits = async (userId, newCredits) => {
     return result.rows[0];
 };
 
-// ==================== NEW FUNCTIONS FOR LINKEDIN URL WITH EXTRACTION ====================
-
-// Create or update user profile with LinkedIn URL (EXISTING - kept same)
-const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) => {
-    try {
-        // Check if profile exists
-        const existingProfile = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-        
-        if (existingProfile.rows.length > 0) {
-            // Update existing profile
-            const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
-                [linkedinUrl, fullName, userId]
-            );
-            return result.rows[0];
-        } else {
-            // Create new profile
-            const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
-                [userId, linkedinUrl, fullName]
-            );
-            return result.rows[0];
-        }
-    } catch (error) {
-        console.error('Error creating/updating user profile:', error);
-        throw error;
-    }
-};
-
-// Enhanced function to create/update profile with ScrapingDog extraction (UPDATED)
-const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, displayName = null) => {
+// Create or update user profile with AUTOMATIC background extraction
+const createOrUpdateUserProfileWithAutoExtraction = async (userId, linkedinUrl, displayName = null) => {
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        
+        console.log(`🚀 Creating profile with automatic extraction for user ${userId}`);
         
         // First, create/update basic profile
         const existingProfile = await pool.query(
@@ -609,98 +670,29 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
         if (existingProfile.rows.length > 0) {
             // Update existing profile
             const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
-                [cleanUrl, displayName, userId]
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
+                [cleanUrl, displayName, 'processing', userId]
             );
             profile = result.rows[0];
         } else {
             // Create new profile
             const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
-                [userId, cleanUrl, displayName]
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+                [userId, cleanUrl, displayName, 'processing', 0]
             );
             profile = result.rows[0];
         }
         
-        // Mark extraction as attempted
-        await pool.query(
-            'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
-            ['in_progress', userId]
-        );
-
-        try {
-            // Extract LinkedIn data using ScrapingDog
-            const extractedData = await extractLinkedInProfile(cleanUrl);
-            
-            // Update profile with extracted data (COMPLETE PROFILE DATA STORAGE)
-            const result = await pool.query(`
-                UPDATE user_profiles SET 
-                    full_name = COALESCE($1, full_name),
-                    first_name = $2,
-                    last_name = $3,
-                    headline = $4,
-                    summary = $5,
-                    location = $6,
-                    industry = $7,
-                    experience = $8,
-                    education = $9,
-                    skills = $10,
-                    connections_count = $11,
-                    followers_count = $12,
-                    profile_image_url = $13,
-                    background_image_url = $14,
-                    public_identifier = $15,
-                    certifications = $16,
-                    volunteering = $17,
-                    languages = $18,
-                    articles = $19,
-                    scrapingdog_data = $20,
-                    data_extraction_status = 'completed',
-                    extraction_completed_at = CURRENT_TIMESTAMP,
-                    extraction_error = NULL,
-                    profile_analyzed = true,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $21 
-                RETURNING *
-            `, [
-                extractedData.fullName,
-                extractedData.firstName,
-                extractedData.lastName,
-                extractedData.headline,
-                extractedData.summary,
-                extractedData.location,
-                extractedData.industry,
-                JSON.stringify(extractedData.experience),
-                JSON.stringify(extractedData.education),
-                extractedData.skills,
-                extractedData.connectionsCount,
-                extractedData.followersCount,
-                extractedData.profileImageUrl,
-                extractedData.backgroundImageUrl,
-                extractedData.publicIdentifier,
-                JSON.stringify(extractedData.certifications),
-                JSON.stringify(extractedData.volunteering),
-                JSON.stringify(extractedData.languages),
-                JSON.stringify(extractedData.articles),
-                JSON.stringify(extractedData.rawData),
-                userId
-            ]);
-
-            console.log(`✅ Profile data extracted and saved for user ${userId}`);
-            return result.rows[0];
-
-        } catch (extractionError) {
-            console.error('❌ Profile extraction failed:', extractionError.message);
-            
-            // Mark extraction as failed but don't fail the registration
-            await pool.query(
-                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
-                ['failed', extractionError.message, userId]
-            );
-            
-            // Return basic profile - registration should still succeed
-            return profile;
-        }
+        // Start AUTOMATIC background extraction process
+        console.log(`🔄 Starting automatic background extraction for user ${userId}`);
+        processingQueue.set(userId, { status: 'processing', startTime: Date.now() });
+        
+        // Schedule the first extraction attempt (immediate)
+        scheduleBackgroundExtraction(userId, cleanUrl, 0);
+        
+        console.log(`✅ Profile created and automatic background extraction started for user ${userId}`);
+        return profile;
+        
     } catch (error) {
         console.error('Error in profile creation/extraction:', error);
         throw error;
@@ -733,25 +725,33 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== API ENDPOINTS ====================
 
-// Health Check (UPDATED FOR SCRAPINGDOG)
+// Health Check
 app.get('/health', (req, res) => {
+    const processingCount = processingQueue.size;
     res.status(200).json({
         status: 'healthy',
-        version: '4.0-scrapingdog-fixed',
+        version: '5.0-automatic-background-processing',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'scrapingdog-integration', 'linkedin-extraction'],
+        features: ['authentication', 'google-oauth', 'scrapingdog-integration', 'automatic-background-extraction'],
         scrapingdog: {
             configured: !!SCRAPINGDOG_API_KEY,
             apiUrl: SCRAPINGDOG_BASE_URL,
             status: 'active'
+        },
+        backgroundProcessing: {
+            enabled: true,
+            currentlyProcessing: processingCount,
+            processingUsers: Array.from(processingQueue.keys())
         }
     });
 });
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server with Google OAuth + ScrapingDog',
+        message: 'Msgly.AI Server with Automatic Background LinkedIn Processing',
         status: 'running',
+        version: '5.0-automatic',
+        backgroundProcessing: 'enabled',
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -759,18 +759,16 @@ app.get('/', (req, res) => {
             'GET /auth/google/callback',
             'GET /profile (protected)',
             'POST /update-profile (protected)',
-            'POST /retry-extraction (protected)',
             'GET /packages',
             'GET /health'
         ]
     });
 });
 
-// ==================== GOOGLE OAUTH ROUTES (UNCHANGED) ====================
+// ==================== GOOGLE OAUTH ROUTES ====================
 
 // Initiate Google OAuth
 app.get('/auth/google', (req, res, next) => {
-    // Store package selection in session if provided
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
         req.session.billingModel = req.query.billing || 'monthly';
@@ -781,30 +779,24 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// Google OAuth callback - FIXED: Better error handling
+// Google OAuth callback
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failed' }),
     async (req, res) => {
         try {
-            // Generate JWT for the authenticated user
             const token = jwt.sign(
                 { userId: req.user.id, email: req.user.email },
                 process.env.JWT_SECRET || 'msgly-simple-secret-2024',
                 { expiresIn: '30d' }
             );
             
-            // If package was selected, update user
             if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
-                // For now, only allow free package
-                // Premium packages will be enabled after Chargebee integration
                 console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
             }
             
-            // Clear session
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Redirect to frontend sign-up page with token
             const frontendUrl = process.env.NODE_ENV === 'production' 
                 ? 'https://msgly.ai/sign-up' 
                 : 'http://localhost:3000/sign-up';
@@ -831,148 +823,9 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`${frontendUrl}?error=auth_failed`);
 });
 
-// ==================== NEW ENDPOINTS FOR SCRAPINGDOG INTEGRATION ====================
+// ==================== MAIN ENDPOINTS ====================
 
-// Update user profile with LinkedIn URL and trigger extraction (NEW - ENHANCED)
-app.post('/update-profile', authenticateToken, async (req, res) => {
-    console.log('📝 Profile update request for user:', req.user.id);
-    
-    try {
-        const { linkedinUrl, packageType } = req.body;
-        
-        // Validation
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        // Basic LinkedIn URL validation
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
-            });
-        }
-        
-        // Update user package if provided and different
-        if (packageType && packageType !== req.user.package_type) {
-            // For now, only allow free package
-            if (packageType !== 'free') {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Only free package is available during beta'
-                });
-            }
-            
-            await pool.query(
-                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-                [packageType, req.user.id]
-            );
-        }
-        
-        // Create or update user profile WITH SCRAPINGDOG EXTRACTION
-        const profile = await createOrUpdateUserProfileWithExtraction(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        // Get updated user data
-        const updatedUser = await getUserById(req.user.id);
-        
-        res.json({
-            success: true,
-            message: 'Profile updated and extraction initiated',
-            data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
-                },
-                profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    firstName: profile.first_name,
-                    lastName: profile.last_name,
-                    headline: profile.headline,
-                    summary: profile.summary,
-                    location: profile.location,
-                    industry: profile.industry,
-                    extractionStatus: profile.data_extraction_status,
-                    extractionCompleted: profile.extraction_completed_at,
-                    extractionError: profile.extraction_error,
-                    profileAnalyzed: profile.profile_analyzed
-                }
-            }
-        });
-        
-        console.log(`✅ Profile updated for user ${updatedUser.email} with LinkedIn: ${linkedinUrl} (Status: ${profile.data_extraction_status})`);
-        
-    } catch (error) {
-        console.error('❌ Profile update error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to update profile',
-            details: error.message
-        });
-    }
-});
-
-// Retry extraction for failed profiles (NEW)
-app.post('/retry-extraction', authenticateToken, async (req, res) => {
-    try {
-        const profileResult = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [req.user.id]
-        );
-        
-        if (!profileResult.rows[0] || !profileResult.rows[0].linkedin_url) {
-            return res.status(400).json({
-                success: false,
-                error: 'No LinkedIn URL found for this user'
-            });
-        }
-        
-        const profile = profileResult.rows[0];
-        
-        // Re-run extraction
-        const updatedProfile = await createOrUpdateUserProfileWithExtraction(
-            req.user.id,
-            profile.linkedin_url,
-            req.user.display_name
-        );
-        
-        res.json({
-            success: true,
-            message: 'Profile extraction retried',
-            data: {
-                profile: {
-                    extractionStatus: updatedProfile.data_extraction_status,
-                    profileAnalyzed: updatedProfile.profile_analyzed,
-                    fullName: updatedProfile.full_name,
-                    headline: updatedProfile.headline,
-                    extractionError: updatedProfile.extraction_error
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Extraction retry error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to retry extraction',
-            details: error.message
-        });
-    }
-});
-
-// ==================== EXISTING ENDPOINTS (UNCHANGED BUT ENHANCED) ====================
-
-// User Registration with Package Selection (Email/Password) - UNCHANGED
+// User Registration with AUTOMATIC LinkedIn Processing
 app.post('/register', async (req, res) => {
     console.log('👤 Registration request:', req.body);
     
@@ -1052,7 +905,7 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// User Login (Email/Password) - UNCHANGED
+// User Login
 app.post('/login', async (req, res) => {
     console.log('🔐 Login request for:', req.body.email);
     
@@ -1066,7 +919,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Get user
         const user = await getUserByEmail(email);
         if (!user) {
             return res.status(401).json({
@@ -1075,7 +927,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Check if user has password (might be Google-only account)
         if (!user.password_hash) {
             return res.status(401).json({
                 success: false,
@@ -1083,7 +934,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Check password
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
         if (!passwordMatch) {
             return res.status(401).json({
@@ -1092,7 +942,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Generate JWT
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             process.env.JWT_SECRET || 'msgly-simple-secret-2024',
@@ -1130,7 +979,93 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Get User Profile (Protected) - ENHANCED with extracted data (CHANGED COLUMN NAME)
+// Update user profile with LinkedIn URL - AUTOMATIC PROCESSING
+app.post('/update-profile', authenticateToken, async (req, res) => {
+    console.log('📝 Profile update request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType } = req.body;
+        
+        // Validation
+        if (!linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required'
+            });
+        }
+        
+        // Basic LinkedIn URL validation
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        // Update user package if provided and different
+        if (packageType && packageType !== req.user.package_type) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        // Create or update user profile with AUTOMATIC background extraction
+        const profile = await createOrUpdateUserProfileWithAutoExtraction(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        // Get updated user data
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Profile updated and automatic LinkedIn extraction started',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: profile.data_extraction_status,
+                    message: 'LinkedIn data extraction is happening automatically in the background'
+                },
+                automaticProcessing: {
+                    enabled: true,
+                    status: 'started',
+                    expectedCompletionTime: '2-3 minutes',
+                    message: 'No user action required - data will appear automatically'
+                }
+            }
+        });
+        
+        console.log(`✅ Profile updated for user ${updatedUser.email} with automatic extraction started`);
+        
+    } catch (error) {
+        console.error('❌ Profile update error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update profile',
+            details: error.message
+        });
+    }
+});
+
+// Get User Profile with extraction status
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
         // Get user's LinkedIn profile if it exists
@@ -1180,9 +1115,15 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     extractionAttempted: profile.extraction_attempted_at,
                     extractionCompleted: profile.extraction_completed_at,
                     extractionError: profile.extraction_error,
-                    profileAnalyzed: profile.profile_analyzed,
-                    rawLinkedInData: profile.scrapingdog_data
-                } : null
+                    extractionRetryCount: profile.extraction_retry_count,
+                    profileAnalyzed: profile.profile_analyzed
+                } : null,
+                automaticProcessing: {
+                    enabled: true,
+                    isCurrentlyProcessing: processingQueue.has(req.user.id),
+                    queuePosition: processingQueue.has(req.user.id) ? 
+                        Array.from(processingQueue.keys()).indexOf(req.user.id) + 1 : null
+                }
             }
         });
     } catch (error) {
@@ -1194,7 +1135,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get Available Packages - UNCHANGED
+// Get Available Packages
 app.get('/packages', (req, res) => {
     const packages = {
         payAsYouGo: [
@@ -1206,7 +1147,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'No credit card required'],
                 available: true
             },
             {
@@ -1217,7 +1158,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1229,7 +1170,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1241,7 +1182,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -1255,7 +1196,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'No credit card required'],
                 available: true
             },
             {
@@ -1266,7 +1207,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1278,7 +1219,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', '7-day free trial included'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1290,7 +1231,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', '7-day free trial included'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -1303,6 +1244,38 @@ app.get('/packages', (req, res) => {
     });
 });
 
+// Background processing status endpoint (optional - for debugging)
+app.get('/processing-status', authenticateToken, async (req, res) => {
+    try {
+        const profileResult = await pool.query(
+            'SELECT data_extraction_status, extraction_retry_count, extraction_attempted_at, extraction_completed_at, extraction_error FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        const profile = profileResult.rows[0];
+        
+        res.json({
+            success: true,
+            data: {
+                extractionStatus: profile?.data_extraction_status || 'no_profile',
+                retryCount: profile?.extraction_retry_count || 0,
+                lastAttempt: profile?.extraction_attempted_at,
+                completedAt: profile?.extraction_completed_at,
+                error: profile?.extraction_error,
+                isCurrentlyProcessing: processingQueue.has(req.user.id),
+                totalProcessingQueue: processingQueue.size,
+                processingStartTime: processingQueue.get(req.user.id)?.startTime
+            }
+        });
+    } catch (error) {
+        console.error('❌ Processing status error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get processing status'
+        });
+    }
+});
+
 // Simple error handling
 app.use((req, res) => {
     res.status(404).json({
@@ -1313,7 +1286,7 @@ app.use((req, res) => {
             'GET /auth/google',
             'GET /profile', 
             'POST /update-profile',
-            'POST /retry-extraction',
+            'GET /processing-status',
             'GET /packages', 
             'GET /health'
         ]
@@ -1369,16 +1342,19 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server with ScrapingDog Integration Started!');
+            console.log('🚀 Msgly.AI Server with AUTOMATIC Background Processing Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 ScrapingDog: ${SCRAPINGDOG_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`🤖 Background Processing: ENABLED ✅`);
+            console.log(`⚡ Automatic Extraction: ACTIVE ✅`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: Profile Extraction Ready`);
+            console.log(`🔗 LinkedIn: Automatic Complete Profile Extraction`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
+            console.log(`🎯 USER EXPERIENCE: Register → Use App → Data Appears Automatically!`);
         });
         
     } catch (error) {
@@ -1389,11 +1365,13 @@ const startServer = async () => {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
+    console.log('🛑 Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
+    console.log('🛑 Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
