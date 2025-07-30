@@ -356,33 +356,44 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 profile = profile[0];
             }
             
-            // Helper function to parse connection counts
-            const parseConnectionCount = (connectionStr) => {
-                if (!connectionStr) return null;
-                if (typeof connectionStr === 'number') return connectionStr;
+            // Helper function to parse numeric values from LinkedIn strings
+            const parseLinkedInNumber = (str) => {
+                if (!str) return null;
+                if (typeof str === 'number') return str;
                 
-                // Handle strings like "500+ connections", "1,000+ connections", etc.
-                const str = connectionStr.toString().toLowerCase();
-                const numbers = str.match(/[\d,]+/);
+                // Handle strings like "3 connections", "20M followers", "500+ connections", "1,000+ followers"
+                const cleanStr = str.toString().toLowerCase();
+                
+                // Handle "M" (millions) and "K" (thousands)
+                if (cleanStr.includes('m')) {
+                    const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
+                    return num ? Math.round(num * 1000000) : null;
+                }
+                if (cleanStr.includes('k')) {
+                    const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
+                    return num ? Math.round(num * 1000) : null;
+                }
+                
+                // Handle regular numbers with commas and plus signs
+                const numbers = cleanStr.match(/[\d,]+/);
                 if (numbers) {
-                    // Remove commas and convert to integer
                     const cleanNumber = numbers[0].replace(/,/g, '');
                     return parseInt(cleanNumber, 10) || null;
                 }
                 return null;
             };
 
-            // Extract and structure the data
+            // Extract and structure the data (using ScrapingDog's actual field names)
             const extractedData = {
-                fullName: profile.name || profile.full_name || null,
-                firstName: profile.first_name || (profile.name ? profile.name.split(' ')[0] : null),
-                lastName: profile.last_name || (profile.name ? profile.name.split(' ').slice(1).join(' ') : null),
+                fullName: profile.fullName || profile.name || profile.full_name || null,
+                firstName: profile.first_name || (profile.fullName ? profile.fullName.split(' ')[0] : null),
+                lastName: profile.last_name || (profile.fullName ? profile.fullName.split(' ').slice(1).join(' ') : null),
                 headline: profile.headline || profile.description || null,
                 summary: profile.summary || profile.about || null,
                 location: profile.location || profile.address || null,
                 industry: profile.industry || null,
-                connectionsCount: parseConnectionCount(profile.connections || profile.connections_count),
-                profileImageUrl: profile.profile_image || profile.avatar || null,
+                connectionsCount: parseLinkedInNumber(profile.connections),
+                profileImageUrl: profile.profile_photo || profile.profile_image || profile.avatar || null,
                 experience: profile.experience || [],
                 education: profile.education || [],
                 skills: profile.skills || [],
