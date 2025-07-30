@@ -296,7 +296,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         const response = await axios.get(SCRAPINGDOG_BASE_URL, {
             params: {
                 api_key: SCRAPINGDOG_API_KEY,
-                type: 'person',
+                type: 'profile',
                 linkId: username
             },
             timeout: 45000 // 45 seconds timeout
