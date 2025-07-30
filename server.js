@@ -349,7 +349,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// Google OAuth callback - FIXED: Better error handling
+// Google OAuth callback - UPDATED: Redirects to dashboard instead of sign-up
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failed' }),
     async (req, res) => {
@@ -372,10 +372,10 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Redirect to frontend sign-up page with token
+            // FIXED: Redirect to dashboard instead of sign-up
             const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/sign-up' 
-                : 'http://localhost:3000/sign-up';
+                ? 'https://msgly.ai/dashboard' 
+                : 'http://localhost:3000/dashboard';
                 
             res.redirect(`${frontendUrl}?token=${token}`);
             
@@ -431,13 +431,25 @@ app.post('/register', async (req, res) => {
             });
         }
         
-        // Check if user exists
+        // Check if user exists - UPDATED: If user exists, suggest they use login or Google OAuth
         const existingUser = await getUserByEmail(email);
         if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                error: 'User already exists with this email'
-            });
+            // Check if they have Google OAuth
+            if (existingUser.google_id) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Account exists with this email. Please sign in with Google.',
+                    redirectToLogin: true,
+                    useGoogleOAuth: true
+                });
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Account exists with this email. Please use the login form.',
+                    redirectToLogin: true,
+                    useGoogleOAuth: false
+                });
+            }
         }
         
         // Hash password
