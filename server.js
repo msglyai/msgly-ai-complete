@@ -22,7 +22,8 @@ const pool = new Pool({
 
 // FIXED: Bright Data API configuration (instead of Outscraper)
 const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_TOKEN || 'e5353ea11fe201c7f9797062c64b59fb87f1bfc01ad8a24dd0fc34a29ccddd23';
-const BRIGHT_DATA_BASE_URL = 'https://api.brightdata.com/datasets/v3/scrape';
+const BRIGHT_DATA_TRIGGER_URL = 'https://api.brightdata.com/datasets/v3/trigger';
+const BRIGHT_DATA_DOWNLOAD_URL = 'https://api.brightdata.com/datasets/snapshots';
 const BRIGHT_DATA_DATASET_ID = 'gd_l1viktl72bvl7bjuj0';
 
 // CORS for Chrome Extensions (KEEPING YOUR EXACT WORKING SETUP)
@@ -282,44 +283,89 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             throw new Error('Bright Data API key not configured');
         }
         
-        // FIXED: Use direct scrape endpoint
-        const response = await axios.post(
-            `${BRIGHT_DATA_BASE_URL}?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
+        // Step 1: Trigger the extraction job
+        console.log('📤 Triggering Bright Data extraction...');
+        const triggerResponse = await axios.post(
+            `${BRIGHT_DATA_TRIGGER_URL}?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
             [{ url: linkedinUrl }],
             {
                 headers: {
                     'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 45000 // 45 seconds timeout
+                timeout: 30000 // 30 seconds for trigger
             }
         );
 
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-            const profile = response.data[0];
-            
-            // Extract and structure the data (SIMILAR TO OUTSCRAPER FORMAT)
-            const extractedData = {
-                fullName: profile.full_name || profile.name || null,
-                firstName: profile.first_name || null,
-                lastName: profile.last_name || null,
-                headline: profile.headline || null,
-                summary: profile.summary || profile.about || null,
-                location: profile.location || profile.geographic_area || null,
-                industry: profile.industry || null,
-                connectionsCount: profile.connections_count || profile.follower_count || null,
-                profileImageUrl: profile.profile_image_url || profile.profile_pic_url || null,
-                experience: profile.experience || profile.experiences || [],
-                education: profile.education || profile.educations || [],
-                skills: profile.skills || [],
-                rawData: profile // Store complete response for future use
-            };
-
-            console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
-            return extractedData;
-        } else {
-            throw new Error('No profile data returned from Bright Data');
+        if (!triggerResponse.data || !triggerResponse.data.snapshot_id) {
+            throw new Error('Failed to trigger Bright Data extraction - no snapshot ID returned');
         }
+
+        const snapshotId = triggerResponse.data.snapshot_id;
+        console.log(`📋 Snapshot ID: ${snapshotId}`);
+
+        // Step 2: Poll for completion (max 3 minutes)
+        console.log('⏳ Waiting for extraction to complete...');
+        let attempts = 0;
+        const maxAttempts = 18; // 18 * 10 seconds = 3 minutes max
+        
+        while (attempts < maxAttempts) {
+            // Wait 10 seconds between checks
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            attempts++;
+            
+            try {
+                // Step 3: Try to download the results
+                console.log(`🔄 Checking extraction status (attempt ${attempts}/${maxAttempts})...`);
+                const downloadResponse = await axios.get(
+                    `${BRIGHT_DATA_DOWNLOAD_URL}/${snapshotId}/download`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`
+                        },
+                        timeout: 30000 // 30 seconds for download
+                    }
+                );
+
+                // If we get data, extraction is complete
+                if (downloadResponse.data && Array.isArray(downloadResponse.data) && downloadResponse.data.length > 0) {
+                    const profile = downloadResponse.data[0];
+                    
+                    // Extract and structure the data (SIMILAR TO OUTSCRAPER FORMAT)
+                    const extractedData = {
+                        fullName: profile.full_name || profile.name || null,
+                        firstName: profile.first_name || null,
+                        lastName: profile.last_name || null,
+                        headline: profile.headline || null,
+                        summary: profile.summary || profile.about || null,
+                        location: profile.location || profile.geographic_area || null,
+                        industry: profile.industry || null,
+                        connectionsCount: profile.connections_count || profile.follower_count || null,
+                        profileImageUrl: profile.profile_image_url || profile.profile_pic_url || null,
+                        experience: profile.experience || profile.experiences || [],
+                        education: profile.education || profile.educations || [],
+                        skills: profile.skills || [],
+                        rawData: profile // Store complete response for future use
+                    };
+
+                    console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'} (took ${attempts * 10} seconds)`);
+                    return extractedData;
+                }
+            } catch (downloadError) {
+                // If it's a 404 or similar, extraction might still be in progress
+                if (downloadError.response && downloadError.response.status === 404) {
+                    console.log(`⏳ Extraction still in progress... (${attempts * 10}s elapsed)`);
+                    continue;
+                } else {
+                    console.log(`⚠️ Download error: ${downloadError.message}`);
+                    continue;
+                }
+            }
+        }
+        
+        // If we get here, extraction timed out
+        throw new Error(`Extraction timed out after ${maxAttempts * 10} seconds. The profile might be complex or your account needs activation.`);
+        
     } catch (error) {
         console.error('❌ Bright Data extraction error:', error.message);
         throw error;
@@ -574,7 +620,8 @@ app.get('/health', (req, res) => {
         features: ['authentication', 'google-oauth', 'brightdata-integration', 'linkedin-extraction'],
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
-            apiUrl: BRIGHT_DATA_BASE_URL,
+            triggerUrl: BRIGHT_DATA_TRIGGER_URL,
+            downloadUrl: BRIGHT_DATA_DOWNLOAD_URL,
             datasetId: BRIGHT_DATA_DATASET_ID
         }
     });
@@ -1197,10 +1244,10 @@ const startServer = async () => {
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
-            console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅ (Trigger + Poll)' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: Profile Extraction Ready`);
+            console.log(`🔗 LinkedIn: Profile Extraction Ready (Async)`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
