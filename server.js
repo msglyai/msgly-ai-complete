@@ -248,7 +248,8 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
-                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
+                ADD COLUMN IF NOT EXISTS extraction_error TEXT,
+                ADD COLUMN IF NOT EXISTS extraction_retry_count INTEGER DEFAULT 0;
             `);
             console.log('✅ Added Bright Data columns to user_profiles table');
         } catch (err) {
@@ -275,7 +276,56 @@ const initDB = async () => {
 
 // ==================== BRIGHT DATA FUNCTIONS (CHANGED FROM OUTSCRAPER) ====================
 
-const extractLinkedInProfile = async (linkedinUrl) => {
+// TEMP FIX: Use RapidAPI LinkedIn scraper (free tier) until Bright Data is activated
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || 'your-rapidapi-key';
+const RAPIDAPI_BASE_URL = 'https://linkedin-data-api.p.rapidapi.com';
+
+// Alternative LinkedIn extraction using RapidAPI (free tier available)
+const extractLinkedInProfileFallback = async (linkedinUrl) => {
+    try {
+        console.log(`🔍 Extracting LinkedIn profile with RapidAPI fallback: ${linkedinUrl}`);
+        
+        const response = await axios.get(`${RAPIDAPI_BASE_URL}/get-profile-data-by-url`, {
+            params: {
+                url: linkedinUrl
+            },
+            headers: {
+                'X-RapidAPI-Key': RAPIDAPI_KEY,
+                'X-RapidAPI-Host': 'linkedin-data-api.p.rapidapi.com'
+            },
+            timeout: 30000 // 30 seconds
+        });
+
+        if (response.data) {
+            const profile = response.data;
+            
+            // Structure the data similar to Bright Data format
+            const extractedData = {
+                fullName: profile.fullName || profile.name || null,
+                firstName: profile.firstName || null,
+                lastName: profile.lastName || null,
+                headline: profile.headline || null,
+                summary: profile.summary || profile.about || null,
+                location: profile.location || null,
+                industry: profile.industry || null,
+                connectionsCount: profile.connectionsCount || null,
+                profileImageUrl: profile.profilePicture || null,
+                experience: profile.experience || [],
+                education: profile.education || [],
+                skills: profile.skills || [],
+                rawData: profile
+            };
+
+            console.log(`✅ Successfully extracted profile with RapidAPI: ${extractedData.fullName || 'Unknown'}`);
+            return extractedData;
+        } else {
+            throw new Error('No profile data returned from RapidAPI');
+        }
+    } catch (error) {
+        console.error('❌ RapidAPI extraction error:', error.message);
+        throw error;
+    }
+};
     try {
         console.log(`🔍 Extracting LinkedIn profile with Bright Data: ${linkedinUrl}`);
         
@@ -486,12 +536,12 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) =
     }
 };
 
-// Enhanced function to create/update profile with Bright Data extraction (CHANGED FROM OUTSCRAPER)
+// Enhanced function to create/update profile with ASYNC Bright Data extraction (CHANGED FROM OUTSCRAPER)
 const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, displayName = null) => {
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        // First, create/update basic profile
+        // First, create/update basic profile IMMEDIATELY
         const existingProfile = await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [userId]
@@ -501,91 +551,202 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
         if (existingProfile.rows.length > 0) {
             // Update existing profile
             const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
-                [cleanUrl, displayName, userId]
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
+                [cleanUrl, displayName, 'pending', userId]
             );
             profile = result.rows[0];
         } else {
             // Create new profile
             const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
-                [userId, cleanUrl, displayName]
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status) VALUES ($1, $2, $3, $4) RETURNING *',
+                [userId, cleanUrl, displayName, 'pending']
             );
             profile = result.rows[0];
         }
         
-        // Mark extraction as attempted
-        await pool.query(
-            'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
-            ['in_progress', userId]
-        );
+        console.log(`✅ Profile saved immediately for user ${userId} - starting background extraction`);
+        
+        // START BACKGROUND EXTRACTION (DON'T WAIT FOR IT)
+        setImmediate(async () => {
+            try {
+                console.log(`🔄 Starting background extraction for user ${userId}...`);
+                
+                // Mark extraction as attempted
+                await pool.query(
+                    'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
+                    ['in_progress', userId]
+                );
 
-        try {
-            // Extract LinkedIn data using Bright Data (CHANGED FROM OUTSCRAPER)
-            const extractedData = await extractLinkedInProfile(cleanUrl);
-            
-            // Update profile with extracted data (CHANGED COLUMN NAME TO brightdata_data)
-            const result = await pool.query(`
-                UPDATE user_profiles SET 
-                    full_name = COALESCE($1, full_name),
-                    first_name = $2,
-                    last_name = $3,
-                    headline = $4,
-                    summary = $5,
-                    location = $6,
-                    industry = $7,
-                    experience = $8,
-                    education = $9,
-                    skills = $10,
-                    connections_count = $11,
-                    profile_image_url = $12,
-                    brightdata_data = $13,
-                    data_extraction_status = 'completed',
-                    extraction_completed_at = CURRENT_TIMESTAMP,
-                    extraction_error = NULL,
-                    profile_analyzed = true,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $14 
-                RETURNING *
-            `, [
-                extractedData.fullName,
-                extractedData.firstName,
-                extractedData.lastName,
-                extractedData.headline,
-                extractedData.summary,
-                extractedData.location,
-                extractedData.industry,
-                JSON.stringify(extractedData.experience),
-                JSON.stringify(extractedData.education),
-                extractedData.skills,
-                extractedData.connectionsCount,
-                extractedData.profileImageUrl,
-                JSON.stringify(extractedData.rawData),
-                userId
-            ]);
+                // Extract LinkedIn data using Bright Data (IN BACKGROUND)
+                const extractedData = await extractLinkedInProfile(cleanUrl);
+                
+                // Update profile with extracted data (IN BACKGROUND)
+                await pool.query(`
+                    UPDATE user_profiles SET 
+                        full_name = COALESCE($1, full_name),
+                        first_name = $2,
+                        last_name = $3,
+                        headline = $4,
+                        summary = $5,
+                        location = $6,
+                        industry = $7,
+                        experience = $8,
+                        education = $9,
+                        skills = $10,
+                        connections_count = $11,
+                        profile_image_url = $12,
+                        brightdata_data = $13,
+                        data_extraction_status = 'completed',
+                        extraction_completed_at = CURRENT_TIMESTAMP,
+                        extraction_error = NULL,
+                        profile_analyzed = true,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $14 
+                `, [
+                    extractedData.fullName,
+                    extractedData.firstName,
+                    extractedData.lastName,
+                    extractedData.headline,
+                    extractedData.summary,
+                    extractedData.location,
+                    extractedData.industry,
+                    JSON.stringify(extractedData.experience),
+                    JSON.stringify(extractedData.education),
+                    extractedData.skills,
+                    extractedData.connectionsCount,
+                    extractedData.profileImageUrl,
+                    JSON.stringify(extractedData.rawData),
+                    userId
+                ]);
 
-            console.log(`✅ Profile data extracted and saved for user ${userId}`);
-            return result.rows[0];
-
-        } catch (extractionError) {
-            console.error('❌ Profile extraction failed:', extractionError.message);
-            
-            // Mark extraction as failed but don't fail the registration
-            await pool.query(
-                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
-                ['failed', extractionError.message, userId]
-            );
-            
-            // Return basic profile - registration should still succeed
-            return profile;
-        }
+                console.log(`🎉 Background extraction completed successfully for user ${userId}`);
+                
+            } catch (extractionError) {
+                console.error(`❌ Background extraction failed for user ${userId}:`, extractionError.message);
+                
+                // Mark extraction as failed (IN BACKGROUND)
+                await pool.query(
+                    'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
+                    ['failed', extractionError.message, userId]
+                );
+            }
+        });
+        
+        // RETURN IMMEDIATELY (don't wait for extraction)
+        return profile;
+        
     } catch (error) {
-        console.error('Error in profile creation/extraction:', error);
+        console.error('Error in profile creation:', error);
         throw error;
     }
 };
 
-// JWT Authentication middleware (KEEPING YOUR EXACT FUNCTION)
+// Background processor for pending LinkedIn extractions
+const processBackgroundExtractions = async () => {
+    try {
+        // Find pending or failed extractions (with retry limit)
+        const result = await pool.query(`
+            SELECT u.id as user_id, u.display_name, up.linkedin_url, up.data_extraction_status,
+                   COALESCE(up.extraction_retry_count, 0) as retry_count
+            FROM users u
+            INNER JOIN user_profiles up ON u.id = up.user_id
+            WHERE up.linkedin_url IS NOT NULL 
+            AND up.data_extraction_status IN ('pending', 'failed')
+            AND COALESCE(up.extraction_retry_count, 0) < 3
+            AND (up.extraction_attempted_at IS NULL OR up.extraction_attempted_at < NOW() - INTERVAL '5 minutes')
+            ORDER BY u.created_at ASC
+            LIMIT 5
+        `);
+
+        if (result.rows.length > 0) {
+            console.log(`🔄 Processing ${result.rows.length} background LinkedIn extractions...`);
+            
+            for (const row of result.rows) {
+                try {
+                    console.log(`🔍 Processing background extraction for user ${row.user_id} (attempt ${row.retry_count + 1})`);
+                    
+                    // Mark as in progress
+                    await pool.query(
+                        'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP WHERE user_id = $2',
+                        ['in_progress', row.user_id]
+                    );
+
+                    // Extract LinkedIn data
+                    const extractedData = await extractLinkedInProfile(row.linkedin_url);
+                    
+                    // Update profile with extracted data
+                    await pool.query(`
+                        UPDATE user_profiles SET 
+                            full_name = COALESCE($1, full_name),
+                            first_name = $2,
+                            last_name = $3,
+                            headline = $4,
+                            summary = $5,
+                            location = $6,
+                            industry = $7,
+                            experience = $8,
+                            education = $9,
+                            skills = $10,
+                            connections_count = $11,
+                            profile_image_url = $12,
+                            brightdata_data = $13,
+                            data_extraction_status = 'completed',
+                            extraction_completed_at = CURRENT_TIMESTAMP,
+                            extraction_error = NULL,
+                            profile_analyzed = true,
+                            extraction_retry_count = 0,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = $14 
+                    `, [
+                        extractedData.fullName,
+                        extractedData.firstName,
+                        extractedData.lastName,
+                        extractedData.headline,
+                        extractedData.summary,
+                        extractedData.location,
+                        extractedData.industry,
+                        JSON.stringify(extractedData.experience),
+                        JSON.stringify(extractedData.education),
+                        extractedData.skills,
+                        extractedData.connectionsCount,
+                        extractedData.profileImageUrl,
+                        JSON.stringify(extractedData.rawData),
+                        row.user_id
+                    ]);
+
+                    console.log(`✅ Background extraction completed for user ${row.user_id}`);
+                    
+                    // Small delay between extractions
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    
+                } catch (error) {
+                    console.error(`❌ Background extraction failed for user ${row.user_id}:`, error.message);
+                    
+                    // Update retry count and mark as failed
+                    await pool.query(
+                        'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, extraction_retry_count = COALESCE(extraction_retry_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
+                        ['failed', error.message, row.user_id]
+                    );
+                }
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error in background extraction processing:', error);
+    }
+};
+
+// Add retry count column if it doesn't exist
+const addRetryCountColumn = async () => {
+    try {
+        await pool.query(`
+            ALTER TABLE user_profiles 
+            ADD COLUMN IF NOT EXISTS extraction_retry_count INTEGER DEFAULT 0;
+        `);
+        console.log('✅ Added extraction_retry_count column');
+    } catch (err) {
+        console.log('Retry count column might already exist:', err.message);
+    }
+};
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -615,14 +776,15 @@ const authenticateToken = async (req, res, next) => {
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '2.0-brightdata',
+        version: '2.0-brightdata-async',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'brightdata-integration', 'linkedin-extraction'],
+        features: ['authentication', 'google-oauth', 'brightdata-integration', 'background-linkedin-extraction'],
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
             triggerUrl: BRIGHT_DATA_TRIGGER_URL,
             downloadUrl: BRIGHT_DATA_DOWNLOAD_URL,
-            datasetId: BRIGHT_DATA_DATASET_ID
+            datasetId: BRIGHT_DATA_DATASET_ID,
+            backgroundProcessing: true
         }
     });
 });
@@ -763,7 +925,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated and extraction initiated',
+            message: 'Profile updated successfully - LinkedIn analysis started in background',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -789,7 +951,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} with LinkedIn: ${linkedinUrl} (Status: ${profile.data_extraction_status})`);
+        console.log(`✅ Profile updated instantly for user ${updatedUser.email} - background extraction queued`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -1244,13 +1406,20 @@ const startServer = async () => {
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
-            console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅ (Trigger + Poll)' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅ (Background Processing)' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: Profile Extraction Ready (Async)`);
+            console.log(`🔗 LinkedIn: Profile Extraction Ready (Background)`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
+        
+        // Start background processing for LinkedIn extractions
+        console.log('🔄 Starting background LinkedIn extraction processor...');
+        setInterval(processBackgroundExtractions, 2 * 60 * 1000); // Check every 2 minutes
+        
+        // Process any pending extractions immediately on startup
+        setTimeout(processBackgroundExtractions, 10000); // After 10 seconds
         
     } catch (error) {
         console.error('❌ Startup failed:', error);
