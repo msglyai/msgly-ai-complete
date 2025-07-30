@@ -1,10 +1,13 @@
-// Msgly.AI Simple Server - Step 1: Auth + Package Selection Only
+// Msgly.AI Server with Google OAuth Integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 require('dotenv').config();
 
 const app = express();
@@ -24,7 +27,9 @@ const corsOptions = {
         const allowedOrigins = [
             'https://www.linkedin.com',
             'https://linkedin.com',
-            'http://localhost:3000'
+            'http://localhost:3000',
+            'https://msgly.ai',
+            'https://www.msgly.ai'
         ];
         
         if (origin.startsWith('chrome-extension://')) {
@@ -39,7 +44,7 @@ const corsOptions = {
     },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: false
+    credentials: true // Changed to true for sessions
 };
 
 app.use(cors(corsOptions));
@@ -47,24 +52,91 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Session configuration - MUST come before passport initialization
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// Passport initialization
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user = await getUserById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
+    }
+});
+
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+    try {
+        // Check if user exists
+        let user = await getUserByEmail(profile.emails[0].value);
+        
+        if (!user) {
+            // Create new user with Google account
+            user = await createGoogleUser(
+                profile.emails[0].value,
+                profile.displayName,
+                profile.id,
+                profile.photos[0]?.value
+            );
+        } else if (!user.google_id) {
+            // Link existing account with Google
+            await linkGoogleAccount(user.id, profile.id);
+            user = await getUserById(user.id);
+        }
+        
+        return done(null, user);
+    } catch (error) {
+        console.error('Google OAuth error:', error);
+        return done(error, null);
+    }
+}));
+
 // Logging
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
-// ==================== SIMPLE DATABASE SETUP ====================
+// ==================== UPDATED DATABASE SETUP ====================
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating simple database tables...');
+        console.log('🗃️ Creating database tables...');
 
-        // Users table with package selection
+        // Updated users table with Google OAuth fields - FIXED: password_hash is now nullable
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
+                password_hash VARCHAR(255),
+                google_id VARCHAR(255) UNIQUE,
+                display_name VARCHAR(255),
+                profile_picture VARCHAR(500),
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 credits_remaining INTEGER DEFAULT 30,
@@ -115,19 +187,41 @@ const initDB = async () => {
             );
         `);
 
-        console.log('✅ Simple database tables created successfully');
+        // Add Google OAuth columns to existing users table
+        try {
+            await pool.query(`
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
+                ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500);
+            `);
+            console.log('✅ Added Google OAuth columns to users table');
+        } catch (err) {
+            console.log('Google OAuth columns might already exist:', err.message);
+        }
+
+        // CRITICAL FIX: Make password_hash nullable for Google OAuth users
+        try {
+            await pool.query(`
+                ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+            `);
+            console.log('✅ Made password_hash nullable for Google OAuth users');
+        } catch (err) {
+            console.log('Password hash might already be nullable:', err.message);
+        }
+
+        console.log('✅ Database tables created successfully');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
     }
 };
 
-// ==================== SIMPLE DATABASE FUNCTIONS ====================
+// ==================== UPDATED DATABASE FUNCTIONS ====================
 
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
-    // Set credits based on package and billing model
     const creditsMap = {
-        'free': 30, // Same for both billing models
+        'free': 30,
         'silver': billingModel === 'payAsYouGo' ? 100 : 100,
         'gold': billingModel === 'payAsYouGo' ? 500 : 500,
         'platinum': billingModel === 'payAsYouGo' ? 1500 : 1500
@@ -138,6 +232,34 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     const result = await pool.query(
         'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [email, passwordHash, packageType, billingModel, credits]
+    );
+    return result.rows[0];
+};
+
+// New function for Google users - FIXED: No password_hash required
+const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
+    const creditsMap = {
+        'free': 30,
+        'silver': billingModel === 'payAsYouGo' ? 100 : 100,
+        'gold': billingModel === 'payAsYouGo' ? 500 : 500,
+        'platinum': billingModel === 'payAsYouGo' ? 1500 : 1500
+    };
+    
+    const credits = creditsMap[packageType] || 30;
+    
+    const result = await pool.query(
+        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
+    );
+    return result.rows[0];
+};
+
+// Link existing account with Google
+const linkGoogleAccount = async (userId, googleId) => {
+    const result = await pool.query(
+        'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+        [googleId, userId]
     );
     return result.rows[0];
 };
@@ -190,19 +312,21 @@ const authenticateToken = async (req, res, next) => {
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '1.0-simple',
+        version: '1.0-oauth',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'package-selection', 'simple-database']
+        features: ['authentication', 'google-oauth', 'package-selection', 'simple-database']
     });
 });
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Simple Server - Step 1',
+        message: 'Msgly.AI Server with Google OAuth',
         status: 'running',
         endpoints: [
             'POST /register',
             'POST /login', 
+            'GET /auth/google',
+            'GET /auth/google/callback',
             'GET /profile (protected)',
             'GET /packages',
             'GET /health'
@@ -210,7 +334,74 @@ app.get('/', (req, res) => {
     });
 });
 
-// User Registration with Package Selection
+// ==================== GOOGLE OAUTH ROUTES ====================
+
+// Initiate Google OAuth
+app.get('/auth/google', (req, res, next) => {
+    // Store package selection in session if provided
+    if (req.query.package) {
+        req.session.selectedPackage = req.query.package;
+        req.session.billingModel = req.query.billing || 'monthly';
+    }
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'] 
+    })(req, res, next);
+});
+
+// Google OAuth callback - FIXED: Better error handling
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/auth/failed' }),
+    async (req, res) => {
+        try {
+            // Generate JWT for the authenticated user
+            const token = jwt.sign(
+                { userId: req.user.id, email: req.user.email },
+                process.env.JWT_SECRET || 'msgly-simple-secret-2024',
+                { expiresIn: '30d' }
+            );
+            
+            // If package was selected, update user
+            if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
+                // For now, only allow free package
+                // Premium packages will be enabled after Chargebee integration
+                console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
+            }
+            
+            // Clear session
+            req.session.selectedPackage = null;
+            req.session.billingModel = null;
+            
+            // Redirect to frontend sign-up page with token
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?token=${token}`);
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?error=callback_error`);
+        }
+    }
+);
+
+// Auth failed route
+app.get('/auth/failed', (req, res) => {
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://msgly.ai/sign-up' 
+        : 'http://localhost:3000/sign-up';
+        
+    res.redirect(`${frontendUrl}?error=auth_failed`);
+});
+
+// ==================== EXISTING ENDPOINTS (UPDATED) ====================
+
+// User Registration with Package Selection (Email/Password)
 app.post('/register', async (req, res) => {
     console.log('👤 Registration request:', req.body);
     
@@ -232,22 +423,11 @@ app.post('/register', async (req, res) => {
             });
         }
         
-        // Valid packages
-        const validPackages = ['free', 'silver', 'gold', 'platinum'];
-        if (!validPackages.includes(packageType)) {
+        // For now, only allow free package
+        if (packageType !== 'free') {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid package type. Choose: free, silver, gold, or platinum'
-            });
-        }
-        
-        // Valid billing models
-        const validBillingModels = ['payAsYouGo', 'monthly'];
-        const finalBillingModel = billingModel || 'monthly';
-        if (!validBillingModels.includes(finalBillingModel)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid billing model. Choose: payAsYouGo or monthly'
+                error: 'Only free package is available during beta. Premium packages coming soon!'
             });
         }
         
@@ -264,7 +444,7 @@ app.post('/register', async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 10);
         
         // Create user
-        const newUser = await createUser(email, passwordHash, packageType, finalBillingModel);
+        const newUser = await createUser(email, passwordHash, packageType, billingModel || 'monthly');
         
         // Generate JWT
         const token = jwt.sign(
@@ -289,7 +469,7 @@ app.post('/register', async (req, res) => {
             }
         });
         
-        console.log(`✅ User registered: ${newUser.email} with ${packageType} package (${finalBillingModel})`);
+        console.log(`✅ User registered: ${newUser.email} with ${packageType} package`);
         
     } catch (error) {
         console.error('❌ Registration error:', error);
@@ -301,7 +481,7 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// User Login
+// User Login (Email/Password)
 app.post('/login', async (req, res) => {
     console.log('🔐 Login request for:', req.body.email);
     
@@ -321,6 +501,14 @@ app.post('/login', async (req, res) => {
             return res.status(401).json({
                 success: false,
                 error: 'Invalid email or password'
+            });
+        }
+        
+        // Check if user has password (might be Google-only account)
+        if (!user.password_hash) {
+            return res.status(401).json({
+                success: false,
+                error: 'Please sign in with Google'
             });
         }
         
@@ -347,10 +535,13 @@ app.post('/login', async (req, res) => {
                 user: {
                     id: user.id,
                     email: user.email,
+                    displayName: user.display_name,
+                    profilePicture: user.profile_picture,
                     packageType: user.package_type,
                     billingModel: user.billing_model,
                     credits: user.credits_remaining,
-                    subscriptionStatus: user.subscription_status
+                    subscriptionStatus: user.subscription_status,
+                    hasGoogleAccount: !!user.google_id
                 },
                 token: token
             }
@@ -377,10 +568,13 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 user: {
                     id: req.user.id,
                     email: req.user.email,
+                    displayName: req.user.display_name,
+                    profilePicture: req.user.profile_picture,
                     packageType: req.user.package_type,
                     billingModel: req.user.billing_model,
                     credits: req.user.credits_remaining,
                     subscriptionStatus: req.user.subscription_status,
+                    hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at
                 }
             }
@@ -394,7 +588,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get Available Packages (Matches your index.html pricing exactly)
+// Get Available Packages
 app.get('/packages', (req, res) => {
     const packages = {
         payAsYouGo: [
@@ -406,7 +600,8 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'Advanced AI analysis', 'No credit card required']
+                features: ['30 Credits per month', 'Chrome extension', 'Advanced AI analysis', 'No credit card required'],
+                available: true
             },
             {
                 id: 'silver',
@@ -416,7 +611,9 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire']
+                features: ['100 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire'],
+                available: false,
+                comingSoon: true
             },
             {
                 id: 'gold',
@@ -426,7 +623,9 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire']
+                features: ['500 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire'],
+                available: false,
+                comingSoon: true
             },
             {
                 id: 'platinum',
@@ -436,7 +635,9 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire']
+                features: ['1,500 Credits', 'Chrome extension', 'Advanced AI analysis', 'Credits never expire'],
+                available: false,
+                comingSoon: true
             }
         ],
         monthly: [
@@ -448,7 +649,8 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'Advanced AI analysis', 'No credit card required']
+                features: ['30 Credits per month', 'Chrome extension', 'Advanced AI analysis', 'No credit card required'],
+                available: true
             },
             {
                 id: 'silver',
@@ -458,7 +660,9 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included']
+                features: ['100 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included'],
+                available: false,
+                comingSoon: true
             },
             {
                 id: 'gold',
@@ -468,7 +672,9 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included']
+                features: ['500 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included'],
+                available: false,
+                comingSoon: true
             },
             {
                 id: 'platinum',
@@ -478,7 +684,9 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included']
+                features: ['1,500 Credits', 'Chrome extension', 'Advanced AI analysis', '7-day free trial included'],
+                available: false,
+                comingSoon: true
             }
         ]
     };
@@ -488,304 +696,19 @@ app.get('/packages', (req, res) => {
         data: { packages }
     });
 });
-// ==================== LINKEDIN EXTRACTION ENDPOINT ====================
 
-// Function to simulate LinkedIn data extraction (we'll make this real later)
-const extractLinkedInData = async (linkedinUrl) => {
-    console.log(`🔍 Extracting LinkedIn data from: ${linkedinUrl}`);
-    
-    // For now, we'll simulate the extraction with comprehensive fake data
-    // Later we'll replace this with real scraping logic
-    const simulatedData = {
-        // Basic Profile Info
-        full_name: "Ziv Shechory",
-        first_name: "Ziv", 
-        last_name: "Shechory",
-        headline: "AI & Sales Technology Executive | Building the Future of Personalized Outreach",
-        summary: "Experienced technology leader with 8+ years building AI-powered sales tools. Currently building Msgly.AI to revolutionize LinkedIn outreach with GPT-4 personalization. Previously led product teams at major tech companies.",
-        current_position: "Founder & CEO",
-        current_company: "Msgly.AI",
-        location: "Tel Aviv, Israel",
-        industry: "Software Development",
-        connections_count: 847,
-        followers_count: 1234,
-        profile_image_url: "https://media.licdn.com/dms/image/profile-pic.jpg",
-        
-        // Complete Work Experience
-        experience_data: [
-            {
-                company: "Msgly.AI",
-                title: "Founder & CEO", 
-                duration: "2024 - Present",
-                location: "Tel Aviv, Israel",
-                description: "Building AI-powered LinkedIn outreach platform using GPT-4.1. Leading product development, AI integration, and go-to-market strategy. Serving 1000+ sales professionals.",
-                skills_used: ["Product Management", "AI/ML", "SaaS", "Team Leadership"]
-            },
-            {
-                company: "TechCorp International",
-                title: "Senior Product Manager",
-                duration: "2021 - 2024", 
-                location: "Tel Aviv, Israel",
-                description: "Led product strategy for B2B sales automation platform. Increased user engagement by 340% and revenue by $2.8M annually. Managed team of 12 engineers and designers.",
-                skills_used: ["Product Strategy", "B2B SaaS", "Data Analytics", "Agile"]
-            },
-            {
-                company: "StartupXYZ",
-                title: "Marketing Technology Manager",
-                duration: "2019 - 2021",
-                location: "Tel Aviv, Israel", 
-                description: "Built marketing automation infrastructure from scratch. Implemented CRM systems, lead scoring, and email campaigns that generated $1.2M in pipeline.",
-                skills_used: ["Marketing Automation", "CRM", "Lead Generation", "Analytics"]
-            }
-        ],
-        
-        // Education History
-        education_data: [
-            {
-                school: "Tel Aviv University",
-                degree: "MBA",
-                field: "Business Administration & Technology Management",
-                years: "2017 - 2019",
-                activities: "Technology Entrepreneurship Club, Product Management Society"
-            },
-            {
-                school: "Technion - Israel Institute of Technology", 
-                degree: "B.Sc",
-                field: "Computer Science",
-                years: "2013 - 2017",
-                activities: "Programming Competition Team, AI Research Lab Assistant"
-            }
-        ],
-        
-        // Skills & Endorsements
-        skills_data: [
-            {"skill": "Product Management", "endorsements": 47, "category": "Professional"},
-            {"skill": "Artificial Intelligence", "endorsements": 34, "category": "Technical"},
-            {"skill": "SaaS", "endorsements": 28, "category": "Professional"},
-            {"skill": "JavaScript", "endorsements": 23, "category": "Technical"},
-            {"skill": "Team Leadership", "endorsements": 19, "category": "Leadership"},
-            {"skill": "Marketing Automation", "endorsements": 15, "category": "Professional"},
-            {"skill": "Data Analytics", "endorsements": 12, "category": "Technical"},
-            {"skill": "Business Strategy", "endorsements": 9, "category": "Leadership"}
-        ],
-        
-        // Certifications
-        certifications_data: [
-            {
-                name: "OpenAI GPT-4 Certification",
-                issuer: "OpenAI",
-                date: "2024",
-                credential_id: "OAI-GPT4-2024-ZS"
-            },
-            {
-                name: "Google Analytics Certified",
-                issuer: "Google",
-                date: "2023", 
-                credential_id: "GA-CERT-2023-ZS"
-            }
-        ],
-        
-        // Languages
-        languages_data: [
-            {"language": "English", "proficiency": "Professional"},
-            {"language": "Hebrew", "proficiency": "Native"},
-            {"language": "Spanish", "proficiency": "Conversational"}
-        ],
-        
-        // Recent Activity
-        activity_data: [
-            {
-                type: "post",
-                content: "Excited to announce Msgly.AI has reached 1000+ users! 🚀 The response to AI-powered LinkedIn outreach has been incredible. Thank you to our amazing community!",
-                date: "2025-07-28",
-                likes: 147,
-                comments: 23,
-                shares: 8
-            },
-            {
-                type: "article", 
-                title: "The Future of Sales: Why AI Personalization is the Game Changer",
-                content: "In today's saturated market, generic outreach fails. Here's how AI is revolutionizing sales communications...",
-                date: "2025-07-25",
-                likes: 89,
-                comments: 15,
-                shares: 12
-            },
-            {
-                type: "comment",
-                content: "Absolutely agree! We're seeing similar trends in the Israeli tech ecosystem. AI-first approaches are becoming table stakes.",
-                post_author: "Sarah Johnson",
-                date: "2025-07-20",
-                likes: 5
-            }
-        ],
-        
-        // AI Analysis (will be populated later by GPT)
-        ai_analysis: {
-            personality: {
-                communication_style: "direct_professional",
-                likely_interests: ["AI/ML", "SaaS", "entrepreneurship", "sales_technology"],
-                career_stage: "senior_professional_founder",
-                networking_approach: "value_focused_relationship_building"
-            },
-            message_recommendations: {
-                tone: "professional_warm",
-                topics: ["AI_innovation", "product_management", "startup_growth"],
-                avoid: ["overly_casual", "generic_sales_pitches"]
-            }
-        }
-    };
-    
-    return simulatedData;
-};
-
-// Function to store LinkedIn data in database
-const storeLinkedInProfile = async (userId, linkedinUrl, profileData) => {
-    try {
-        // Check if profile already exists
-        const existingProfile = await pool.query(
-            'SELECT id FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-        
-        if (existingProfile.rows.length > 0) {
-            // Update existing profile
-            const result = await pool.query(`
-                UPDATE user_profiles SET 
-                    linkedin_url = $2,
-                    full_name = $3,
-                    first_name = $4,
-                    last_name = $5,
-                    headline = $6,
-                    summary = $7,
-                    current_position = $8,
-                    current_company = $9,
-                    location = $10,
-                    industry = $11,
-                    connections_count = $12,
-                    followers_count = $13,
-                    profile_image_url = $14,
-                    experience_data = $15,
-                    education_data = $16,
-                    skills_data = $17,
-                    certifications_data = $18,
-                    languages_data = $19,
-                    activity_data = $20,
-                    ai_analysis = $21,
-                    extraction_date = CURRENT_TIMESTAMP,
-                    extraction_status = 'completed',
-                    profile_analyzed = TRUE,
-                    raw_linkedin_data = $22,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $1
-                RETURNING *
-            `, [
-                userId, linkedinUrl, profileData.full_name, profileData.first_name, profileData.last_name,
-                profileData.headline, profileData.summary, profileData.current_position, profileData.current_company,
-                profileData.location, profileData.industry, profileData.connections_count, profileData.followers_count,
-                profileData.profile_image_url, JSON.stringify(profileData.experience_data), JSON.stringify(profileData.education_data),
-                JSON.stringify(profileData.skills_data), JSON.stringify(profileData.certifications_data), JSON.stringify(profileData.languages_data),
-                JSON.stringify(profileData.activity_data), JSON.stringify(profileData.ai_analysis), JSON.stringify(profileData)
-            ]);
-            return result.rows[0];
-        } else {
-            // Create new profile
-            const result = await pool.query(`
-                INSERT INTO user_profiles (
-                    user_id, linkedin_url, full_name, first_name, last_name, headline, summary,
-                    current_position, current_company, location, industry, connections_count, followers_count,
-                    profile_image_url, experience_data, education_data, skills_data, certifications_data,
-                    languages_data, activity_data, ai_analysis, extraction_date, extraction_status,
-                    profile_analyzed, raw_linkedin_data
-                ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-                    CURRENT_TIMESTAMP, 'completed', TRUE, $22
-                ) RETURNING *
-            `, [
-                userId, linkedinUrl, profileData.full_name, profileData.first_name, profileData.last_name,
-                profileData.headline, profileData.summary, profileData.current_position, profileData.current_company,
-                profileData.location, profileData.industry, profileData.connections_count, profileData.followers_count,
-                profileData.profile_image_url, JSON.stringify(profileData.experience_data), JSON.stringify(profileData.education_data),
-                JSON.stringify(profileData.skills_data), JSON.stringify(profileData.certifications_data), JSON.stringify(profileData.languages_data),
-                JSON.stringify(profileData.activity_data), JSON.stringify(profileData.ai_analysis), JSON.stringify(profileData)
-            ]);
-            return result.rows[0];
-        }
-    } catch (error) {
-        console.error('❌ Error storing LinkedIn profile:', error);
-        throw error;
-    }
-};
-
-// LinkedIn Extraction API Endpoint
-app.post('/extract-linkedin', authenticateToken, async (req, res) => {
-    console.log('🔍 LinkedIn extraction request from user:', req.user.id);
-    
-    try {
-        const { linkedinUrl } = req.body;
-        
-        // Validation
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        // Basic LinkedIn URL validation
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL (e.g., https://linkedin.com/in/username)'
-            });
-        }
-        
-        // Extract LinkedIn data
-        const profileData = await extractLinkedInData(linkedinUrl);
-        
-        // Store in database
-        const savedProfile = await storeLinkedInProfile(req.user.id, linkedinUrl, profileData);
-        
-        // Return success with preview of extracted data
-        res.json({
-            success: true,
-            message: 'LinkedIn profile extracted and analyzed successfully!',
-            data: {
-                profile: {
-                    id: savedProfile.id,
-                    full_name: profileData.full_name,
-                    headline: profileData.headline,
-                    current_position: profileData.current_position,
-                    current_company: profileData.current_company,
-                    location: profileData.location,
-                    connections_count: profileData.connections_count,
-                    total_experience_jobs: profileData.experience_data.length,
-                    total_education_entries: profileData.education_data.length,
-                    total_skills: profileData.skills_data.length,
-                    total_certifications: profileData.certifications_data.length,
-                    recent_activity_count: profileData.activity_data.length,
-                    extraction_date: savedProfile.extraction_date,
-                    ai_analysis_ready: true
-                }
-            }
-        });
-        
-        console.log(`✅ LinkedIn profile extracted for user ${req.user.id}: ${profileData.full_name}`);
-        
-    } catch (error) {
-        console.error('❌ LinkedIn extraction error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to extract LinkedIn profile',
-            details: error.message
-        });
-    }
-});
 // Simple error handling
 app.use((req, res) => {
     res.status(404).json({
         error: 'Route not found',
-        availableRoutes: ['POST /register', 'POST /login', 'GET /profile', 'GET /packages', 'GET /health']
+        availableRoutes: [
+            'POST /register', 
+            'POST /login', 
+            'GET /auth/google',
+            'GET /profile', 
+            'GET /packages', 
+            'GET /health'
+        ]
     });
 });
 
@@ -800,10 +723,14 @@ app.use((error, req, res, next) => {
 // ==================== SERVER STARTUP ====================
 
 const validateEnvironment = () => {
-    if (!process.env.DATABASE_URL) {
-        console.error('❌ DATABASE_URL environment variable is required');
+    const required = ['DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+    const missing = required.filter(key => !process.env[key]);
+    
+    if (missing.length > 0) {
+        console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
         process.exit(1);
     }
+    
     console.log('✅ Environment validated');
 };
 
@@ -830,13 +757,14 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Simple Server Started!');
+            console.log('🚀 Msgly.AI Server with Google OAuth Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
-            console.log(`🔐 Auth: JWT Ready`);
-            console.log(`💳 Packages: Free, Silver, Gold, Platinum`);
+            console.log(`🔐 Auth: JWT + Google OAuth Ready`);
+            console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
+            console.log(`🔑 Google OAuth: Configured`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
         
