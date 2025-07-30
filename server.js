@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth + Official Outscraper SDK Integration
+// Msgly.AI Server with Google OAuth + ScrapingDog Integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const Outscraper = require('outscraper'); // Official Outscraper SDK
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -20,22 +20,9 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// FIXED: Initialize Official Outscraper Client
-const OUTSCRAPER_API_KEY = process.env.OUTSCRAPER_API_KEY;
-let outscraper;
-
-if (OUTSCRAPER_API_KEY) {
-    try {
-        outscraper = new Outscraper(OUTSCRAPER_API_KEY);
-        console.log('✅ Outscraper SDK initialized successfully');
-    } catch (error) {
-        console.error('❌ Outscraper SDK initialization failed:', error.message);
-        outscraper = null;
-    }
-} else {
-    console.warn('⚠️ OUTSCRAPER_API_KEY not configured');
-    outscraper = null;
-}
+// ScrapingDog API configuration
+const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY;
+const SCRAPINGDOG_BASE_URL = 'https://api.scrapingdog.com/linkedin';
 
 // CORS for Chrome Extensions
 const corsOptions = {
@@ -164,7 +151,7 @@ const initDB = async () => {
             );
         `);
 
-        // Enhanced user profiles table with Outscraper fields
+        // Enhanced user profiles table with ScrapingDog fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -182,7 +169,7 @@ const initDB = async () => {
                 skills TEXT[],
                 connections_count INTEGER,
                 profile_image_url VARCHAR(500),
-                outscraper_data JSONB,
+                scrapingdog_data JSONB,
                 data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 extraction_attempted_at TIMESTAMP,
                 extraction_completed_at TIMESTAMP,
@@ -242,7 +229,7 @@ const initDB = async () => {
             console.log('Password hash might already be nullable:', err.message);
         }
 
-        // Add Outscraper columns to existing user_profiles table
+        // Add ScrapingDog columns to existing user_profiles table
         try {
             await pool.query(`
                 ALTER TABLE user_profiles 
@@ -255,15 +242,15 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS skills TEXT[],
                 ADD COLUMN IF NOT EXISTS connections_count INTEGER,
                 ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500),
-                ADD COLUMN IF NOT EXISTS outscraper_data JSONB,
+                ADD COLUMN IF NOT EXISTS scrapingdog_data JSONB,
                 ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_error TEXT;
             `);
-            console.log('✅ Added Outscraper columns to user_profiles table');
+            console.log('✅ Added ScrapingDog columns to user_profiles table');
         } catch (err) {
-            console.log('Outscraper columns might already exist:', err.message);
+            console.log('ScrapingDog columns might already exist:', err.message);
         }
 
         // Create indexes
@@ -284,131 +271,65 @@ const initDB = async () => {
     }
 };
 
-// ==================== FIXED OUTSCRAPER FUNCTIONS WITH OFFICIAL SDK ====================
+// ==================== SCRAPINGDOG FUNCTIONS (UPDATED) ====================
 
-// FIXED: LinkedIn Profile Extraction using Official Outscraper SDK
 const extractLinkedInProfile = async (linkedinUrl) => {
     try {
-        console.log(`🔍 Extracting LinkedIn profile with Official SDK: ${linkedinUrl}`);
+        console.log(`🔍 Extracting LinkedIn profile: ${linkedinUrl}`);
         
-        if (!outscraper) {
-            throw new Error('Outscraper SDK not initialized - check API key configuration');
+        if (!SCRAPINGDOG_API_KEY) {
+            throw new Error('ScrapingDog API key not configured');
         }
         
-        // Method 1: Try LinkedIn-specific search (if available)
-        try {
-            console.log('🎯 Attempting LinkedIn-specific extraction...');
-            
-            // For Outscraper, we might need to use their general search with LinkedIn URL
-            const results = await outscraper.googleSearch([linkedinUrl], {
-                limit: 1,
-                language: 'en'
-            });
-            
-            console.log('📊 Outscraper LinkedIn Results:', JSON.stringify(results, null, 2));
-            
-            if (results && results.length > 0 && results[0]) {
-                const profile = results[0];
-                
-                // Extract and structure the data
-                const extractedData = {
-                    fullName: profile.title || profile.name || null,
-                    firstName: null, // Will be parsed from fullName if available
-                    lastName: null,  // Will be parsed from fullName if available
-                    headline: profile.snippet || profile.description || null,
-                    summary: profile.snippet || null,
-                    location: null, // Extract from description if available
-                    industry: null,
-                    connectionsCount: null,
-                    profileImageUrl: null,
-                    experience: [],
-                    education: [],
-                    skills: [],
-                    rawData: profile // Store complete response for future use
-                };
-
-                // Try to parse name into first/last
-                if (extractedData.fullName) {
-                    const nameParts = extractedData.fullName.split(' ');
-                    if (nameParts.length >= 2) {
-                        extractedData.firstName = nameParts[0];
-                        extractedData.lastName = nameParts.slice(1).join(' ');
-                    }
-                }
-
-                console.log(`✅ Successfully extracted basic profile data for: ${extractedData.fullName || 'Unknown User'}`);
-                return extractedData;
-            }
-        } catch (sdkError) {
-            console.log('⚠️ SDK LinkedIn method failed, trying alternative approach:', sdkError.message);
+        // Extract username from LinkedIn URL
+        const url = new URL(linkedinUrl);
+        const pathname = url.pathname;
+        const match = pathname.match(/\/in\/([^\/\?]+)/);
+        
+        if (!match) {
+            throw new Error('Invalid LinkedIn URL format');
         }
         
-        // Method 2: Try using web scraping approach with Outscraper
-        try {
-            console.log('🌐 Attempting web scraping approach...');
-            
-            // Use Outscraper's general web scraping capabilities
-            const scrapingResults = await outscraper.googleMapsSearch([linkedinUrl], {
-                limit: 1,
-                language: 'en'
-            });
-            
-            console.log('📊 Outscraper Scraping Results:', JSON.stringify(scrapingResults, null, 2));
-            
-            if (scrapingResults && scrapingResults.length > 0) {
-                // Process the scraped data
-                const profile = scrapingResults[0];
-                
-                const extractedData = {
-                    fullName: profile.name || profile.title || null,
-                    firstName: null,
-                    lastName: null,
-                    headline: profile.type || profile.category || null,
-                    summary: profile.description || null,
-                    location: profile.address || profile.location || null,
-                    industry: profile.category || null,
-                    connectionsCount: null,
-                    profileImageUrl: profile.photo || null,
-                    experience: [],
-                    education: [],
-                    skills: [],
-                    rawData: profile
-                };
+        const username = match[1];
+        console.log(`👤 Extracted username: ${username}`);
+        
+        const response = await axios.get(SCRAPINGDOG_BASE_URL, {
+            params: {
+                api_key: SCRAPINGDOG_API_KEY,
+                type: 'person',
+                linkId: username
+            },
+            timeout: 45000 // 45 seconds timeout
+        });
 
-                // Parse name if available
-                if (extractedData.fullName) {
-                    const nameParts = extractedData.fullName.split(' ');
-                    if (nameParts.length >= 2) {
-                        extractedData.firstName = nameParts[0];
-                        extractedData.lastName = nameParts.slice(1).join(' ');
-                    }
-                }
+        if (response.data && response.status === 200) {
+            const profile = response.data;
+            
+            // Extract and structure the data
+            const extractedData = {
+                fullName: profile.name || profile.full_name || null,
+                firstName: profile.first_name || profile.name?.split(' ')[0] || null,
+                lastName: profile.last_name || profile.name?.split(' ').slice(1).join(' ') || null,
+                headline: profile.headline || profile.description || null,
+                summary: profile.summary || profile.about || null,
+                location: profile.location || profile.address || null,
+                industry: profile.industry || null,
+                connectionsCount: profile.connections || profile.connections_count || null,
+                profileImageUrl: profile.profile_image || profile.avatar || null,
+                experience: profile.experience || [],
+                education: profile.education || [],
+                skills: profile.skills || [],
+                rawData: profile // Store complete response for future use
+            };
 
-                console.log(`✅ Successfully extracted profile via scraping for: ${extractedData.fullName || 'Unknown User'}`);
-                return extractedData;
-            }
-        } catch (scrapingError) {
-            console.log('⚠️ Web scraping approach failed:', scrapingError.message);
-        }
-        
-        // If both methods fail, throw an error
-        throw new Error('Unable to extract LinkedIn profile data using available methods');
-        
-    } catch (error) {
-        console.error('❌ Outscraper SDK extraction error:', error.message);
-        
-        // Better error handling
-        if (error.message.includes('API key')) {
-            throw new Error('Invalid Outscraper API key - please check your configuration');
-        } else if (error.message.includes('rate limit')) {
-            throw new Error('Outscraper API rate limit exceeded - please try again later');
-        } else if (error.message.includes('not found')) {
-            throw new Error('LinkedIn profile not found or URL is invalid');
-        } else if (error.message.includes('private')) {
-            throw new Error('LinkedIn profile is private or restricted');
+            console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
+            return extractedData;
         } else {
-            throw new Error(`LinkedIn extraction failed: ${error.message}`);
+            throw new Error('No profile data returned from ScrapingDog');
         }
+    } catch (error) {
+        console.error('❌ ScrapingDog extraction error:', error.message);
+        throw error;
     }
 };
 
@@ -423,15 +344,9 @@ const cleanLinkedInUrl = (url) => {
         if (cleanUrl.endsWith('/')) {
             cleanUrl = cleanUrl.slice(0, -1);
         }
-        
-        // Ensure it's a valid LinkedIn profile URL
-        if (!cleanUrl.includes('linkedin.com/in/')) {
-            throw new Error('Invalid LinkedIn URL format');
-        }
-        
         return cleanUrl;
     } catch (error) {
-        throw new Error('Invalid LinkedIn URL: ' + error.message);
+        return url;
     }
 };
 
@@ -500,7 +415,7 @@ const updateUserCredits = async (userId, newCredits) => {
     return result.rows[0];
 };
 
-// ==================== ENHANCED FUNCTIONS FOR LINKEDIN URL WITH EXTRACTION ====================
+// ==================== NEW FUNCTIONS FOR LINKEDIN URL WITH EXTRACTION ====================
 
 // Create or update user profile with LinkedIn URL (EXISTING - kept same)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) => {
@@ -532,13 +447,10 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) =
     }
 };
 
-// ENHANCED: Better extraction with Official Outscraper SDK
+// Enhanced function to create/update profile with ScrapingDog extraction (UPDATED)
 const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, displayName = null) => {
     try {
-        console.log(`🚀 Starting profile extraction for user ${userId} with URL: ${linkedinUrl}`);
-        
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
-        console.log(`🧹 Cleaned URL: ${cleanUrl}`);
         
         // First, create/update basic profile
         const existingProfile = await pool.query(
@@ -550,26 +462,28 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
         if (existingProfile.rows.length > 0) {
             // Update existing profile
             const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
-                [cleanUrl, displayName, 'in_progress', userId]
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
+                [cleanUrl, displayName, userId]
             );
             profile = result.rows[0];
         } else {
             // Create new profile
             const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_attempted_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *',
-                [userId, cleanUrl, displayName, 'in_progress']
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
+                [userId, cleanUrl, displayName]
             );
             profile = result.rows[0];
         }
         
-        console.log(`📝 Basic profile saved, starting Official SDK extraction...`);
+        // Mark extraction as attempted
+        await pool.query(
+            'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
+            ['in_progress', userId]
+        );
 
         try {
-            // Extract LinkedIn data using Official Outscraper SDK
+            // Extract LinkedIn data using ScrapingDog
             const extractedData = await extractLinkedInProfile(cleanUrl);
-            
-            console.log(`🎯 Extraction successful, saving data...`);
             
             // Update profile with extracted data
             const result = await pool.query(`
@@ -586,7 +500,7 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                     skills = $10,
                     connections_count = $11,
                     profile_image_url = $12,
-                    outscraper_data = $13,
+                    scrapingdog_data = $13,
                     data_extraction_status = 'completed',
                     extraction_completed_at = CURRENT_TIMESTAMP,
                     extraction_error = NULL,
@@ -611,25 +525,23 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                 userId
             ]);
 
-            console.log(`✅ Profile data extracted and saved successfully for user ${userId}`);
+            console.log(`✅ Profile data extracted and saved for user ${userId}`);
             return result.rows[0];
 
         } catch (extractionError) {
             console.error('❌ Profile extraction failed:', extractionError.message);
             
             // Mark extraction as failed but don't fail the registration
-            const failedResult = await pool.query(
-                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
+            await pool.query(
+                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
                 ['failed', extractionError.message, userId]
             );
             
-            console.log(`⚠️ Extraction failed but profile saved - user can retry later`);
-            
-            // Return profile with failure status - registration should still succeed
-            return failedResult.rows[0];
+            // Return basic profile - registration should still succeed
+            return profile;
         }
     } catch (error) {
-        console.error('❌ Error in profile creation/extraction:', error);
+        console.error('Error in profile creation/extraction:', error);
         throw error;
     }
 };
@@ -660,26 +572,25 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== API ENDPOINTS ====================
 
-// Health Check (ENHANCED)
+// Health Check (UPDATED)
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '3.0-outscraper-sdk',
+        version: '4.0-scrapingdog',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'outscraper-sdk-integration', 'linkedin-extraction'],
-        outscraper: {
-            configured: !!OUTSCRAPER_API_KEY,
-            sdkInitialized: !!outscraper,
-            status: 'official-sdk'
+        features: ['authentication', 'google-oauth', 'scrapingdog-integration', 'linkedin-extraction'],
+        scrapingdog: {
+            configured: !!SCRAPINGDOG_API_KEY,
+            apiUrl: SCRAPINGDOG_BASE_URL,
+            status: 'active'
         }
     });
 });
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server with Google OAuth + Official Outscraper SDK',
+        message: 'Msgly.AI Server with Google OAuth + ScrapingDog',
         status: 'running',
-        version: '3.0-outscraper-sdk',
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -759,12 +670,11 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`${frontendUrl}?error=auth_failed`);
 });
 
-// ==================== ENHANCED ENDPOINTS FOR OUTSCRAPER SDK INTEGRATION ====================
+// ==================== NEW ENDPOINTS FOR SCRAPINGDOG INTEGRATION ====================
 
-// ENHANCED: Update user profile with LinkedIn URL and trigger extraction
+// Update user profile with LinkedIn URL and trigger extraction (NEW - ENHANCED)
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
-    console.log('📝 Request body:', req.body);
     
     try {
         const { linkedinUrl, packageType } = req.body;
@@ -777,14 +687,11 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             });
         }
         
-        // Enhanced LinkedIn URL validation
-        try {
-            const cleanUrl = cleanLinkedInUrl(linkedinUrl);
-            console.log(`✅ LinkedIn URL validated: ${cleanUrl}`);
-        } catch (validationError) {
+        // Basic LinkedIn URL validation
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
             return res.status(400).json({
                 success: false,
-                error: 'Please provide a valid LinkedIn profile URL (e.g., https://www.linkedin.com/in/your-profile)'
+                error: 'Please provide a valid LinkedIn profile URL'
             });
         }
         
@@ -804,9 +711,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             );
         }
         
-        console.log(`🚀 Starting Official SDK profile extraction for user ${req.user.id}...`);
-        
-        // Create or update user profile WITH ENHANCED OUTSCRAPER SDK EXTRACTION
+        // Create or update user profile WITH SCRAPINGDOG EXTRACTION
         const profile = await createOrUpdateUserProfileWithExtraction(
             req.user.id, 
             linkedinUrl, 
@@ -816,13 +721,9 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         // Get updated user data
         const updatedUser = await getUserById(req.user.id);
         
-        console.log(`✅ Profile processing completed with status: ${profile.data_extraction_status}`);
-        
         res.json({
             success: true,
-            message: profile.data_extraction_status === 'completed' 
-                ? 'Profile updated and extraction completed successfully' 
-                : 'Profile updated - extraction may have failed but can be retried',
+            message: 'Profile updated and extraction initiated',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -848,6 +749,8 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
+        console.log(`✅ Profile updated for user ${updatedUser.email} with LinkedIn: ${linkedinUrl} (Status: ${profile.data_extraction_status})`);
+        
     } catch (error) {
         console.error('❌ Profile update error:', error);
         res.status(500).json({
@@ -858,11 +761,9 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// ENHANCED: Retry extraction for failed profiles
+// Retry extraction for failed profiles (NEW)
 app.post('/retry-extraction', authenticateToken, async (req, res) => {
     try {
-        console.log(`🔄 Retry extraction request for user ${req.user.id}`);
-        
         const profileResult = await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [req.user.id]
@@ -877,8 +778,6 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         const profile = profileResult.rows[0];
         
-        console.log(`🔄 Retrying extraction for URL: ${profile.linkedin_url}`);
-        
         // Re-run extraction
         const updatedProfile = await createOrUpdateUserProfileWithExtraction(
             req.user.id,
@@ -888,19 +787,14 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: updatedProfile.data_extraction_status === 'completed' 
-                ? 'Profile extraction completed successfully'
-                : 'Profile extraction attempted - check extraction status',
+            message: 'Profile extraction retried',
             data: {
                 profile: {
                     extractionStatus: updatedProfile.data_extraction_status,
                     profileAnalyzed: updatedProfile.profile_analyzed,
                     fullName: updatedProfile.full_name,
                     headline: updatedProfile.headline,
-                    location: updatedProfile.location,
-                    industry: updatedProfile.industry,
-                    extractionError: updatedProfile.extraction_error,
-                    extractionCompleted: updatedProfile.extraction_completed_at
+                    extractionError: updatedProfile.extraction_error
                 }
             }
         });
@@ -915,7 +809,7 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== REST OF EXISTING ENDPOINTS (UNCHANGED) ====================
+// ==================== EXISTING ENDPOINTS (UNCHANGED BUT ENHANCED) ====================
 
 // User Registration with Package Selection (Email/Password) - UNCHANGED
 app.post('/register', async (req, res) => {
@@ -1276,10 +1170,8 @@ const validateEnvironment = () => {
         process.exit(1);
     }
     
-    if (!OUTSCRAPER_API_KEY) {
-        console.warn('⚠️ Warning: OUTSCRAPER_API_KEY not set - profile extraction will fail');
-    } else {
-        console.log('✅ Outscraper API key configured');
+    if (!SCRAPINGDOG_API_KEY) {
+        console.warn('⚠️ Warning: SCRAPINGDOG_API_KEY not set - profile extraction will fail');
     }
     
     console.log('✅ Environment validated');
@@ -1308,14 +1200,14 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server with Official Outscraper SDK Started!');
+            console.log('🚀 Msgly.AI Server with ScrapingDog Integration Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
-            console.log(`🔍 Outscraper: ${outscraper ? 'Official SDK Initialized ✅' : 'NOT INITIALIZED ⚠️'}`);
+            console.log(`🔍 ScrapingDog: ${SCRAPINGDOG_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: Official SDK Profile Extraction Ready`);
+            console.log(`🔗 LinkedIn: Profile Extraction Ready`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
