@@ -229,7 +229,7 @@ const initDB = async () => {
             console.log('Password hash might already be nullable:', err.message);
         }
 
-        // Add ScrapingDog columns to existing user_profiles table (CHANGED FROM OUTSCRAPER)
+        // Add ScrapingDog columns to existing user_profiles table (ENHANCED WITH FULL PROFILE FIELDS)
         try {
             await pool.query(`
                 ALTER TABLE user_profiles 
@@ -241,7 +241,14 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS education JSONB,
                 ADD COLUMN IF NOT EXISTS skills TEXT[],
                 ADD COLUMN IF NOT EXISTS connections_count INTEGER,
+                ADD COLUMN IF NOT EXISTS followers_count INTEGER,
                 ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS background_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS public_identifier VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS certifications JSONB,
+                ADD COLUMN IF NOT EXISTS volunteering JSONB,
+                ADD COLUMN IF NOT EXISTS languages JSONB,
+                ADD COLUMN IF NOT EXISTS articles JSONB,
                 ADD COLUMN IF NOT EXISTS scrapingdog_data JSONB,
                 ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
@@ -383,6 +390,57 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 return null;
             };
 
+            // Helper function to extract and clean experience data
+            const extractExperience = (experienceArray) => {
+                if (!Array.isArray(experienceArray)) return [];
+                return experienceArray.map(exp => ({
+                    position: exp.position || exp.title || null,
+                    company: exp.company_name || exp.company || null,
+                    companyUrl: exp.company_url || null,
+                    location: exp.location || null,
+                    summary: exp.summary || exp.description || null,
+                    startDate: exp.starts_at || exp.start_date || null,
+                    endDate: exp.ends_at || exp.end_date || null,
+                    duration: exp.duration || null,
+                    current: (exp.ends_at || exp.end_date || '').toLowerCase().includes('present')
+                }));
+            };
+
+            // Helper function to extract and clean education data  
+            const extractEducation = (educationArray) => {
+                if (!Array.isArray(educationArray)) return [];
+                return educationArray.map(edu => ({
+                    school: edu.school_name || edu.school || edu.institution || null,
+                    degree: edu.degree_name || edu.degree || null,
+                    fieldOfStudy: edu.field_of_study || edu.field || null,
+                    startDate: edu.start_date || edu.starts_at || null,
+                    endDate: edu.end_date || edu.ends_at || null,
+                    description: edu.description || null
+                }));
+            };
+
+            // Helper function to extract and clean skills data
+            const extractSkills = (skillsArray) => {
+                if (!Array.isArray(skillsArray)) return [];
+                return skillsArray.map(skill => {
+                    if (typeof skill === 'string') return skill;
+                    return skill.name || skill.skillName || skill.skill || skill;
+                }).filter(Boolean);
+            };
+
+            // Helper function to extract certifications
+            const extractCertifications = (certArray) => {
+                if (!Array.isArray(certArray)) return [];
+                return certArray.map(cert => ({
+                    name: cert.name || cert.title || null,
+                    authority: cert.authority || cert.issuer || null,
+                    issueDate: cert.issue_date || cert.issued_date || null,
+                    expirationDate: cert.expiration_date || null,
+                    credentialId: cert.credential_id || null,
+                    url: cert.url || null
+                }));
+            };
+
             // Extract and structure the data (using ScrapingDog's actual field names)
             const extractedData = {
                 fullName: profile.fullName || profile.name || profile.full_name || null,
@@ -393,10 +451,17 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 location: profile.location || profile.address || null,
                 industry: profile.industry || null,
                 connectionsCount: parseLinkedInNumber(profile.connections),
+                followersCount: parseLinkedInNumber(profile.followers),
                 profileImageUrl: profile.profile_photo || profile.profile_image || profile.avatar || null,
-                experience: profile.experience || [],
-                education: profile.education || [],
-                skills: profile.skills || [],
+                backgroundImageUrl: profile.background_cover_image_url || profile.background_image || null,
+                publicIdentifier: profile.public_identifier || null,
+                experience: extractExperience(profile.experience),
+                education: extractEducation(profile.education),
+                skills: extractSkills(profile.skills),
+                certifications: extractCertifications(profile.certification || profile.certifications),
+                volunteering: profile.volunteering || profile.volunteer || [],
+                languages: profile.languages || [],
+                articles: profile.articles || [],
                 rawData: profile
             };
 
@@ -567,7 +632,7 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
             // Extract LinkedIn data using ScrapingDog
             const extractedData = await extractLinkedInProfile(cleanUrl);
             
-            // Update profile with extracted data (CHANGED COLUMN NAME)
+            // Update profile with extracted data (COMPLETE PROFILE DATA STORAGE)
             const result = await pool.query(`
                 UPDATE user_profiles SET 
                     full_name = COALESCE($1, full_name),
@@ -581,14 +646,21 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                     education = $9,
                     skills = $10,
                     connections_count = $11,
-                    profile_image_url = $12,
-                    scrapingdog_data = $13,
+                    followers_count = $12,
+                    profile_image_url = $13,
+                    background_image_url = $14,
+                    public_identifier = $15,
+                    certifications = $16,
+                    volunteering = $17,
+                    languages = $18,
+                    articles = $19,
+                    scrapingdog_data = $20,
                     data_extraction_status = 'completed',
                     extraction_completed_at = CURRENT_TIMESTAMP,
                     extraction_error = NULL,
                     profile_analyzed = true,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $14 
+                WHERE user_id = $21 
                 RETURNING *
             `, [
                 extractedData.fullName,
@@ -602,7 +674,14 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                 JSON.stringify(extractedData.education),
                 extractedData.skills,
                 extractedData.connectionsCount,
+                extractedData.followersCount,
                 extractedData.profileImageUrl,
+                extractedData.backgroundImageUrl,
+                extractedData.publicIdentifier,
+                JSON.stringify(extractedData.certifications),
+                JSON.stringify(extractedData.volunteering),
+                JSON.stringify(extractedData.languages),
+                JSON.stringify(extractedData.articles),
                 JSON.stringify(extractedData.rawData),
                 userId
             ]);
@@ -1089,12 +1168,20 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     education: profile.education,
                     skills: profile.skills,
                     connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
                     profileImageUrl: profile.profile_image_url,
+                    backgroundImageUrl: profile.background_image_url,
+                    publicIdentifier: profile.public_identifier,
+                    certifications: profile.certifications,
+                    volunteering: profile.volunteering,
+                    languages: profile.languages,
+                    articles: profile.articles,
                     extractionStatus: profile.data_extraction_status,
                     extractionAttempted: profile.extraction_attempted_at,
                     extractionCompleted: profile.extraction_completed_at,
                     extractionError: profile.extraction_error,
-                    profileAnalyzed: profile.profile_analyzed
+                    profileAnalyzed: profile.profile_analyzed,
+                    rawLinkedInData: profile.scrapingdog_data
                 } : null
             }
         });
