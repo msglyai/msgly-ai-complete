@@ -20,9 +20,10 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// CHANGED: Bright Data API configuration (instead of Outscraper)
+// FIXED: Bright Data API configuration (using synchronous API)
 const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_TOKEN || 'e5353ea11fe201c7f9797062c64b59fb87f1bfc01ad8a24dd0fc34a29ccddd23';
-const BRIGHT_DATA_BASE_URL = 'https://api.brightdata.com/datasets/v3/trigger';
+const BRIGHT_DATA_SCRAPE_URL = 'https://api.brightdata.com/datasets/v3/scrape';
+const BRIGHT_DATA_TRIGGER_URL = 'https://api.brightdata.com/datasets/v3/trigger';
 const BRIGHT_DATA_DATASET_ID = 'gd_l1viktl72bvl7bjuj0';
 
 // CORS for Chrome Extensions
@@ -272,7 +273,7 @@ const initDB = async () => {
     }
 };
 
-// ==================== BRIGHT DATA FUNCTIONS (CHANGED FROM OUTSCRAPER) ====================
+// ==================== BRIGHT DATA FUNCTIONS (FIXED - CORRECT API USAGE) ====================
 
 const extractLinkedInProfile = async (linkedinUrl) => {
     try {
@@ -282,53 +283,81 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             throw new Error('Bright Data API key not configured');
         }
         
-        // Step 1: Trigger the extraction job
-        const triggerResponse = await axios.post(
-            `${BRIGHT_DATA_BASE_URL}?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
+        // FIXED: Use synchronous API for immediate response
+        const scrapeResponse = await axios.post(
+            `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
             [{ url: linkedinUrl }],
             {
                 headers: {
                     'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 30000 // 30 seconds for trigger
+                timeout: 60000 // 60 seconds timeout
             }
         );
 
-        if (!triggerResponse.data || !triggerResponse.data.snapshot_id) {
-            throw new Error('No snapshot ID returned from Bright Data trigger');
+        // Check if we got immediate data (status 200)
+        if (scrapeResponse.status === 200 && scrapeResponse.data && scrapeResponse.data.length > 0) {
+            const profile = scrapeResponse.data[0];
+            
+            // Extract and structure the data
+            const extractedData = {
+                fullName: profile.name || profile.full_name || null,
+                firstName: profile.first_name || null,
+                lastName: profile.last_name || null,
+                headline: profile.headline || null,
+                summary: profile.summary || profile.about || null,
+                location: profile.location || null,
+                industry: profile.industry || null,
+                connectionsCount: profile.connections_count || profile.connections || null,
+                profileImageUrl: profile.profile_picture || profile.photo_url || profile.avatar || null,
+                experience: profile.experience || [],
+                education: profile.education || [],
+                skills: profile.skills || [],
+                rawData: profile // Store complete response for future use
+            };
+
+            console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
+            return extractedData;
         }
-
-        const snapshotId = triggerResponse.data.snapshot_id;
-        console.log(`📷 Snapshot ID received: ${snapshotId}`);
-
-        // Step 2: Poll for completion (maximum 3 minutes)
-        const maxAttempts = 18; // 18 attempts * 10 seconds = 3 minutes
-        let attempt = 0;
         
-        while (attempt < maxAttempts) {
-            attempt++;
-            console.log(`⏳ Polling attempt ${attempt}/${maxAttempts} for snapshot ${snapshotId}`);
+        // If we get HTTP 202, it means the request is still processing
+        if (scrapeResponse.status === 202) {
+            console.log('⏳ Request is still processing (HTTP 202), trying fallback approach...');
             
-            // Wait 10 seconds between polls
-            await new Promise(resolve => setTimeout(resolve, 10000));
-            
-            try {
-                // Check snapshot status
-                const statusResponse = await axios.get(
-                    `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`
-                        },
-                        timeout: 15000
-                    }
-                );
+            // Fallback: Use async trigger approach
+            const triggerResponse = await axios.post(
+                `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
+                [{ url: linkedinUrl }],
+                {
+                    headers: {
+                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
+                }
+            );
 
-                if (statusResponse.data && statusResponse.data.status === 'ready') {
-                    console.log(`✅ Snapshot ${snapshotId} is ready, downloading data...`);
-                    
-                    // Step 3: Download the results
+            if (!triggerResponse.data || !triggerResponse.data.snapshot_id) {
+                throw new Error('No snapshot ID returned from Bright Data trigger');
+            }
+
+            const snapshotId = triggerResponse.data.snapshot_id;
+            console.log(`📷 Fallback: Snapshot ID received: ${snapshotId}`);
+
+            // Poll for completion (maximum 2 minutes for fallback)
+            const maxAttempts = 12; // 12 attempts * 10 seconds = 2 minutes
+            let attempt = 0;
+            
+            while (attempt < maxAttempts) {
+                attempt++;
+                console.log(`⏳ Fallback polling attempt ${attempt}/${maxAttempts} for snapshot ${snapshotId}`);
+                
+                // Wait 10 seconds between polls
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                
+                try {
+                    // Download the results directly
                     const downloadResponse = await axios.get(
                         `https://api.brightdata.com/datasets/snapshots/${snapshotId}/download`,
                         {
@@ -352,31 +381,30 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                             location: profile.location || null,
                             industry: profile.industry || null,
                             connectionsCount: profile.connections_count || profile.connections || null,
-                            profileImageUrl: profile.profile_picture || profile.photo_url || null,
+                            profileImageUrl: profile.profile_picture || profile.photo_url || profile.avatar || null,
                             experience: profile.experience || [],
                             education: profile.education || [],
                             skills: profile.skills || [],
                             rawData: profile // Store complete response for future use
                         };
 
-                        console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
+                        console.log(`✅ Fallback: Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
                         return extractedData;
-                    } else {
-                        throw new Error('No profile data in download response');
+                    }
+                    
+                } catch (downloadError) {
+                    console.log(`⚠️ Fallback download attempt ${attempt} failed: ${downloadError.message}`);
+                    if (attempt === maxAttempts) {
+                        throw new Error(`Fallback failed after ${maxAttempts} attempts: ${downloadError.message}`);
                     }
                 }
-                
-                console.log(`⏳ Snapshot status: ${statusResponse.data?.status || 'unknown'}`);
-                
-            } catch (pollError) {
-                console.log(`⚠️ Poll attempt ${attempt} failed: ${pollError.message}`);
-                if (attempt === maxAttempts) {
-                    throw new Error(`Polling failed after ${maxAttempts} attempts: ${pollError.message}`);
-                }
             }
+            
+            throw new Error(`Fallback extraction timed out after ${maxAttempts * 10} seconds`);
         }
         
-        throw new Error(`Extraction timed out after ${maxAttempts * 10} seconds`);
+        // If we get here, something unexpected happened
+        throw new Error(`Unexpected response from Bright Data: Status ${scrapeResponse.status}`);
         
     } catch (error) {
         console.error('❌ Bright Data extraction error:', error.message);
@@ -623,17 +651,18 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== API ENDPOINTS ====================
 
-// CHANGED: Health Check (ENHANCED FOR BRIGHT DATA)
+// FIXED: Health Check (BRIGHT DATA WITH CORRECT API)
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '2.0-brightdata',
+        version: '2.0-brightdata-sync',
         timestamp: new Date().toISOString(),
         features: ['authentication', 'google-oauth', 'brightdata-integration', 'linkedin-extraction'],
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
             datasetId: BRIGHT_DATA_DATASET_ID,
-            apiUrl: BRIGHT_DATA_BASE_URL
+            syncApi: BRIGHT_DATA_SCRAPE_URL,
+            asyncApi: BRIGHT_DATA_TRIGGER_URL
         }
     });
 });
@@ -1256,6 +1285,7 @@ const startServer = async () => {
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`⚡ API: Synchronous (immediate response) + Async fallback`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: Profile Extraction Ready`);
