@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth + ScrapingDog Integration (AUTOMATIC BACKGROUND PROCESSING)
+// Msgly.AI Server with Google OAuth + Bright Data Integration (AUTOMATIC BACKGROUND PROCESSING)
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -20,9 +20,10 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// ScrapingDog API configuration
-const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY;
-const SCRAPINGDOG_BASE_URL = 'https://api.scrapingdog.com/linkedin';
+// Bright Data API configuration (UPDATED FROM SCRAPINGDOG)
+const BRIGHT_DATA_API_TOKEN = process.env.BRIGHT_DATA_API_TOKEN || 'e5353ea11fe201c7f9797062c64b59fb87f1bfc01ad8a24dd0fc34a29ccddd23';
+const BRIGHT_DATA_DATASET_ID = 'gd_l1viktl72bvl7bjuj0';
+const BRIGHT_DATA_BASE_URL = 'https://api.brightdata.com/datasets/v3/trigger';
 
 // Background processing tracking
 const processingQueue = new Map(); // Track background jobs
@@ -154,7 +155,7 @@ const initDB = async () => {
             );
         `);
 
-        // Enhanced user profiles table with ScrapingDog fields
+        // Enhanced user profiles table with Bright Data fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -179,12 +180,13 @@ const initDB = async () => {
                 volunteering JSONB,
                 languages JSONB,
                 articles JSONB,
-                scrapingdog_data JSONB,
+                brightdata_data JSONB,
                 data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 extraction_attempted_at TIMESTAMP,
                 extraction_completed_at TIMESTAMP,
                 extraction_error TEXT,
                 extraction_retry_count INTEGER DEFAULT 0,
+                extraction_cost DECIMAL(10,4) DEFAULT 0.001,
                 profile_analyzed BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -248,12 +250,13 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS volunteering JSONB,
                 ADD COLUMN IF NOT EXISTS languages JSONB,
                 ADD COLUMN IF NOT EXISTS articles JSONB,
-                ADD COLUMN IF NOT EXISTS scrapingdog_data JSONB,
+                ADD COLUMN IF NOT EXISTS brightdata_data JSONB,
                 ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_error TEXT,
-                ADD COLUMN IF NOT EXISTS extraction_retry_count INTEGER DEFAULT 0;
+                ADD COLUMN IF NOT EXISTS extraction_retry_count INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS extraction_cost DECIMAL(10,4) DEFAULT 0.001;
             `);
 
             console.log('✅ Database columns updated successfully');
@@ -280,7 +283,7 @@ const initDB = async () => {
     }
 };
 
-// ==================== AUTOMATIC BACKGROUND PROCESSING FUNCTIONS ====================
+// ==================== AUTOMATIC BACKGROUND PROCESSING FUNCTIONS (UPDATED FOR BRIGHT DATA) ====================
 
 // Enhanced number parsing for LinkedIn connection/follower counts
 const parseLinkedInNumber = (str) => {
@@ -313,60 +316,36 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// Extract LinkedIn profile with comprehensive data
+// Extract LinkedIn profile with Bright Data (COMPLETELY UPDATED)
 const extractLinkedInProfile = async (linkedinUrl, retryAttempt = 0) => {
     try {
-        console.log(`🔍 Extracting LinkedIn profile: ${linkedinUrl} (Attempt ${retryAttempt + 1})`);
+        console.log(`🔍 Extracting LinkedIn profile with Bright Data: ${linkedinUrl} (Attempt ${retryAttempt + 1})`);
         
-        if (!SCRAPINGDOG_API_KEY) {
-            throw new Error('ScrapingDog API key not configured');
+        if (!BRIGHT_DATA_API_TOKEN) {
+            throw new Error('Bright Data API token not configured');
         }
         
-        // Extract username from LinkedIn URL
-        const url = new URL(linkedinUrl);
-        const pathname = url.pathname;
-        const match = pathname.match(/\/in\/([^\/\?]+)/);
-        
-        if (!match) {
-            throw new Error('Invalid LinkedIn URL format');
-        }
-        
-        const username = match[1];
-        console.log(`👤 Extracted username: ${username}`);
-        
-        // Always use private=true for complete data extraction
-        const response = await axios.get(SCRAPINGDOG_BASE_URL, {
-            params: {
-                api_key: SCRAPINGDOG_API_KEY,
-                type: 'profile',
-                linkId: username,
-                private: 'true'  // Essential for complete data
-            },
-            timeout: 60000
-        });
-
-        console.log(`📊 ScrapingDog response status: ${response.status}`);
-
-        // Handle 202 status (processing) - return special status for background processing
-        if (response.status === 202) {
-            console.log('⏳ Profile is being processed by ScrapingDog...');
-            return { 
-                status: 'processing', 
-                message: 'LinkedIn profile is being processed, will retry automatically',
-                retryAfter: 180 // 3 minutes
-            };
-        }
-
-        if (response.status === 200 && response.data) {
-            // Handle both array and object responses
-            let profile = response.data;
-            if (Array.isArray(profile) && profile.length > 0) {
-                profile = profile[0];
+        // Bright Data API call
+        const response = await axios.post(
+            `${BRIGHT_DATA_BASE_URL}?dataset_id=${BRIGHT_DATA_DATASET_ID}&include_errors=true`,
+            [{ url: linkedinUrl }],
+            {
+                headers: {
+                    'Authorization': `Bearer ${BRIGHT_DATA_API_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 120000 // 2 minutes
             }
+        );
 
-            console.log('📋 Raw profile data received:', Object.keys(profile));
+        console.log(`📊 Bright Data response status: ${response.status}`);
 
-            // Helper functions to extract and clean data
+        if (response.status === 200 && response.data && response.data.length > 0) {
+            const profile = response.data[0]; // First result from Bright Data
+            
+            console.log('📋 Raw profile data received from Bright Data:', Object.keys(profile));
+
+            // Helper functions to extract and clean data (same as before)
             const extractExperience = (experienceArray) => {
                 if (!Array.isArray(experienceArray)) return [];
                 return experienceArray.map(exp => ({
@@ -414,20 +393,20 @@ const extractLinkedInProfile = async (linkedinUrl, retryAttempt = 0) => {
                 }));
             };
 
-            // Extract comprehensive profile data
+            // Extract comprehensive profile data (adapted for Bright Data response structure)
             const extractedData = {
-                fullName: profile.fullName || profile.name || profile.full_name || null,
-                firstName: profile.first_name || (profile.fullName ? profile.fullName.split(' ')[0] : null),
-                lastName: profile.last_name || (profile.fullName ? profile.fullName.split(' ').slice(1).join(' ') : null),
-                headline: profile.headline || profile.description || null,
-                summary: profile.summary || profile.about || null,
-                location: profile.location || profile.address || null,
+                fullName: profile.name || profile.fullName || profile.full_name || null,
+                firstName: profile.first_name || (profile.name ? profile.name.split(' ')[0] : null),
+                lastName: profile.last_name || (profile.name ? profile.name.split(' ').slice(1).join(' ') : null),
+                headline: profile.position || profile.headline || profile.description || null,
+                summary: profile.about || profile.summary || null,
+                location: profile.city || profile.location || profile.address || null,
                 industry: profile.industry || null,
                 connectionsCount: parseLinkedInNumber(profile.connections || profile.connections_count),
                 followersCount: parseLinkedInNumber(profile.followers || profile.followers_count),
                 profileImageUrl: profile.profile_photo || profile.profile_image || profile.avatar || null,
                 backgroundImageUrl: profile.background_cover_image_url || profile.background_image || null,
-                publicIdentifier: profile.public_identifier || null,
+                publicIdentifier: profile.id || profile.public_identifier || null,
                 experience: extractExperience(profile.experience || []),
                 education: extractEducation(profile.education || []),
                 skills: extractSkills(profile.skills || []),
@@ -442,16 +421,18 @@ const extractLinkedInProfile = async (linkedinUrl, retryAttempt = 0) => {
             console.log(`📊 Experience entries: ${extractedData.experience.length}`);
             console.log(`🎓 Education entries: ${extractedData.education.length}`);
             console.log(`🛠️ Skills count: ${extractedData.skills.length}`);
+            console.log(`💰 Cost: $0.001 (0.1 cents)`);
             
             return {
                 status: 'completed',
-                data: extractedData
+                data: extractedData,
+                cost: 0.001
             };
         } else {
-            throw new Error(`ScrapingDog returned status ${response.status}: ${response.statusText}`);
+            throw new Error(`Bright Data returned empty response or invalid data`);
         }
     } catch (error) {
-        console.error('❌ ScrapingDog extraction error:', error.message);
+        console.error('❌ Bright Data extraction error:', error.message);
         if (error.response) {
             console.error('❌ Response status:', error.response.status);
             console.error('❌ Response data:', error.response.data);
@@ -460,12 +441,12 @@ const extractLinkedInProfile = async (linkedinUrl, retryAttempt = 0) => {
     }
 };
 
-// AUTOMATIC BACKGROUND PROCESSING - The key function!
+// AUTOMATIC BACKGROUND PROCESSING - Updated for Bright Data reliability
 const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
-    const maxRetries = 5; // Maximum number of automatic retries
-    const retryDelay = 180000; // 3 minutes in milliseconds
+    const maxRetries = 3; // Reduced from 5 because Bright Data is more reliable
+    const retryDelay = 60000; // 1 minute instead of 3 (Bright Data is faster)
     
-    console.log(`🔄 Scheduling background extraction for user ${userId}, retry ${retryCount}`);
+    console.log(`🔄 Scheduling Bright Data background extraction for user ${userId}, retry ${retryCount}`);
     
     // Check if we've exceeded max retries
     if (retryCount >= maxRetries) {
@@ -480,7 +461,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
     // Schedule the extraction after a delay
     setTimeout(async () => {
         try {
-            console.log(`🚀 Starting background extraction for user ${userId} (Retry ${retryCount})`);
+            console.log(`🚀 Starting Bright Data background extraction for user ${userId} (Retry ${retryCount})`);
             
             // Update retry count in database
             await pool.query(
@@ -490,13 +471,9 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
 
             const result = await extractLinkedInProfile(linkedinUrl, retryCount);
             
-            if (result.status === 'processing') {
-                // Still processing, schedule another retry
-                console.log(`⏳ Still processing for user ${userId}, scheduling retry ${retryCount + 1}`);
-                await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
-            } else if (result.status === 'completed') {
+            if (result.status === 'completed') {
                 // Success! Update database with complete data
-                console.log(`✅ Background extraction completed for user ${userId}`);
+                console.log(`✅ Bright Data background extraction completed for user ${userId} (Cost: $${result.cost})`);
                 
                 const extractedData = result.data;
                 await pool.query(`
@@ -520,13 +497,14 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                         volunteering = $17,
                         languages = $18,
                         articles = $19,
-                        scrapingdog_data = $20,
+                        brightdata_data = $20,
+                        extraction_cost = $21,
                         data_extraction_status = 'completed',
                         extraction_completed_at = CURRENT_TIMESTAMP,
                         extraction_error = NULL,
                         profile_analyzed = true,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $21 
+                    WHERE user_id = $22 
                 `, [
                     extractedData.fullName,
                     extractedData.firstName,
@@ -548,16 +526,17 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                     JSON.stringify(extractedData.languages),
                     JSON.stringify(extractedData.articles),
                     JSON.stringify(extractedData.rawData),
+                    result.cost,
                     userId
                 ]);
 
-                console.log(`🎉 Profile data fully extracted and saved for user ${userId}`);
+                console.log(`🎉 Profile data fully extracted and saved for user ${userId} with Bright Data`);
                 
                 // Remove from processing queue
                 processingQueue.delete(userId);
             }
         } catch (error) {
-            console.error(`❌ Background extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
+            console.error(`❌ Bright Data background extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
             
             // If this is not the last retry, schedule another one
             if (retryCount < maxRetries - 1) {
@@ -571,7 +550,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                 processingQueue.delete(userId);
             }
         }
-    }, retryCount === 0 ? 10000 : retryDelay); // First retry after 10 seconds, then 3 minutes
+    }, retryCount === 0 ? 5000 : retryDelay); // First retry after 5 seconds, then 1 minute
 };
 
 // Clean and validate LinkedIn URL
@@ -658,7 +637,7 @@ const createOrUpdateUserProfileWithAutoExtraction = async (userId, linkedinUrl, 
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        console.log(`🚀 Creating profile with automatic extraction for user ${userId}`);
+        console.log(`🚀 Creating profile with automatic Bright Data extraction for user ${userId}`);
         
         // First, create/update basic profile
         const existingProfile = await pool.query(
@@ -683,14 +662,14 @@ const createOrUpdateUserProfileWithAutoExtraction = async (userId, linkedinUrl, 
             profile = result.rows[0];
         }
         
-        // Start AUTOMATIC background extraction process
-        console.log(`🔄 Starting automatic background extraction for user ${userId}`);
+        // Start AUTOMATIC background extraction process with Bright Data
+        console.log(`🔄 Starting automatic Bright Data background extraction for user ${userId}`);
         processingQueue.set(userId, { status: 'processing', startTime: Date.now() });
         
         // Schedule the first extraction attempt (immediate)
         scheduleBackgroundExtraction(userId, cleanUrl, 0);
         
-        console.log(`✅ Profile created and automatic background extraction started for user ${userId}`);
+        console.log(`✅ Profile created and automatic Bright Data background extraction started for user ${userId}`);
         return profile;
         
     } catch (error) {
@@ -730,12 +709,14 @@ app.get('/health', (req, res) => {
     const processingCount = processingQueue.size;
     res.status(200).json({
         status: 'healthy',
-        version: '5.0-automatic-background-processing',
+        version: '6.0-bright-data-automatic-processing',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'scrapingdog-integration', 'automatic-background-extraction'],
-        scrapingdog: {
-            configured: !!SCRAPINGDOG_API_KEY,
-            apiUrl: SCRAPINGDOG_BASE_URL,
+        features: ['authentication', 'google-oauth', 'bright-data-integration', 'automatic-background-extraction'],
+        brightData: {
+            configured: !!BRIGHT_DATA_API_TOKEN,
+            apiUrl: BRIGHT_DATA_BASE_URL,
+            datasetId: BRIGHT_DATA_DATASET_ID,
+            costPerProfile: '$0.001',
             status: 'active'
         },
         backgroundProcessing: {
@@ -748,10 +729,11 @@ app.get('/health', (req, res) => {
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server with Automatic Background LinkedIn Processing',
+        message: 'Msgly.AI Server with Automatic Background LinkedIn Processing (Bright Data)',
         status: 'running',
-        version: '5.0-automatic',
+        version: '6.0-bright-data',
         backgroundProcessing: 'enabled',
+        costPerProfile: '$0.001',
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -1017,7 +999,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             );
         }
         
-        // Create or update user profile with AUTOMATIC background extraction
+        // Create or update user profile with AUTOMATIC background extraction using Bright Data
         const profile = await createOrUpdateUserProfileWithAutoExtraction(
             req.user.id, 
             linkedinUrl, 
@@ -1029,7 +1011,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated and automatic LinkedIn extraction started',
+            message: 'Profile updated and automatic LinkedIn extraction started with Bright Data',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -1042,18 +1024,20 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     extractionStatus: profile.data_extraction_status,
-                    message: 'LinkedIn data extraction is happening automatically in the background'
+                    message: 'LinkedIn data extraction is happening automatically in the background with Bright Data'
                 },
                 automaticProcessing: {
                     enabled: true,
                     status: 'started',
-                    expectedCompletionTime: '2-3 minutes',
+                    provider: 'Bright Data',
+                    costPerProfile: '$0.001',
+                    expectedCompletionTime: '30 seconds - 2 minutes',
                     message: 'No user action required - data will appear automatically'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} with automatic extraction started`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} with automatic Bright Data extraction started`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -1116,10 +1100,13 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     extractionCompleted: profile.extraction_completed_at,
                     extractionError: profile.extraction_error,
                     extractionRetryCount: profile.extraction_retry_count,
+                    extractionCost: profile.extraction_cost,
                     profileAnalyzed: profile.profile_analyzed
                 } : null,
                 automaticProcessing: {
                     enabled: true,
+                    provider: 'Bright Data',
+                    costPerProfile: '$0.001',
                     isCurrentlyProcessing: processingQueue.has(req.user.id),
                     queuePosition: processingQueue.has(req.user.id) ? 
                         Array.from(processingQueue.keys()).indexOf(req.user.id) + 1 : null
@@ -1147,7 +1134,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', 'No credit card required'],
                 available: true
             },
             {
@@ -1158,7 +1145,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1170,7 +1157,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'Credits never expire'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1182,7 +1169,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'Credits never expire'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -1196,7 +1183,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', 'No credit card required'],
                 available: true
             },
             {
@@ -1207,7 +1194,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1219,7 +1206,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', '7-day free trial included'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1231,7 +1218,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction', '7-day free trial included'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'Automatic LinkedIn extraction with Bright Data', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -1248,7 +1235,7 @@ app.get('/packages', (req, res) => {
 app.get('/processing-status', authenticateToken, async (req, res) => {
     try {
         const profileResult = await pool.query(
-            'SELECT data_extraction_status, extraction_retry_count, extraction_attempted_at, extraction_completed_at, extraction_error FROM user_profiles WHERE user_id = $1',
+            'SELECT data_extraction_status, extraction_retry_count, extraction_attempted_at, extraction_completed_at, extraction_error, extraction_cost FROM user_profiles WHERE user_id = $1',
             [req.user.id]
         );
         
@@ -1262,9 +1249,11 @@ app.get('/processing-status', authenticateToken, async (req, res) => {
                 lastAttempt: profile?.extraction_attempted_at,
                 completedAt: profile?.extraction_completed_at,
                 error: profile?.extraction_error,
+                cost: profile?.extraction_cost || 0.001,
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 totalProcessingQueue: processingQueue.size,
-                processingStartTime: processingQueue.get(req.user.id)?.startTime
+                processingStartTime: processingQueue.get(req.user.id)?.startTime,
+                provider: 'Bright Data'
             }
         });
     } catch (error) {
@@ -1312,8 +1301,8 @@ const validateEnvironment = () => {
         process.exit(1);
     }
     
-    if (!SCRAPINGDOG_API_KEY) {
-        console.warn('⚠️ Warning: SCRAPINGDOG_API_KEY not set - profile extraction will fail');
+    if (!BRIGHT_DATA_API_TOKEN) {
+        console.warn('⚠️ Warning: BRIGHT_DATA_API_TOKEN not set - using default token');
     }
     
     console.log('✅ Environment validated');
@@ -1346,15 +1335,16 @@ const startServer = async () => {
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
-            console.log(`🔍 ScrapingDog: ${SCRAPINGDOG_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_TOKEN ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`💰 Cost Per Profile: $0.001 (0.1 cents!) ✅`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
             console.log(`⚡ Automatic Extraction: ACTIVE ✅`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: Automatic Complete Profile Extraction`);
+            console.log(`🔗 LinkedIn: Automatic Complete Profile Extraction with Bright Data`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 USER EXPERIENCE: Register → Use App → Data Appears Automatically!`);
+            console.log(`🎯 USER EXPERIENCE: Register → Use App → Data Appears Automatically (Ultra Cheap!)!`);
         });
         
     } catch (error) {
