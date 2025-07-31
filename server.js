@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth + COMPLETE LinkedIn Profile Extraction
+// Msgly.AI Server with Google OAuth + COMPLETE LinkedIn Profile Extraction + Database Migration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -593,7 +593,7 @@ const updateUserProfileWithExtraction = async (userId, profileData) => {
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        version: '3.0-complete-linkedin-extraction',
+        version: '3.0-complete-linkedin-extraction-with-migration',
         timestamp: new Date().toISOString(),
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
@@ -690,6 +690,233 @@ app.get('/debug-brightdata', async (req, res) => {
         console.error('❌ Debug test failed:', error);
         res.status(500).json({
             error: 'Debug test failed',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// DATABASE MIGRATION ENDPOINT - Run migration via server
+app.post('/migrate-database', async (req, res) => {
+    try {
+        console.log('🚀 Starting database migration via server endpoint...');
+        
+        const client = await pool.connect();
+        let migrationResults = [];
+        
+        try {
+            // Step 1: Add missing columns to users table
+            console.log('📋 Step 1: Updating users table...');
+            migrationResults.push('Step 1: Updating users table...');
+            
+            const userTableUpdates = `
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS linkedin_url TEXT,
+                ADD COLUMN IF NOT EXISTS profile_data JSONB,
+                ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT 'not_started',
+                ADD COLUMN IF NOT EXISTS error_message TEXT,
+                ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT false;
+            `;
+            
+            await client.query(userTableUpdates);
+            console.log('✅ Users table updated successfully');
+            migrationResults.push('✅ Users table updated successfully');
+
+            // Step 2: Create comprehensive user_profiles table
+            console.log('📋 Step 2: Creating comprehensive user_profiles table...');
+            migrationResults.push('Step 2: Creating comprehensive user_profiles table...');
+            
+            const createProfilesTable = `
+                CREATE TABLE IF NOT EXISTS user_profiles (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                    
+                    -- Basic LinkedIn Information
+                    linkedin_url TEXT,
+                    linkedin_id TEXT,
+                    linkedin_num_id TEXT,
+                    
+                    -- Personal Information
+                    full_name TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    headline TEXT,
+                    
+                    -- Location Information
+                    location TEXT,
+                    city TEXT,
+                    state TEXT,
+                    country TEXT,
+                    country_code TEXT,
+                    
+                    -- Professional Information
+                    industry TEXT,
+                    current_company TEXT,
+                    current_company_id TEXT,
+                    current_position TEXT,
+                    
+                    -- About & Summary
+                    about TEXT,
+                    
+                    -- Social Metrics
+                    connections_count INTEGER,
+                    followers_count INTEGER,
+                    
+                    -- Media
+                    profile_picture TEXT,
+                    banner_image TEXT,
+                    
+                    -- Professional Experience (JSON Arrays)
+                    experience JSONB DEFAULT '[]'::JSONB,
+                    education JSONB DEFAULT '[]'::JSONB,
+                    
+                    -- Skills and Expertise
+                    skills JSONB DEFAULT '[]'::JSONB,
+                    skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
+                    
+                    -- Languages
+                    languages JSONB DEFAULT '[]'::JSONB,
+                    
+                    -- Additional Professional Details (JSON Arrays)
+                    certifications JSONB DEFAULT '[]'::JSONB,
+                    courses JSONB DEFAULT '[]'::JSONB,
+                    projects JSONB DEFAULT '[]'::JSONB,
+                    publications JSONB DEFAULT '[]'::JSONB,
+                    patents JSONB DEFAULT '[]'::JSONB,
+                    volunteer_experience JSONB DEFAULT '[]'::JSONB,
+                    honors_and_awards JSONB DEFAULT '[]'::JSONB,
+                    organizations JSONB DEFAULT '[]'::JSONB,
+                    
+                    -- Recommendations
+                    recommendations_count INTEGER,
+                    recommendations_given JSONB DEFAULT '[]'::JSONB,
+                    recommendations_received JSONB DEFAULT '[]'::JSONB,
+                    
+                    -- Social Activity (JSON Arrays)
+                    posts JSONB DEFAULT '[]'::JSONB,
+                    activity JSONB DEFAULT '[]'::JSONB,
+                    people_also_viewed JSONB DEFAULT '[]'::JSONB,
+                    
+                    -- System Fields
+                    brightdata_data JSONB,
+                    data_extraction_status VARCHAR(50) DEFAULT 'pending',
+                    extraction_completed_at TIMESTAMP,
+                    extraction_error TEXT,
+                    profile_analyzed BOOLEAN DEFAULT false,
+                    
+                    -- Timestamps
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    
+                    -- Indexes for performance
+                    CONSTRAINT user_profiles_user_id_key UNIQUE (user_id)
+                );
+            `;
+            
+            await client.query(createProfilesTable);
+            console.log('✅ User profiles table created/updated successfully');
+            migrationResults.push('✅ User profiles table created/updated successfully');
+
+            // Step 3: Add missing columns to existing user_profiles table
+            console.log('📋 Step 3: Adding missing columns...');
+            migrationResults.push('Step 3: Adding missing columns...');
+            
+            const addMissingColumns = `
+                ALTER TABLE user_profiles 
+                ADD COLUMN IF NOT EXISTS linkedin_id TEXT,
+                ADD COLUMN IF NOT EXISTS linkedin_num_id TEXT,
+                ADD COLUMN IF NOT EXISTS first_name TEXT,
+                ADD COLUMN IF NOT EXISTS last_name TEXT,
+                ADD COLUMN IF NOT EXISTS city TEXT,
+                ADD COLUMN IF NOT EXISTS state TEXT,
+                ADD COLUMN IF NOT EXISTS country TEXT,
+                ADD COLUMN IF NOT EXISTS country_code TEXT,
+                ADD COLUMN IF NOT EXISTS current_company_id TEXT,
+                ADD COLUMN IF NOT EXISTS current_position TEXT,
+                ADD COLUMN IF NOT EXISTS about TEXT,
+                ADD COLUMN IF NOT EXISTS connections_count INTEGER,
+                ADD COLUMN IF NOT EXISTS followers_count INTEGER,
+                ADD COLUMN IF NOT EXISTS profile_picture TEXT,
+                ADD COLUMN IF NOT EXISTS banner_image TEXT,
+                ADD COLUMN IF NOT EXISTS skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
+                ADD COLUMN IF NOT EXISTS recommendations_count INTEGER,
+                ADD COLUMN IF NOT EXISTS recommendations_given JSONB DEFAULT '[]'::JSONB,
+                ADD COLUMN IF NOT EXISTS recommendations_received JSONB DEFAULT '[]'::JSONB,
+                ADD COLUMN IF NOT EXISTS posts JSONB DEFAULT '[]'::JSONB,
+                ADD COLUMN IF NOT EXISTS activity JSONB DEFAULT '[]'::JSONB,
+                ADD COLUMN IF NOT EXISTS people_also_viewed JSONB DEFAULT '[]'::JSONB,
+                ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
+            `;
+            
+            await client.query(addMissingColumns);
+            console.log('✅ Missing columns added successfully');
+            migrationResults.push('✅ Missing columns added successfully');
+
+            // Step 4: Create indexes
+            console.log('📋 Step 4: Creating performance indexes...');
+            migrationResults.push('Step 4: Creating performance indexes...');
+            
+            const createIndexes = `
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_linkedin_id ON user_profiles(linkedin_id);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
+                CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
+            `;
+            
+            await client.query(createIndexes);
+            console.log('✅ Performance indexes created successfully');
+            migrationResults.push('✅ Performance indexes created successfully');
+
+            // Step 5: Verify
+            const testResult = await client.query('SELECT COUNT(*) as user_count FROM users;');
+            migrationResults.push(`✅ Database verified - ${testResult.rows[0].user_count} users in database`);
+            
+            // Step 6: Check table structure
+            const verifyUsers = await client.query(`
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' 
+                ORDER BY ordinal_position
+            `);
+            
+            const verifyProfiles = await client.query(`
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'user_profiles' 
+                ORDER BY ordinal_position
+            `);
+            
+            migrationResults.push(`✅ Users table has ${verifyUsers.rows.length} columns`);
+            migrationResults.push(`✅ User_profiles table has ${verifyProfiles.rows.length} columns`);
+            
+            console.log('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
+            migrationResults.push('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
+            migrationResults.push('🚀 Your database is now ready for complete LinkedIn profile extraction!');
+            
+        } finally {
+            client.release();
+        }
+        
+        res.json({
+            success: true,
+            message: 'Database migration completed successfully!',
+            steps: migrationResults,
+            timestamp: new Date().toISOString(),
+            summary: {
+                usersTable: 'Updated with LinkedIn fields',
+                profilesTable: 'Complete LinkedIn schema created',
+                indexes: 'Performance indexes created',
+                status: 'Ready for comprehensive LinkedIn data extraction'
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Migration failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Migration failed',
             details: error.message,
             timestamp: new Date().toISOString()
         });
@@ -934,6 +1161,7 @@ app.listen(port, () => {
     console.log(`📊 Dataset ID: ${BRIGHT_DATA_DATASET_ID}`);
     console.log(`📡 Health check: /health`);
     console.log(`🔍 Debug endpoint: /debug-brightdata`);
+    console.log(`🛠️ Migration endpoint: /migrate-database`);
     console.log(`💾 Complete LinkedIn data extraction enabled ✅`);
 });
 
