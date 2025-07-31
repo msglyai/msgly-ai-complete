@@ -182,9 +182,6 @@ const processLinkedInDataComplete = (rawData) => {
     console.log(`🏢 Company: ${processedData.currentCompany}`);
     console.log(`📍 Location: ${processedData.location}`);
     console.log(`🔗 Connections: ${processedData.connectionsCount}`);
-    console.log(`📚 Experience entries: ${processedData.experience?.length || 0}`);
-    console.log(`🎓 Education entries: ${processedData.education?.length || 0}`);
-    console.log(`🛠️ Skills: ${processedData.skills?.length || 0}`);
     
     return processedData;
 };
@@ -340,7 +337,6 @@ const saveCompleteProfileToDatabase = async (userId, linkedinUrl, profileData) =
 
         await client.query('COMMIT');
         console.log('✅ Complete LinkedIn profile data saved to database successfully');
-        console.log(`📊 Saved profile for: ${profileData.fullName} (${profileData.headline})`);
         
     } catch (error) {
         await client.query('ROLLBACK');
@@ -371,7 +367,6 @@ const triggerLinkedInScraper = async (linkedinUrl) => {
         );
 
         console.log('✅ LinkedIn scraper triggered successfully');
-        console.log('📄 Response:', JSON.stringify(triggerResponse.data, null, 2));
         
         return {
             success: true,
@@ -381,10 +376,6 @@ const triggerLinkedInScraper = async (linkedinUrl) => {
         
     } catch (error) {
         console.error('❌ Failed to trigger LinkedIn scraper:', error.message);
-        if (error.response) {
-            console.error('Response status:', error.response.status);
-            console.error('Response data:', JSON.stringify(error.response.data, null, 2));
-        }
         throw new Error(`Scraper trigger failed: ${error.message}`);
     }
 };
@@ -413,7 +404,6 @@ const pollForResults = async (snapshotId, maxAttempts = 20) => {
             
             if (response.data.status === 'ready' && response.data.data && response.data.data.length > 0) {
                 console.log('✅ Profile data ready!');
-                console.log(`📋 Retrieved ${response.data.data.length} profile(s)`);
                 return {
                     success: true,
                     data: response.data.data[0], // First profile
@@ -430,12 +420,7 @@ const pollForResults = async (snapshotId, maxAttempts = 20) => {
             
         } catch (error) {
             console.error(`❌ Polling attempt ${attempts + 1} failed:`, error.message);
-            
-            if (error.response?.status === 404) {
-                console.log('⏳ Snapshot not ready yet, continuing...');
-            } else {
-                attempts++; // Count as attempt for non-404 errors
-            }
+            attempts++;
             
             if (attempts >= maxAttempts) {
                 throw new Error(`Polling timeout after ${maxAttempts} attempts`);
@@ -452,8 +437,6 @@ const pollForResults = async (snapshotId, maxAttempts = 20) => {
 const extractProfileAsync = async (userId, linkedinUrl) => {
     try {
         console.log('🎯 Starting comprehensive LinkedIn profile extraction...');
-        console.log(`👤 User ID: ${userId}`);
-        console.log(`🔗 LinkedIn URL: ${linkedinUrl}`);
         
         // Update status to in_progress
         await pool.query(
@@ -486,7 +469,6 @@ const extractProfileAsync = async (userId, linkedinUrl) => {
         await saveCompleteProfileToDatabase(userId, linkedinUrl, processedProfileData);
 
         console.log('🎉 LinkedIn profile extraction completed successfully!');
-        console.log(`✅ Complete profile data saved for: ${processedProfileData.fullName}`);
         
         return {
             success: true,
