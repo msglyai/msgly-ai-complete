@@ -153,7 +153,7 @@ const initDB = async () => {
             );
         `);
 
-        // CHANGED: Enhanced user profiles table with Bright Data fields (instead of Outscraper)
+        // ENHANCED: user profiles table with ALL comprehensive LinkedIn fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -166,11 +166,45 @@ const initDB = async () => {
                 summary TEXT,
                 location VARCHAR(255),
                 industry VARCHAR(255),
+                connections_count INTEGER,
+                followers_count INTEGER,
+                profile_image_url VARCHAR(500),
+                banner_image_url VARCHAR(500),
+                
+                -- CURRENT COMPANY
+                current_company VARCHAR(255),
+                current_company_id VARCHAR(100),
+                current_company_url VARCHAR(500),
+                
+                -- COMPREHENSIVE DATA (stored as JSONB for flexibility)
                 experience JSONB,
                 education JSONB,
+                certifications JSONB,
                 skills TEXT[],
-                connections_count INTEGER,
-                profile_image_url VARCHAR(500),
+                languages JSONB,
+                recommendations JSONB,
+                recommendations_count INTEGER,
+                volunteer_experience JSONB,
+                courses JSONB,
+                publications JSONB,
+                patents JSONB,
+                projects JSONB,
+                organizations JSONB,
+                honors_and_awards JSONB,
+                
+                -- SOCIAL ACTIVITY
+                posts JSONB,
+                activity JSONB,
+                people_also_viewed JSONB,
+                
+                -- METADATA
+                country_code VARCHAR(10),
+                linkedin_id VARCHAR(100),
+                public_identifier VARCHAR(100),
+                linkedin_profile_url VARCHAR(500),
+                profile_timestamp VARCHAR(50),
+                
+                -- EXTRACTION STATUS
                 brightdata_data JSONB,
                 data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 extraction_attempted_at TIMESTAMP,
@@ -231,7 +265,7 @@ const initDB = async () => {
             console.log('Password hash might already be nullable:', err.message);
         }
 
-        // CHANGED: Add Bright Data columns to existing user_profiles table (instead of Outscraper)
+        // ENHANCED: Add ALL comprehensive Bright Data columns to existing user_profiles table
         try {
             await pool.query(`
                 ALTER TABLE user_profiles 
@@ -243,16 +277,40 @@ const initDB = async () => {
                 ADD COLUMN IF NOT EXISTS education JSONB,
                 ADD COLUMN IF NOT EXISTS skills TEXT[],
                 ADD COLUMN IF NOT EXISTS connections_count INTEGER,
+                ADD COLUMN IF NOT EXISTS followers_count INTEGER,
                 ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS banner_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS current_company VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS current_company_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS current_company_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS certifications JSONB,
+                ADD COLUMN IF NOT EXISTS languages JSONB,
+                ADD COLUMN IF NOT EXISTS recommendations JSONB,
+                ADD COLUMN IF NOT EXISTS recommendations_count INTEGER,
+                ADD COLUMN IF NOT EXISTS volunteer_experience JSONB,
+                ADD COLUMN IF NOT EXISTS courses JSONB,
+                ADD COLUMN IF NOT EXISTS publications JSONB,
+                ADD COLUMN IF NOT EXISTS patents JSONB,
+                ADD COLUMN IF NOT EXISTS projects JSONB,
+                ADD COLUMN IF NOT EXISTS organizations JSONB,
+                ADD COLUMN IF NOT EXISTS honors_and_awards JSONB,
+                ADD COLUMN IF NOT EXISTS posts JSONB,
+                ADD COLUMN IF NOT EXISTS activity JSONB,
+                ADD COLUMN IF NOT EXISTS people_also_viewed JSONB,
+                ADD COLUMN IF NOT EXISTS country_code VARCHAR(10),
+                ADD COLUMN IF NOT EXISTS linkedin_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS public_identifier VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS linkedin_profile_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS profile_timestamp VARCHAR(50),
                 ADD COLUMN IF NOT EXISTS brightdata_data JSONB,
                 ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS extraction_error TEXT;
             `);
-            console.log('✅ Added Bright Data columns to user_profiles table');
+            console.log('✅ Added comprehensive Bright Data columns to user_profiles table');
         } catch (err) {
-            console.log('Bright Data columns might already exist:', err.message);
+            console.log('Comprehensive Bright Data columns might already exist:', err.message);
         }
 
         // Create indexes
@@ -296,8 +354,17 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             }
         );
 
+        console.log(`📡 Bright Data API Response Status: ${scrapeResponse.status}`);
+        console.log(`📊 Response data type: ${typeof scrapeResponse.data}, length: ${scrapeResponse.data?.length || 'N/A'}`);
+        if (scrapeResponse.data) {
+            console.log('📄 Response preview:', JSON.stringify(scrapeResponse.data).substring(0, 500) + '...');
+        }
+
         // Check if we got immediate data (status 200)
         if (scrapeResponse.status === 200 && scrapeResponse.data && scrapeResponse.data.length > 0) {
+            console.log(`📊 Bright Data returned ${scrapeResponse.data.length} profile(s)`);
+            console.log('🔍 Full response structure:', JSON.stringify(scrapeResponse.data, null, 2));
+            
             const profile = scrapeResponse.data[0];
             
             // Extract and structure the data
@@ -369,24 +436,237 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                     );
 
                     if (downloadResponse.data && downloadResponse.data.length > 0) {
+                        console.log(`📊 Fallback: Downloaded ${downloadResponse.data.length} profile(s)`);
+                        console.log('🔍 Fallback full response:', JSON.stringify(downloadResponse.data, null, 2));
+                        
                         const profile = downloadResponse.data[0];
                         
-                        // Extract and structure the data
+                        // COMPREHENSIVE: Extract EVERY possible field from Bright Data response
                         const extractedData = {
-                            fullName: profile.name || profile.full_name || null,
-                            firstName: profile.first_name || null,
-                            lastName: profile.last_name || null,
-                            headline: profile.headline || null,
-                            summary: profile.summary || profile.about || null,
-                            location: profile.location || null,
+                            // BASIC PROFILE INFO
+                            fullName: profile.name || null,
+                            firstName: profile.first_name || (profile.name ? profile.name.split(' ')[0] : null),
+                            lastName: profile.last_name || (profile.name ? profile.name.split(' ').slice(1).join(' ') : null),
+                            headline: profile.position || profile.headline || null,
+                            summary: profile.about || profile.summary || null,
+                            location: profile.city || profile.location || null,
                             industry: profile.industry || null,
-                            connectionsCount: profile.connections_count || profile.connections || null,
-                            profileImageUrl: profile.profile_picture || profile.photo_url || profile.avatar || null,
-                            experience: profile.experience || [],
-                            education: profile.education || [],
-                            skills: profile.skills || [],
-                            rawData: profile // Store complete response for future use
+                            connectionsCount: profile.connections || profile.connections_count || null,
+                            followersCount: profile.followers || profile.followers_count || null,
+                            profileImageUrl: profile.avatar || profile.profile_picture || profile.photo_url || profile.image || null,
+                            bannerImageUrl: profile.banner_image || profile.background_image || null,
+                            
+                            // CURRENT COMPANY INFO
+                            currentCompany: profile.current_company || profile.current_company_name || null,
+                            currentCompanyId: profile.current_company_company_id || profile.current_company_id || null,
+                            currentCompanyUrl: profile.current_company_url || null,
+                            
+                            // COMPREHENSIVE EXPERIENCE - Extract ALL job history
+                            experience: (() => {
+                                const exp = profile.experience || profile.positions || [];
+                                if (Array.isArray(exp)) {
+                                    return exp.map(job => ({
+                                        title: job.title || job.position || job.job_title || null,
+                                        company: job.company || job.company_name || null,
+                                        companyId: job.company_id || null,
+                                        companyUrl: job.company_url || job.company_link || null,
+                                        location: job.location || null,
+                                        duration: job.duration || job.period || null,
+                                        startDate: job.start_date || job.started_on || null,
+                                        endDate: job.end_date || job.ended_on || null,
+                                        description: job.description || job.summary || null,
+                                        isCurrent: job.is_current || job.current || false
+                                    }));
+                                }
+                                return exp ? [exp] : [];
+                            })(),
+                            
+                            // COMPREHENSIVE EDUCATION - Extract ALL education history
+                            education: (() => {
+                                const edu = profile.education || profile.educations_details || profile.schools || [];
+                                if (Array.isArray(edu)) {
+                                    return edu.map(school => ({
+                                        school: school.school || school.institution || school.university || null,
+                                        degree: school.degree || school.degree_name || null,
+                                        fieldOfStudy: school.field_of_study || school.field || school.major || null,
+                                        startYear: school.start_year || school.from_year || null,
+                                        endYear: school.end_year || school.to_year || null,
+                                        grade: school.grade || school.gpa || null,
+                                        activities: school.activities || null,
+                                        description: school.description || null
+                                    }));
+                                }
+                                return edu ? [edu] : [];
+                            })(),
+                            
+                            // CERTIFICATIONS
+                            certifications: (() => {
+                                const certs = profile.certifications || profile.certificates || [];
+                                if (Array.isArray(certs)) {
+                                    return certs.map(cert => ({
+                                        name: cert.name || cert.title || null,
+                                        authority: cert.authority || cert.issuer || cert.organization || null,
+                                        licenseNumber: cert.license_number || cert.credential_id || null,
+                                        startDate: cert.start_date || cert.issued_on || null,
+                                        endDate: cert.end_date || cert.expires_on || null,
+                                        url: cert.url || cert.credential_url || null
+                                    }));
+                                }
+                                return certs ? [certs] : [];
+                            })(),
+                            
+                            // SKILLS - Handle both array and string formats
+                            skills: (() => {
+                                if (Array.isArray(profile.skills)) {
+                                    return profile.skills.map(skill => typeof skill === 'string' ? skill : skill.name || skill.skill || skill);
+                                }
+                                if (typeof profile.skills === 'string') {
+                                    return profile.skills.split(',').map(s => s.trim());
+                                }
+                                return profile.skills ? [profile.skills] : [];
+                            })(),
+                            
+                            // LANGUAGES
+                            languages: (() => {
+                                const langs = profile.languages || [];
+                                if (Array.isArray(langs)) {
+                                    return langs.map(lang => ({
+                                        name: lang.name || lang.language || lang,
+                                        proficiency: lang.proficiency || lang.level || null
+                                    }));
+                                }
+                                return langs ? [langs] : [];
+                            })(),
+                            
+                            // RECOMMENDATIONS
+                            recommendations: profile.recommendations || [],
+                            recommendationsCount: profile.recommendations_count || null,
+                            
+                            // VOLUNTEER EXPERIENCE
+                            volunteerExperience: (() => {
+                                const volunteer = profile.volunteer_experience || profile.volunteer || [];
+                                if (Array.isArray(volunteer)) {
+                                    return volunteer.map(vol => ({
+                                        role: vol.role || vol.position || null,
+                                        organization: vol.organization || vol.company || null,
+                                        cause: vol.cause || null,
+                                        startDate: vol.start_date || null,
+                                        endDate: vol.end_date || null,
+                                        description: vol.description || null
+                                    }));
+                                }
+                                return volunteer ? [volunteer] : [];
+                            })(),
+                            
+                            // COURSES
+                            courses: (() => {
+                                const courses = profile.courses || [];
+                                if (Array.isArray(courses)) {
+                                    return courses.map(course => ({
+                                        name: course.name || course.title || null,
+                                        number: course.number || null,
+                                        year: course.year || null
+                                    }));
+                                }
+                                return courses ? [courses] : [];
+                            })(),
+                            
+                            // PUBLICATIONS
+                            publications: (() => {
+                                const pubs = profile.publications || [];
+                                if (Array.isArray(pubs)) {
+                                    return pubs.map(pub => ({
+                                        title: pub.title || pub.name || null,
+                                        publisher: pub.publisher || null,
+                                        publishedDate: pub.published_date || pub.date || null,
+                                        url: pub.url || null,
+                                        description: pub.description || null
+                                    }));
+                                }
+                                return pubs ? [pubs] : [];
+                            })(),
+                            
+                            // PATENTS
+                            patents: (() => {
+                                const patents = profile.patents || [];
+                                if (Array.isArray(patents)) {
+                                    return patents.map(patent => ({
+                                        title: patent.title || patent.name || null,
+                                        issuer: patent.issuer || null,
+                                        patentNumber: patent.patent_number || patent.number || null,
+                                        issuedDate: patent.issued_date || patent.date || null,
+                                        url: patent.url || null,
+                                        description: patent.description || null
+                                    }));
+                                }
+                                return patents ? [patents] : [];
+                            })(),
+                            
+                            // PROJECTS
+                            projects: (() => {
+                                const projects = profile.projects || [];
+                                if (Array.isArray(projects)) {
+                                    return projects.map(project => ({
+                                        name: project.name || project.title || null,
+                                        startDate: project.start_date || null,
+                                        endDate: project.end_date || null,
+                                        url: project.url || null,
+                                        description: project.description || null
+                                    }));
+                                }
+                                return projects ? [projects] : [];
+                            })(),
+                            
+                            // ORGANIZATIONS
+                            organizations: (() => {
+                                const orgs = profile.organizations || [];
+                                if (Array.isArray(orgs)) {
+                                    return orgs.map(org => ({
+                                        name: org.name || null,
+                                        position: org.position || org.role || null,
+                                        startDate: org.start_date || null,
+                                        endDate: org.end_date || null,
+                                        description: org.description || null
+                                    }));
+                                }
+                                return orgs ? [orgs] : [];
+                            })(),
+                            
+                            // HONORS & AWARDS
+                            honorsAndAwards: (() => {
+                                const awards = profile.honors_and_awards || profile.awards || profile.honors || [];
+                                if (Array.isArray(awards)) {
+                                    return awards.map(award => ({
+                                        title: award.title || award.name || null,
+                                        issuer: award.issuer || award.organization || null,
+                                        issuedDate: award.issued_date || award.date || null,
+                                        description: award.description || null
+                                    }));
+                                }
+                                return awards ? [awards] : [];
+                            })(),
+                            
+                            // SOCIAL ACTIVITY
+                            posts: profile.posts || [],
+                            activity: profile.activity || [],
+                            peopleAlsoViewed: profile.people_also_viewed || [],
+                            
+                            // METADATA
+                            countryCode: profile.country_code || null,
+                            linkedinId: profile.id || profile.linkedin_id || profile.linkedin_num_id || null,
+                            publicIdentifier: profile.public_identifier || null,
+                            linkedinUrl: profile.url || profile.input_url || null,
+                            timestamp: profile.timestamp || null,
+                            
+                            // RAW DATA for debugging
+                            rawData: profile
                         };
+
+                        console.log('🔍 Raw profile data:', JSON.stringify(profile, null, 2));
+                        console.log('✅ Comprehensive extracted data:', JSON.stringify({
+                            ...extractedData,
+                            rawData: '[HIDDEN FOR BREVITY]' // Don't log raw data twice
+                        }, null, 2));
 
                         console.log(`✅ Fallback: Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
                         return extractedData;
@@ -565,6 +845,22 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
             const extractedData = await extractLinkedInProfile(cleanUrl);
             
             // CHANGED: Update profile with extracted data (brightdata_data instead of outscraper_data)
+            console.log('💾 Saving extracted data to database...');
+            console.log('📝 Database update values:', {
+                fullName: extractedData.fullName,
+                firstName: extractedData.firstName,
+                lastName: extractedData.lastName,
+                headline: extractedData.headline,
+                summary: extractedData.summary,
+                location: extractedData.location,
+                industry: extractedData.industry,
+                connectionsCount: extractedData.connectionsCount,
+                profileImageUrl: extractedData.profileImageUrl,
+                experienceCount: extractedData.experience?.length || 0,
+                educationCount: extractedData.education?.length || 0,
+                skillsCount: extractedData.skills?.length || 0
+            });
+            
             const result = await pool.query(`
                 UPDATE user_profiles SET 
                     full_name = COALESCE($1, full_name),
@@ -574,20 +870,45 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                     summary = $5,
                     location = $6,
                     industry = $7,
-                    experience = $8,
-                    education = $9,
-                    skills = $10,
-                    connections_count = $11,
-                    profile_image_url = $12,
-                    brightdata_data = $13,
+                    connections_count = $8,
+                    followers_count = $9,
+                    profile_image_url = $10,
+                    banner_image_url = $11,
+                    current_company = $12,
+                    current_company_id = $13,
+                    current_company_url = $14,
+                    experience = $15,
+                    education = $16,
+                    certifications = $17,
+                    skills = $18,
+                    languages = $19,
+                    recommendations = $20,
+                    recommendations_count = $21,
+                    volunteer_experience = $22,
+                    courses = $23,
+                    publications = $24,
+                    patents = $25,
+                    projects = $26,
+                    organizations = $27,
+                    honors_and_awards = $28,
+                    posts = $29,
+                    activity = $30,
+                    people_also_viewed = $31,
+                    country_code = $32,
+                    linkedin_id = $33,
+                    public_identifier = $34,
+                    linkedin_profile_url = $35,
+                    profile_timestamp = $36,
+                    brightdata_data = $37,
                     data_extraction_status = 'completed',
                     extraction_completed_at = CURRENT_TIMESTAMP,
                     extraction_error = NULL,
                     profile_analyzed = true,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $14 
+                WHERE user_id = $38 
                 RETURNING *
             `, [
+                // Basic info
                 extractedData.fullName,
                 extractedData.firstName,
                 extractedData.lastName,
@@ -595,16 +916,63 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                 extractedData.summary,
                 extractedData.location,
                 extractedData.industry,
+                extractedData.connectionsCount,
+                extractedData.followersCount,
+                extractedData.profileImageUrl,
+                extractedData.bannerImageUrl,
+                
+                // Current company
+                extractedData.currentCompany,
+                extractedData.currentCompanyId,
+                extractedData.currentCompanyUrl,
+                
+                // Professional info (as JSONB)
                 JSON.stringify(extractedData.experience),
                 JSON.stringify(extractedData.education),
-                extractedData.skills,
-                extractedData.connectionsCount,
-                extractedData.profileImageUrl,
+                JSON.stringify(extractedData.certifications),
+                extractedData.skills, // Array of strings
+                JSON.stringify(extractedData.languages),
+                JSON.stringify(extractedData.recommendations),
+                extractedData.recommendationsCount,
+                JSON.stringify(extractedData.volunteerExperience),
+                JSON.stringify(extractedData.courses),
+                JSON.stringify(extractedData.publications),
+                JSON.stringify(extractedData.patents),
+                JSON.stringify(extractedData.projects),
+                JSON.stringify(extractedData.organizations),
+                JSON.stringify(extractedData.honorsAndAwards),
+                
+                // Social activity
+                JSON.stringify(extractedData.posts),
+                JSON.stringify(extractedData.activity),
+                JSON.stringify(extractedData.peopleAlsoViewed),
+                
+                // Metadata
+                extractedData.countryCode,
+                extractedData.linkedinId,
+                extractedData.publicIdentifier,
+                extractedData.linkedinUrl,
+                extractedData.timestamp,
+                
+                // Raw data
                 JSON.stringify(extractedData.rawData),
+                
+                // User ID
                 userId
             ]);
 
-            console.log(`✅ Profile data extracted and saved for user ${userId}`);
+            console.log(`✅ COMPREHENSIVE profile data extracted and saved for user ${userId}`);
+            console.log(`📊 Final extraction summary:`, {
+                name: result.rows[0]?.full_name || 'Unknown',
+                company: result.rows[0]?.current_company || 'Not specified',
+                location: result.rows[0]?.location || 'Not specified',
+                connections: result.rows[0]?.connections_count || 0,
+                experience: result.rows[0]?.experience ? JSON.parse(result.rows[0].experience).length : 0,
+                education: result.rows[0]?.education ? JSON.parse(result.rows[0].education).length : 0,
+                certifications: result.rows[0]?.certifications ? JSON.parse(result.rows[0].certifications).length : 0,
+                skills: result.rows[0]?.skills ? result.rows[0].skills.length : 0,
+                status: result.rows[0]?.data_extraction_status
+            });
             return result.rows[0];
 
         } catch (extractionError) {
@@ -651,18 +1019,25 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== API ENDPOINTS ====================
 
-// FIXED: Health Check (BRIGHT DATA WITH CORRECT API)
+// COMPREHENSIVE: Health Check (BRIGHT DATA WITH ALL FIELD EXTRACTION)
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '2.0-brightdata-sync',
+        version: '2.0-brightdata-comprehensive',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'brightdata-integration', 'linkedin-extraction'],
+        features: ['authentication', 'google-oauth', 'brightdata-integration', 'comprehensive-linkedin-extraction'],
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
             datasetId: BRIGHT_DATA_DATASET_ID,
             syncApi: BRIGHT_DATA_SCRAPE_URL,
             asyncApi: BRIGHT_DATA_TRIGGER_URL
+        },
+        dataExtraction: {
+            basicProfile: ['name', 'headline', 'summary', 'location', 'industry', 'connections', 'followers'],
+            professionalData: ['experience', 'education', 'certifications', 'skills', 'languages'],
+            additionalData: ['recommendations', 'volunteer_experience', 'courses', 'publications', 'patents', 'projects', 'organizations', 'honors_and_awards'],
+            socialActivity: ['posts', 'activity', 'people_also_viewed'],
+            metadata: ['linkedin_id', 'country_code', 'public_identifier', 'timestamp']
         }
     });
 });
@@ -813,6 +1188,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     credits: updatedUser.credits_remaining
                 },
                 profile: {
+                    // BASIC INFO
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     firstName: profile.first_name,
@@ -821,6 +1197,21 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     summary: profile.summary,
                     location: profile.location,
                     industry: profile.industry,
+                    connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
+                    profileImageUrl: profile.profile_image_url,
+                    currentCompany: profile.current_company,
+                    
+                    // COMPREHENSIVE DATA COUNTS (for UI display)
+                    experienceCount: profile.experience ? (Array.isArray(profile.experience) ? profile.experience.length : 1) : 0,
+                    educationCount: profile.education ? (Array.isArray(profile.education) ? profile.education.length : 1) : 0,
+                    certificationsCount: profile.certifications ? (Array.isArray(profile.certifications) ? profile.certifications.length : 1) : 0,
+                    skillsCount: profile.skills ? profile.skills.length : 0,
+                    languagesCount: profile.languages ? (Array.isArray(profile.languages) ? profile.languages.length : 1) : 0,
+                    publicationsCount: profile.publications ? (Array.isArray(profile.publications) ? profile.publications.length : 1) : 0,
+                    projectsCount: profile.projects ? (Array.isArray(profile.projects) ? profile.projects.length : 1) : 0,
+                    
+                    // EXTRACTION STATUS
                     extractionStatus: profile.data_extraction_status,
                     extractionCompleted: profile.extraction_completed_at,
                     extractionError: profile.extraction_error,
@@ -1075,6 +1466,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     createdAt: req.user.created_at
                 },
                 profile: profile ? {
+                    // BASIC INFO
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     firstName: profile.first_name,
@@ -1083,11 +1475,45 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     summary: profile.summary,
                     location: profile.location,
                     industry: profile.industry,
+                    connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
+                    profileImageUrl: profile.profile_image_url,
+                    bannerImageUrl: profile.banner_image_url,
+                    
+                    // CURRENT COMPANY
+                    currentCompany: profile.current_company,
+                    currentCompanyId: profile.current_company_id,
+                    currentCompanyUrl: profile.current_company_url,
+                    
+                    // COMPREHENSIVE PROFESSIONAL DATA
                     experience: profile.experience,
                     education: profile.education,
+                    certifications: profile.certifications,
                     skills: profile.skills,
-                    connectionsCount: profile.connections_count,
-                    profileImageUrl: profile.profile_image_url,
+                    languages: profile.languages,
+                    recommendations: profile.recommendations,
+                    recommendationsCount: profile.recommendations_count,
+                    volunteerExperience: profile.volunteer_experience,
+                    courses: profile.courses,
+                    publications: profile.publications,
+                    patents: profile.patents,
+                    projects: profile.projects,
+                    organizations: profile.organizations,
+                    honorsAndAwards: profile.honors_and_awards,
+                    
+                    // SOCIAL ACTIVITY
+                    posts: profile.posts,
+                    activity: profile.activity,
+                    peopleAlsoViewed: profile.people_also_viewed,
+                    
+                    // METADATA
+                    countryCode: profile.country_code,
+                    linkedinId: profile.linkedin_id,
+                    publicIdentifier: profile.public_identifier,
+                    linkedinProfileUrl: profile.linkedin_profile_url,
+                    profileTimestamp: profile.profile_timestamp,
+                    
+                    // EXTRACTION STATUS
                     extractionStatus: profile.data_extraction_status,
                     extractionAttempted: profile.extraction_attempted_at,
                     extractionCompleted: profile.extraction_completed_at,
@@ -1280,7 +1706,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server with Bright Data Integration Started!');
+            console.log('🚀 Msgly.AI Server with COMPREHENSIVE Bright Data Integration Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
@@ -1288,7 +1714,8 @@ const startServer = async () => {
             console.log(`⚡ API: Synchronous (immediate response) + Async fallback`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: Profile Extraction Ready`);
+            console.log(`🔗 LinkedIn Extraction: COMPREHENSIVE (All Fields)`);
+            console.log(`📊 Data Captured: Profile, Experience, Education, Certifications, Skills, Languages, etc.`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
