@@ -331,7 +331,7 @@ const initDB = async () => {
     }
 };
 
-// ==================== BRIGHT DATA FUNCTIONS (FIXED - CORRECT API USAGE) ====================
+// ==================== BRIGHT DATA FUNCTIONS (DEBUG VERSION) ====================
 
 const extractLinkedInProfile = async (linkedinUrl) => {
     try {
@@ -355,37 +355,123 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         );
 
         console.log(`📡 Bright Data API Response Status: ${scrapeResponse.status}`);
-        console.log(`📊 Response data type: ${typeof scrapeResponse.data}, length: ${scrapeResponse.data?.length || 'N/A'}`);
-        if (scrapeResponse.data) {
-            console.log('📄 Response preview:', JSON.stringify(scrapeResponse.data).substring(0, 500) + '...');
-        }
+        
+        // CRITICAL DEBUG: Log the COMPLETE raw response
+        console.log('🔴 COMPLETE RAW RESPONSE FROM BRIGHT DATA:');
+        console.log(JSON.stringify(scrapeResponse.data, null, 2));
+        
+        // Also log to a file for easier inspection
+        const fs = require('fs');
+        const debugFilePath = './brightdata_response_debug.json';
+        fs.writeFileSync(debugFilePath, JSON.stringify({
+            timestamp: new Date().toISOString(),
+            url: linkedinUrl,
+            status: scrapeResponse.status,
+            headers: scrapeResponse.headers,
+            data: scrapeResponse.data
+        }, null, 2));
+        console.log(`📄 Debug response saved to: ${debugFilePath}`);
 
         // Check if we got immediate data (status 200)
-        if (scrapeResponse.status === 200 && scrapeResponse.data && scrapeResponse.data.length > 0) {
-            console.log(`📊 Bright Data returned ${scrapeResponse.data.length} profile(s)`);
-            console.log('🔍 Full response structure:', JSON.stringify(scrapeResponse.data, null, 2));
+        if (scrapeResponse.status === 200 && scrapeResponse.data) {
+            console.log(`📊 Response type: ${typeof scrapeResponse.data}`);
+            console.log(`📊 Is Array: ${Array.isArray(scrapeResponse.data)}`);
+            console.log(`📊 Data length: ${scrapeResponse.data.length || 'Not an array'}`);
             
-            const profile = scrapeResponse.data[0];
+            // Try different ways to access the data
+            let profileData = null;
             
-            // Extract and structure the data
-            const extractedData = {
-                fullName: profile.name || profile.full_name || null,
-                firstName: profile.first_name || null,
-                lastName: profile.last_name || null,
-                headline: profile.headline || null,
-                summary: profile.summary || profile.about || null,
-                location: profile.location || null,
-                industry: profile.industry || null,
-                connectionsCount: profile.connections_count || profile.connections || null,
-                profileImageUrl: profile.profile_picture || profile.photo_url || profile.avatar || null,
-                experience: profile.experience || [],
-                education: profile.education || [],
-                skills: profile.skills || [],
-                rawData: profile // Store complete response for future use
-            };
-
-            console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
-            return extractedData;
+            // Case 1: Direct array response
+            if (Array.isArray(scrapeResponse.data) && scrapeResponse.data.length > 0) {
+                profileData = scrapeResponse.data[0];
+                console.log('✅ Found data in: scrapeResponse.data[0]');
+            }
+            // Case 2: Data wrapped in an object
+            else if (scrapeResponse.data.data && Array.isArray(scrapeResponse.data.data)) {
+                profileData = scrapeResponse.data.data[0];
+                console.log('✅ Found data in: scrapeResponse.data.data[0]');
+            }
+            // Case 3: Data wrapped in results
+            else if (scrapeResponse.data.results && Array.isArray(scrapeResponse.data.results)) {
+                profileData = scrapeResponse.data.results[0];
+                console.log('✅ Found data in: scrapeResponse.data.results[0]');
+            }
+            // Case 4: Direct object response
+            else if (typeof scrapeResponse.data === 'object' && !Array.isArray(scrapeResponse.data)) {
+                profileData = scrapeResponse.data;
+                console.log('✅ Found data as direct object');
+            }
+            
+            if (profileData) {
+                console.log('🔍 PROFILE DATA STRUCTURE:');
+                console.log(JSON.stringify(profileData, null, 2));
+                
+                // Log all available fields
+                console.log('📋 AVAILABLE FIELDS IN RESPONSE:');
+                Object.keys(profileData).forEach(key => {
+                    const value = profileData[key];
+                    const valueType = Array.isArray(value) ? 'array' : typeof value;
+                    const valuePreview = valueType === 'string' ? value.substring(0, 50) + '...' : 
+                                       valueType === 'array' ? `Array(${value.length})` : 
+                                       valueType === 'object' ? 'Object' : value;
+                    console.log(`  - ${key}: ${valueType} = ${valuePreview}`);
+                });
+                
+                // Extract data with extensive field mapping
+                const extractedData = {
+                    // Try every possible field name variation
+                    fullName: profileData.name || profileData.full_name || profileData.fullName || 
+                             profileData.person_name || profileData.profile_name || null,
+                    
+                    firstName: profileData.first_name || profileData.firstName || 
+                              profileData.given_name || profileData.givenName || null,
+                    
+                    lastName: profileData.last_name || profileData.lastName || 
+                             profileData.family_name || profileData.familyName || null,
+                    
+                    headline: profileData.position || profileData.headline || profileData.title || 
+                             profileData.job_title || profileData.current_position || 
+                             profileData.professional_headline || null,
+                    
+                    summary: profileData.about || profileData.summary || profileData.bio || 
+                            profileData.description || profileData.profile_summary || null,
+                    
+                    location: profileData.city || profileData.location || profileData.loc || 
+                             profileData.location_name || profileData.geo_location || null,
+                    
+                    industry: profileData.industry || profileData.field || 
+                             profileData.industry_name || null,
+                    
+                    connectionsCount: profileData.connections || profileData.connections_count || 
+                                    profileData.network_size || profileData.connection_count || null,
+                    
+                    followersCount: profileData.followers || profileData.followers_count || 
+                                   profileData.follower_count || null,
+                    
+                    // Log what we're extracting
+                    _debug: {
+                        extractedFields: Object.entries({
+                            fullName: profileData.name || profileData.full_name,
+                            headline: profileData.position || profileData.headline,
+                            location: profileData.city || profileData.location,
+                            connections: profileData.connections || profileData.connections_count
+                        }).filter(([_, v]) => v !== undefined)
+                    },
+                    
+                    rawData: profileData
+                };
+                
+                console.log('✅ EXTRACTION SUMMARY:');
+                console.log(`  - Name: ${extractedData.fullName || 'NOT FOUND'}`);
+                console.log(`  - Headline: ${extractedData.headline || 'NOT FOUND'}`);
+                console.log(`  - Location: ${extractedData.location || 'NOT FOUND'}`);
+                console.log(`  - Connections: ${extractedData.connectionsCount || 'NOT FOUND'}`);
+                
+                return extractedData;
+            } else {
+                console.error('❌ NO PROFILE DATA FOUND IN RESPONSE');
+                throw new Error('No profile data found in Bright Data response');
+            }
         }
         
         // If we get HTTP 202, it means the request is still processing
@@ -688,6 +774,14 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         
     } catch (error) {
         console.error('❌ Bright Data extraction error:', error.message);
+        console.error('Full error:', error);
+        
+        // If axios error, log more details
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
+        
         throw error;
     }
 };
