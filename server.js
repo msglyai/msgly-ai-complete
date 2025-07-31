@@ -551,78 +551,135 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                 
                 const extractedData = result.data;
                 
+                // Log data types for debugging
+                console.log(`📊 Data validation for user ${userId}:`);
+                console.log(`   - Experience: ${Array.isArray(extractedData.experience) ? 'Array' : typeof extractedData.experience} (${extractedData.experience?.length || 0} items)`);
+                console.log(`   - Education: ${Array.isArray(extractedData.education) ? 'Array' : typeof extractedData.education} (${extractedData.education?.length || 0} items)`);
+                console.log(`   - Skills: ${Array.isArray(extractedData.skills) ? 'Array' : typeof extractedData.skills} (${extractedData.skills?.length || 0} items)`);
+                
                 // Update user_profiles table with comprehensive data
-                await pool.query(`
-                    UPDATE user_profiles SET 
-                        full_name = COALESCE($1, full_name),
-                        first_name = $2,
-                        last_name = $3,
-                        headline = $4,
-                        summary = $5,
-                        location = $6,
-                        city = $7,
-                        state = $8,
-                        country = $9,
-                        country_code = $10,
-                        industry = $11,
-                        current_company = $12,
-                        current_position = $13,
-                        experience = $14,
-                        education = $15,
-                        skills = $16,
-                        connections_count = $17,
-                        followers_count = $18,
-                        profile_image_url = $19,
-                        background_image_url = $20,
-                        public_identifier = $21,
-                        certifications = $22,
-                        volunteering = $23,
-                        languages = $24,
-                        articles = $25,
-                        brightdata_data = $26,
-                        data_extraction_status = 'completed',
-                        extraction_completed_at = CURRENT_TIMESTAMP,
-                        extraction_error = NULL,
-                        profile_analyzed = true,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $27 
-                `, [
-                    extractedData.fullName,
-                    extractedData.firstName,
-                    extractedData.lastName,
-                    extractedData.headline,
-                    extractedData.summary,
-                    extractedData.location,
-                    extractedData.city,
-                    extractedData.state,
-                    extractedData.country,
-                    extractedData.country_code,
-                    extractedData.industry,
-                    extractedData.currentCompany,
-                    extractedData.currentPosition,
-                    JSON.stringify(extractedData.experience),
-                    JSON.stringify(extractedData.education),
-                    JSON.stringify(extractedData.skills),
-                    extractedData.connectionsCount,
-                    extractedData.followersCount,
-                    extractedData.profileImageUrl,
-                    extractedData.backgroundImageUrl,
-                    extractedData.publicIdentifier,
-                    JSON.stringify(extractedData.certifications),
-                    JSON.stringify(extractedData.volunteering),
-                    JSON.stringify(extractedData.languages),
-                    JSON.stringify(extractedData.articles),
-                    JSON.stringify(extractedData.rawData),
-                    userId
-                ]);
+                try {
+                    await pool.query(`
+                        UPDATE user_profiles SET 
+                            full_name = COALESCE($1, full_name),
+                            first_name = $2,
+                            last_name = $3,
+                            headline = $4,
+                            summary = $5,
+                            location = $6,
+                            city = $7,
+                            state = $8,
+                            country = $9,
+                            country_code = $10,
+                            industry = $11,
+                            current_company = $12,
+                            current_position = $13,
+                            experience = $14,
+                            education = $15,
+                            skills = $16,
+                            connections_count = $17,
+                            followers_count = $18,
+                            profile_image_url = $19,
+                            background_image_url = $20,
+                            public_identifier = $21,
+                            certifications = $22,
+                            volunteering = $23,
+                            languages = $24,
+                            articles = $25,
+                            brightdata_data = $26,
+                            data_extraction_status = 'completed',
+                            extraction_completed_at = CURRENT_TIMESTAMP,
+                            extraction_error = NULL,
+                            profile_analyzed = true,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = $27 
+                    `, [
+                        extractedData.fullName,
+                        extractedData.firstName,
+                        extractedData.lastName,
+                        extractedData.headline,
+                        extractedData.summary,
+                        extractedData.location,
+                        extractedData.city,
+                        extractedData.state,
+                        extractedData.country,
+                        extractedData.country_code,
+                        extractedData.industry,
+                        extractedData.currentCompany,
+                        extractedData.currentPosition,
+                        Array.isArray(extractedData.experience) ? extractedData.experience : [],
+                        Array.isArray(extractedData.education) ? extractedData.education : [],
+                        Array.isArray(extractedData.skills) ? extractedData.skills : [],
+                        extractedData.connectionsCount,
+                        extractedData.followersCount,
+                        extractedData.profileImageUrl,
+                        extractedData.backgroundImageUrl,
+                        extractedData.publicIdentifier,
+                        Array.isArray(extractedData.certifications) ? extractedData.certifications : [],
+                        Array.isArray(extractedData.volunteering) ? extractedData.volunteering : [],
+                        Array.isArray(extractedData.languages) ? extractedData.languages : [],
+                        Array.isArray(extractedData.articles) ? extractedData.articles : [],
+                        extractedData.rawData || {},
+                        userId
+                    ]);
 
-                await pool.query(
-                    'UPDATE users SET extraction_status = $1, profile_completed = $2, error_message = NULL WHERE id = $3',
-                    ['completed', true, userId]
-                );
+                    await pool.query(
+                        'UPDATE users SET extraction_status = $1, profile_completed = $2, error_message = NULL WHERE id = $3',
+                        ['completed', true, userId]
+                    );
 
-                console.log(`🎉 CORRECT profile data fully extracted and saved for user ${userId} using ${result.method} method`);
-                processingQueue.delete(userId);
+                    console.log(`🎉 CORRECT profile data fully extracted and saved for user ${userId} using ${result.method} method`);
+                    processingQueue.delete(userId);
+                    
+                } catch (dbError) {
+                    console.error(`❌ Database save error for user ${userId}:`, dbError.message);
+                    console.error(`   Full error:`, dbError);
+                    
+                    // Try to save basic profile info without complex arrays
+                    try {
+                        await pool.query(`
+                            UPDATE user_profiles SET 
+                                full_name = COALESCE($1, full_name),
+                                first_name = $2,
+                                last_name = $3,
+                                headline = $4,
+                                summary = $5,
+                                location = $6,
+                                industry = $7,
+                                current_company = $8,
+                                connections_count = $9,
+                                followers_count = $10,
+                                profile_image_url = $11,
+                                public_identifier = $12,
+                                data_extraction_status = 'completed',
+                                extraction_completed_at = CURRENT_TIMESTAMP,
+                                extraction_error = 'Partial save - complex data excluded',
+                                profile_analyzed = true,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = $13 
+                        `, [
+                            extractedData.fullName,
+                            extractedData.firstName,
+                            extractedData.lastName,
+                            extractedData.headline,
+                            extractedData.summary,
+                            extractedData.location,
+                            extractedData.industry,
+                            extractedData.currentCompany,
+                            extractedData.connectionsCount,
+                            extractedData.followersCount,
+                            extractedData.profileImageUrl,
+                            extractedData.publicIdentifier,
+                            userId
+                        ]);
+                        
+                        console.log(`⚠️ Saved basic profile data for user ${userId} (complex arrays excluded due to DB error)`);
+                        processingQueue.delete(userId);
+                    } catch (fallbackError) {
+                        console.error(`❌ Even fallback save failed for user ${userId}:`, fallbackError.message);
+                        throw dbError; // Re-throw original error to trigger retry
+                    }
+                }
                 
             } else {
                 throw new Error(result.error);
