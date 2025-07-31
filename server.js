@@ -1,3 +1,4 @@
+(async () => {
 // Msgly.AI Server with Google OAuth + Bright Data Integration
 const express = require('express');
 const cors = require('cors');
@@ -80,7 +81,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
     try {
-        const user = await getUserById(id);
+        const user =     await getUserById(id);
         done(null, user);
     } catch (error) {
         done(error, null);
@@ -98,11 +99,11 @@ passport.use(new GoogleStrategy({
 async (accessToken, refreshToken, profile, done) => {
     try {
         // Check if user exists
-        let user = await getUserByEmail(profile.emails[0].value);
+        let user =     await getUserByEmail(profile.emails[0].value);
         
         if (!user) {
             // Create new user with Google account
-            user = await createGoogleUser(
+            user =     await createGoogleUser(
                 profile.emails[0].value,
                 profile.displayName,
                 profile.id,
@@ -110,8 +111,8 @@ async (accessToken, refreshToken, profile, done) => {
             );
         } else if (!user.google_id) {
             // Link existing account with Google
-            await linkGoogleAccount(user.id, profile.id);
-            user = await getUserById(user.id);
+                await linkGoogleAccount(user.id, profile.id);
+            user =     await getUserById(user.id);
         }
         
         return done(null, user);
@@ -134,7 +135,7 @@ const initDB = async () => {
         console.log('🗃️ Creating database tables...');
 
         // Updated users table with Google OAuth fields - FIXED: password_hash is now nullable
-        await pool.query(`
+            await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
@@ -152,7 +153,7 @@ const initDB = async () => {
         `);
 
         // ENHANCED: user profiles table with ALL comprehensive LinkedIn fields
-        await pool.query(`
+            await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id) UNIQUE,
@@ -215,7 +216,7 @@ const initDB = async () => {
         `);
 
         // Simple message logs
-        await pool.query(`
+            await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
@@ -229,7 +230,7 @@ const initDB = async () => {
         `);
 
         // Credits transactions
-        await pool.query(`
+            await pool.query(`
             CREATE TABLE IF NOT EXISTS credits_transactions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
@@ -242,7 +243,7 @@ const initDB = async () => {
 
         // Add Google OAuth columns to existing users table
         try {
-            await pool.query(`
+                await pool.query(`
                 ALTER TABLE users 
                 ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
                 ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
@@ -255,7 +256,7 @@ const initDB = async () => {
 
         // CRITICAL FIX: Make password_hash nullable for Google OAuth users
         try {
-            await pool.query(`
+                await pool.query(`
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
             console.log('✅ Made password_hash nullable for Google OAuth users');
@@ -265,7 +266,7 @@ const initDB = async () => {
 
         // ENHANCED: Add ALL comprehensive Bright Data columns to existing user_profiles table
         try {
-            await pool.query(`
+                await pool.query(`
                 ALTER TABLE user_profiles 
                 ADD COLUMN IF NOT EXISTS headline VARCHAR(500),
                 ADD COLUMN IF NOT EXISTS summary TEXT,
@@ -313,7 +314,7 @@ const initDB = async () => {
 
         // Create indexes
         try {
-            await pool.query(`
+                await pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
             `);
@@ -344,7 +345,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         // Step 1: Verify API key and dataset by checking dataset info
         console.log('\n📋 Step 1: Verifying Bright Data configuration...');
         try {
-            const datasetCheck = await axios.get(
+            const datasetCheck =     await axios.get(
                 `https://api.brightdata.com/datasets/v3/${BRIGHT_DATA_DATASET_ID}`,
                 {
                     headers: {
@@ -362,7 +363,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         // Step 2: Try the synchronous scrape endpoint first
         console.log('\n📋 Step 2: Attempting synchronous data extraction...');
         try {
-            const scrapeResponse = await axios.post(
+            const scrapeResponse =     await axios.post(
                 `https://api.brightdata.com/datasets/v3/scrape`,
                 {
                     dataset_id: BRIGHT_DATA_DATASET_ID,
@@ -403,7 +404,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         // Step 3: Try asynchronous trigger approach
         console.log('\n📋 Step 3: Attempting asynchronous data extraction...');
         
-        const triggerResponse = await axios.post(
+        const triggerResponse =     await axios.post(
             `https://api.brightdata.com/datasets/v3/trigger`,
             {
                 dataset_id: BRIGHT_DATA_DATASET_ID,
@@ -440,11 +441,11 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             
             // Wait before polling (start with 5 seconds, then 10 seconds)
             const waitTime = attempt === 1 ? 5000 : 10000;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+                await new Promise(resolve => setTimeout(resolve, waitTime));
             
             try {
                 // First check snapshot status
-                const statusResponse = await axios.get(
+                const statusResponse =     await axios.get(
                     `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`,
                     {
                         headers: {
@@ -459,7 +460,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 }
 
                 // Try to download the results
-                const downloadResponse = await axios.get(
+                const downloadResponse =     await axios.get(
                     `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`,
                     {
                         headers: {
@@ -630,7 +631,7 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     
     const credits = creditsMap[packageType] || 30;
     
-    const result = await pool.query(
+    const result =     await pool.query(
         'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [email, passwordHash, packageType, billingModel, credits]
     );
@@ -648,7 +649,7 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     const credits = creditsMap[packageType] || 30;
     
-    const result = await pool.query(
+    const result =     await pool.query(
         `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
         [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
@@ -658,7 +659,7 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
 
 // Link existing account with Google
 const linkGoogleAccount = async (userId, googleId) => {
-    const result = await pool.query(
+    const result =     await pool.query(
         'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
         [googleId, userId]
     );
@@ -666,17 +667,17 @@ const linkGoogleAccount = async (userId, googleId) => {
 };
 
 const getUserByEmail = async (email) => {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result =     await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     return result.rows[0];
 };
 
 const getUserById = async (userId) => {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const result =     await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     return result.rows[0];
 };
 
 const updateUserCredits = async (userId, newCredits) => {
-    const result = await pool.query(
+    const result =     await pool.query(
         'UPDATE users SET credits_remaining = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
         [newCredits, userId]
     );
@@ -689,21 +690,21 @@ const updateUserCredits = async (userId, newCredits) => {
 const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) => {
     try {
         // Check if profile exists
-        const existingProfile = await pool.query(
+        const existingProfile =     await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [userId]
         );
         
         if (existingProfile.rows.length > 0) {
             // Update existing profile
-            const result = await pool.query(
+            const result =     await pool.query(
                 'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
                 [linkedinUrl, fullName, userId]
             );
             return result.rows[0];
         } else {
             // Create new profile
-            const result = await pool.query(
+            const result =     await pool.query(
                 'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
                 [userId, linkedinUrl, fullName]
             );
@@ -721,7 +722,7 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
         // First, create/update basic profile
-        const existingProfile = await pool.query(
+        const existingProfile =     await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [userId]
         );
@@ -729,14 +730,14 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
         let profile;
         if (existingProfile.rows.length > 0) {
             // Update existing profile
-            const result = await pool.query(
+            const result =     await pool.query(
                 'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
                 [cleanUrl, displayName, userId]
             );
             profile = result.rows[0];
         } else {
             // Create new profile
-            const result = await pool.query(
+            const result =     await pool.query(
                 'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
                 [userId, cleanUrl, displayName]
             );
@@ -744,19 +745,19 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
         }
         
         // Mark extraction as attempted
-        await pool.query(
+            await pool.query(
             'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
             ['in_progress', userId]
         );
 
         try {
             // Extract LinkedIn data using Bright Data
-            const extractedData = await extractLinkedInProfile(cleanUrl);
+            const extractedData =     await extractLinkedInProfile(cleanUrl);
             
             // CHANGED: Update profile with extracted data (brightdata_data instead of outscraper_data)
             console.log('\n💾 Saving extracted data to database...');
             
-            const result = await pool.query(`
+            const result =     await pool.query(`
                 UPDATE user_profiles SET 
                     full_name = COALESCE($1, full_name),
                     first_name = $2,
@@ -863,7 +864,7 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
             console.error('❌ Profile extraction failed:', extractionError.message);
             
             // Mark extraction as failed but don't fail the registration
-            await pool.query(
+                await pool.query(
                 'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
                 ['failed', extractionError.message, userId]
             );
@@ -888,7 +889,7 @@ const authenticateToken = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
-        const user = await getUserById(decoded.userId);
+        const user =     await getUserById(decoded.userId);
         
         if (!user) {
             return res.status(401).json({ success: false, error: 'Invalid token' });
@@ -1047,21 +1048,21 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 });
             }
             
-            await pool.query(
+                await pool.query(
                 'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
                 [packageType, req.user.id]
             );
         }
         
         // CHANGED: Create or update user profile WITH BRIGHT DATA EXTRACTION
-        const profile = await createOrUpdateUserProfileWithExtraction(
+        const profile =     await createOrUpdateUserProfileWithExtraction(
             req.user.id, 
             linkedinUrl, 
             req.user.display_name
         );
         
         // Get updated user data
-        const updatedUser = await getUserById(req.user.id);
+        const updatedUser =     await getUserById(req.user.id);
         
         res.json({
             success: true,
@@ -1124,7 +1125,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
 // Retry extraction for failed profiles (NEW)
 app.post('/retry-extraction', authenticateToken, async (req, res) => {
     try {
-        const profileResult = await pool.query(
+        const profileResult =     await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [req.user.id]
         );
@@ -1139,7 +1140,7 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         const profile = profileResult.rows[0];
         
         // Re-run extraction
-        const updatedProfile = await createOrUpdateUserProfileWithExtraction(
+        const updatedProfile =     await createOrUpdateUserProfileWithExtraction(
             req.user.id,
             profile.linkedin_url,
             req.user.display_name
@@ -1202,7 +1203,7 @@ app.post('/register', async (req, res) => {
         }
         
         // Check if user exists
-        const existingUser = await getUserByEmail(email);
+        const existingUser =     await getUserByEmail(email);
         if (existingUser) {
             return res.status(400).json({
                 success: false,
@@ -1211,10 +1212,10 @@ app.post('/register', async (req, res) => {
         }
         
         // Hash password
-        const passwordHash = await bcrypt.hash(password, 10);
+        const passwordHash =     await bcrypt.hash(password, 10);
         
         // Create user
-        const newUser = await createUser(email, passwordHash, packageType, billingModel || 'monthly');
+        const newUser =     await createUser(email, passwordHash, packageType, billingModel || 'monthly');
         
         // Generate JWT
         const token = jwt.sign(
@@ -1266,7 +1267,7 @@ app.post('/login', async (req, res) => {
         }
         
         // Get user
-        const user = await getUserByEmail(email);
+        const user =     await getUserByEmail(email);
         if (!user) {
             return res.status(401).json({
                 success: false,
@@ -1283,7 +1284,7 @@ app.post('/login', async (req, res) => {
         }
         
         // Check password
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        const passwordMatch =     await bcrypt.compare(password, user.password_hash);
         if (!passwordMatch) {
             return res.status(401).json({
                 success: false,
@@ -1333,7 +1334,7 @@ app.post('/login', async (req, res) => {
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
         // Get user's LinkedIn profile if it exists
-        const profileResult = await pool.query(
+        const profileResult =     await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [req.user.id]
         );
@@ -1574,9 +1575,9 @@ const validateEnvironment = () => {
 
 const testDatabase = async () => {
     try {
-        const result = await pool.query('SELECT NOW()');
+        const result =     await pool.query('SELECT NOW()');
         console.log('✅ Database connected:', result.rows[0].now);
-        await initDB();
+            await initDB();
         return true;
     } catch (error) {
         console.error('❌ Database connection failed:', error.message);
@@ -1588,7 +1589,7 @@ const startServer = async () => {
     try {
         validateEnvironment();
         
-        const dbOk = await testDatabase();
+        const dbOk =     await testDatabase();
         if (!dbOk) {
             console.error('❌ Cannot start server without database');
             process.exit(1);
@@ -1618,12 +1619,12 @@ const startServer = async () => {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    await pool.end();
+        await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    await pool.end();
+        await pool.end();
     process.exit(0);
 });
 
@@ -1632,25 +1633,4 @@ startServer();
 
 module.exports = app;
 
-
-    const collectionId = triggerResponse.data.collection_id;
-
-    let attempts = 0;
-    let profileData = null;
-    while (attempts < 10) {
-      const poll = await axios.get(`https://api.brightdata.com/dca/dataset?id=${collectionId}`, {
-        headers: {
-          Authorization: `Bearer ${brightDataApiKey}`,
-        }
-      });
-
-      if (poll.data.status === "done" && poll.data.data.length > 0) {
-        profileData = poll.data.data[0];
-        break;
-      }
-
-      await new Promise((r) => setTimeout(r, 5000)); // wait 5 seconds
-      attempts++;
-    }
-    console.log("Final Profile Data:", profileData);
-    
+})();
