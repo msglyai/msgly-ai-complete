@@ -16,7 +16,46 @@
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",{
+  "name": "msgly-ai-server",
+  "version": "3.0.0",
+  "description": "Msgly.AI Server with Complete LinkedIn Profile Extraction",
+  "main": "sever-opus.js",
+  "scripts": {
+    "start": "node sever-opus.js",
+    "dev": "nodemon sever-opus.js",
+    "migrate": "node database-migration.js"
+  },
+  "dependencies": {
     "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "pg": "^8.11.0",
+    "bcrypt": "^5.1.0",
+    "jsonwebtoken": "^9.0.0",
+    "express-session": "^1.17.3",
+    "google-auth-library": "^9.0.0",
+    "axios": "^1.4.0",
+    "validator": "^13.9.0",
+    "dotenv": "^16.1.4"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "linkedin",
+    "brightdata",
+    "profile-extraction"
+  ],
+  "author": "Msgly.AI",
+  "license": "MIT"
+}
     "express-session": "^1.17.3",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
