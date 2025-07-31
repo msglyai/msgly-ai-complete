@@ -6,7 +6,8 @@ const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const session = require('express-session');
-const { OAuth2Client } = require('google-auth-library');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
 const validator = require('validator');
 
@@ -43,9 +44,6 @@ const BRIGHT_DATA_DATASET_ID = process.env.BRIGHT_DATA_COLLECTOR_ID || 'gd_l1vik
 const JWT_SECRET = process.env.JWT_SECRET;
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
-// Google OAuth client
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
-
 // Database connection
 const pool = new Pool({
     connectionString: DATABASE_URL,
@@ -63,22 +61,42 @@ pool.connect()
         process.exit(1);
     });
 
+// CORS configuration
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+            'https://www.linkedin.com',
+            'https://linkedin.com',
+            'http://localhost:3000',
+            'https://msgly.ai',
+            'https://www.msgly.ai',
+            'https://api.msgly.ai'
+        ];
+        
+        if (origin.startsWith('chrome-extension://')) {
+            return callback(null, true);
+        }
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+        
+        return callback(null, true); // Allow all for now during development
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+};
+
 // Middleware
-app.use(helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
-}));
-
-app.use(cors({
-    origin: ['http://localhost:3000', 'https://api.msgly.ai', 'https://msgly.ai'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-
+app.use(cors(corsOptions));
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Session configuration - MUST come before passport initialization
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
@@ -86,7 +104,59 @@ app.use(session({
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// Passport initialization
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user = await getUserById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
+    }
+});
+
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+    try {
+        // Check if user exists
+        let user = await getUserByEmail(profile.emails[0].value);
+        
+        if (!user) {
+            // Create new user with Google account
+            user = await createGoogleUser(
+                profile.emails[0].value,
+                profile.displayName,
+                profile.id,
+                profile.photos[0]?.value
+            );
+        } else if (!user.google_id) {
+            // Link existing account with Google
+            await linkGoogleAccount(user.id, profile.id);
+            user = await getUserById(user.id);
+        }
+        
+        return done(null, user);
+    } catch (error) {
+        console.error('Google OAuth error:', error);
+        return done(error, null);
     }
 }));
 
@@ -347,7 +417,7 @@ const saveCompleteProfileToDatabase = async (userId, linkedinUrl, profileData) =
     }
 };
 
-// CORRECT: Trigger LinkedIn scraper using DATASETS API (matches your curl command)
+// CORRECT: Trigger LinkedIn scraper using DATASETS API
 const triggerLinkedInScraper = async (linkedinUrl) => {
     console.log('🚀 Triggering LinkedIn scraper with Datasets API...');
     console.log(`📋 Dataset ID: ${BRIGHT_DATA_DATASET_ID}`);
@@ -488,102 +558,121 @@ const extractProfileAsync = async (userId, linkedinUrl) => {
     }
 };
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
+// Database functions
+const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
+    const creditsMap = {
+        'free': 30,
+        'silver': billingModel === 'payAsYouGo' ? 100 : 100,
+        'gold': billingModel === 'payAsYouGo' ? 500 : 500,
+        'platinum': billingModel === 'payAsYouGo' ? 1500 : 1500
+    };
+    
+    const credits = creditsMap[packageType] || 30;
+    
+    const result = await pool.query(
+        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [email, passwordHash, packageType, billingModel, credits]
+    );
+    return result.rows[0];
+};
+
+const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
+    const creditsMap = {
+        'free': 30,
+        'silver': billingModel === 'payAsYouGo' ? 100 : 100,
+        'gold': billingModel === 'payAsYouGo' ? 500 : 500,
+        'platinum': billingModel === 'payAsYouGo' ? 1500 : 1500
+    };
+    
+    const credits = creditsMap[packageType] || 30;
+    
+    const result = await pool.query(
+        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
+    );
+    return result.rows[0];
+};
+
+const linkGoogleAccount = async (userId, googleId) => {
+    const result = await pool.query(
+        'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+        [googleId, userId]
+    );
+    return result.rows[0];
+};
+
+const getUserByEmail = async (email) => {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0];
+};
+
+const getUserById = async (userId) => {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    return result.rows[0];
+};
+
+const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, displayName = null) => {
+    try {
+        const cleanUrl = linkedinUrl.trim();
+        
+        // First, create/update basic profile
+        const existingProfile = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [userId]
+        );
+        
+        let profile;
+        if (existingProfile.rows.length > 0) {
+            // Update existing profile
+            const result = await pool.query(
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
+                [cleanUrl, displayName, userId]
+            );
+            profile = result.rows[0];
+        } else {
+            // Create new profile
+            const result = await pool.query(
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
+                [userId, cleanUrl, displayName]
+            );
+            profile = result.rows[0];
+        }
+        
+        // Start background extraction
+        extractProfileAsync(userId, cleanUrl).catch(error => {
+            console.error('Background profile extraction failed:', error);
+        });
+        
+        return profile;
+        
+    } catch (error) {
+        console.error('Error in profile creation/extraction:', error);
+        throw error;
+    }
+};
+
+// JWT Authentication middleware
+const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
+        return res.status(401).json({ success: false, error: 'Access token required' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) {
-            return res.status(403).json({ error: 'Invalid or expired token' });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await getUserById(decoded.userId);
+        
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Invalid token' });
         }
+        
         req.user = user;
         next();
-    });
-};
-
-// Existing user functions (Google OAuth, etc.)
-const createUserProfile = async (email, name, googleId, profilePicture = null) => {
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-
-        const userResult = await client.query(
-            'INSERT INTO users (email, name, google_id, profile_picture, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING *',
-            [email, name, googleId, profilePicture]
-        );
-
-        const user = userResult.rows[0];
-
-        await client.query(
-            'INSERT INTO user_profiles (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW())',
-            [user.id]
-        );
-
-        await client.query('COMMIT');
-        return user;
     } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-    } finally {
-        client.release();
-    }
-};
-
-const updateUserProfileWithExtraction = async (userId, profileData) => {
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-
-        // Update basic user info
-        await client.query(
-            `UPDATE users SET 
-                profile_completed = true,
-                linkedin_url = $1,
-                updated_at = NOW()
-            WHERE id = $2`,
-            [profileData.linkedinUrl, userId]
-        );
-
-        // Check if profile exists
-        const existingProfile = await client.query(
-            'SELECT id FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-
-        if (existingProfile.rows.length > 0) {
-            // Update existing profile
-            await client.query(
-                `UPDATE user_profiles SET 
-                    linkedin_url = $1,
-                    data_extraction_status = $2,
-                    profile_analyzed = $3,
-                    updated_at = NOW()
-                WHERE user_id = $4`,
-                [profileData.linkedinUrl, 'pending', false, userId]
-            );
-        } else {
-            // Create new profile
-            await client.query(
-                `INSERT INTO user_profiles (
-                    user_id, linkedin_url, data_extraction_status, 
-                    profile_analyzed, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-                [userId, profileData.linkedinUrl, 'pending', false]
-            );
-        }
-
-        await client.query('COMMIT');
-        return true;
-    } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-    } finally {
-        client.release();
+        return res.status(403).json({ success: false, error: 'Invalid token' });
     }
 };
 
@@ -593,7 +682,7 @@ const updateUserProfileWithExtraction = async (userId, profileData) => {
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        version: '3.0-complete-linkedin-extraction-with-migration',
+        version: '3.0-complete-linkedin-extraction-with-migration-oauth-fixed',
         timestamp: new Date().toISOString(),
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
@@ -606,8 +695,29 @@ app.get('/health', (req, res) => {
         },
         authentication: {
             google: !!GOOGLE_CLIENT_ID,
-            jwt: !!JWT_SECRET
+            jwt: !!JWT_SECRET,
+            passport: 'configured'
         }
+    });
+});
+
+// Home route
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Msgly.AI Server with Google OAuth + Bright Data',
+        status: 'running',
+        endpoints: [
+            'POST /register',
+            'POST /login', 
+            'GET /auth/google',
+            'GET /auth/google/callback',
+            'GET /profile (protected)',
+            'POST /update-profile (protected)',
+            'POST /retry-extraction (protected)',
+            'GET /packages',
+            'POST /migrate-database',
+            'GET /health'
+        ]
     });
 });
 
@@ -715,12 +825,29 @@ app.post('/migrate-database', async (req, res) => {
                 ADD COLUMN IF NOT EXISTS profile_data JSONB,
                 ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT 'not_started',
                 ADD COLUMN IF NOT EXISTS error_message TEXT,
-                ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT false;
+                ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT false,
+                ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
+                ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS package_type VARCHAR(50) DEFAULT 'free',
+                ADD COLUMN IF NOT EXISTS billing_model VARCHAR(50) DEFAULT 'monthly',
+                ADD COLUMN IF NOT EXISTS credits_remaining INTEGER DEFAULT 30,
+                ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'active';
             `;
             
             await client.query(userTableUpdates);
             console.log('✅ Users table updated successfully');
             migrationResults.push('✅ Users table updated successfully');
+
+            // Make password_hash nullable for Google OAuth users
+            try {
+                await client.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`);
+                console.log('✅ Made password_hash nullable for Google OAuth users');
+                migrationResults.push('✅ Made password_hash nullable for Google OAuth users');
+            } catch (err) {
+                console.log('Password hash might already be nullable:', err.message);
+                migrationResults.push('⚠️ Password hash was already nullable');
+            }
 
             // Step 2: Create comprehensive user_profiles table
             console.log('📋 Step 2: Creating comprehensive user_profiles table...');
@@ -817,45 +944,34 @@ app.post('/migrate-database', async (req, res) => {
             console.log('✅ User profiles table created/updated successfully');
             migrationResults.push('✅ User profiles table created/updated successfully');
 
-            // Step 3: Add missing columns to existing user_profiles table
-            console.log('📋 Step 3: Adding missing columns...');
-            migrationResults.push('Step 3: Adding missing columns...');
-            
-            const addMissingColumns = `
-                ALTER TABLE user_profiles 
-                ADD COLUMN IF NOT EXISTS linkedin_id TEXT,
-                ADD COLUMN IF NOT EXISTS linkedin_num_id TEXT,
-                ADD COLUMN IF NOT EXISTS first_name TEXT,
-                ADD COLUMN IF NOT EXISTS last_name TEXT,
-                ADD COLUMN IF NOT EXISTS city TEXT,
-                ADD COLUMN IF NOT EXISTS state TEXT,
-                ADD COLUMN IF NOT EXISTS country TEXT,
-                ADD COLUMN IF NOT EXISTS country_code TEXT,
-                ADD COLUMN IF NOT EXISTS current_company_id TEXT,
-                ADD COLUMN IF NOT EXISTS current_position TEXT,
-                ADD COLUMN IF NOT EXISTS about TEXT,
-                ADD COLUMN IF NOT EXISTS connections_count INTEGER,
-                ADD COLUMN IF NOT EXISTS followers_count INTEGER,
-                ADD COLUMN IF NOT EXISTS profile_picture TEXT,
-                ADD COLUMN IF NOT EXISTS banner_image TEXT,
-                ADD COLUMN IF NOT EXISTS skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
-                ADD COLUMN IF NOT EXISTS recommendations_count INTEGER,
-                ADD COLUMN IF NOT EXISTS recommendations_given JSONB DEFAULT '[]'::JSONB,
-                ADD COLUMN IF NOT EXISTS recommendations_received JSONB DEFAULT '[]'::JSONB,
-                ADD COLUMN IF NOT EXISTS posts JSONB DEFAULT '[]'::JSONB,
-                ADD COLUMN IF NOT EXISTS activity JSONB DEFAULT '[]'::JSONB,
-                ADD COLUMN IF NOT EXISTS people_also_viewed JSONB DEFAULT '[]'::JSONB,
-                ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
-                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
-            `;
-            
-            await client.query(addMissingColumns);
-            console.log('✅ Missing columns added successfully');
-            migrationResults.push('✅ Missing columns added successfully');
+            // Create additional tables if they don't exist
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS message_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id),
+                    target_name VARCHAR(255),
+                    target_url VARCHAR(500),
+                    generated_message TEXT,
+                    message_context TEXT,
+                    credits_used INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
 
-            // Step 4: Create indexes
-            console.log('📋 Step 4: Creating performance indexes...');
-            migrationResults.push('Step 4: Creating performance indexes...');
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS credits_transactions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id),
+                    transaction_type VARCHAR(50),
+                    credits_change INTEGER,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // Step 3: Create indexes
+            console.log('📋 Step 3: Creating performance indexes...');
+            migrationResults.push('Step 3: Creating performance indexes...');
             
             const createIndexes = `
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
@@ -863,33 +979,17 @@ app.post('/migrate-database', async (req, res) => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
+                CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+                CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
             `;
             
             await client.query(createIndexes);
             console.log('✅ Performance indexes created successfully');
             migrationResults.push('✅ Performance indexes created successfully');
 
-            // Step 5: Verify
+            // Step 4: Verify
             const testResult = await client.query('SELECT COUNT(*) as user_count FROM users;');
             migrationResults.push(`✅ Database verified - ${testResult.rows[0].user_count} users in database`);
-            
-            // Step 6: Check table structure
-            const verifyUsers = await client.query(`
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'users' 
-                ORDER BY ordinal_position
-            `);
-            
-            const verifyProfiles = await client.query(`
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'user_profiles' 
-                ORDER BY ordinal_position
-            `);
-            
-            migrationResults.push(`✅ Users table has ${verifyUsers.rows.length} columns`);
-            migrationResults.push(`✅ User_profiles table has ${verifyProfiles.rows.length} columns`);
             
             console.log('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
             migrationResults.push('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
@@ -905,7 +1005,7 @@ app.post('/migrate-database', async (req, res) => {
             steps: migrationResults,
             timestamp: new Date().toISOString(),
             summary: {
-                usersTable: 'Updated with LinkedIn fields',
+                usersTable: 'Updated with LinkedIn fields and Google OAuth support',
                 profilesTable: 'Complete LinkedIn schema created',
                 indexes: 'Performance indexes created',
                 status: 'Ready for comprehensive LinkedIn data extraction'
@@ -923,223 +1023,197 @@ app.post('/migrate-database', async (req, res) => {
     }
 });
 
-// Google OAuth
-app.post('/auth/google', async (req, res) => {
-    try {
-        const { token } = req.body;
-        
-        if (!token) {
-            return res.status(400).json({ error: 'Google token is required' });
-        }
+// GOOGLE OAUTH ROUTES (FROM YOUR WORKING SERVER)
 
-        const ticket = await googleClient.verifyIdToken({
-            idToken: token,
-            audience: GOOGLE_CLIENT_ID
-        });
-
-        const payload = ticket.getPayload();
-        const { sub: googleId, email, name, picture } = payload;
-
-        let user = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
-
-        if (user.rows.length === 0) {
-            user = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-            
-            if (user.rows.length === 0) {
-                const newUser = await createUserProfile(email, name, googleId, picture);
-                user = { rows: [newUser] };
-            } else {
-                await pool.query(
-                    'UPDATE users SET google_id = $1, profile_picture = $2 WHERE id = $3',
-                    [googleId, picture, user.rows[0].id]
-                );
-            }
-        }
-
-        const userData = user.rows[0];
-        const jwtToken = jwt.sign(
-            {
-                id: userData.id,
-                email: userData.email,
-                name: userData.name
-            },
-            JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        res.json({
-            success: true,
-            token: jwtToken,
-            user: {
-                id: userData.id,
-                email: userData.email,
-                name: userData.name,
-                profilePicture: userData.profile_picture,
-                profileCompleted: userData.profile_completed || false
-            }
-        });
-
-    } catch (error) {
-        console.error('Google auth error:', error);
-        res.status(500).json({ error: 'Authentication failed' });
+// Initiate Google OAuth
+app.get('/auth/google', (req, res, next) => {
+    // Store package selection in session if provided
+    if (req.query.package) {
+        req.session.selectedPackage = req.query.package;
+        req.session.billingModel = req.query.billing || 'monthly';
     }
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'] 
+    })(req, res, next);
 });
 
-// COMPLETE: Update profile with comprehensive LinkedIn extraction
-app.post('/update-profile', authenticateToken, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { linkedinUrl } = req.body;
+// Google OAuth callback
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/auth/failed' }),
+    async (req, res) => {
+        try {
+            // Generate JWT for the authenticated user
+            const token = jwt.sign(
+                { userId: req.user.id, email: req.user.email },
+                JWT_SECRET,
+                { expiresIn: '30d' }
+            );
+            
+            // If package was selected, update user
+            if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
+                // For now, only allow free package
+                console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
+            }
+            
+            // Clear session
+            req.session.selectedPackage = null;
+            req.session.billingModel = null;
+            
+            // Redirect to frontend sign-up page with token
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?token=${token}`);
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?error=callback_error`);
+        }
+    }
+);
 
-        // Validate LinkedIn URL
-        if (!linkedinUrl || !validator.isURL(linkedinUrl)) {
+// Auth failed route
+app.get('/auth/failed', (req, res) => {
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://msgly.ai/sign-up' 
+        : 'http://localhost:3000/sign-up';
+        
+    res.redirect(`${frontendUrl}?error=auth_failed`);
+});
+
+// Update profile with LinkedIn URL and trigger extraction
+app.post('/update-profile', authenticateToken, async (req, res) => {
+    console.log('📝 Profile update request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType } = req.body;
+        
+        // Validation
+        if (!linkedinUrl) {
             return res.status(400).json({
                 success: false,
-                error: 'Valid LinkedIn URL is required'
+                error: 'LinkedIn URL is required'
             });
         }
-
+        
+        // Basic LinkedIn URL validation
         if (!linkedinUrl.includes('linkedin.com/in/')) {
             return res.status(400).json({
                 success: false,
-                error: 'Please provide a valid LinkedIn profile URL (linkedin.com/in/...)'
+                error: 'Please provide a valid LinkedIn profile URL'
             });
         }
-
-        console.log('🚀 Profile update request received');
-        console.log(`👤 User ID: ${userId}`);
-        console.log(`🔗 LinkedIn URL: ${linkedinUrl}`);
-
-        // Update user profile immediately
-        await updateUserProfileWithExtraction(userId, { linkedinUrl });
-
-        // Start comprehensive LinkedIn extraction asynchronously
-        console.log('⚡ Starting comprehensive LinkedIn profile extraction...');
         
-        // Don't await - let it run in background
-        extractProfileAsync(userId, linkedinUrl).catch(error => {
-            console.error('Background profile extraction failed:', error);
-        });
-
-        // Return immediate success response
+        // Update user package if provided and different
+        if (packageType && packageType !== req.user.package_type) {
+            // For now, only allow free package
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        // Create or update user profile WITH extraction
+        const profile = await createOrUpdateUserProfileWithExtraction(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        // Get updated user data
+        const updatedUser = await getUserById(req.user.id);
+        
         res.json({
             success: true,
-            message: 'Profile update initiated! LinkedIn data extraction is in progress.',
-            status: 'processing',
-            linkedinUrl: linkedinUrl,
-            note: 'Complete profile data will be available shortly. Use /profile-status to check progress.'
+            message: 'Profile updated and extraction initiated',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: 'in_progress'
+                }
+            }
         });
-
+        
+        console.log(`✅ Profile updated for user ${updatedUser.email} with LinkedIn: ${linkedinUrl}`);
+        
     } catch (error) {
-        console.error('Profile update error:', error);
+        console.error('❌ Profile update error:', error);
         res.status(500).json({
             success: false,
-            error: 'Profile update failed',
+            error: 'Failed to update profile',
             details: error.message
         });
     }
 });
 
-// Check profile extraction status
-app.get('/profile-status', authenticateToken, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        
-        const result = await pool.query(
-            'SELECT extraction_status, error_message, updated_at FROM users WHERE id = $1',
-            [userId]
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-        const user = result.rows[0];
-        
-        res.json({
-            status: user.extraction_status || 'not_started',
-            error: user.error_message,
-            lastUpdated: user.updated_at
-        });
-        
-    } catch (error) {
-        console.error('Status check error:', error);
-        res.status(500).json({ error: 'Failed to check status' });
-    }
-});
-
-// Get user profile (including LinkedIn data)
-app.get('/profile', authenticateToken, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        
-        const userResult = await pool.query(
-            'SELECT * FROM users WHERE id = $1',
-            [userId]
-        );
-        
-        const profileResult = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-        
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-        const user = userResult.rows[0];
-        const profile = profileResult.rows[0] || {};
-        
-        res.json({
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                profilePicture: user.profile_picture,
-                profileCompleted: user.profile_completed,
-                linkedinUrl: user.linkedin_url,
-                extractionStatus: user.extraction_status
-            },
-            profile: {
-                ...profile,
-                // Parse JSON fields
-                experience: profile.experience ? JSON.parse(profile.experience) : [],
-                education: profile.education ? JSON.parse(profile.education) : [],
-                skills: profile.skills ? JSON.parse(profile.skills) : [],
-                languages: profile.languages ? JSON.parse(profile.languages) : []
-            }
-        });
-        
-    } catch (error) {
-        console.error('Profile fetch error:', error);
-        res.status(500).json({ error: 'Failed to fetch profile' });
-    }
-});
-
-// Get packages
+// Get Available Packages
 app.get('/packages', (req, res) => {
-    const packages = [
-        {
-            id: 1,
-            name: 'Basic',
-            price: 29,
-            features: ['Profile Analysis', '5 Companies Match', 'Basic Support']
-        },
-        {
-            id: 2,
-            name: 'Professional',
-            price: 79,
-            features: ['Advanced Analysis', '20 Companies Match', 'Priority Support', 'Market Insights']
-        },
-        {
-            id: 3,
-            name: 'Enterprise',
-            price: 149,
-            features: ['Complete Analysis', 'Unlimited Matches', '24/7 Support', 'Custom Reports', 'API Access']
-        }
-    ];
+    const packages = {
+        payAsYouGo: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 30,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '30 free profiles forever',
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'No credit card required'],
+                available: true
+            },
+            {
+                id: 'silver',
+                name: 'Silver',
+                credits: 100,
+                price: 12,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            }
+        ],
+        monthly: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 30,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '30 free profiles forever',
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'No credit card required'],
+                available: true
+            }
+        ]
+    };
     
-    res.json({ packages });
+    res.json({
+        success: true,
+        data: { packages }
+    });
 });
 
 // Error handling
@@ -1159,6 +1233,7 @@ app.listen(port, () => {
     console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
     console.log(`🔧 API: COMPLETE - Using Datasets API (v3)`);
     console.log(`📊 Dataset ID: ${BRIGHT_DATA_DATASET_ID}`);
+    console.log(`🔐 Google OAuth: ${GOOGLE_CLIENT_ID ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
     console.log(`📡 Health check: /health`);
     console.log(`🔍 Debug endpoint: /debug-brightdata`);
     console.log(`🛠️ Migration endpoint: /migrate-database`);
