@@ -450,9 +450,10 @@ const triggerLinkedInScraper = async (linkedinUrl) => {
     }
 };
 
-// CORRECT: Poll for results using DATASETS API
-const pollForResults = async (snapshotId, maxAttempts = 20) => {
+// IMPROVED: Poll for results with extended timeout and better error handling
+const pollForResults = async (snapshotId, maxAttempts = 40) => { // Increased from 20 to 40 attempts
     console.log(`🔄 Polling for results... Snapshot ID: ${snapshotId}`);
+    console.log(`⏱️ Maximum wait time: ${(maxAttempts * 10) / 60} minutes`);
     
     let attempts = 0;
     
@@ -470,37 +471,69 @@ const pollForResults = async (snapshotId, maxAttempts = 20) => {
                 }
             );
 
-            console.log(`📊 Poll response status: ${response.data.status}`);
+            console.log(`📊 Poll response status: ${response.data.status || 'undefined'}`);
             
+            // Check for ready status with data
             if (response.data.status === 'ready' && response.data.data && response.data.data.length > 0) {
                 console.log('✅ Profile data ready!');
+                console.log(`📋 Retrieved ${response.data.data.length} profile(s)`);
                 return {
                     success: true,
                     data: response.data.data[0], // First profile
                     allData: response.data.data
                 };
-            } else if (response.data.status === 'error') {
+            } 
+            // Check if data is available even without explicit "ready" status
+            else if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+                console.log('✅ Profile data found (without ready status)!');
+                return {
+                    success: true,
+                    data: response.data.data[0],
+                    allData: response.data.data
+                };
+            }
+            // Check for error status
+            else if (response.data.status === 'error') {
                 console.error('❌ Scraping error:', response.data.error);
                 throw new Error(`Scraping failed: ${response.data.error}`);
             }
+            // Check for failed status
+            else if (response.data.status === 'failed') {
+                console.error('❌ Scraping failed:', response.data.error || 'Unknown error');
+                throw new Error(`Scraping failed: ${response.data.error || 'Profile extraction failed'}`);
+            }
+            // Status is still running/pending/undefined
+            else {
+                const status = response.data.status || 'undefined';
+                console.log(`⏳ Still processing... (Status: ${status})`);
+            }
             
-            // Wait before next attempt
-            await new Promise(resolve => setTimeout(resolve, 8000)); // 8 seconds
+            // Progressive wait times: start with 8 seconds, increase to 12 seconds after attempt 20
+            const waitTime = attempts > 20 ? 12000 : 8000;
+            await new Promise(resolve => setTimeout(resolve, waitTime));
             attempts++;
             
         } catch (error) {
             console.error(`❌ Polling attempt ${attempts + 1} failed:`, error.message);
-            attempts++;
+            
+            // Don't count 404 errors as real attempts (snapshot might not be ready yet)
+            if (error.response?.status === 404) {
+                console.log(`   ℹ️ Snapshot not ready yet (404), continuing...`);
+                await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds for 404s
+            } else {
+                attempts++; // Count other errors as attempts
+            }
             
             if (attempts >= maxAttempts) {
-                throw new Error(`Polling timeout after ${maxAttempts} attempts`);
+                console.error(`❌ Polling timeout after ${maxAttempts} attempts (${(maxAttempts * 10) / 60} minutes)`);
+                throw new Error(`Polling timeout after ${maxAttempts} attempts - profile extraction took too long. This can happen with complex profiles or during high demand periods.`);
             }
             
             await new Promise(resolve => setTimeout(resolve, 8000));
         }
     }
     
-    throw new Error('Polling timeout - profile extraction took too long');
+    throw new Error(`Polling timeout after ${maxAttempts} attempts - profile extraction took too long. This can happen with complex profiles or during high demand periods.`);
 };
 
 // COMPLETE: Extract LinkedIn profile with comprehensive data
@@ -682,12 +715,17 @@ const authenticateToken = async (req, res, next) => {
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        version: '3.0-complete-linkedin-extraction-with-migration-oauth-fixed',
+        version: '3.1-improved-polling-and-retry',
         timestamp: new Date().toISOString(),
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
             datasetId: BRIGHT_DATA_DATASET_ID,
-            endpoint: 'datasets/v3/trigger (Datasets API - CORRECT)'
+            endpoint: 'datasets/v3/trigger (Datasets API - CORRECT)',
+            polling: {
+                maxAttempts: 40,
+                maxWaitTime: '6.7 minutes',
+                retrySupported: true
+            }
         },
         database: {
             connected: true,
@@ -704,8 +742,9 @@ app.get('/health', (req, res) => {
 // Home route
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server with Google OAuth + Bright Data',
+        message: 'Msgly.AI Server with Google OAuth + Bright Data + Improved Polling',
         status: 'running',
+        version: '3.1-improved-polling-and-retry',
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -714,9 +753,17 @@ app.get('/', (req, res) => {
             'GET /profile (protected)',
             'POST /update-profile (protected)',
             'POST /retry-extraction (protected)',
+            'GET /profile-status (protected)',
             'GET /packages',
             'POST /migrate-database',
+            'GET /debug-brightdata',
             'GET /health'
+        ],
+        features: [
+            'Extended polling timeout (6.7 minutes)',
+            'Automatic retry mechanism',
+            'Better error handling',
+            'Real-time status checking'
         ]
     });
 });
