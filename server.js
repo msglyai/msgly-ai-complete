@@ -331,7 +331,7 @@ const initDB = async () => {
     }
 };
 
-// ==================== BRIGHT DATA FUNCTIONS (DEBUG VERSION) ====================
+// ==================== BRIGHT DATA FUNCTIONS (FIXED WITH COMPLETE DATA EXTRACTION) ====================
 
 const extractLinkedInProfile = async (linkedinUrl) => {
     try {
@@ -341,7 +341,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             throw new Error('Bright Data API key not configured');
         }
         
-        // FIXED: Use synchronous API for immediate response
+        // Use synchronous API for immediate response
         const scrapeResponse = await axios.post(
             `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
             [{ url: linkedinUrl }],
@@ -355,123 +355,122 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         );
 
         console.log(`📡 Bright Data API Response Status: ${scrapeResponse.status}`);
-        
-        // CRITICAL DEBUG: Log the COMPLETE raw response
-        console.log('🔴 COMPLETE RAW RESPONSE FROM BRIGHT DATA:');
-        console.log(JSON.stringify(scrapeResponse.data, null, 2));
-        
-        // Also log to a file for easier inspection
-        const fs = require('fs');
-        const debugFilePath = './brightdata_response_debug.json';
-        fs.writeFileSync(debugFilePath, JSON.stringify({
-            timestamp: new Date().toISOString(),
-            url: linkedinUrl,
-            status: scrapeResponse.status,
-            headers: scrapeResponse.headers,
-            data: scrapeResponse.data
-        }, null, 2));
-        console.log(`📄 Debug response saved to: ${debugFilePath}`);
 
         // Check if we got immediate data (status 200)
-        if (scrapeResponse.status === 200 && scrapeResponse.data) {
-            console.log(`📊 Response type: ${typeof scrapeResponse.data}`);
-            console.log(`📊 Is Array: ${Array.isArray(scrapeResponse.data)}`);
-            console.log(`📊 Data length: ${scrapeResponse.data.length || 'Not an array'}`);
+        if (scrapeResponse.status === 200 && scrapeResponse.data && scrapeResponse.data.length > 0) {
+            console.log(`📊 Bright Data returned ${scrapeResponse.data.length} profile(s)`);
             
-            // Try different ways to access the data
-            let profileData = null;
+            const profile = scrapeResponse.data[0];
             
-            // Case 1: Direct array response
-            if (Array.isArray(scrapeResponse.data) && scrapeResponse.data.length > 0) {
-                profileData = scrapeResponse.data[0];
-                console.log('✅ Found data in: scrapeResponse.data[0]');
-            }
-            // Case 2: Data wrapped in an object
-            else if (scrapeResponse.data.data && Array.isArray(scrapeResponse.data.data)) {
-                profileData = scrapeResponse.data.data[0];
-                console.log('✅ Found data in: scrapeResponse.data.data[0]');
-            }
-            // Case 3: Data wrapped in results
-            else if (scrapeResponse.data.results && Array.isArray(scrapeResponse.data.results)) {
-                profileData = scrapeResponse.data.results[0];
-                console.log('✅ Found data in: scrapeResponse.data.results[0]');
-            }
-            // Case 4: Direct object response
-            else if (typeof scrapeResponse.data === 'object' && !Array.isArray(scrapeResponse.data)) {
-                profileData = scrapeResponse.data;
-                console.log('✅ Found data as direct object');
-            }
+            // Log what fields Bright Data actually returned
+            console.log('🔍 Fields returned by Bright Data:', Object.keys(profile));
             
-            if (profileData) {
-                console.log('🔍 PROFILE DATA STRUCTURE:');
-                console.log(JSON.stringify(profileData, null, 2));
+            // FIXED: Extract data with CORRECT field mapping based on actual Bright Data response
+            const extractedData = {
+                // BASIC PROFILE INFO - Using correct field names
+                fullName: profile.name || null,
+                firstName: profile.first_name || null,
+                lastName: profile.last_name || null,
                 
-                // Log all available fields
-                console.log('📋 AVAILABLE FIELDS IN RESPONSE:');
-                Object.keys(profileData).forEach(key => {
-                    const value = profileData[key];
-                    const valueType = Array.isArray(value) ? 'array' : typeof value;
-                    const valuePreview = valueType === 'string' ? value.substring(0, 50) + '...' : 
-                                       valueType === 'array' ? `Array(${value.length})` : 
-                                       valueType === 'object' ? 'Object' : value;
-                    console.log(`  - ${key}: ${valueType} = ${valuePreview}`);
-                });
+                // HEADLINE - Bright Data doesn't return headline, but we can use about or current position
+                headline: profile.current_position || 
+                         (profile.current_company ? `${profile.current_company.position || 'Professional'} at ${profile.current_company.name}` : null) ||
+                         (profile.about ? profile.about.substring(0, 120) + '...' : null),
                 
-                // Extract data with extensive field mapping
-                const extractedData = {
-                    // Try every possible field name variation
-                    fullName: profileData.name || profileData.full_name || profileData.fullName || 
-                             profileData.person_name || profileData.profile_name || null,
-                    
-                    firstName: profileData.first_name || profileData.firstName || 
-                              profileData.given_name || profileData.givenName || null,
-                    
-                    lastName: profileData.last_name || profileData.lastName || 
-                             profileData.family_name || profileData.familyName || null,
-                    
-                    headline: profileData.position || profileData.headline || profileData.title || 
-                             profileData.job_title || profileData.current_position || 
-                             profileData.professional_headline || null,
-                    
-                    summary: profileData.about || profileData.summary || profileData.bio || 
-                            profileData.description || profileData.profile_summary || null,
-                    
-                    location: profileData.city || profileData.location || profileData.loc || 
-                             profileData.location_name || profileData.geo_location || null,
-                    
-                    industry: profileData.industry || profileData.field || 
-                             profileData.industry_name || null,
-                    
-                    connectionsCount: profileData.connections || profileData.connections_count || 
-                                    profileData.network_size || profileData.connection_count || null,
-                    
-                    followersCount: profileData.followers || profileData.followers_count || 
-                                   profileData.follower_count || null,
-                    
-                    // Log what we're extracting
-                    _debug: {
-                        extractedFields: Object.entries({
-                            fullName: profileData.name || profileData.full_name,
-                            headline: profileData.position || profileData.headline,
-                            location: profileData.city || profileData.location,
-                            connections: profileData.connections || profileData.connections_count
-                        }).filter(([_, v]) => v !== undefined)
-                    },
-                    
-                    rawData: profileData
-                };
+                summary: profile.about || null,
+                location: profile.city || profile.location || null,
+                industry: profile.industry || null,
                 
-                console.log('✅ EXTRACTION SUMMARY:');
-                console.log(`  - Name: ${extractedData.fullName || 'NOT FOUND'}`);
-                console.log(`  - Headline: ${extractedData.headline || 'NOT FOUND'}`);
-                console.log(`  - Location: ${extractedData.location || 'NOT FOUND'}`);
-                console.log(`  - Connections: ${extractedData.connectionsCount || 'NOT FOUND'}`);
+                // CONNECTIONS & FOLLOWERS - correct field names
+                connectionsCount: profile.connections || null,
+                followersCount: profile.followers || null,
                 
-                return extractedData;
-            } else {
-                console.error('❌ NO PROFILE DATA FOUND IN RESPONSE');
-                throw new Error('No profile data found in Bright Data response');
-            }
+                // IMAGES - Using correct field names
+                profileImageUrl: profile.avatar || profile.profile_picture || null,
+                bannerImageUrl: profile.banner_image || profile.background_image || null,
+                
+                // CURRENT COMPANY - Extract from nested object
+                currentCompany: profile.current_company?.name || profile.current_company_name || null,
+                currentCompanyId: profile.current_company?.company_id || profile.current_company_company_id || null,
+                currentCompanyUrl: profile.current_company?.link || null,
+                
+                // EXPERIENCE - Handle as object or array
+                experience: (() => {
+                    // If experience is already an array
+                    if (Array.isArray(profile.experience)) {
+                        return profile.experience;
+                    }
+                    // If experience is an object, convert to array
+                    if (profile.experience && typeof profile.experience === 'object') {
+                        return [profile.experience];
+                    }
+                    // If no experience data, return empty array
+                    return [];
+                })(),
+                
+                // EDUCATION - Already an array with full details
+                education: profile.education || [],
+                
+                // SKILLS - Check various possible field names
+                skills: (() => {
+                    if (profile.skills) {
+                        if (Array.isArray(profile.skills)) {
+                            return profile.skills;
+                        }
+                        if (typeof profile.skills === 'string') {
+                            return profile.skills.split(',').map(s => s.trim());
+                        }
+                    }
+                    return [];
+                })(),
+                
+                // ADDITIONAL DATA from Bright Data - ALL FIELDS
+                certifications: profile.certifications || [],
+                languages: profile.languages || [],
+                recommendations: profile.recommendations || [],
+                recommendationsCount: profile.recommendations_count || null,
+                volunteerExperience: profile.volunteer_experience || [],
+                courses: profile.courses || [],
+                publications: profile.publications || [],
+                patents: profile.patents || [],
+                projects: profile.projects || [],
+                organizations: profile.organizations || [],
+                honorsAndAwards: profile.honors_and_awards || [],
+                
+                // ACTIVITY & POSTS
+                posts: profile.posts || [],
+                activity: profile.activity || [],
+                peopleAlsoViewed: profile.people_also_viewed || profile.similar_profiles || [],
+                
+                // METADATA
+                countryCode: profile.country_code || null,
+                linkedinId: profile.linkedin_id || profile.id || null,
+                linkedinNumId: profile.linkedin_num_id || null,
+                publicIdentifier: profile.public_identifier || profile.linkedin_id || profile.id || null,
+                linkedinUrl: profile.url || profile.input_url || linkedinUrl,
+                timestamp: profile.timestamp || null,
+                
+                // RAW DATA for debugging
+                rawData: profile
+            };
+
+            console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
+            console.log(`📊 COMPLETE extraction summary:`, {
+                name: extractedData.fullName,
+                location: extractedData.location,
+                connections: extractedData.connectionsCount,
+                followers: extractedData.followersCount,
+                company: extractedData.currentCompany,
+                experience: extractedData.experience.length,
+                education: extractedData.education.length,
+                skills: extractedData.skills.length,
+                certifications: extractedData.certifications.length,
+                honors: extractedData.honorsAndAwards.length,
+                activity: extractedData.activity.length,
+                recommendations: extractedData.recommendations.length
+            });
+            
+            return extractedData;
         }
         
         // If we get HTTP 202, it means the request is still processing
@@ -523,236 +522,63 @@ const extractLinkedInProfile = async (linkedinUrl) => {
 
                     if (downloadResponse.data && downloadResponse.data.length > 0) {
                         console.log(`📊 Fallback: Downloaded ${downloadResponse.data.length} profile(s)`);
-                        console.log('🔍 Fallback full response:', JSON.stringify(downloadResponse.data, null, 2));
                         
                         const profile = downloadResponse.data[0];
                         
-                        // COMPREHENSIVE: Extract EVERY possible field from Bright Data response
+                        // Use the same extraction logic as above
                         const extractedData = {
                             // BASIC PROFILE INFO
                             fullName: profile.name || null,
-                            firstName: profile.first_name || (profile.name ? profile.name.split(' ')[0] : null),
-                            lastName: profile.last_name || (profile.name ? profile.name.split(' ').slice(1).join(' ') : null),
-                            headline: profile.position || profile.headline || null,
-                            summary: profile.about || profile.summary || null,
+                            firstName: profile.first_name || null,
+                            lastName: profile.last_name || null,
+                            headline: profile.current_position || 
+                                     (profile.current_company ? `${profile.current_company.position || 'Professional'} at ${profile.current_company.name}` : null) ||
+                                     (profile.about ? profile.about.substring(0, 120) + '...' : null),
+                            summary: profile.about || null,
                             location: profile.city || profile.location || null,
                             industry: profile.industry || null,
-                            connectionsCount: profile.connections || profile.connections_count || null,
-                            followersCount: profile.followers || profile.followers_count || null,
-                            profileImageUrl: profile.avatar || profile.profile_picture || profile.photo_url || profile.image || null,
+                            connectionsCount: profile.connections || null,
+                            followersCount: profile.followers || null,
+                            profileImageUrl: profile.avatar || profile.profile_picture || null,
                             bannerImageUrl: profile.banner_image || profile.background_image || null,
                             
-                            // CURRENT COMPANY INFO
-                            currentCompany: profile.current_company || profile.current_company_name || null,
-                            currentCompanyId: profile.current_company_company_id || profile.current_company_id || null,
-                            currentCompanyUrl: profile.current_company_url || null,
+                            // CURRENT COMPANY
+                            currentCompany: profile.current_company?.name || profile.current_company_name || null,
+                            currentCompanyId: profile.current_company?.company_id || profile.current_company_company_id || null,
+                            currentCompanyUrl: profile.current_company?.link || null,
                             
-                            // COMPREHENSIVE EXPERIENCE - Extract ALL job history
-                            experience: (() => {
-                                const exp = profile.experience || profile.positions || [];
-                                if (Array.isArray(exp)) {
-                                    return exp.map(job => ({
-                                        title: job.title || job.position || job.job_title || null,
-                                        company: job.company || job.company_name || null,
-                                        companyId: job.company_id || null,
-                                        companyUrl: job.company_url || job.company_link || null,
-                                        location: job.location || null,
-                                        duration: job.duration || job.period || null,
-                                        startDate: job.start_date || job.started_on || null,
-                                        endDate: job.end_date || job.ended_on || null,
-                                        description: job.description || job.summary || null,
-                                        isCurrent: job.is_current || job.current || false
-                                    }));
-                                }
-                                return exp ? [exp] : [];
-                            })(),
-                            
-                            // COMPREHENSIVE EDUCATION - Extract ALL education history
-                            education: (() => {
-                                const edu = profile.education || profile.educations_details || profile.schools || [];
-                                if (Array.isArray(edu)) {
-                                    return edu.map(school => ({
-                                        school: school.school || school.institution || school.university || null,
-                                        degree: school.degree || school.degree_name || null,
-                                        fieldOfStudy: school.field_of_study || school.field || school.major || null,
-                                        startYear: school.start_year || school.from_year || null,
-                                        endYear: school.end_year || school.to_year || null,
-                                        grade: school.grade || school.gpa || null,
-                                        activities: school.activities || null,
-                                        description: school.description || null
-                                    }));
-                                }
-                                return edu ? [edu] : [];
-                            })(),
-                            
-                            // CERTIFICATIONS
-                            certifications: (() => {
-                                const certs = profile.certifications || profile.certificates || [];
-                                if (Array.isArray(certs)) {
-                                    return certs.map(cert => ({
-                                        name: cert.name || cert.title || null,
-                                        authority: cert.authority || cert.issuer || cert.organization || null,
-                                        licenseNumber: cert.license_number || cert.credential_id || null,
-                                        startDate: cert.start_date || cert.issued_on || null,
-                                        endDate: cert.end_date || cert.expires_on || null,
-                                        url: cert.url || cert.credential_url || null
-                                    }));
-                                }
-                                return certs ? [certs] : [];
-                            })(),
-                            
-                            // SKILLS - Handle both array and string formats
-                            skills: (() => {
-                                if (Array.isArray(profile.skills)) {
-                                    return profile.skills.map(skill => typeof skill === 'string' ? skill : skill.name || skill.skill || skill);
-                                }
-                                if (typeof profile.skills === 'string') {
-                                    return profile.skills.split(',').map(s => s.trim());
-                                }
-                                return profile.skills ? [profile.skills] : [];
-                            })(),
-                            
-                            // LANGUAGES
-                            languages: (() => {
-                                const langs = profile.languages || [];
-                                if (Array.isArray(langs)) {
-                                    return langs.map(lang => ({
-                                        name: lang.name || lang.language || lang,
-                                        proficiency: lang.proficiency || lang.level || null
-                                    }));
-                                }
-                                return langs ? [langs] : [];
-                            })(),
-                            
-                            // RECOMMENDATIONS
+                            // PROFESSIONAL DATA
+                            experience: Array.isArray(profile.experience) ? profile.experience : (profile.experience ? [profile.experience] : []),
+                            education: profile.education || [],
+                            skills: Array.isArray(profile.skills) ? profile.skills : [],
+                            certifications: profile.certifications || [],
+                            languages: profile.languages || [],
                             recommendations: profile.recommendations || [],
                             recommendationsCount: profile.recommendations_count || null,
-                            
-                            // VOLUNTEER EXPERIENCE
-                            volunteerExperience: (() => {
-                                const volunteer = profile.volunteer_experience || profile.volunteer || [];
-                                if (Array.isArray(volunteer)) {
-                                    return volunteer.map(vol => ({
-                                        role: vol.role || vol.position || null,
-                                        organization: vol.organization || vol.company || null,
-                                        cause: vol.cause || null,
-                                        startDate: vol.start_date || null,
-                                        endDate: vol.end_date || null,
-                                        description: vol.description || null
-                                    }));
-                                }
-                                return volunteer ? [volunteer] : [];
-                            })(),
-                            
-                            // COURSES
-                            courses: (() => {
-                                const courses = profile.courses || [];
-                                if (Array.isArray(courses)) {
-                                    return courses.map(course => ({
-                                        name: course.name || course.title || null,
-                                        number: course.number || null,
-                                        year: course.year || null
-                                    }));
-                                }
-                                return courses ? [courses] : [];
-                            })(),
-                            
-                            // PUBLICATIONS
-                            publications: (() => {
-                                const pubs = profile.publications || [];
-                                if (Array.isArray(pubs)) {
-                                    return pubs.map(pub => ({
-                                        title: pub.title || pub.name || null,
-                                        publisher: pub.publisher || null,
-                                        publishedDate: pub.published_date || pub.date || null,
-                                        url: pub.url || null,
-                                        description: pub.description || null
-                                    }));
-                                }
-                                return pubs ? [pubs] : [];
-                            })(),
-                            
-                            // PATENTS
-                            patents: (() => {
-                                const patents = profile.patents || [];
-                                if (Array.isArray(patents)) {
-                                    return patents.map(patent => ({
-                                        title: patent.title || patent.name || null,
-                                        issuer: patent.issuer || null,
-                                        patentNumber: patent.patent_number || patent.number || null,
-                                        issuedDate: patent.issued_date || patent.date || null,
-                                        url: patent.url || null,
-                                        description: patent.description || null
-                                    }));
-                                }
-                                return patents ? [patents] : [];
-                            })(),
-                            
-                            // PROJECTS
-                            projects: (() => {
-                                const projects = profile.projects || [];
-                                if (Array.isArray(projects)) {
-                                    return projects.map(project => ({
-                                        name: project.name || project.title || null,
-                                        startDate: project.start_date || null,
-                                        endDate: project.end_date || null,
-                                        url: project.url || null,
-                                        description: project.description || null
-                                    }));
-                                }
-                                return projects ? [projects] : [];
-                            })(),
-                            
-                            // ORGANIZATIONS
-                            organizations: (() => {
-                                const orgs = profile.organizations || [];
-                                if (Array.isArray(orgs)) {
-                                    return orgs.map(org => ({
-                                        name: org.name || null,
-                                        position: org.position || org.role || null,
-                                        startDate: org.start_date || null,
-                                        endDate: org.end_date || null,
-                                        description: org.description || null
-                                    }));
-                                }
-                                return orgs ? [orgs] : [];
-                            })(),
-                            
-                            // HONORS & AWARDS
-                            honorsAndAwards: (() => {
-                                const awards = profile.honors_and_awards || profile.awards || profile.honors || [];
-                                if (Array.isArray(awards)) {
-                                    return awards.map(award => ({
-                                        title: award.title || award.name || null,
-                                        issuer: award.issuer || award.organization || null,
-                                        issuedDate: award.issued_date || award.date || null,
-                                        description: award.description || null
-                                    }));
-                                }
-                                return awards ? [awards] : [];
-                            })(),
+                            volunteerExperience: profile.volunteer_experience || [],
+                            courses: profile.courses || [],
+                            publications: profile.publications || [],
+                            patents: profile.patents || [],
+                            projects: profile.projects || [],
+                            organizations: profile.organizations || [],
+                            honorsAndAwards: profile.honors_and_awards || [],
                             
                             // SOCIAL ACTIVITY
                             posts: profile.posts || [],
                             activity: profile.activity || [],
-                            peopleAlsoViewed: profile.people_also_viewed || [],
+                            peopleAlsoViewed: profile.people_also_viewed || profile.similar_profiles || [],
                             
                             // METADATA
                             countryCode: profile.country_code || null,
-                            linkedinId: profile.id || profile.linkedin_id || profile.linkedin_num_id || null,
-                            publicIdentifier: profile.public_identifier || null,
-                            linkedinUrl: profile.url || profile.input_url || null,
+                            linkedinId: profile.linkedin_id || profile.id || null,
+                            linkedinNumId: profile.linkedin_num_id || null,
+                            publicIdentifier: profile.public_identifier || profile.linkedin_id || profile.id || null,
+                            linkedinUrl: profile.url || profile.input_url || linkedinUrl,
                             timestamp: profile.timestamp || null,
                             
-                            // RAW DATA for debugging
+                            // RAW DATA
                             rawData: profile
                         };
-
-                        console.log('🔍 Raw profile data:', JSON.stringify(profile, null, 2));
-                        console.log('✅ Comprehensive extracted data:', JSON.stringify({
-                            ...extractedData,
-                            rawData: '[HIDDEN FOR BREVITY]' // Don't log raw data twice
-                        }, null, 2));
 
                         console.log(`✅ Fallback: Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
                         return extractedData;
@@ -774,14 +600,6 @@ const extractLinkedInProfile = async (linkedinUrl) => {
         
     } catch (error) {
         console.error('❌ Bright Data extraction error:', error.message);
-        console.error('Full error:', error);
-        
-        // If axios error, log more details
-        if (error.response) {
-            console.error('Response status:', error.response.status);
-            console.error('Response data:', error.response.data);
-        }
-        
         throw error;
     }
 };
@@ -949,10 +767,15 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                 location: extractedData.location,
                 industry: extractedData.industry,
                 connectionsCount: extractedData.connectionsCount,
+                followersCount: extractedData.followersCount,
+                currentCompany: extractedData.currentCompany,
                 profileImageUrl: extractedData.profileImageUrl,
                 experienceCount: extractedData.experience?.length || 0,
                 educationCount: extractedData.education?.length || 0,
-                skillsCount: extractedData.skills?.length || 0
+                skillsCount: extractedData.skills?.length || 0,
+                certificationsCount: extractedData.certifications?.length || 0,
+                honorsCount: extractedData.honorsAndAwards?.length || 0,
+                activityCount: extractedData.activity?.length || 0
             });
             
             const result = await pool.query(`
@@ -1061,10 +884,13 @@ const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, disp
                 company: result.rows[0]?.current_company || 'Not specified',
                 location: result.rows[0]?.location || 'Not specified',
                 connections: result.rows[0]?.connections_count || 0,
+                followers: result.rows[0]?.followers_count || 0,
                 experience: result.rows[0]?.experience ? JSON.parse(result.rows[0].experience).length : 0,
                 education: result.rows[0]?.education ? JSON.parse(result.rows[0].education).length : 0,
                 certifications: result.rows[0]?.certifications ? JSON.parse(result.rows[0].certifications).length : 0,
                 skills: result.rows[0]?.skills ? result.rows[0].skills.length : 0,
+                honors: result.rows[0]?.honors_and_awards ? JSON.parse(result.rows[0].honors_and_awards).length : 0,
+                activity: result.rows[0]?.activity ? JSON.parse(result.rows[0].activity).length : 0,
                 status: result.rows[0]?.data_extraction_status
             });
             return result.rows[0];
@@ -1304,6 +1130,8 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     languagesCount: profile.languages ? (Array.isArray(profile.languages) ? profile.languages.length : 1) : 0,
                     publicationsCount: profile.publications ? (Array.isArray(profile.publications) ? profile.publications.length : 1) : 0,
                     projectsCount: profile.projects ? (Array.isArray(profile.projects) ? profile.projects.length : 1) : 0,
+                    honorsCount: profile.honors_and_awards ? (Array.isArray(profile.honors_and_awards) ? profile.honors_and_awards.length : 1) : 0,
+                    activityCount: profile.activity ? (Array.isArray(profile.activity) ? profile.activity.length : 1) : 0,
                     
                     // EXTRACTION STATUS
                     extractionStatus: profile.data_extraction_status,
