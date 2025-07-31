@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth + FIXED JSON Data Processing
+// Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -20,7 +20,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
-// CORRECT Bright Data Configuration
+// Bright Data Configuration
 const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_KEY || process.env.BRIGHT_DATA_API_TOKEN || 'brd-t6dqfwj2p8p-ac38c-b1l9-1f98-79e9-d8ceb4fd3c70_b59b8c39-8e9f-4db5-9bea-92e8b9e8b8b0';
 const BRIGHT_DATA_DATASET_ID = process.env.BRIGHT_DATA_DATASET_ID || 'gd_l1viktl72bvl7bjuj0';
 
@@ -168,31 +168,56 @@ const initDB = async () => {
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                
+                -- Basic Profile Information
                 linkedin_url TEXT,
                 linkedin_id TEXT,
+                linkedin_num_id BIGINT,
+                input_url TEXT,
+                url TEXT,
                 full_name TEXT,
                 first_name TEXT,
                 last_name TEXT,
                 headline TEXT,
                 about TEXT,
                 summary TEXT,
+                
+                -- Location Information
                 location TEXT,
                 city TEXT,
                 state TEXT,
                 country TEXT,
                 country_code TEXT,
+                
+                -- Professional Information
                 industry TEXT,
                 current_company TEXT,
+                current_company_name TEXT,
                 current_company_id TEXT,
+                current_company_company_id TEXT,
                 current_position TEXT,
+                
+                -- Metrics
                 connections_count INTEGER,
                 followers_count INTEGER,
+                connections INTEGER,
+                followers INTEGER,
+                recommendations_count INTEGER,
+                
+                -- Media
                 profile_picture TEXT,
                 profile_image_url VARCHAR(500),
+                avatar TEXT,
                 banner_image TEXT,
                 background_image_url VARCHAR(500),
+                
+                -- Identifiers
+                public_identifier VARCHAR(255),
+                
+                -- Complex Data Arrays (ALL JSONB)
                 experience JSONB DEFAULT '[]'::JSONB,
                 education JSONB DEFAULT '[]'::JSONB,
+                educations_details JSONB DEFAULT '[]'::JSONB,
                 skills JSONB DEFAULT '[]'::JSONB,
                 skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
                 languages JSONB DEFAULT '[]'::JSONB,
@@ -205,23 +230,27 @@ const initDB = async () => {
                 volunteering JSONB DEFAULT '[]'::JSONB,
                 honors_and_awards JSONB DEFAULT '[]'::JSONB,
                 organizations JSONB DEFAULT '[]'::JSONB,
-                recommendations_count INTEGER,
+                recommendations JSONB DEFAULT '[]'::JSONB,
                 recommendations_given JSONB DEFAULT '[]'::JSONB,
                 recommendations_received JSONB DEFAULT '[]'::JSONB,
                 posts JSONB DEFAULT '[]'::JSONB,
                 activity JSONB DEFAULT '[]'::JSONB,
                 articles JSONB DEFAULT '[]'::JSONB,
                 people_also_viewed JSONB DEFAULT '[]'::JSONB,
+                
+                -- Metadata
                 brightdata_data JSONB,
+                timestamp TIMESTAMP,
+                data_source VARCHAR(100),
                 data_extraction_status VARCHAR(50) DEFAULT 'pending',
                 extraction_attempted_at TIMESTAMP,
                 extraction_completed_at TIMESTAMP,
                 extraction_error TEXT,
                 extraction_retry_count INTEGER DEFAULT 0,
                 profile_analyzed BOOLEAN DEFAULT false,
-                public_identifier VARCHAR(255),
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
+                
                 CONSTRAINT user_profiles_user_id_key UNIQUE (user_id)
             );
         `);
@@ -280,10 +309,13 @@ const initDB = async () => {
             await pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_linkedin_id ON user_profiles(linkedin_id);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_linkedin_num_id ON user_profiles(linkedin_num_id);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_retry_count ON user_profiles(extraction_retry_count);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_updated_at ON user_profiles(updated_at);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_current_company ON user_profiles(current_company);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -297,27 +329,23 @@ const initDB = async () => {
     }
 };
 
-// ==================== FIXED JSON DATA PROCESSING FUNCTIONS ====================
+// ==================== LINKEDIN DATA PROCESSING - NO FALLBACKS ====================
 
-// ✅ FIXED: Proper JSON validation and sanitization
+// JSON validation and sanitization
 const sanitizeForJSON = (data) => {
     if (data === null || data === undefined) {
         return null;
     }
     
-    // If it's already a string, try to parse it first
     if (typeof data === 'string') {
         try {
-            // If it's already valid JSON, parse and re-stringify to ensure consistency
             const parsed = JSON.parse(data);
             return parsed;
         } catch (e) {
-            // If it's not valid JSON, return as string
             return data;
         }
     }
     
-    // If it's an array or object, ensure it's properly structured
     if (Array.isArray(data)) {
         return data.map(item => sanitizeForJSON(item)).filter(item => item !== null);
     }
@@ -336,7 +364,7 @@ const sanitizeForJSON = (data) => {
     return data;
 };
 
-// ✅ FIXED: Ensure arrays are properly formatted for PostgreSQL JSONB
+// Ensure arrays are properly formatted for PostgreSQL JSONB
 const ensureValidJSONArray = (data) => {
     try {
         if (!data) {
@@ -344,9 +372,7 @@ const ensureValidJSONArray = (data) => {
         }
         
         if (Array.isArray(data)) {
-            // Sanitize each item in the array
             const sanitized = data.map(item => sanitizeForJSON(item)).filter(item => item !== null);
-            // Test if it can be stringified and parsed
             const testString = JSON.stringify(sanitized);
             JSON.parse(testString);
             return sanitized;
@@ -358,14 +384,14 @@ const ensureValidJSONArray = (data) => {
                 if (Array.isArray(parsed)) {
                     return ensureValidJSONArray(parsed);
                 }
-                return [parsed]; // Wrap single item in array
+                return [parsed];
             } catch (e) {
-                return []; // Return empty array if unparseable
+                return [];
             }
         }
         
         if (typeof data === 'object') {
-            return [sanitizeForJSON(data)]; // Wrap object in array
+            return [sanitizeForJSON(data)];
         }
         
         return [];
@@ -404,218 +430,160 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ FIXED: Complete LinkedIn data processing with proper JSON handling
-const processLinkedInData = (profileData) => {
-    if (!profileData) return null;
+// ✅ COMPLETE LinkedIn data processing - EXACT Bright Data field mapping
+const processLinkedInDataComplete = (profileData) => {
+    if (!profileData) {
+        throw new Error('No profile data received from Bright Data API');
+    }
     
-    console.log('📊 Processing LinkedIn data with FIXED JSON handling...');
+    console.log('📊 Processing LinkedIn data with COMPLETE Bright Data field mapping...');
     console.log('📋 Raw data keys:', Object.keys(profileData));
     
     try {
-        // ✅ FIXED: Process all possible LinkedIn fields with proper JSON sanitization
         const processedData = {
+            // ✅ EXACT Bright Data Profile Details Mapping
+            linkedinId: profileData.linkedin_id || profileData.id || null,
+            linkedinNumId: profileData.linkedin_num_id || profileData.numericId || null,
+            inputUrl: profileData.input_url || profileData.inputUrl || null,
+            url: profileData.url || profileData.canonicalUrl || null,
+            
             // Basic Information
             fullName: profileData.name || profileData.full_name || profileData.fullName || null,
-            firstName: profileData.first_name || profileData.firstName || (profileData.name ? profileData.name.split(' ')[0] : null),
-            lastName: profileData.last_name || profileData.lastName || (profileData.name ? profileData.name.split(' ').slice(1).join(' ') : null),
-            headline: profileData.headline || profileData.position || profileData.currentPosition || null,
+            firstName: profileData.first_name || profileData.firstName || 
+                      (profileData.name ? profileData.name.split(' ')[0] : null),
+            lastName: profileData.last_name || profileData.lastName || 
+                     (profileData.name ? profileData.name.split(' ').slice(1).join(' ') : null),
+            headline: profileData.headline || profileData.position || null,
+            about: profileData.about || profileData.summary || profileData.description || null,
             summary: profileData.summary || profileData.about || profileData.description || null,
             
-            // Location Information
+            // Location Information  
             location: profileData.location || profileData.geo_location || null,
             city: profileData.city || profileData.geo_city || null,
             state: profileData.state || profileData.geo_state || null,
             country: profileData.country || profileData.geo_country || null,
-            country_code: profileData.country_code || profileData.countryCode || null,
+            countryCode: profileData.country_code || profileData.countryCode || null,
             
-            // Professional Information
+            // ✅ Enhanced Professional Information (Bright Data specific)
             industry: profileData.industry || null,
-            currentCompany: profileData.current_company || profileData.currentCompany || profileData.company || null,
-            currentPosition: profileData.current_position || profileData.currentPosition || profileData.position || profileData.headline || null,
+            currentCompany: profileData.current_company || profileData.company || null,
+            currentCompanyName: profileData.current_company_name || profileData.currentCompanyName || null,
+            currentCompanyId: profileData.current_company_id || profileData.currentCompanyId || null,
+            currentCompanyCompanyId: profileData.current_company_company_id || profileData.currentCompanyCompanyId || null,
+            currentPosition: profileData.current_position || profileData.position || profileData.headline || null,
             
-            // Numbers
-            connectionsCount: parseLinkedInNumber(profileData.connections || profileData.connections_count || profileData.connectionsCount),
-            followersCount: parseLinkedInNumber(profileData.followers || profileData.followers_count || profileData.followersCount),
+            // ✅ Metrics (Bright Data format)
+            connectionsCount: parseLinkedInNumber(profileData.connections_count || profileData.connectionsCount),
+            followersCount: parseLinkedInNumber(profileData.followers_count || profileData.followersCount),
+            connections: parseLinkedInNumber(profileData.connections),
+            followers: parseLinkedInNumber(profileData.followers),
+            recommendationsCount: profileData.recommendations_count || profileData.recommendationsCount || null,
             
-            // Images
-            profileImageUrl: profileData.profile_pic_url || profileData.profile_picture || profileData.profileImageUrl || profileData.photo || null,
-            backgroundImageUrl: profileData.background_image || profileData.backgroundImageUrl || profileData.banner || null,
+            // ✅ Media (Bright Data specific field names)
+            profileImageUrl: profileData.profile_pic_url || profileData.profile_picture || profileData.profileImageUrl || null,
+            avatar: profileData.avatar || profileData.profile_pic_url || profileData.photo || null,
+            bannerImage: profileData.banner_image || profileData.backgroundImage || null,
+            backgroundImageUrl: profileData.background_image || profileData.backgroundImageUrl || null,
             
             // Identifiers
-            publicIdentifier: profileData.public_identifier || profileData.linkedin_id || profileData.publicIdentifier || null,
-            linkedinId: profileData.linkedin_id || profileData.id || profileData.linkedinId || null,
+            publicIdentifier: profileData.public_identifier || profileData.publicIdentifier || null,
             
-            // ✅ FIXED: Complex arrays with proper JSON sanitization
-            experience: ensureValidJSONArray(
-                profileData.experience || 
-                profileData.work_experience || 
-                profileData.experiences || 
-                profileData.jobs || 
-                profileData.positions ||
-                []
-            ),
+            // ✅ COMPLETE Professional Information Arrays (Bright Data format)
+            experience: ensureValidJSONArray(profileData.experience || profileData.work_experience || 
+                       profileData.experiences || profileData.jobs || profileData.positions || []),
             
-            education: ensureValidJSONArray(
-                profileData.education || 
-                profileData.educations || 
-                profileData.schools ||
-                []
-            ),
+            education: ensureValidJSONArray(profileData.education || profileData.educations || 
+                      profileData.schools || []),
             
-            skills: ensureValidJSONArray(
-                profileData.skills || 
-                profileData.skill_list || 
-                profileData.skillsList ||
-                []
-            ),
+            educationsDetails: ensureValidJSONArray(profileData.educations_details || 
+                              profileData.educationDetails || []),
             
-            skillsWithEndorsements: ensureValidJSONArray(
-                profileData.skills_with_endorsements || 
-                profileData.endorsedSkills ||
-                []
-            ),
+            skills: ensureValidJSONArray(profileData.skills || profileData.skill_list || 
+                   profileData.skillsList || []),
             
-            languages: ensureValidJSONArray(
-                profileData.languages || 
-                profileData.language_list ||
-                []
-            ),
+            skillsWithEndorsements: ensureValidJSONArray(profileData.skills_with_endorsements || 
+                                   profileData.endorsedSkills || []),
             
-            certifications: ensureValidJSONArray(
-                profileData.certifications || 
-                profileData.certificates || 
-                profileData.certificationList ||
-                []
-            ),
+            languages: ensureValidJSONArray(profileData.languages || profileData.language_list || []),
             
-            courses: ensureValidJSONArray(
-                profileData.courses || 
-                profileData.course_list ||
-                []
-            ),
+            certifications: ensureValidJSONArray(profileData.certifications || profileData.certificates || 
+                           profileData.certificationList || []),
             
-            projects: ensureValidJSONArray(
-                profileData.projects || 
-                profileData.project_list ||
-                []
-            ),
+            courses: ensureValidJSONArray(profileData.courses || profileData.course_list || []),
             
-            publications: ensureValidJSONArray(
-                profileData.publications || 
-                profileData.publication_list ||
-                []
-            ),
+            projects: ensureValidJSONArray(profileData.projects || profileData.project_list || []),
             
-            patents: ensureValidJSONArray(
-                profileData.patents || 
-                profileData.patent_list ||
-                []
-            ),
+            publications: ensureValidJSONArray(profileData.publications || profileData.publication_list || []),
             
-            volunteering: ensureValidJSONArray(
-                profileData.volunteer_experience || 
-                profileData.volunteering || 
-                profileData.volunteer_work ||
-                []
-            ),
+            patents: ensureValidJSONArray(profileData.patents || profileData.patent_list || []),
             
-            honorsAndAwards: ensureValidJSONArray(
-                profileData.honors_and_awards || 
-                profileData.awards || 
-                profileData.honors ||
-                []
-            ),
+            volunteerExperience: ensureValidJSONArray(profileData.volunteer_experience || 
+                                profileData.volunteerWork || []),
             
-            organizations: ensureValidJSONArray(
-                profileData.organizations || 
-                profileData.organization_list ||
-                []
-            ),
+            volunteering: ensureValidJSONArray(profileData.volunteering || profileData.volunteer_work || []),
             
-            recommendationsGiven: ensureValidJSONArray(
-                profileData.recommendations_given || 
-                profileData.given_recommendations ||
-                []
-            ),
+            honorsAndAwards: ensureValidJSONArray(profileData.honors_and_awards || 
+                            profileData.awards || profileData.honors || []),
             
-            recommendationsReceived: ensureValidJSONArray(
-                profileData.recommendations_received || 
-                profileData.received_recommendations ||
-                []
-            ),
+            organizations: ensureValidJSONArray(profileData.organizations || 
+                          profileData.organization_list || []),
             
-            posts: ensureValidJSONArray(
-                profileData.posts || 
-                profileData.activities || 
-                profileData.recent_posts ||
-                []
-            ),
+            // ✅ Recommendations (COMPLETE data, not just count)
+            recommendations: ensureValidJSONArray(profileData.recommendations || []),
             
-            articles: ensureValidJSONArray(
-                profileData.articles || 
-                profileData.article_list ||
-                []
-            ),
+            recommendationsGiven: ensureValidJSONArray(profileData.recommendations_given || 
+                                 profileData.given_recommendations || []),
             
-            activity: ensureValidJSONArray(
-                profileData.activity || 
-                profileData.recent_activity ||
-                []
-            ),
+            recommendationsReceived: ensureValidJSONArray(profileData.recommendations_received || 
+                                    profileData.received_recommendations || []),
             
-            peopleAlsoViewed: ensureValidJSONArray(
-                profileData.people_also_viewed || 
-                profileData.also_viewed ||
-                []
-            ),
+            // ✅ Social Activity (Bright Data format)
+            posts: ensureValidJSONArray(profileData.posts || profileData.recent_posts || []),
             
-            // Additional fields that might be present
-            recommendations_count: profileData.recommendations_count || profileData.recommendationsCount || null,
-            mutual_connections_count: parseLinkedInNumber(profileData.mutual_connections_count),
-            following_count: parseLinkedInNumber(profileData.following_count || profileData.followingCount),
+            activity: ensureValidJSONArray(profileData.activity || profileData.recent_activity || []),
             
-            // Store the complete raw data for reference
+            articles: ensureValidJSONArray(profileData.articles || profileData.article_list || []),
+            
+            peopleAlsoViewed: ensureValidJSONArray(profileData.people_also_viewed || 
+                             profileData.also_viewed || []),
+            
+            // ✅ Metadata (Bright Data format)
+            timestamp: profileData.timestamp ? new Date(profileData.timestamp) : new Date(),
+            dataSource: profileData.db_source || profileData.data_source || 'bright_data',
+            
+            // Store complete raw data
             rawData: sanitizeForJSON(profileData)
         };
         
-        console.log('✅ LinkedIn data processed successfully with all fields');
-        console.log(`📊 Processed data summary:`);
-        console.log(`   - Experience entries: ${processedData.experience.length}`);
-        console.log(`   - Education entries: ${processedData.education.length}`);
-        console.log(`   - Skills: ${processedData.skills.length}`);
-        console.log(`   - Certifications: ${processedData.certifications.length}`);
-        console.log(`   - Projects: ${processedData.projects.length}`);
-        console.log(`   - Articles: ${processedData.articles.length}`);
+        console.log('✅ COMPLETE LinkedIn data processed successfully with Bright Data mapping!');
+        console.log(`📊 Comprehensive data summary:`);
+        console.log(`   - LinkedIn ID: ${processedData.linkedinId || 'Not available'}`);
+        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
+        console.log(`   - Headline: ${processedData.headline || 'Not available'}`);
+        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
+        console.log(`   - Experience: ${processedData.experience.length} entries`);
+        console.log(`   - Education: ${processedData.education.length} entries`);
+        console.log(`   - Skills: ${processedData.skills.length} entries`);
+        console.log(`   - Certifications: ${processedData.certifications.length} entries`);
+        console.log(`   - Projects: ${processedData.projects.length} entries`);
+        console.log(`   - Languages: ${processedData.languages.length} entries`);
+        console.log(`   - Articles: ${processedData.articles.length} entries`);
+        console.log(`   - Volunteering: ${processedData.volunteering.length} entries`);
+        console.log(`   - Organizations: ${processedData.organizations.length} entries`);
+        console.log(`   - Recommendations: ${processedData.recommendations.length} entries`);
         
         return processedData;
         
     } catch (error) {
         console.error('❌ Error processing LinkedIn data:', error);
-        // Return minimal data structure on error
-        return {
-            fullName: profileData.name || profileData.full_name || null,
-            firstName: profileData.first_name || null,
-            lastName: profileData.last_name || null,
-            headline: profileData.headline || null,
-            rawData: sanitizeForJSON(profileData),
-            experience: [],
-            education: [],
-            skills: [],
-            certifications: [],
-            volunteering: [],
-            projects: [],
-            articles: [],
-            posts: [],
-            languages: [],
-            organizations: []
-        };
+        throw new Error(`LinkedIn data processing failed: ${error.message}`);
     }
 };
 
-// CORRECT BRIGHT DATA API IMPLEMENTATION
-const extractLinkedInProfileCorrect = async (linkedinUrl) => {
+// Bright Data LinkedIn Profile Extraction
+const extractLinkedInProfileComplete = async (linkedinUrl) => {
     try {
-        console.log('🚀 Starting CORRECT LinkedIn profile extraction...');
+        console.log('🚀 Starting COMPLETE LinkedIn profile extraction...');
         console.log('🔗 LinkedIn URL:', linkedinUrl);
         console.log('🆔 Dataset ID:', BRIGHT_DATA_DATASET_ID);
         
@@ -640,7 +608,7 @@ const extractLinkedInProfileCorrect = async (linkedinUrl) => {
                 
                 return {
                     success: true,
-                    data: processLinkedInData(profileData),
+                    data: processLinkedInDataComplete(profileData),
                     method: 'synchronous',
                     message: 'LinkedIn profile extracted successfully (synchronous)'
                 };
@@ -719,7 +687,7 @@ const extractLinkedInProfileCorrect = async (linkedinUrl) => {
                         
                         return {
                             success: true,
-                            data: processLinkedInData(profileData),
+                            data: processLinkedInDataComplete(profileData),
                             method: 'asynchronous',
                             snapshotId: snapshotId,
                             message: 'LinkedIn profile extracted successfully (asynchronous)'
@@ -754,305 +722,270 @@ const extractLinkedInProfileCorrect = async (linkedinUrl) => {
         
     } catch (error) {
         console.error('❌ LinkedIn extraction failed:', error);
-        return {
-            success: false,
-            error: error.message,
-            message: 'LinkedIn profile extraction failed'
-        };
+        throw new Error(`LinkedIn extraction failed: ${error.message}`);
     }
 };
 
-// ✅ FIXED: Database save with proper JSON handling and comprehensive error recovery
-const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
+// ✅ COMPLETE Database save - NO FALLBACKS - FAIL COMPLETELY IF ANY ERROR
+const scheduleBackgroundExtractionNoFallbacks = async (userId, linkedinUrl, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelay = 300000; // 5 minutes
     
-    console.log(`🔄 Scheduling FIXED background extraction for user ${userId}, retry ${retryCount}`);
+    console.log(`🔄 Scheduling COMPLETE background extraction (NO FALLBACKS) for user ${userId}, retry ${retryCount}`);
     
     if (retryCount >= maxRetries) {
-        console.log(`❌ Max retries (${maxRetries}) reached for user ${userId}`);
+        console.log(`❌ Max retries (${maxRetries}) reached for user ${userId} - COMPLETE FAILURE`);
         await pool.query(
             'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
-            ['failed', `Max retries (${maxRetries}) exceeded`, userId]
+            ['failed', `COMPLETE FAILURE: Max retries (${maxRetries}) exceeded - NO FALLBACKS`, userId]
         );
         await pool.query(
             'UPDATE users SET extraction_status = $1, error_message = $2 WHERE id = $3',
-            ['failed', `Max retries (${maxRetries}) exceeded`, userId]
+            ['failed', `COMPLETE FAILURE: Max retries (${maxRetries}) exceeded - NO FALLBACKS`, userId]
         );
+        processingQueue.delete(userId);
         return;
     }
 
     setTimeout(async () => {
         try {
-            console.log(`🚀 Starting FIXED background extraction for user ${userId} (Retry ${retryCount})`);
+            console.log(`🚀 Starting COMPLETE background extraction (NO FALLBACKS) for user ${userId} (Retry ${retryCount})`);
             
             await pool.query(
                 'UPDATE user_profiles SET extraction_retry_count = $1, extraction_attempted_at = CURRENT_TIMESTAMP WHERE user_id = $2',
                 [retryCount, userId]
             );
 
-            const result = await extractLinkedInProfileCorrect(linkedinUrl);
+            // ✅ COMPLETE extraction - will throw error if fails
+            const result = await extractLinkedInProfileComplete(linkedinUrl);
             
-            if (result.success) {
-                console.log(`✅ FIXED background extraction completed for user ${userId}`);
-                
-                const extractedData = result.data;
-                
-                // ✅ FIXED: Enhanced data validation and logging
-                console.log(`📊 COMPREHENSIVE data validation for user ${userId}:`);
-                console.log(`   - Full Name: ${extractedData.fullName || 'Not available'}`);
-                console.log(`   - Headline: ${extractedData.headline || 'Not available'}`);
-                console.log(`   - Location: ${extractedData.location || 'Not available'}`);
-                console.log(`   - Industry: ${extractedData.industry || 'Not available'}`);
-                console.log(`   - Experience: ${extractedData.experience?.length || 0} entries`);
-                console.log(`   - Education: ${extractedData.education?.length || 0} entries`);
-                console.log(`   - Skills: ${extractedData.skills?.length || 0} entries`);
-                console.log(`   - Certifications: ${extractedData.certifications?.length || 0} entries`);
-                console.log(`   - Projects: ${extractedData.projects?.length || 0} entries`);
-                console.log(`   - Languages: ${extractedData.languages?.length || 0} entries`);
-                console.log(`   - Articles: ${extractedData.articles?.length || 0} entries`);
-                console.log(`   - Volunteering: ${extractedData.volunteering?.length || 0} entries`);
-                
-                // ✅ FIXED: Complete database update with ALL LinkedIn data
-                try {
-                    console.log('💾 Saving ALL LinkedIn data to database...');
+            console.log(`✅ COMPLETE extraction succeeded for user ${userId}`);
+            
+            const extractedData = result.data;
+            
+            console.log(`📊 COMPLETE data validation for user ${userId}:`);
+            console.log(`   - LinkedIn ID: ${extractedData.linkedinId || 'Not available'}`);
+            console.log(`   - Full Name: ${extractedData.fullName || 'Not available'}`);
+            console.log(`   - Headline: ${extractedData.headline || 'Not available'}`);
+            console.log(`   - Current Company: ${extractedData.currentCompany || 'Not available'}`);
+            console.log(`   - Experience: ${extractedData.experience?.length || 0} entries`);
+            console.log(`   - Education: ${extractedData.education?.length || 0} entries`);
+            console.log(`   - Skills: ${extractedData.skills?.length || 0} entries`);
+            console.log(`   - Certifications: ${extractedData.certifications?.length || 0} entries`);
+            console.log(`   - Projects: ${extractedData.projects?.length || 0} entries`);
+            console.log(`   - Languages: ${extractedData.languages?.length || 0} entries`);
+            console.log(`   - Articles: ${extractedData.articles?.length || 0} entries`);
+            console.log(`   - Volunteering: ${extractedData.volunteering?.length || 0} entries`);
+            
+            // ✅ COMPLETE DATABASE SAVE - NO FALLBACKS - ALL OR NOTHING
+            console.log('💾 Saving COMPLETE LinkedIn data to database - ALL OR NOTHING...');
+            
+            try {
+                await pool.query(`
+                    UPDATE user_profiles SET 
+                        -- LinkedIn IDs and URLs
+                        linkedin_id = $1,
+                        linkedin_num_id = $2,
+                        input_url = $3,
+                        url = $4,
+                        
+                        -- Basic Profile
+                        full_name = COALESCE($5, full_name),
+                        first_name = $6,
+                        last_name = $7,
+                        headline = $8,
+                        about = $9,
+                        summary = $9,
+                        
+                        -- Location
+                        location = $10,
+                        city = $11,
+                        state = $12,
+                        country = $13,
+                        country_code = $14,
+                        
+                        -- Professional
+                        industry = $15,
+                        current_company = $16,
+                        current_company_name = $17,
+                        current_company_id = $18,
+                        current_company_company_id = $19,
+                        current_position = $20,
+                        
+                        -- Metrics
+                        connections_count = $21,
+                        followers_count = $22,
+                        connections = $23,
+                        followers = $24,
+                        recommendations_count = $25,
+                        
+                        -- Media
+                        profile_image_url = $26,
+                        avatar = $27,
+                        banner_image = $28,
+                        background_image_url = $29,
+                        public_identifier = $30,
+                        
+                        -- ALL Complex Arrays as JSONB
+                        experience = $31,
+                        education = $32,
+                        educations_details = $33,
+                        skills = $34,
+                        skills_with_endorsements = $35,
+                        languages = $36,
+                        certifications = $37,
+                        courses = $38,
+                        projects = $39,
+                        publications = $40,
+                        patents = $41,
+                        volunteer_experience = $42,
+                        volunteering = $43,
+                        honors_and_awards = $44,
+                        organizations = $45,
+                        recommendations = $46,
+                        recommendations_given = $47,
+                        recommendations_received = $48,
+                        posts = $49,
+                        activity = $50,
+                        articles = $51,
+                        people_also_viewed = $52,
+                        
+                        -- Metadata
+                        brightdata_data = $53,
+                        timestamp = $54,
+                        data_source = $55,
+                        
+                        -- Status
+                        data_extraction_status = 'completed',
+                        extraction_completed_at = CURRENT_TIMESTAMP,
+                        extraction_error = NULL,
+                        profile_analyzed = true,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $56 
+                `, [
+                    // LinkedIn IDs and URLs (1-4)
+                    extractedData.linkedinId,
+                    extractedData.linkedinNumId,
+                    extractedData.inputUrl,
+                    extractedData.url,
                     
-                    await pool.query(`
-                        UPDATE user_profiles SET 
-                            linkedin_id = $1,
-                            full_name = COALESCE($2, full_name),
-                            first_name = $3,
-                            last_name = $4,
-                            headline = $5,
-                            summary = $6,
-                            about = $6,
-                            location = $7,
-                            city = $8,
-                            state = $9,
-                            country = $10,
-                            country_code = $11,
-                            industry = $12,
-                            current_company = $13,
-                            current_position = $14,
-                            connections_count = $15,
-                            followers_count = $16,
-                            profile_image_url = $17,
-                            background_image_url = $18,
-                            public_identifier = $19,
-                            experience = $20::jsonb,
-                            education = $21::jsonb,
-                            skills = $22::jsonb,
-                            skills_with_endorsements = $23::jsonb,
-                            languages = $24::jsonb,
-                            certifications = $25::jsonb,
-                            courses = $26::jsonb,
-                            projects = $27::jsonb,
-                            publications = $28::jsonb,
-                            patents = $29::jsonb,
-                            volunteer_experience = $30::jsonb,
-                            volunteering = $30::jsonb,
-                            honors_and_awards = $31::jsonb,
-                            organizations = $32::jsonb,
-                            recommendations_count = $33,
-                            recommendations_given = $34::jsonb,
-                            recommendations_received = $35::jsonb,
-                            posts = $36::jsonb,
-                            activity = $37::jsonb,
-                            articles = $38::jsonb,
-                            people_also_viewed = $39::jsonb,
-                            brightdata_data = $40::jsonb,
-                            data_extraction_status = 'completed',
-                            extraction_completed_at = CURRENT_TIMESTAMP,
-                            extraction_error = NULL,
-                            profile_analyzed = true,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE user_id = $41 
-                    `, [
-                        extractedData.linkedinId || extractedData.publicIdentifier,
-                        extractedData.fullName,
-                        extractedData.firstName,
-                        extractedData.lastName,
-                        extractedData.headline,
-                        extractedData.summary,
-                        extractedData.location,
-                        extractedData.city,
-                        extractedData.state,
-                        extractedData.country,
-                        extractedData.country_code,
-                        extractedData.industry,
-                        extractedData.currentCompany,
-                        extractedData.currentPosition,
-                        extractedData.connectionsCount,
-                        extractedData.followersCount,
-                        extractedData.profileImageUrl,
-                        extractedData.backgroundImageUrl,
-                        extractedData.publicIdentifier,
-                        JSON.stringify(extractedData.experience),
-                        JSON.stringify(extractedData.education),
-                        JSON.stringify(extractedData.skills),
-                        JSON.stringify(extractedData.skillsWithEndorsements),
-                        JSON.stringify(extractedData.languages),
-                        JSON.stringify(extractedData.certifications),
-                        JSON.stringify(extractedData.courses),
-                        JSON.stringify(extractedData.projects),
-                        JSON.stringify(extractedData.publications),
-                        JSON.stringify(extractedData.patents),
-                        JSON.stringify(extractedData.volunteering),
-                        JSON.stringify(extractedData.honorsAndAwards),
-                        JSON.stringify(extractedData.organizations),
-                        extractedData.recommendations_count,
-                        JSON.stringify(extractedData.recommendationsGiven),
-                        JSON.stringify(extractedData.recommendationsReceived),
-                        JSON.stringify(extractedData.posts),
-                        JSON.stringify(extractedData.activity),
-                        JSON.stringify(extractedData.articles),
-                        JSON.stringify(extractedData.peopleAlsoViewed),
-                        JSON.stringify(extractedData.rawData),
-                        userId
-                    ]);
+                    // Basic Profile (5-9)
+                    extractedData.fullName,
+                    extractedData.firstName,
+                    extractedData.lastName,
+                    extractedData.headline,
+                    extractedData.about,
+                    
+                    // Location (10-14)
+                    extractedData.location,
+                    extractedData.city,
+                    extractedData.state,
+                    extractedData.country,
+                    extractedData.countryCode,
+                    
+                    // Professional (15-20)
+                    extractedData.industry,
+                    extractedData.currentCompany,
+                    extractedData.currentCompanyName,
+                    extractedData.currentCompanyId,
+                    extractedData.currentCompanyCompanyId,
+                    extractedData.currentPosition,
+                    
+                    // Metrics (21-25)
+                    extractedData.connectionsCount,
+                    extractedData.followersCount,
+                    extractedData.connections,
+                    extractedData.followers,
+                    extractedData.recommendationsCount,
+                    
+                    // Media (26-30)
+                    extractedData.profileImageUrl,
+                    extractedData.avatar,
+                    extractedData.bannerImage,
+                    extractedData.backgroundImageUrl,
+                    extractedData.publicIdentifier,
+                    
+                    // ALL Complex Arrays as JSONB (31-52)
+                    JSON.stringify(extractedData.experience),
+                    JSON.stringify(extractedData.education),
+                    JSON.stringify(extractedData.educationsDetails),
+                    JSON.stringify(extractedData.skills),
+                    JSON.stringify(extractedData.skillsWithEndorsements),
+                    JSON.stringify(extractedData.languages),
+                    JSON.stringify(extractedData.certifications),
+                    JSON.stringify(extractedData.courses),
+                    JSON.stringify(extractedData.projects),
+                    JSON.stringify(extractedData.publications),
+                    JSON.stringify(extractedData.patents),
+                    JSON.stringify(extractedData.volunteerExperience),
+                    JSON.stringify(extractedData.volunteering),
+                    JSON.stringify(extractedData.honorsAndAwards),
+                    JSON.stringify(extractedData.organizations),
+                    JSON.stringify(extractedData.recommendations),
+                    JSON.stringify(extractedData.recommendationsGiven),
+                    JSON.stringify(extractedData.recommendationsReceived),
+                    JSON.stringify(extractedData.posts),
+                    JSON.stringify(extractedData.activity),
+                    JSON.stringify(extractedData.articles),
+                    JSON.stringify(extractedData.peopleAlsoViewed),
+                    
+                    // Metadata (53-55)
+                    JSON.stringify(extractedData.rawData),
+                    extractedData.timestamp,
+                    extractedData.dataSource,
+                    
+                    // User ID (56)
+                    userId
+                ]);
 
-                    await pool.query(
-                        'UPDATE users SET extraction_status = $1, profile_completed = $2, error_message = NULL WHERE id = $3',
-                        ['completed', true, userId]
-                    );
+                await pool.query(
+                    'UPDATE users SET extraction_status = $1, profile_completed = $2, error_message = NULL WHERE id = $3',
+                    ['completed', true, userId]
+                );
 
-                    console.log(`🎉 ALL LinkedIn profile data successfully extracted and saved for user ${userId}!`);
-                    console.log(`✅ Method used: ${result.method}`);
-                    console.log('📊 Data saved includes:');
-                    console.log('   ✅ Basic profile information (name, headline, location, etc.)');
-                    console.log('   ✅ Professional experience and work history');
-                    console.log('   ✅ Education background');
-                    console.log('   ✅ Skills and endorsements');
-                    console.log('   ✅ Certifications and courses');
-                    console.log('   ✅ Projects and publications');
-                    console.log('   ✅ Languages and volunteer work');
-                    console.log('   ✅ Articles and activity');
-                    console.log('   ✅ Organizations and awards');
-                    console.log('   ✅ Complete raw data for future use');
-                    
-                    processingQueue.delete(userId);
-                    
-                } catch (dbError) {
-                    console.error(`❌ Database save error for user ${userId}:`, dbError.message);
-                    console.error(`   Error code: ${dbError.code}`);
-                    console.error(`   Error detail: ${dbError.detail}`);
-                    
-                    // ✅ IMPROVED: Try progressive fallback saves
-                    try {
-                        console.log('🔄 Attempting progressive data save (basic info first)...');
-                        
-                        // Save basic profile info first
-                        await pool.query(`
-                            UPDATE user_profiles SET 
-                                linkedin_id = $1,
-                                full_name = COALESCE($2, full_name),
-                                first_name = $3,
-                                last_name = $4,
-                                headline = $5,
-                                summary = $6,
-                                location = $7,
-                                city = $8,
-                                state = $9,
-                                country = $10,
-                                industry = $11,
-                                current_company = $12,
-                                current_position = $13,
-                                connections_count = $14,
-                                followers_count = $15,
-                                profile_image_url = $16,
-                                public_identifier = $17,
-                                data_extraction_status = 'partial',
-                                extraction_completed_at = CURRENT_TIMESTAMP,
-                                extraction_error = 'Partial save - attempting to save complex arrays separately',
-                                profile_analyzed = true,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE user_id = $18 
-                        `, [
-                            extractedData.linkedinId || extractedData.publicIdentifier,
-                            extractedData.fullName,
-                            extractedData.firstName,
-                            extractedData.lastName,
-                            extractedData.headline,
-                            extractedData.summary,
-                            extractedData.location,
-                            extractedData.city,
-                            extractedData.state,
-                            extractedData.country,
-                            extractedData.industry,
-                            extractedData.currentCompany,
-                            extractedData.currentPosition,
-                            extractedData.connectionsCount,
-                            extractedData.followersCount,
-                            extractedData.profileImageUrl,
-                            extractedData.publicIdentifier,
-                            userId
-                        ]);
-                        
-                        console.log('✅ Basic profile data saved successfully!');
-                        
-                        // Now try to save arrays one by one
-                        const arrayFields = [
-                            { field: 'experience', data: extractedData.experience },
-                            { field: 'education', data: extractedData.education },
-                            { field: 'skills', data: extractedData.skills },
-                            { field: 'certifications', data: extractedData.certifications },
-                            { field: 'languages', data: extractedData.languages },
-                            { field: 'projects', data: extractedData.projects },
-                            { field: 'volunteer_experience', data: extractedData.volunteering },
-                            { field: 'articles', data: extractedData.articles },
-                            { field: 'posts', data: extractedData.posts }
-                        ];
-                        
-                        let savedArrays = 0;
-                        for (const { field, data } of arrayFields) {
-                            try {
-                                await pool.query(
-                                    `UPDATE user_profiles SET ${field} = $1::jsonb WHERE user_id = $2`,
-                                    [JSON.stringify(data), userId]
-                                );
-                                console.log(`✅ Saved ${field}: ${data.length} entries`);
-                                savedArrays++;
-                            } catch (arrayError) {
-                                console.error(`❌ Failed to save ${field}:`, arrayError.message);
-                            }
-                        }
-                        
-                        // Update final status
-                        await pool.query(
-                            'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2 WHERE user_id = $3',
-                            ['completed', `Successfully saved basic profile + ${savedArrays} array fields`, userId]
-                        );
-                        
-                        await pool.query(
-                            'UPDATE users SET extraction_status = $1, profile_completed = $2, error_message = NULL WHERE id = $3',
-                            ['completed', true, userId]
-                        );
-                        
-                        console.log(`✅ Progressive save completed for user ${userId}! Saved ${savedArrays}/${arrayFields.length} array fields.`);
-                        processingQueue.delete(userId);
-                        
-                    } catch (fallbackError) {
-                        console.error(`❌ Even progressive save failed for user ${userId}:`, fallbackError.message);
-                        throw dbError; // Re-throw original error to trigger retry
-                    }
-                }
+                console.log(`🎉 COMPLETE LinkedIn profile data successfully saved for user ${userId}!`);
+                console.log(`✅ Method: ${result.method}`);
+                console.log('🏆 SUCCESS: ALL LinkedIn data fields captured and saved - NO FALLBACKS NEEDED!');
+                console.log('📊 Saved comprehensive data:');
+                console.log('   ✅ Complete profile information');
+                console.log('   ✅ All professional experience');
+                console.log('   ✅ Complete education history');
+                console.log('   ✅ All skills and endorsements');
+                console.log('   ✅ Certifications and courses');
+                console.log('   ✅ Projects and publications');
+                console.log('   ✅ Languages and volunteer work');
+                console.log('   ✅ Articles and posts');
+                console.log('   ✅ Organizations and awards');
+                console.log('   ✅ Complete recommendations');
+                console.log('   ✅ All Bright Data specific fields');
+                console.log('   ✅ Complete raw data for future use');
                 
-            } else {
-                throw new Error(result.error);
+                processingQueue.delete(userId);
+                
+            } catch (dbError) {
+                console.error(`❌ DATABASE SAVE FAILED for user ${userId}:`, dbError.message);
+                console.error(`   Error code: ${dbError.code}`);
+                console.error(`   Error detail: ${dbError.detail}`);
+                
+                // ❌ NO FALLBACKS - COMPLETE FAILURE
+                throw new Error(`COMPLETE DATABASE SAVE FAILURE: ${dbError.message} - NO FALLBACKS`);
             }
+                
         } catch (error) {
-            console.error(`❌ FIXED background extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
+            console.error(`❌ COMPLETE extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
             
             if (retryCount < maxRetries - 1) {
-                await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
+                console.log(`🔄 Retrying COMPLETE extraction for user ${userId}...`);
+                await scheduleBackgroundExtractionNoFallbacks(userId, linkedinUrl, retryCount + 1);
             } else {
+                console.log(`❌ COMPLETE FAILURE for user ${userId} - NO MORE RETRIES`);
                 await pool.query(
                     'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
-                    ['failed', error.message, userId]
+                    ['failed', `COMPLETE FAILURE: ${error.message} - NO FALLBACKS`, userId]
                 );
                 await pool.query(
                     'UPDATE users SET extraction_status = $1, error_message = $2 WHERE id = $3',
-                    ['failed', error.message, userId]
+                    ['failed', `COMPLETE FAILURE: ${error.message} - NO FALLBACKS`, userId]
                 );
                 processingQueue.delete(userId);
             }
@@ -1131,12 +1064,12 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ FIXED: Create or update user profile with ENHANCED extraction
-const createOrUpdateUserProfileWithCorrectExtraction = async (userId, linkedinUrl, displayName = null) => {
+// Create or update user profile with COMPLETE extraction - NO FALLBACKS
+const createOrUpdateUserProfileCompleteNoFallbacks = async (userId, linkedinUrl, displayName = null) => {
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        console.log(`🚀 Creating profile with FIXED comprehensive extraction for user ${userId}`);
+        console.log(`🚀 Creating profile with COMPLETE extraction (NO FALLBACKS) for user ${userId}`);
         
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
@@ -1163,13 +1096,13 @@ const createOrUpdateUserProfileWithCorrectExtraction = async (userId, linkedinUr
             profile = result.rows[0];
         }
         
-        console.log(`🔄 Starting FIXED comprehensive background extraction for user ${userId}`);
+        console.log(`🔄 Starting COMPLETE background extraction (NO FALLBACKS) for user ${userId}`);
         processingQueue.set(userId, { status: 'processing', startTime: Date.now() });
         
-        // Schedule extraction with FIXED implementation
-        scheduleBackgroundExtraction(userId, cleanUrl, 0);
+        // Schedule extraction with NO FALLBACKS
+        scheduleBackgroundExtractionNoFallbacks(userId, cleanUrl, 0);
         
-        console.log(`✅ Profile created and FIXED comprehensive extraction started for user ${userId}`);
+        console.log(`✅ Profile created and COMPLETE extraction (NO FALLBACKS) started for user ${userId}`);
         return profile;
         
     } catch (error) {
@@ -1207,19 +1140,15 @@ const authenticateToken = async (req, res, next) => {
 // Home route
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server - FIXED JSON Processing + Complete LinkedIn Data Extraction',
+        message: 'Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS',
         status: 'running',
-        version: '5.0-FIXED-complete-linkedin-data',
-        dataExtraction: 'ALL LinkedIn profile data captured',
+        version: '6.0-COMPLETE-NO-FALLBACKS',
+        dataExtraction: 'COMPLETE LinkedIn profile data - ALL fields captured',
+        noFallbacks: 'Either complete success or complete failure - NO partial saves',
+        brightDataFields: 'ALL Bright Data LinkedIn fields properly mapped',
         jsonProcessing: 'FIXED - Proper PostgreSQL JSONB handling',
         backgroundProcessing: 'enabled',
-        fixes: [
-            'Fixed PostgreSQL JSONB array insertion errors',
-            'Added comprehensive JSON data validation',
-            'Enhanced error handling with progressive fallback',
-            'All LinkedIn profile fields now captured',
-            'Proper data sanitization and validation'
-        ],
+        philosophy: 'ALL OR NOTHING - Complete data extraction or failure',
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -1247,26 +1176,23 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '5.0-FIXED-complete-linkedin-data',
+            version: '6.0-COMPLETE-NO-FALLBACKS',
             timestamp: new Date().toISOString(),
-            fixes: {
-                jsonProcessing: 'FIXED - Proper JSONB array handling',
-                dataExtraction: 'Complete LinkedIn profile data capture',
-                errorHandling: 'Progressive fallback system implemented',
-                validation: 'Comprehensive data sanitization'
-            },
-            brightdata: {
+            philosophy: 'ALL OR NOTHING - Complete LinkedIn data extraction',
+            brightDataMapping: {
                 configured: !!BRIGHT_DATA_API_KEY,
                 datasetId: BRIGHT_DATA_DATASET_ID,
+                fieldsSupported: 'ALL Bright Data LinkedIn fields',
                 syncEndpoint: 'datasets/v3/scrape (CORRECT)',
                 asyncTrigger: 'datasets/v3/trigger (CORRECT)',
                 statusCheck: 'datasets/v3/log/{snapshot_id} (CORRECT)',
-                dataRetrieval: 'datasets/v3/snapshot/{snapshot_id} (CORRECT - FIXED)'
+                dataRetrieval: 'datasets/v3/snapshot/{snapshot_id} (CORRECT)'
             },
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
-                jsonProcessing: 'FIXED'
+                jsonProcessing: 'FIXED - ALL JSONB columns',
+                noFallbacks: true
             },
             authentication: {
                 google: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
@@ -1277,7 +1203,8 @@ app.get('/health', async (req, res) => {
                 enabled: true,
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys()),
-                dataCapture: 'Complete LinkedIn profile extraction'
+                dataCapture: 'COMPLETE LinkedIn profile extraction - NO FALLBACKS',
+                fallbacks: 'DISABLED - All or nothing approach'
             }
         });
     } catch (error) {
@@ -1493,7 +1420,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// ✅ FIXED: Update user profile with comprehensive LinkedIn extraction
+// Update user profile with LinkedIn URL - COMPLETE extraction - NO FALLBACKS
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
@@ -1528,8 +1455,8 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             );
         }
         
-        // ✅ FIXED: Create or update user profile with comprehensive extraction
-        const profile = await createOrUpdateUserProfileWithCorrectExtraction(
+        // Create or update user profile with COMPLETE extraction - NO FALLBACKS
+        const profile = await createOrUpdateUserProfileCompleteNoFallbacks(
             req.user.id, 
             linkedinUrl, 
             req.user.display_name
@@ -1539,7 +1466,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - COMPREHENSIVE LinkedIn data extraction started!',
+            message: 'Profile updated - COMPLETE LinkedIn data extraction started (NO FALLBACKS)!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -1552,31 +1479,35 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     extractionStatus: profile.data_extraction_status,
-                    message: 'FIXED - All LinkedIn data will be captured automatically'
+                    message: 'COMPLETE LinkedIn extraction - ALL data or COMPLETE FAILURE'
                 },
                 automaticProcessing: {
                     enabled: true,
                     status: 'started',
                     expectedCompletionTime: '1-3 minutes (sync) or 3-5 minutes (async)',
-                    dataCapture: 'COMPLETE - All LinkedIn profile data',
-                    implementation: 'FIXED - No more partial saves',
+                    dataCapture: 'COMPLETE - ALL LinkedIn profile data with ALL Bright Data fields',
+                    philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
+                    implementation: 'COMPLETE - All Bright Data fields properly mapped',
                     willCapture: [
-                        'Basic profile info (name, headline, location, etc.)',
-                        'Complete work experience history',
-                        'Education background',
-                        'Skills and endorsements',
-                        'Certifications and courses',
-                        'Projects and publications',
-                        'Languages and volunteer work',
-                        'Articles and posts',
-                        'Organizations and awards',
-                        'All available LinkedIn data'
+                        'ALL Bright Data LinkedIn profile fields',
+                        'linkedin_id, linkedin_num_id, input_url, url',
+                        'current_company_name, current_company_company_id',
+                        'educations_details (separate from education)',
+                        'recommendations (full data, not just count)',
+                        'avatar, banner_image (Bright Data format)',
+                        'Enhanced professional and social activity data',
+                        'Complete experience and education history',
+                        'All skills, certifications, projects, languages',
+                        'Articles, posts, volunteering, organizations',
+                        'People also viewed, recommendations given/received',
+                        'Complete raw data and metadata',
+                        'NO FALLBACKS - Complete success or complete failure'
                     ]
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - COMPREHENSIVE LinkedIn extraction started!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - COMPLETE LinkedIn extraction (NO FALLBACKS) started!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -1613,47 +1544,75 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     createdAt: req.user.created_at
                 },
                 profile: profile ? {
+                    // Basic Information
                     linkedinUrl: profile.linkedin_url,
                     linkedinId: profile.linkedin_id,
+                    linkedinNumId: profile.linkedin_num_id,
+                    inputUrl: profile.input_url,
+                    url: profile.url,
                     fullName: profile.full_name,
                     firstName: profile.first_name,
                     lastName: profile.last_name,
                     headline: profile.headline,
                     summary: profile.summary,
                     about: profile.about,
+                    
+                    // Location
                     location: profile.location,
                     city: profile.city,
                     state: profile.state,
                     country: profile.country,
-                    country_code: profile.country_code,
+                    countryCode: profile.country_code,
+                    
+                    // Professional
                     industry: profile.industry,
                     currentCompany: profile.current_company,
+                    currentCompanyName: profile.current_company_name,
+                    currentCompanyId: profile.current_company_id,
+                    currentCompanyCompanyId: profile.current_company_company_id,
                     currentPosition: profile.current_position,
-                    experience: profile.experience,
-                    education: profile.education,
-                    skills: profile.skills,
-                    skillsWithEndorsements: profile.skills_with_endorsements,
+                    
+                    // Metrics
                     connectionsCount: profile.connections_count,
                     followersCount: profile.followers_count,
+                    connections: profile.connections,
+                    followers: profile.followers,
+                    recommendationsCount: profile.recommendations_count,
+                    
+                    // Media
                     profileImageUrl: profile.profile_image_url,
+                    avatar: profile.avatar,
+                    bannerImage: profile.banner_image,
                     backgroundImageUrl: profile.background_image_url,
                     publicIdentifier: profile.public_identifier,
+                    
+                    // Complex Data Arrays
+                    experience: profile.experience,
+                    education: profile.education,
+                    educationsDetails: profile.educations_details,
+                    skills: profile.skills,
+                    skillsWithEndorsements: profile.skills_with_endorsements,
+                    languages: profile.languages,
                     certifications: profile.certifications,
                     courses: profile.courses,
                     projects: profile.projects,
                     publications: profile.publications,
                     patents: profile.patents,
-                    volunteering: profile.volunteer_experience,
+                    volunteerExperience: profile.volunteer_experience,
+                    volunteering: profile.volunteering,
                     honorsAndAwards: profile.honors_and_awards,
                     organizations: profile.organizations,
-                    recommendationsCount: profile.recommendations_count,
+                    recommendations: profile.recommendations,
                     recommendationsGiven: profile.recommendations_given,
                     recommendationsReceived: profile.recommendations_received,
-                    languages: profile.languages,
-                    articles: profile.articles,
                     posts: profile.posts,
                     activity: profile.activity,
+                    articles: profile.articles,
                     peopleAlsoViewed: profile.people_also_viewed,
+                    
+                    // Metadata
+                    timestamp: profile.timestamp,
+                    dataSource: profile.data_source,
                     extractionStatus: profile.data_extraction_status,
                     extractionAttempted: profile.extraction_attempted_at,
                     extractionCompleted: profile.extraction_completed_at,
@@ -1666,8 +1625,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     isCurrentlyProcessing: processingQueue.has(req.user.id),
                     queuePosition: processingQueue.has(req.user.id) ? 
                         Array.from(processingQueue.keys()).indexOf(req.user.id) + 1 : null,
-                    implementation: 'FIXED - Complete data capture',
-                    dataCapture: 'ALL LinkedIn profile fields'
+                    implementation: 'COMPLETE - All Bright Data fields mapped',
+                    dataCapture: 'ALL LinkedIn profile fields - NO FALLBACKS',
+                    philosophy: 'ALL OR NOTHING'
                 }
             }
         });
@@ -1717,8 +1677,11 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             extraction_error: status.extraction_error,
             is_currently_processing: processingQueue.has(req.user.id),
             message: getStatusMessage(status.extraction_status),
-            implementation: 'FIXED - Complete LinkedIn data extraction',
-            dataCapture: status.extraction_status === 'completed' ? 'All LinkedIn profile data captured successfully' : 'Processing...'
+            implementation: 'COMPLETE - All Bright Data fields mapped',
+            dataCapture: status.extraction_status === 'completed' ? 
+                'ALL LinkedIn profile data captured successfully - NO FALLBACKS NEEDED' : 
+                'Processing complete LinkedIn data extraction...',
+            philosophy: 'ALL OR NOTHING - Complete success or complete failure'
         });
         
     } catch (error) {
@@ -1733,11 +1696,11 @@ const getStatusMessage = (status) => {
         case 'not_started':
             return 'LinkedIn extraction not started';
         case 'processing':
-            return 'COMPREHENSIVE LinkedIn profile extraction in progress - ALL data will be captured...';
+            return 'COMPLETE LinkedIn profile extraction in progress - ALL Bright Data fields will be captured (NO FALLBACKS)...';
         case 'completed':
-            return 'LinkedIn profile extraction completed successfully - ALL profile data captured!';
+            return 'LinkedIn profile extraction completed successfully - ALL profile data captured with NO FALLBACKS!';
         case 'failed':
-            return 'LinkedIn profile extraction failed';
+            return 'LinkedIn profile extraction COMPLETELY FAILED - NO partial data saved (NO FALLBACKS)';
         default:
             return 'Unknown status';
     }
@@ -1757,8 +1720,8 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         const linkedinUrl = userResult.rows[0].linkedin_url;
         
-        // Retry extraction with FIXED implementation
-        const profile = await createOrUpdateUserProfileWithCorrectExtraction(
+        // Retry extraction with COMPLETE implementation - NO FALLBACKS
+        const profile = await createOrUpdateUserProfileCompleteNoFallbacks(
             req.user.id, 
             linkedinUrl, 
             req.user.display_name
@@ -1766,10 +1729,11 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated - COMPLETE data capture will occur!',
+            message: 'LinkedIn extraction retry initiated - COMPLETE data capture or COMPLETE FAILURE (NO FALLBACKS)!',
             status: 'processing',
-            implementation: 'FIXED - All LinkedIn profile data will be extracted',
-            dataCapture: 'Complete LinkedIn profile extraction'
+            implementation: 'COMPLETE - All Bright Data LinkedIn fields will be extracted',
+            dataCapture: 'Complete LinkedIn profile extraction - ALL OR NOTHING',
+            philosophy: 'NO FALLBACKS - Complete success or complete failure'
         });
         
     } catch (error) {
@@ -1790,7 +1754,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'No credit card required'],
                 available: true
             },
             {
@@ -1801,7 +1765,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1813,7 +1777,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'Credits never expire'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1825,7 +1789,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'Credits never expire'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -1839,7 +1803,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'No credit card required'],
                 available: true
             },
             {
@@ -1850,7 +1814,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1862,7 +1826,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', '7-day free trial included'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1874,7 +1838,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', '7-day free trial included'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -1923,7 +1887,8 @@ app.post('/migrate-database', async (req, res) => {
             console.log('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
             migrationResults.push('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
             migrationResults.push('🚀 Your database is now ready for COMPLETE LinkedIn profile extraction!');
-            migrationResults.push('✅ FIXED: No more partial saves - ALL data will be captured!');
+            migrationResults.push('✅ ALL Bright Data LinkedIn fields supported');
+            migrationResults.push('✅ NO FALLBACKS - Complete success or complete failure');
             
         } finally {
             client.release();
@@ -1935,14 +1900,19 @@ app.post('/migrate-database', async (req, res) => {
             steps: migrationResults,
             summary: {
                 usersTable: 'Updated with LinkedIn fields',
-                profilesTable: 'Complete LinkedIn schema with FIXED JSON handling', 
+                profilesTable: 'COMPLETE LinkedIn schema with ALL Bright Data fields', 
                 indexes: 'Performance indexes created',
-                status: 'Ready for COMPLETE LinkedIn data extraction - NO MORE PARTIAL SAVES!',
-                fixes: [
-                    'Fixed PostgreSQL JSONB array insertion',
-                    'Added comprehensive data validation',
-                    'Enhanced error handling with progressive fallback',
-                    'All LinkedIn profile fields supported'
+                status: 'Ready for COMPLETE LinkedIn data extraction - ALL Bright Data fields supported',
+                philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
+                features: [
+                    'All Bright Data LinkedIn fields properly mapped',
+                    'Enhanced company information fields',
+                    'Separate educations_details field',
+                    'Complete recommendations data',
+                    'Enhanced media fields (avatar, banner_image)',
+                    'All professional and social activity arrays',
+                    'Complete metadata and identification fields',
+                    'NO FALLBACKS - Complete extraction or complete failure'
                 ]
             },
             timestamp: new Date().toISOString()
@@ -1980,8 +1950,9 @@ app.get('/processing-status', authenticateToken, async (req, res) => {
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 totalProcessingQueue: processingQueue.size,
                 processingStartTime: processingQueue.get(req.user.id)?.startTime,
-                implementation: 'FIXED - Complete LinkedIn data extraction',
-                dataCapture: 'ALL LinkedIn profile fields will be captured'
+                implementation: 'COMPLETE - All Bright Data LinkedIn fields mapped',
+                dataCapture: 'ALL LinkedIn profile fields - NO FALLBACKS',
+                philosophy: 'ALL OR NOTHING - Complete success or complete failure'
             }
         });
     } catch (error) {
@@ -2062,29 +2033,32 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - FIXED JSON Processing + Complete LinkedIn Data Extraction Started!');
+            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS Started!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Connected with FIXED JSONB handling`);
+            console.log(`🗃️ Database: Connected with COMPLETE Bright Data schema`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`⚡ Data Extraction: FIXED - ALL LinkedIn data captured ✅`);
-            console.log(`🛠️ JSON Processing: FIXED - No more PostgreSQL errors ✅`);
-            console.log(`📊 Data Capture: Complete LinkedIn profile extraction ✅`);
+            console.log(`⚡ Data Extraction: COMPLETE - ALL Bright Data LinkedIn fields ✅`);
+            console.log(`🛠️ Field Mapping: COMPLETE - linkedin_id, current_company_name, educations_details, etc. ✅`);
+            console.log(`📊 Data Processing: COMPLETE - All arrays properly processed ✅`);
+            console.log(`🚫 Fallbacks: DISABLED - All or nothing approach ✅`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - No Partial Saves!`);
+            console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 USER EXPERIENCE: Register → Add LinkedIn URL → ALL Data Appears Automatically!`);
-            console.log(`🔥 FIXES IMPLEMENTED:`);
-            console.log(`   ✅ Fixed PostgreSQL JSONB array insertion errors`);
-            console.log(`   ✅ Added comprehensive JSON data validation`);
-            console.log(`   ✅ Enhanced error handling with progressive fallback`);
-            console.log(`   ✅ ALL LinkedIn profile fields now captured`);
-            console.log(`   ✅ Proper data sanitization prevents corruption`);
-            console.log(`   ✅ No more "partial save - complex data excluded" errors!`);
-            console.log(`🚀 RESULT: Complete LinkedIn profile data extraction success!`);
+            console.log(`🎯 USER EXPERIENCE: Register → Add LinkedIn URL → ALL Data Appears or COMPLETE FAILURE!`);
+            console.log(`🔥 PHILOSOPHY: ALL OR NOTHING - Complete LinkedIn data extraction or complete failure`);
+            console.log(`✅ BRIGHT DATA FIELDS SUPPORTED:`);
+            console.log(`   ✅ linkedin_id, linkedin_num_id, input_url, url`);
+            console.log(`   ✅ current_company_name, current_company_company_id`);
+            console.log(`   ✅ educations_details (separate from education)`);
+            console.log(`   ✅ recommendations (full data, not just count)`);
+            console.log(`   ✅ avatar, banner_image (Bright Data format)`);
+            console.log(`   ✅ All professional and social activity arrays`);
+            console.log(`   ✅ Complete metadata and identification fields`);
+            console.log(`🚀 RESULT: Complete LinkedIn profile data extraction or nothing!`);
         });
         
     } catch (error) {
