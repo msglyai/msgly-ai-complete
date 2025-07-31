@@ -1,4 +1,4 @@
-// Msgly.AI Server with Google OAuth + Bright Data Integration
+// Msgly.AI Server with Google OAuth + FIXED Bright Data Integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -20,9 +20,9 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// FIXED: Bright Data API configuration - Updated endpoints and better error handling
+// FIXED: Bright Data API configuration - CORRECTED ENDPOINTS FOR COLLECTOR/SCRAPER API
 const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_TOKEN || 'e5353ea11fe201c7f9797062c64b59fb87f1bfc01ad8a24dd0fc34a29ccddd23';
-const BRIGHT_DATA_DATASET_ID = 'gd_l1viktl72bvl7bjuj0';
+const COLLECTOR_ID = 'gd_l1viktl72bvl7bjuj0'; // This is your collector ID, not dataset ID
 
 // CORS for Chrome Extensions
 const corsOptions = {
@@ -133,7 +133,7 @@ const initDB = async () => {
     try {
         console.log('🗃️ Creating database tables...');
 
-        // Updated users table with Google OAuth fields - FIXED: password_hash is now nullable
+        // Updated users table with Google OAuth fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -146,6 +146,10 @@ const initDB = async () => {
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 credits_remaining INTEGER DEFAULT 30,
                 subscription_status VARCHAR(50) DEFAULT 'active',
+                linkedin_url TEXT,
+                profile_data JSONB,
+                extraction_status VARCHAR(20) DEFAULT 'pending',
+                error_message TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -175,25 +179,25 @@ const initDB = async () => {
                 current_company_url VARCHAR(500),
                 
                 -- COMPREHENSIVE DATA (stored as JSONB for flexibility)
-                experience JSONB,
-                education JSONB,
-                certifications JSONB,
+                experience JSONB DEFAULT '[]'::jsonb,
+                education JSONB DEFAULT '[]'::jsonb,
+                certifications JSONB DEFAULT '[]'::jsonb,
                 skills TEXT[],
-                languages JSONB,
-                recommendations JSONB,
+                languages JSONB DEFAULT '[]'::jsonb,
+                recommendations JSONB DEFAULT '[]'::jsonb,
                 recommendations_count INTEGER,
-                volunteer_experience JSONB,
-                courses JSONB,
-                publications JSONB,
-                patents JSONB,
-                projects JSONB,
-                organizations JSONB,
-                honors_and_awards JSONB,
+                volunteer_experience JSONB DEFAULT '[]'::jsonb,
+                courses JSONB DEFAULT '[]'::jsonb,
+                publications JSONB DEFAULT '[]'::jsonb,
+                patents JSONB DEFAULT '[]'::jsonb,
+                projects JSONB DEFAULT '[]'::jsonb,
+                organizations JSONB DEFAULT '[]'::jsonb,
+                honors_and_awards JSONB DEFAULT '[]'::jsonb,
                 
                 -- SOCIAL ACTIVITY
-                posts JSONB,
-                activity JSONB,
-                people_also_viewed JSONB,
+                posts JSONB DEFAULT '[]'::jsonb,
+                activity JSONB DEFAULT '[]'::jsonb,
+                people_also_viewed JSONB DEFAULT '[]'::jsonb,
                 
                 -- METADATA
                 country_code VARCHAR(10),
@@ -240,20 +244,24 @@ const initDB = async () => {
             );
         `);
 
-        // Add Google OAuth columns to existing users table
+        // Add Google OAuth columns to existing users table if they don't exist
         try {
             await pool.query(`
                 ALTER TABLE users 
                 ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
                 ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500);
+                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS linkedin_url TEXT,
+                ADD COLUMN IF NOT EXISTS profile_data JSONB,
+                ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(20) DEFAULT 'pending',
+                ADD COLUMN IF NOT EXISTS error_message TEXT;
             `);
-            console.log('✅ Added Google OAuth columns to users table');
+            console.log('✅ Added missing columns to users table');
         } catch (err) {
-            console.log('Google OAuth columns might already exist:', err.message);
+            console.log('Columns might already exist:', err.message);
         }
 
-        // CRITICAL FIX: Make password_hash nullable for Google OAuth users
+        // Make password_hash nullable for Google OAuth users
         try {
             await pool.query(`
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
@@ -263,59 +271,13 @@ const initDB = async () => {
             console.log('Password hash might already be nullable:', err.message);
         }
 
-        // ENHANCED: Add ALL comprehensive Bright Data columns to existing user_profiles table
-        try {
-            await pool.query(`
-                ALTER TABLE user_profiles 
-                ADD COLUMN IF NOT EXISTS headline VARCHAR(500),
-                ADD COLUMN IF NOT EXISTS summary TEXT,
-                ADD COLUMN IF NOT EXISTS location VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS industry VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS experience JSONB,
-                ADD COLUMN IF NOT EXISTS education JSONB,
-                ADD COLUMN IF NOT EXISTS skills TEXT[],
-                ADD COLUMN IF NOT EXISTS connections_count INTEGER,
-                ADD COLUMN IF NOT EXISTS followers_count INTEGER,
-                ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500),
-                ADD COLUMN IF NOT EXISTS banner_image_url VARCHAR(500),
-                ADD COLUMN IF NOT EXISTS current_company VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS current_company_id VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS current_company_url VARCHAR(500),
-                ADD COLUMN IF NOT EXISTS certifications JSONB,
-                ADD COLUMN IF NOT EXISTS languages JSONB,
-                ADD COLUMN IF NOT EXISTS recommendations JSONB,
-                ADD COLUMN IF NOT EXISTS recommendations_count INTEGER,
-                ADD COLUMN IF NOT EXISTS volunteer_experience JSONB,
-                ADD COLUMN IF NOT EXISTS courses JSONB,
-                ADD COLUMN IF NOT EXISTS publications JSONB,
-                ADD COLUMN IF NOT EXISTS patents JSONB,
-                ADD COLUMN IF NOT EXISTS projects JSONB,
-                ADD COLUMN IF NOT EXISTS organizations JSONB,
-                ADD COLUMN IF NOT EXISTS honors_and_awards JSONB,
-                ADD COLUMN IF NOT EXISTS posts JSONB,
-                ADD COLUMN IF NOT EXISTS activity JSONB,
-                ADD COLUMN IF NOT EXISTS people_also_viewed JSONB,
-                ADD COLUMN IF NOT EXISTS country_code VARCHAR(10),
-                ADD COLUMN IF NOT EXISTS linkedin_id VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS public_identifier VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS linkedin_profile_url VARCHAR(500),
-                ADD COLUMN IF NOT EXISTS profile_timestamp VARCHAR(50),
-                ADD COLUMN IF NOT EXISTS brightdata_data JSONB,
-                ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
-                ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
-                ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
-                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
-            `);
-            console.log('✅ Added comprehensive Bright Data columns to user_profiles table');
-        } catch (err) {
-            console.log('Comprehensive Bright Data columns might already exist:', err.message);
-        }
-
         // Create indexes
         try {
             await pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+                CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -329,87 +291,21 @@ const initDB = async () => {
     }
 };
 
-// ==================== COMPREHENSIVE BRIGHT DATA FIX ====================
+// ==================== FIXED BRIGHT DATA INTEGRATION ====================
 
-const extractLinkedInProfile = async (linkedinUrl) => {
+// FIXED: Trigger LinkedIn scraper using COLLECTOR API (not Dataset API)
+const triggerLinkedInScraper = async (linkedinUrl) => {
     try {
-        console.log(`\n🔍 Starting LinkedIn profile extraction for: ${linkedinUrl}`);
-        console.log(`🔑 Using API Key: ${BRIGHT_DATA_API_KEY.substring(0, 10)}...`);
-        console.log(`📊 Dataset ID: ${BRIGHT_DATA_DATASET_ID}`);
-        
-        if (!BRIGHT_DATA_API_KEY) {
-            throw new Error('Bright Data API key not configured');
-        }
-
-        // Step 1: Verify API key and dataset by checking dataset info
-        console.log('\n📋 Step 1: Verifying Bright Data configuration...');
-        try {
-            const datasetCheck = await axios.get(
-                `https://api.brightdata.com/datasets/v3/${BRIGHT_DATA_DATASET_ID}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`
-                    },
-                    timeout: 10000
-                }
-            );
-            console.log('✅ Dataset verified:', datasetCheck.data.name || 'LinkedIn Dataset');
-        } catch (verifyError) {
-            console.error('❌ Dataset verification failed:', verifyError.response?.data || verifyError.message);
-            console.log('⚠️  This might mean the dataset ID is wrong or the API key lacks permissions');
-        }
-
-        // Step 2: Try the synchronous scrape endpoint first
-        console.log('\n📋 Step 2: Attempting synchronous data extraction...');
-        try {
-            const scrapeResponse = await axios.post(
-                `https://api.brightdata.com/datasets/v3/scrape`,
-                {
-                    dataset_id: BRIGHT_DATA_DATASET_ID,
-                    format: 'json',
-                    data: [{ url: linkedinUrl }]
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 120000 // 2 minutes
-                }
-            );
-
-            console.log(`📡 Scrape Response Status: ${scrapeResponse.status}`);
-            console.log(`📊 Response Data Type: ${typeof scrapeResponse.data}`);
-            
-            if (scrapeResponse.status === 200 && scrapeResponse.data) {
-                if (Array.isArray(scrapeResponse.data) && scrapeResponse.data.length > 0) {
-                    console.log('✅ Synchronous extraction successful!');
-                    return processLinkedInData(scrapeResponse.data[0], linkedinUrl);
-                } else if (scrapeResponse.data.snapshot_id) {
-                    console.log(`📷 Received snapshot ID: ${scrapeResponse.data.snapshot_id}`);
-                    // Continue to async flow below
-                } else {
-                    console.log('⚠️  Unexpected response format:', JSON.stringify(scrapeResponse.data).substring(0, 200));
-                }
-            }
-        } catch (syncError) {
-            console.log(`⚠️  Synchronous extraction failed: ${syncError.message}`);
-            if (syncError.response) {
-                console.log(`   Status: ${syncError.response.status}`);
-                console.log(`   Error: ${JSON.stringify(syncError.response.data)}`);
-            }
-        }
-
-        // Step 3: Try asynchronous trigger approach
-        console.log('\n📋 Step 3: Attempting asynchronous data extraction...');
+        console.log(`🚀 Triggering scraper for: ${linkedinUrl}`);
+        console.log(`🔑 Using Collector ID: ${COLLECTOR_ID}`);
         
         const triggerResponse = await axios.post(
-            `https://api.brightdata.com/datasets/v3/trigger`,
-            {
-                dataset_id: BRIGHT_DATA_DATASET_ID,
-                format: 'json',
-                data: [{ url: linkedinUrl }]
-            },
+            `https://api.brightdata.com/dca/trigger?collector=${COLLECTOR_ID}`,
+            [
+                { 
+                    url: linkedinUrl,
+                }
+            ],
             {
                 headers: {
                     'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
@@ -419,116 +315,63 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             }
         );
 
-        console.log(`📡 Trigger Response Status: ${triggerResponse.status}`);
-        console.log(`📊 Trigger Response:`, JSON.stringify(triggerResponse.data));
-
-        if (!triggerResponse.data || !triggerResponse.data.snapshot_id) {
-            throw new Error(`No snapshot ID returned. Response: ${JSON.stringify(triggerResponse.data)}`);
-        }
-
-        const snapshotId = triggerResponse.data.snapshot_id;
-        console.log(`\n📷 Snapshot created: ${snapshotId}`);
-        console.log('⏳ Waiting for extraction to complete...\n');
-
-        // Step 4: Poll for results with better error handling
-        const maxAttempts = 20; // Increased attempts
-        let attempt = 0;
-        
-        while (attempt < maxAttempts) {
-            attempt++;
-            console.log(`⏳ Polling attempt ${attempt}/${maxAttempts} for snapshot ${snapshotId}`);
-            
-            // Wait before polling (start with 5 seconds, then 10 seconds)
-            const waitTime = attempt === 1 ? 5000 : 10000;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            
-            try {
-                // First check snapshot status
-                const statusResponse = await axios.get(
-                    `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`
-                        },
-                        timeout: 15000
-                    }
-                ).catch(err => null);
-
-                if (statusResponse && statusResponse.data) {
-                    console.log(`   Status: ${statusResponse.data.status || 'unknown'}`);
-                }
-
-                // Try to download the results
-                const downloadResponse = await axios.get(
-                    `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                            'Accept': 'application/json'
-                        },
-                        params: {
-                            format: 'json'
-                        },
-                        timeout: 30000
-                    }
-                );
-
-                if (downloadResponse.data) {
-                    // Check if data is ready
-                    if (Array.isArray(downloadResponse.data) && downloadResponse.data.length > 0) {
-                        console.log(`\n✅ Data retrieved successfully!`);
-                        return processLinkedInData(downloadResponse.data[0], linkedinUrl);
-                    } else if (downloadResponse.data.status === 'ready' || downloadResponse.data.data) {
-                        // Sometimes the data is nested
-                        const profileData = downloadResponse.data.data || downloadResponse.data;
-                        if (Array.isArray(profileData) && profileData.length > 0) {
-                            console.log(`\n✅ Data retrieved successfully (nested)!`);
-                            return processLinkedInData(profileData[0], linkedinUrl);
-                        }
-                    } else if (downloadResponse.data.status === 'running' || downloadResponse.data.status === 'pending') {
-                        console.log(`   Extraction still in progress...`);
-                        continue;
-                    } else {
-                        console.log(`   Unexpected response format:`, JSON.stringify(downloadResponse.data).substring(0, 200));
-                    }
-                }
-            } catch (downloadError) {
-                if (downloadError.response?.status === 404) {
-                    console.log(`   ⚠️  Snapshot not ready yet (404)`);
-                } else {
-                    console.log(`   ⚠️  Download attempt ${attempt} error: ${downloadError.message}`);
-                }
-                
-                if (attempt === maxAttempts) {
-                    throw new Error(`Extraction failed after ${maxAttempts} attempts. Last error: ${downloadError.message}`);
-                }
-            }
-        }
-        
-        throw new Error(`Extraction timed out after ${maxAttempts * 10} seconds of polling`);
+        console.log('✅ Scraper triggered successfully:', triggerResponse.data);
+        return triggerResponse.data.collection_id;
         
     } catch (error) {
-        console.error('\n❌ Bright Data extraction error:', error.message);
-        
-        if (error.response) {
-            console.error('Response status:', error.response.status);
-            console.error('Response data:', JSON.stringify(error.response.data));
-            
-            // Provide helpful error messages
-            if (error.response.status === 401) {
-                throw new Error('Authentication failed. Please check your Bright Data API key.');
-            } else if (error.response.status === 403) {
-                throw new Error('Access forbidden. The API key may not have permissions for this dataset.');
-            } else if (error.response.status === 400) {
-                throw new Error(`Bad request: ${JSON.stringify(error.response.data)}`);
-            }
-        }
-        
-        throw error;
+        console.error('❌ Failed to trigger scraper:', error.response?.data || error.message);
+        throw new Error(`Scraper trigger failed: ${error.response?.data?.message || error.message}`);
     }
 };
 
-// Helper function to process LinkedIn data with comprehensive field mapping
+// FIXED: Poll for scraping results using COLLECTOR API
+const pollForResults = async (collectionId, maxAttempts = 15) => {
+    console.log(`🔄 Starting to poll for collection: ${collectionId}`);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            console.log(`📊 Polling attempt ${attempt}/${maxAttempts}`);
+            
+            const pollResponse = await axios.get(
+                `https://api.brightdata.com/dca/dataset?id=${collectionId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
+                    },
+                    timeout: 15000
+                }
+            );
+
+            const { status, data: scrapedData } = pollResponse.data;
+            console.log(`📈 Status: ${status}, Data length: ${scrapedData?.length || 0}`);
+
+            if (status === 'done' && Array.isArray(scrapedData) && scrapedData.length > 0) {
+                console.log('✅ Scraping completed successfully!');
+                return scrapedData[0];
+            }
+            
+            if (status === 'failed') {
+                throw new Error('Scraping job failed');
+            }
+
+            // Wait before next poll (exponential backoff)
+            const waitTime = Math.min(5000 + (attempt * 1000), 15000);
+            console.log(`⏱️  Waiting ${waitTime}ms before next poll...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            
+        } catch (error) {
+            console.error(`❌ Poll attempt ${attempt} failed:`, error.message);
+            
+            if (attempt === maxAttempts) {
+                throw new Error(`Polling failed after ${maxAttempts} attempts: ${error.message}`);
+            }
+        }
+    }
+    
+    throw new Error('Scraping timeout - job did not complete in time');
+};
+
+// Process LinkedIn data with comprehensive field mapping
 const processLinkedInData = (profile, originalUrl) => {
     console.log('\n🔍 Processing LinkedIn data...');
     console.log('📋 Available fields:', Object.keys(profile).join(', '));
@@ -618,7 +461,228 @@ const cleanLinkedInUrl = (url) => {
     }
 };
 
-// ==================== EXISTING DATABASE FUNCTIONS (UNCHANGED) ====================
+// Save profile data to database
+const saveProfileToDatabase = async (userId, linkedinUrl, profileData) => {
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+
+        // Update user profile
+        const updateUserQuery = `
+            UPDATE users 
+            SET 
+                linkedin_url = $1,
+                profile_data = $2,
+                extraction_status = $3,
+                error_message = NULL,
+                updated_at = NOW()
+            WHERE id = $4
+        `;
+        
+        await client.query(updateUserQuery, [
+            linkedinUrl,
+            JSON.stringify(profileData),
+            'completed',
+            userId
+        ]);
+
+        // Insert/update detailed profile data
+        const upsertProfileQuery = `
+            INSERT INTO user_profiles (
+                user_id, 
+                linkedin_url,
+                full_name, 
+                first_name,
+                last_name,
+                headline, 
+                summary,
+                location, 
+                industry,
+                connections_count,
+                followers_count,
+                profile_image_url,
+                banner_image_url,
+                current_company,
+                current_company_id,
+                current_company_url,
+                experience,
+                education,
+                certifications,
+                skills,
+                languages,
+                recommendations,
+                recommendations_count,
+                volunteer_experience,
+                courses,
+                publications,
+                patents,
+                projects,
+                organizations,
+                honors_and_awards,
+                posts,
+                activity,
+                people_also_viewed,
+                country_code,
+                linkedin_id,
+                public_identifier,
+                linkedin_profile_url,
+                profile_timestamp,
+                brightdata_data,
+                data_extraction_status,
+                extraction_completed_at,
+                profile_analyzed,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, NOW())
+            ON CONFLICT (user_id) 
+            DO UPDATE SET
+                linkedin_url = EXCLUDED.linkedin_url,
+                full_name = EXCLUDED.full_name,
+                first_name = EXCLUDED.first_name,
+                last_name = EXCLUDED.last_name,
+                headline = EXCLUDED.headline,
+                summary = EXCLUDED.summary,
+                location = EXCLUDED.location,
+                industry = EXCLUDED.industry,
+                connections_count = EXCLUDED.connections_count,
+                followers_count = EXCLUDED.followers_count,
+                profile_image_url = EXCLUDED.profile_image_url,
+                banner_image_url = EXCLUDED.banner_image_url,
+                current_company = EXCLUDED.current_company,
+                current_company_id = EXCLUDED.current_company_id,
+                current_company_url = EXCLUDED.current_company_url,
+                experience = EXCLUDED.experience,
+                education = EXCLUDED.education,
+                certifications = EXCLUDED.certifications,
+                skills = EXCLUDED.skills,
+                languages = EXCLUDED.languages,
+                recommendations = EXCLUDED.recommendations,
+                recommendations_count = EXCLUDED.recommendations_count,
+                volunteer_experience = EXCLUDED.volunteer_experience,
+                courses = EXCLUDED.courses,
+                publications = EXCLUDED.publications,
+                patents = EXCLUDED.patents,
+                projects = EXCLUDED.projects,
+                organizations = EXCLUDED.organizations,
+                honors_and_awards = EXCLUDED.honors_and_awards,
+                posts = EXCLUDED.posts,
+                activity = EXCLUDED.activity,
+                people_also_viewed = EXCLUDED.people_also_viewed,
+                country_code = EXCLUDED.country_code,
+                linkedin_id = EXCLUDED.linkedin_id,
+                public_identifier = EXCLUDED.public_identifier,
+                linkedin_profile_url = EXCLUDED.linkedin_profile_url,
+                profile_timestamp = EXCLUDED.profile_timestamp,
+                brightdata_data = EXCLUDED.brightdata_data,
+                data_extraction_status = EXCLUDED.data_extraction_status,
+                extraction_completed_at = EXCLUDED.extraction_completed_at,
+                extraction_error = NULL,
+                profile_analyzed = EXCLUDED.profile_analyzed,
+                updated_at = NOW()
+        `;
+
+        await client.query(upsertProfileQuery, [
+            userId,
+            linkedinUrl,
+            profileData.fullName,
+            profileData.firstName,
+            profileData.lastName,
+            profileData.headline,
+            profileData.summary,
+            profileData.location,
+            profileData.industry,
+            profileData.connectionsCount,
+            profileData.followersCount,
+            profileData.profileImageUrl,
+            profileData.bannerImageUrl,
+            profileData.currentCompany,
+            profileData.currentCompanyId,
+            profileData.currentCompanyUrl,
+            JSON.stringify(profileData.experience),
+            JSON.stringify(profileData.education),
+            JSON.stringify(profileData.certifications),
+            profileData.skills,
+            JSON.stringify(profileData.languages),
+            JSON.stringify(profileData.recommendations),
+            profileData.recommendationsCount,
+            JSON.stringify(profileData.volunteerExperience),
+            JSON.stringify(profileData.courses),
+            JSON.stringify(profileData.publications),
+            JSON.stringify(profileData.patents),
+            JSON.stringify(profileData.projects),
+            JSON.stringify(profileData.organizations),
+            JSON.stringify(profileData.honorsAndAwards),
+            JSON.stringify(profileData.posts),
+            JSON.stringify(profileData.activity),
+            JSON.stringify(profileData.peopleAlsoViewed),
+            profileData.countryCode,
+            profileData.linkedinId,
+            profileData.publicIdentifier,
+            profileData.linkedinUrl,
+            profileData.timestamp,
+            JSON.stringify(profileData.rawData),
+            'completed',
+            'NOW()',
+            true
+        ]);
+
+        await client.query('COMMIT');
+        console.log('✅ Profile data saved to database successfully');
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('❌ Database save failed:', error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+// Async function to handle the extraction process
+async function extractProfileAsync(userId, linkedinUrl, packageType) {
+    try {
+        console.log(`🚀 Starting async extraction for user ${userId}`);
+
+        // Step 1: Trigger the scraper
+        const collectionId = await triggerLinkedInScraper(linkedinUrl);
+        
+        // Update status
+        await pool.query(
+            'UPDATE users SET extraction_status = $1 WHERE id = $2',
+            ['in_progress', userId]
+        );
+
+        // Step 2: Poll for results
+        const profileData = await pollForResults(collectionId);
+        
+        if (!profileData) {
+            throw new Error('No profile data returned from scraper');
+        }
+
+        // Step 3: Process the data
+        const processedData = processLinkedInData(profileData, linkedinUrl);
+
+        // Step 4: Save to database
+        await saveProfileToDatabase(userId, linkedinUrl, processedData);
+
+        console.log(`✅ Profile extraction completed successfully for user ${userId}`);
+
+    } catch (error) {
+        console.error(`❌ Async extraction failed for user ${userId}:`, error);
+        
+        // Update status to failed
+        try {
+            await pool.query(
+                'UPDATE users SET extraction_status = $1, error_message = $2 WHERE id = $3',
+                ['failed', error.message, userId]
+            );
+        } catch (dbError) {
+            console.error('Failed to update error status:', dbError);
+        }
+    }
+}
+
+// ==================== EXISTING DATABASE FUNCTIONS ====================
 
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
@@ -637,7 +701,7 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     return result.rows[0];
 };
 
-// New function for Google users - FIXED: No password_hash required
+// New function for Google users
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
         'free': 30,
@@ -683,200 +747,6 @@ const updateUserCredits = async (userId, newCredits) => {
     return result.rows[0];
 };
 
-// ==================== NEW FUNCTIONS FOR LINKEDIN URL WITH EXTRACTION ====================
-
-// Create or update user profile with LinkedIn URL (EXISTING - kept same)
-const createOrUpdateUserProfile = async (userId, linkedinUrl, fullName = null) => {
-    try {
-        // Check if profile exists
-        const existingProfile = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-        
-        if (existingProfile.rows.length > 0) {
-            // Update existing profile
-            const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
-                [linkedinUrl, fullName, userId]
-            );
-            return result.rows[0];
-        } else {
-            // Create new profile
-            const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
-                [userId, linkedinUrl, fullName]
-            );
-            return result.rows[0];
-        }
-    } catch (error) {
-        console.error('Error creating/updating user profile:', error);
-        throw error;
-    }
-};
-
-// CHANGED: Enhanced function to create/update profile with Bright Data extraction (instead of Outscraper)
-const createOrUpdateUserProfileWithExtraction = async (userId, linkedinUrl, displayName = null) => {
-    try {
-        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
-        
-        // First, create/update basic profile
-        const existingProfile = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-        
-        let profile;
-        if (existingProfile.rows.length > 0) {
-            // Update existing profile
-            const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
-                [cleanUrl, displayName, userId]
-            );
-            profile = result.rows[0];
-        } else {
-            // Create new profile
-            const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name) VALUES ($1, $2, $3) RETURNING *',
-                [userId, cleanUrl, displayName]
-            );
-            profile = result.rows[0];
-        }
-        
-        // Mark extraction as attempted
-        await pool.query(
-            'UPDATE user_profiles SET data_extraction_status = $1, extraction_attempted_at = CURRENT_TIMESTAMP, extraction_error = NULL WHERE user_id = $2',
-            ['in_progress', userId]
-        );
-
-        try {
-            // Extract LinkedIn data using Bright Data
-            const extractedData = await extractLinkedInProfile(cleanUrl);
-            
-            // CHANGED: Update profile with extracted data (brightdata_data instead of outscraper_data)
-            console.log('\n💾 Saving extracted data to database...');
-            
-            const result = await pool.query(`
-                UPDATE user_profiles SET 
-                    full_name = COALESCE($1, full_name),
-                    first_name = $2,
-                    last_name = $3,
-                    headline = $4,
-                    summary = $5,
-                    location = $6,
-                    industry = $7,
-                    connections_count = $8,
-                    followers_count = $9,
-                    profile_image_url = $10,
-                    banner_image_url = $11,
-                    current_company = $12,
-                    current_company_id = $13,
-                    current_company_url = $14,
-                    experience = $15,
-                    education = $16,
-                    certifications = $17,
-                    skills = $18,
-                    languages = $19,
-                    recommendations = $20,
-                    recommendations_count = $21,
-                    volunteer_experience = $22,
-                    courses = $23,
-                    publications = $24,
-                    patents = $25,
-                    projects = $26,
-                    organizations = $27,
-                    honors_and_awards = $28,
-                    posts = $29,
-                    activity = $30,
-                    people_also_viewed = $31,
-                    country_code = $32,
-                    linkedin_id = $33,
-                    public_identifier = $34,
-                    linkedin_profile_url = $35,
-                    profile_timestamp = $36,
-                    brightdata_data = $37,
-                    data_extraction_status = 'completed',
-                    extraction_completed_at = CURRENT_TIMESTAMP,
-                    extraction_error = NULL,
-                    profile_analyzed = true,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $38 
-                RETURNING *
-            `, [
-                // Basic info
-                extractedData.fullName,
-                extractedData.firstName,
-                extractedData.lastName,
-                extractedData.headline,
-                extractedData.summary,
-                extractedData.location,
-                extractedData.industry,
-                extractedData.connectionsCount,
-                extractedData.followersCount,
-                extractedData.profileImageUrl,
-                extractedData.bannerImageUrl,
-                
-                // Current company
-                extractedData.currentCompany,
-                extractedData.currentCompanyId,
-                extractedData.currentCompanyUrl,
-                
-                // Professional info (as JSONB)
-                JSON.stringify(extractedData.experience),
-                JSON.stringify(extractedData.education),
-                JSON.stringify(extractedData.certifications),
-                extractedData.skills, // Array of strings
-                JSON.stringify(extractedData.languages),
-                JSON.stringify(extractedData.recommendations),
-                extractedData.recommendationsCount,
-                JSON.stringify(extractedData.volunteerExperience),
-                JSON.stringify(extractedData.courses),
-                JSON.stringify(extractedData.publications),
-                JSON.stringify(extractedData.patents),
-                JSON.stringify(extractedData.projects),
-                JSON.stringify(extractedData.organizations),
-                JSON.stringify(extractedData.honorsAndAwards),
-                
-                // Social activity
-                JSON.stringify(extractedData.posts),
-                JSON.stringify(extractedData.activity),
-                JSON.stringify(extractedData.peopleAlsoViewed),
-                
-                // Metadata
-                extractedData.countryCode,
-                extractedData.linkedinId,
-                extractedData.publicIdentifier,
-                extractedData.linkedinUrl,
-                extractedData.timestamp,
-                
-                // Raw data
-                JSON.stringify(extractedData.rawData),
-                
-                // User ID
-                userId
-            ]);
-
-            console.log(`\n✅ Profile data extracted and saved for user ${userId}`);
-            return result.rows[0];
-
-        } catch (extractionError) {
-            console.error('❌ Profile extraction failed:', extractionError.message);
-            
-            // Mark extraction as failed but don't fail the registration
-            await pool.query(
-                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3',
-                ['failed', extractionError.message, userId]
-            );
-            
-            // Return basic profile - registration should still succeed
-            return profile;
-        }
-    } catch (error) {
-        console.error('Error in profile creation/extraction:', error);
-        throw error;
-    }
-};
-
 // JWT Authentication middleware
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -903,35 +773,27 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== API ENDPOINTS ====================
 
-// COMPREHENSIVE: Health Check (BRIGHT DATA WITH ALL FIELD EXTRACTION)
+// Health Check
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'healthy',
-        version: '2.0-brightdata-comprehensive-fixed',
+        version: '2.1-brightdata-collector-api-fixed',
         timestamp: new Date().toISOString(),
-        features: ['authentication', 'google-oauth', 'brightdata-integration', 'comprehensive-linkedin-extraction'],
+        features: ['authentication', 'google-oauth', 'brightdata-collector-integration', 'comprehensive-linkedin-extraction'],
         brightdata: {
             configured: !!BRIGHT_DATA_API_KEY,
-            datasetId: BRIGHT_DATA_DATASET_ID,
+            collectorId: COLLECTOR_ID,
             endpoints: {
-                scrape: 'https://api.brightdata.com/datasets/v3/scrape',
-                trigger: 'https://api.brightdata.com/datasets/v3/trigger',
-                snapshot: 'https://api.brightdata.com/datasets/v3/snapshot/'
+                trigger: 'https://api.brightdata.com/dca/trigger',
+                poll: 'https://api.brightdata.com/dca/dataset'
             }
-        },
-        dataExtraction: {
-            basicProfile: ['name', 'headline', 'summary', 'location', 'industry', 'connections', 'followers'],
-            professionalData: ['experience', 'education', 'certifications', 'skills', 'languages'],
-            additionalData: ['recommendations', 'volunteer_experience', 'courses', 'publications', 'patents', 'projects', 'organizations', 'honors_and_awards'],
-            socialActivity: ['posts', 'activity', 'people_also_viewed'],
-            metadata: ['linkedin_id', 'country_code', 'public_identifier', 'timestamp']
         }
     });
 });
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Msgly.AI Server with Google OAuth + Bright Data',
+        message: 'Msgly.AI Server with Google OAuth + FIXED Bright Data',
         status: 'running',
         endpoints: [
             'POST /register',
@@ -940,6 +802,8 @@ app.get('/', (req, res) => {
             'GET /auth/google/callback',
             'GET /profile (protected)',
             'POST /update-profile (protected)',
+            'GET /profile-status (protected)',
+            'GET /profile-data (protected)',
             'POST /retry-extraction (protected)',
             'GET /packages',
             'GET /health'
@@ -947,11 +811,8 @@ app.get('/', (req, res) => {
     });
 });
 
-// ==================== GOOGLE OAUTH ROUTES (UNCHANGED) ====================
-
-// Initiate Google OAuth
+// Google OAuth routes (unchanged)
 app.get('/auth/google', (req, res, next) => {
-    // Store package selection in session if provided
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
         req.session.billingModel = req.query.billing || 'monthly';
@@ -962,30 +823,23 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// Google OAuth callback - FIXED: Better error handling
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failed' }),
     async (req, res) => {
         try {
-            // Generate JWT for the authenticated user
             const token = jwt.sign(
                 { userId: req.user.id, email: req.user.email },
                 process.env.JWT_SECRET || 'msgly-simple-secret-2024',
                 { expiresIn: '30d' }
             );
             
-            // If package was selected, update user
             if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
-                // For now, only allow free package
-                // Premium packages will be enabled after Chargebee integration
                 console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
             }
             
-            // Clear session
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Redirect to frontend sign-up page with token
             const frontendUrl = process.env.NODE_ENV === 'production' 
                 ? 'https://msgly.ai/sign-up' 
                 : 'http://localhost:3000/sign-up';
@@ -1003,7 +857,6 @@ app.get('/auth/google/callback',
     }
 );
 
-// Auth failed route
 app.get('/auth/failed', (req, res) => {
     const frontendUrl = process.env.NODE_ENV === 'production' 
         ? 'https://msgly.ai/sign-up' 
@@ -1012,9 +865,7 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`${frontendUrl}?error=auth_failed`);
 });
 
-// ==================== NEW ENDPOINTS FOR BRIGHT DATA INTEGRATION ====================
-
-// CHANGED: Update user profile with LinkedIn URL and trigger extraction (ENHANCED FOR BRIGHT DATA)
+// FIXED: Update user profile with LinkedIn URL and trigger extraction
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
@@ -1029,7 +880,6 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             });
         }
         
-        // Basic LinkedIn URL validation
         if (!linkedinUrl.includes('linkedin.com/in/')) {
             return res.status(400).json({
                 success: false,
@@ -1039,7 +889,6 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         // Update user package if provided and different
         if (packageType && packageType !== req.user.package_type) {
-            // For now, only allow free package
             if (packageType !== 'free') {
                 return res.status(400).json({
                     success: false,
@@ -1053,132 +902,130 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             );
         }
         
-        // CHANGED: Create or update user profile WITH BRIGHT DATA EXTRACTION
-        const profile = await createOrUpdateUserProfileWithExtraction(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        
+        // Update user status to pending
+        await pool.query(
+            'UPDATE users SET extraction_status = $1, linkedin_url = $2, error_message = NULL WHERE id = $3',
+            ['pending', cleanUrl, req.user.id]
         );
-        
-        // Get updated user data
-        const updatedUser = await getUserById(req.user.id);
-        
+
+        // Start the extraction process (async - don't wait for it)
+        extractProfileAsync(req.user.id, cleanUrl, packageType);
+
+        // Return immediate response
         res.json({
             success: true,
-            message: 'Profile updated and extraction initiated',
+            message: 'Profile extraction started',
             data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
-                },
+                status: 'pending',
+                linkedinUrl: cleanUrl,
+                packageType: packageType,
                 profile: {
-                    // BASIC INFO
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    firstName: profile.first_name,
-                    lastName: profile.last_name,
-                    headline: profile.headline,
-                    summary: profile.summary,
-                    location: profile.location,
-                    industry: profile.industry,
-                    connectionsCount: profile.connections_count,
-                    followersCount: profile.followers_count,
-                    profileImageUrl: profile.profile_image_url,
-                    currentCompany: profile.current_company,
-                    
-                    // COMPREHENSIVE DATA COUNTS (for UI display)
-                    experienceCount: profile.experience ? (Array.isArray(profile.experience) ? profile.experience.length : 1) : 0,
-                    educationCount: profile.education ? (Array.isArray(profile.education) ? profile.education.length : 1) : 0,
-                    certificationsCount: profile.certifications ? (Array.isArray(profile.certifications) ? profile.certifications.length : 1) : 0,
-                    skillsCount: profile.skills ? profile.skills.length : 0,
-                    languagesCount: profile.languages ? (Array.isArray(profile.languages) ? profile.languages.length : 1) : 0,
-                    publicationsCount: profile.publications ? (Array.isArray(profile.publications) ? profile.publications.length : 1) : 0,
-                    projectsCount: profile.projects ? (Array.isArray(profile.projects) ? profile.projects.length : 1) : 0,
-                    honorsCount: profile.honors_and_awards ? (Array.isArray(profile.honors_and_awards) ? profile.honors_and_awards.length : 1) : 0,
-                    activityCount: profile.activity ? (Array.isArray(profile.activity) ? profile.activity.length : 1) : 0,
-                    
-                    // EXTRACTION STATUS
-                    extractionStatus: profile.data_extraction_status,
-                    extractionCompleted: profile.extraction_completed_at,
-                    extractionError: profile.extraction_error,
-                    profileAnalyzed: profile.profile_analyzed
+                    extractionStatus: 'pending'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} with LinkedIn: ${linkedinUrl} (Status: ${profile.data_extraction_status})`);
+        console.log(`✅ Profile extraction started for user ${req.user.email} with LinkedIn: ${cleanUrl}`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
+        
+        // Update status to failed
+        try {
+            await pool.query(
+                'UPDATE users SET extraction_status = $1, error_message = $2 WHERE id = $3',
+                ['failed', error.message, req.user.id]
+            );
+        } catch (dbError) {
+            console.error('Failed to update error status:', dbError);
+        }
+
         res.status(500).json({
             success: false,
-            error: 'Failed to update profile',
-            details: error.message
+            error: error.message || 'Profile extraction failed'
         });
     }
 });
 
-// Retry extraction for failed profiles (NEW)
-app.post('/retry-extraction', authenticateToken, async (req, res) => {
+// Status check endpoint
+app.get('/profile-status', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    
     try {
-        const profileResult = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [req.user.id]
+        const result = await pool.query(
+            'SELECT extraction_status, error_message, linkedin_url FROM users WHERE id = $1',
+            [userId]
         );
-        
-        if (!profileResult.rows[0] || !profileResult.rows[0].linkedin_url) {
-            return res.status(400).json({
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
                 success: false,
-                error: 'No LinkedIn URL found for this user'
+                error: 'User not found'
             });
         }
-        
-        const profile = profileResult.rows[0];
-        
-        // Re-run extraction
-        const updatedProfile = await createOrUpdateUserProfileWithExtraction(
-            req.user.id,
-            profile.linkedin_url,
-            req.user.display_name
-        );
-        
+
+        const { extraction_status, error_message, linkedin_url } = result.rows[0];
+
         res.json({
             success: true,
-            message: 'Profile extraction retried',
             data: {
-                profile: {
-                    extractionStatus: updatedProfile.data_extraction_status,
-                    profileAnalyzed: updatedProfile.profile_analyzed,
-                    fullName: updatedProfile.full_name,
-                    headline: updatedProfile.headline,
-                    extractionError: updatedProfile.extraction_error
-                }
+                status: extraction_status,
+                linkedinUrl: linkedin_url,
+                errorMessage: error_message
             }
         });
-        
+
     } catch (error) {
-        console.error('❌ Extraction retry error:', error);
+        console.error('Status check error:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to retry extraction',
-            details: error.message
+            error: 'Failed to check status'
         });
     }
 });
 
-// ==================== EXISTING ENDPOINTS (UNCHANGED BUT ENHANCED) ====================
+// Get profile data endpoint
+app.get('/profile-data', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    
+    try {
+        const result = await pool.query(`
+            SELECT lp.*, u.linkedin_url, u.extraction_status 
+            FROM user_profiles lp 
+            JOIN users u ON lp.user_id = u.id 
+            WHERE u.id = $1
+        `, [userId]);
 
-// User Registration with Package Selection (Email/Password) - UNCHANGED
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Profile not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error('Profile data fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch profile data'
+        });
+    }
+});
+
+// Other endpoints (register, login, profile, packages) - unchanged from your original
 app.post('/register', async (req, res) => {
     console.log('👤 Registration request:', req.body);
     
     try {
         const { email, password, packageType, billingModel } = req.body;
         
-        // Validation
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -1193,7 +1040,6 @@ app.post('/register', async (req, res) => {
             });
         }
         
-        // For now, only allow free package
         if (packageType !== 'free') {
             return res.status(400).json({
                 success: false,
@@ -1201,7 +1047,6 @@ app.post('/register', async (req, res) => {
             });
         }
         
-        // Check if user exists
         const existingUser = await getUserByEmail(email);
         if (existingUser) {
             return res.status(400).json({
@@ -1210,13 +1055,9 @@ app.post('/register', async (req, res) => {
             });
         }
         
-        // Hash password
         const passwordHash = await bcrypt.hash(password, 10);
-        
-        // Create user
         const newUser = await createUser(email, passwordHash, packageType, billingModel || 'monthly');
         
-        // Generate JWT
         const token = jwt.sign(
             { userId: newUser.id, email: newUser.email },
             process.env.JWT_SECRET || 'msgly-simple-secret-2024',
@@ -1251,7 +1092,6 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// User Login (Email/Password) - UNCHANGED
 app.post('/login', async (req, res) => {
     console.log('🔐 Login request for:', req.body.email);
     
@@ -1265,7 +1105,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Get user
         const user = await getUserByEmail(email);
         if (!user) {
             return res.status(401).json({
@@ -1274,7 +1113,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Check if user has password (might be Google-only account)
         if (!user.password_hash) {
             return res.status(401).json({
                 success: false,
@@ -1282,7 +1120,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Check password
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
         if (!passwordMatch) {
             return res.status(401).json({
@@ -1291,7 +1128,6 @@ app.post('/login', async (req, res) => {
             });
         }
         
-        // Generate JWT
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             process.env.JWT_SECRET || 'msgly-simple-secret-2024',
@@ -1329,10 +1165,8 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Get User Profile (Protected) - ENHANCED with extracted data
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
-        // Get user's LinkedIn profile if it exists
         const profileResult = await pool.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [req.user.id]
@@ -1352,10 +1186,12 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     credits: req.user.credits_remaining,
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
-                    createdAt: req.user.created_at
+                    createdAt: req.user.created_at,
+                    extractionStatus: req.user.extraction_status,
+                    linkedinUrl: req.user.linkedin_url,
+                    errorMessage: req.user.error_message
                 },
                 profile: profile ? {
-                    // BASIC INFO
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     firstName: profile.first_name,
@@ -1368,13 +1204,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     followersCount: profile.followers_count,
                     profileImageUrl: profile.profile_image_url,
                     bannerImageUrl: profile.banner_image_url,
-                    
-                    // CURRENT COMPANY
                     currentCompany: profile.current_company,
                     currentCompanyId: profile.current_company_id,
                     currentCompanyUrl: profile.current_company_url,
-                    
-                    // COMPREHENSIVE PROFESSIONAL DATA
                     experience: profile.experience,
                     education: profile.education,
                     certifications: profile.certifications,
@@ -1389,20 +1221,14 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     projects: profile.projects,
                     organizations: profile.organizations,
                     honorsAndAwards: profile.honors_and_awards,
-                    
-                    // SOCIAL ACTIVITY
                     posts: profile.posts,
                     activity: profile.activity,
                     peopleAlsoViewed: profile.people_also_viewed,
-                    
-                    // METADATA
                     countryCode: profile.country_code,
                     linkedinId: profile.linkedin_id,
                     publicIdentifier: profile.public_identifier,
                     linkedinProfileUrl: profile.linkedin_profile_url,
                     profileTimestamp: profile.profile_timestamp,
-                    
-                    // EXTRACTION STATUS
                     extractionStatus: profile.data_extraction_status,
                     extractionAttempted: profile.extraction_attempted_at,
                     extractionCompleted: profile.extraction_completed_at,
@@ -1420,7 +1246,6 @@ app.get('/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get Available Packages - UNCHANGED
 app.get('/packages', (req, res) => {
     const packages = {
         payAsYouGo: [
@@ -1529,7 +1354,7 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// Simple error handling
+// Error handling
 app.use((req, res) => {
     res.status(404).json({
         error: 'Route not found',
@@ -1539,7 +1364,8 @@ app.use((req, res) => {
             'GET /auth/google',
             'GET /profile', 
             'POST /update-profile',
-            'POST /retry-extraction',
+            'GET /profile-status',
+            'GET /profile-data',
             'GET /packages', 
             'GET /health'
         ]
@@ -1595,17 +1421,15 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server with COMPREHENSIVE Bright Data Integration Started!');
+            console.log('🚀 Msgly.AI Server with FIXED Bright Data Integration Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
-            console.log(`⏱️ Timeout: 120 seconds (2 minutes) for sync API`);
-            console.log(`⚡ API: Synchronous + Asynchronous with better error handling`);
-            console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
-            console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
-            console.log(`🔗 LinkedIn Extraction: COMPREHENSIVE (All Fields)`);
-            console.log(`📊 Data Captured: Profile, Experience, Education, Certifications, Skills, etc.`);
+            console.log(`🔧 API: FIXED - Using Collector API (DCA)`);
+            console.log(`📊 Collector ID: ${COLLECTOR_ID}`);
+            console.log(`🔗 Trigger: https://api.brightdata.com/dca/trigger`);
+            console.log(`📋 Poll: https://api.brightdata.com/dca/dataset`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
         });
