@@ -21,7 +21,322 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Bright Data API integration using Collector Trigger endpoint
+// FIXED: Bright Data API configuration - Updated endpoints and better error handling
+const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_TOKEN || 'e5353ea11fe201c7f9797062c64b59fb87f1bfc01ad8a24dd0fc34a29ccddd23';
+const BRIGHT_DATA_DATASET_ID = 'gd_l1viktl72bvl7bjuj0';
+
+// CORS for Chrome Extensions
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+            'https://www.linkedin.com',
+            'https://linkedin.com',
+            'http://localhost:3000',
+            'https://msgly.ai',
+            'https://www.msgly.ai'
+        ];
+        
+        if (origin.startsWith('chrome-extension://')) {
+            return callback(null, true);
+        }
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+        
+        return callback(null, true); // Allow all for now during development
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+};
+
+app.use(cors(corsOptions));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Session configuration - MUST come before passport initialization
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// Passport initialization
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user =     await getUserById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
+    }
+});
+
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+    try {
+        // Check if user exists
+        let user =     await getUserByEmail(profile.emails[0].value);
+        
+        if (!user) {
+            // Create new user with Google account
+            user =     await createGoogleUser(
+                profile.emails[0].value,
+                profile.displayName,
+                profile.id,
+                profile.photos[0]?.value
+            );
+        } else if (!user.google_id) {
+            // Link existing account with Google
+                await linkGoogleAccount(user.id, profile.id);
+            user =     await getUserById(user.id);
+        }
+        
+        return done(null, user);
+    } catch (error) {
+        console.error('Google OAuth error:', error);
+        return done(error, null);
+    }
+}));
+
+// Logging
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
+
+// ==================== DATABASE SETUP ====================
+
+const initDB = async () => {
+    try {
+        console.log('🗃️ Creating database tables...');
+
+        // Updated users table with Google OAuth fields - FIXED: password_hash is now nullable
+            await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255),
+                google_id VARCHAR(255) UNIQUE,
+                display_name VARCHAR(255),
+                profile_picture VARCHAR(500),
+                package_type VARCHAR(50) DEFAULT 'free',
+                billing_model VARCHAR(50) DEFAULT 'monthly',
+                credits_remaining INTEGER DEFAULT 30,
+                subscription_status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // ENHANCED: user profiles table with ALL comprehensive LinkedIn fields
+            await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) UNIQUE,
+                linkedin_url VARCHAR(500),
+                full_name VARCHAR(255),
+                first_name VARCHAR(100),
+                last_name VARCHAR(100),
+                headline VARCHAR(500),
+                summary TEXT,
+                location VARCHAR(255),
+                industry VARCHAR(255),
+                connections_count INTEGER,
+                followers_count INTEGER,
+                profile_image_url VARCHAR(500),
+                banner_image_url VARCHAR(500),
+                
+                -- CURRENT COMPANY
+                current_company VARCHAR(255),
+                current_company_id VARCHAR(100),
+                current_company_url VARCHAR(500),
+                
+                -- COMPREHENSIVE DATA (stored as JSONB for flexibility)
+                experience JSONB,
+                education JSONB,
+                certifications JSONB,
+                skills TEXT[],
+                languages JSONB,
+                recommendations JSONB,
+                recommendations_count INTEGER,
+                volunteer_experience JSONB,
+                courses JSONB,
+                publications JSONB,
+                patents JSONB,
+                projects JSONB,
+                organizations JSONB,
+                honors_and_awards JSONB,
+                
+                -- SOCIAL ACTIVITY
+                posts JSONB,
+                activity JSONB,
+                people_also_viewed JSONB,
+                
+                -- METADATA
+                country_code VARCHAR(10),
+                linkedin_id VARCHAR(100),
+                public_identifier VARCHAR(100),
+                linkedin_profile_url VARCHAR(500),
+                profile_timestamp VARCHAR(50),
+                
+                -- EXTRACTION STATUS
+                brightdata_data JSONB,
+                data_extraction_status VARCHAR(50) DEFAULT 'pending',
+                extraction_attempted_at TIMESTAMP,
+                extraction_completed_at TIMESTAMP,
+                extraction_error TEXT,
+                profile_analyzed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Simple message logs
+            await pool.query(`
+            CREATE TABLE IF NOT EXISTS message_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                target_name VARCHAR(255),
+                target_url VARCHAR(500),
+                generated_message TEXT,
+                message_context TEXT,
+                credits_used INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Credits transactions
+            await pool.query(`
+            CREATE TABLE IF NOT EXISTS credits_transactions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                transaction_type VARCHAR(50),
+                credits_change INTEGER,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Add Google OAuth columns to existing users table
+        try {
+                await pool.query(`
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
+                ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500);
+            `);
+            console.log('✅ Added Google OAuth columns to users table');
+        } catch (err) {
+            console.log('Google OAuth columns might already exist:', err.message);
+        }
+
+        // CRITICAL FIX: Make password_hash nullable for Google OAuth users
+        try {
+                await pool.query(`
+                ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+            `);
+            console.log('✅ Made password_hash nullable for Google OAuth users');
+        } catch (err) {
+            console.log('Password hash might already be nullable:', err.message);
+        }
+
+        // ENHANCED: Add ALL comprehensive Bright Data columns to existing user_profiles table
+        try {
+                await pool.query(`
+                ALTER TABLE user_profiles 
+                ADD COLUMN IF NOT EXISTS headline VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS summary TEXT,
+                ADD COLUMN IF NOT EXISTS location VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS industry VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS experience JSONB,
+                ADD COLUMN IF NOT EXISTS education JSONB,
+                ADD COLUMN IF NOT EXISTS skills TEXT[],
+                ADD COLUMN IF NOT EXISTS connections_count INTEGER,
+                ADD COLUMN IF NOT EXISTS followers_count INTEGER,
+                ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS banner_image_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS current_company VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS current_company_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS current_company_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS certifications JSONB,
+                ADD COLUMN IF NOT EXISTS languages JSONB,
+                ADD COLUMN IF NOT EXISTS recommendations JSONB,
+                ADD COLUMN IF NOT EXISTS recommendations_count INTEGER,
+                ADD COLUMN IF NOT EXISTS volunteer_experience JSONB,
+                ADD COLUMN IF NOT EXISTS courses JSONB,
+                ADD COLUMN IF NOT EXISTS publications JSONB,
+                ADD COLUMN IF NOT EXISTS patents JSONB,
+                ADD COLUMN IF NOT EXISTS projects JSONB,
+                ADD COLUMN IF NOT EXISTS organizations JSONB,
+                ADD COLUMN IF NOT EXISTS honors_and_awards JSONB,
+                ADD COLUMN IF NOT EXISTS posts JSONB,
+                ADD COLUMN IF NOT EXISTS activity JSONB,
+                ADD COLUMN IF NOT EXISTS people_also_viewed JSONB,
+                ADD COLUMN IF NOT EXISTS country_code VARCHAR(10),
+                ADD COLUMN IF NOT EXISTS linkedin_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS public_identifier VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS linkedin_profile_url VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS profile_timestamp VARCHAR(50),
+                ADD COLUMN IF NOT EXISTS brightdata_data JSONB,
+                ADD COLUMN IF NOT EXISTS data_extraction_status VARCHAR(50) DEFAULT 'pending',
+                ADD COLUMN IF NOT EXISTS extraction_attempted_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS extraction_completed_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS extraction_error TEXT;
+            `);
+            console.log('✅ Added comprehensive Bright Data columns to user_profiles table');
+        } catch (err) {
+            console.log('Comprehensive Bright Data columns might already exist:', err.message);
+        }
+
+        // Create indexes
+        try {
+                await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+            `);
+            console.log('✅ Created database indexes');
+        } catch (err) {
+            console.log('Indexes might already exist:', err.message);
+        }
+
+        console.log('✅ Database tables created successfully');
+    } catch (error) {
+        console.error('❌ Database setup error:', error);
+        throw error;
+    }
+};
+
+// ==================== COMPREHENSIVE BRIGHT DATA FIX ====================
+
+const extractLinkedInProfile = async (linkedinUrl) => {
+    try {
+        console.log(`\n🔍 Starting LinkedIn profile extraction for: ${linkedinUrl}`);
+        console.log(`🔑 Using API Key: ${BRIGHT_DATA_API_KEY.substring(0, 10)}...`);
+        console.log(`📊 Dataset ID: ${BRIGHT_DATA_DATASET_ID}`);
         
         if (!BRIGHT_DATA_API_KEY) {
             throw new Error('Bright Data API key not configured');
@@ -1319,59 +1634,3 @@ startServer();
 module.exports = app;
 
 })();
-
-
-// Endpoint to trigger Bright Data scraping via Collector API
-app.post('/api/scrape-linkedin', async (req, res) => {
-    const { linkedinUrl } = req.body;
-    const collectorId = process.env.BRIGHT_DATA_COLLECTOR_ID;
-    const apiKey = process.env.BRIGHT_DATA_API_KEY;
-
-    if (!linkedinUrl || !collectorId || !apiKey) {
-        return res.status(400).json({ error: "Missing linkedinUrl or collectorId or API key." });
-    }
-
-    try {
-        console.log("📡 Triggering Bright Data Collector for URL:", linkedinUrl);
-        const triggerResponse = await axios.post(
-            `https://api.brightdata.com/cp/scrapers/api/${collectorId}/trigger`,
-            [{ url: linkedinUrl }],
-            {
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-
-        const collectionId = triggerResponse.data.collection_id;
-        console.log("🆔 Collection ID received:", collectionId);
-
-        let profileData = null;
-        for (let attempts = 0; attempts < 12; attempts++) {
-            console.log(`⏳ Polling attempt ${attempts + 1}/12...`);
-            const poll = await axios.get(
-                `https://api.brightdata.com/dca/dataset?id=${collectionId}`,
-                { headers: { Authorization: `Bearer ${apiKey}` } }
-            );
-
-            if (poll.data.status === "done" && poll.data.data.length > 0) {
-                profileData = poll.data.data[0];
-                console.log("✅ Scraped LinkedIn Profile:", profileData);
-                break;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-
-        if (!profileData) {
-            console.warn("⚠️ Scraping timed out or returned empty result.");
-            return res.status(504).json({ error: "Scraping timed out." });
-        }
-
-        res.json({ success: true, profile: profileData });
-    } catch (err) {
-        console.error("❌ Bright Data scraping error:", err?.response?.data || err.message);
-        res.status(500).json({ error: "Failed to scrape LinkedIn profile." });
-    }
-});
