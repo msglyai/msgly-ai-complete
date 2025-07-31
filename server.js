@@ -1,148 +1,4 @@
-// Debug Bright Data configuration and test data formatting
-app.get('/debug-brightdata', async (req, res) => {
-    try {
-        console.log('🔍 Testing CORRECT Bright Data configuration...');
-        
-        const tests = [];
-        
-        // Test 1: API Connectivity
-        try {
-            const response = await axios.get('https://api.brightdata.com', { timeout: 10000 });
-            tests.push({
-                test: 'API Connectivity',
-                status: 'PASS ✅',
-                message: 'Bright Data API is accessible'
-            });
-        } catch (error) {
-            tests.push({
-                test: 'API Connectivity',
-                status: 'FAIL ❌',
-                message: `API connectivity issue: ${error.message}`
-            });
-        }
-        
-        // Test 2: Authentication & Dataset Access
-        try {
-            const testUrl = `https://api.brightdata.com/datasets/v3/log/test_snapshot`;
-            const authResponse = await axios.get(testUrl, {
-                headers: {
-                    'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 10000,
-                validateStatus: function (status) {
-                    return status < 500;
-                }
-            });
-            
-            if (authResponse.status === 404) {
-                tests.push({
-                    test: 'Authentication & Dataset Access',
-                    status: 'PASS ✅',
-                    message: `API key is valid and dataset is accessible (404 expected for test snapshot)`
-                });
-            } else {
-                tests.push({
-                    test: 'Authentication & Dataset Access',
-                    status: 'PASS ✅',
-                    message: `API key valid, response status: ${authResponse.status}`
-                });
-            }
-        } catch (authError) {
-            tests.push({
-                test: 'Authentication & Dataset Access',
-                status: 'FAIL ❌',
-                message: `Authentication failed: ${authError.message}`
-            });
-        }
-        
-        // Test 3: Database Connectivity
-        try {
-            const client = await pool.connect();
-            await client.query('SELECT 1');
-            client.release();
-            
-            tests.push({
-                test: 'Database Connectivity',
-                status: 'PASS ✅',
-                message: 'PostgreSQL database is accessible'
-            });
-        } catch (dbError) {
-            tests.push({
-                test: 'Database Connectivity',
-                status: 'FAIL ❌',
-                message: `Database error: ${dbError.message}`
-            });
-        }
-        
-        // Test 4: JSON Sanitization
-        try {
-            const testData = {
-                experience: [
-                    { company: "Test Corp", title: "Engineer", dates: "2020-2025" },
-                    { company: "Another Corp", title: "Developer" }
-                ],
-                skills: ["JavaScript", "Python", "React"],
-                education: [{ school: "Test University", degree: "BS Computer Science" }]
-            };
-            
-            const sanitized = sanitizeForJSON(testData);
-            const jsonString = JSON.stringify(sanitized);
-            const parsed = JSON.parse(jsonString);
-            
-            tests.push({
-                test: 'JSON Sanitization',
-                status: 'PASS ✅',
-                message: `JSON sanitization working correctly. Test data: ${jsonString.length} chars`
-            });
-        } catch (jsonError) {
-            tests.push({
-                test: 'JSON Sanitization',
-                status: 'FAIL ❌',
-                message: `JSON sanitization failed: ${jsonError.message}`
-            });
-        }
-        
-        res.json({
-            status: 'debug_complete',
-            timestamp: new Date().toISOString(),
-            brightdata_config: {
-                api_key_present: !!BRIGHT_DATA_API_KEY,
-                dataset_id: BRIGHT_DATA_DATASET_ID,
-                base_url: 'https://api.brightdata.com',
-                sync_endpoint: `/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}`,
-                trigger_endpoint: `/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}`,
-                status_endpoint: '/datasets/v3/log/{snapshot_id}',
-                data_endpoint: '/datasets/v3/snapshot/{snapshot_id} (CORRECTED)'
-            },
-            tests: tests,
-            linkedin_extraction: {
-                enabled: true,
-                comprehensive_data: true,
-                sync_method: 'Available (faster)',
-                async_method: 'Available (fallback)',
-                polling_timeout: '5-6 minutes (40 attempts)',
-                background_processing: true,
-                implementation: 'CORRECT - Built from scratch based on research',
-                data_captured: [
-                    'Basic Profile (name, headline, summary, location)',
-                    'Professional (experience, education, skills, certifications)',
-                    'Social (connections, followers, activity, articles)', 
-                    'Additional (languages, projects, publications, patents, organizations, honors, courses)',
-                    'Raw Data (complete Bright Data response)'
-                ],
-                fallback_removed: 'ALL data is now captured - no partial saves'
-            }
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-            status: 'debug_failed',
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});// Msgly.AI Server with Google OAuth + CORRECT Bright Data Implementation (Merged)
+// Msgly.AI Server with Google OAuth + CORRECT Bright Data Implementation (Merged & Fixed)
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -177,7 +33,7 @@ const pool = new Pool({
 // Background processing tracking
 const processingQueue = new Map();
 
-// CORS configuration (from your working server)
+// CORS configuration
 const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
@@ -472,6 +328,25 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
+// Helper function to safely convert data to JSON-compatible format
+const sanitizeForJSON = (data) => {
+    if (data === null || data === undefined) return null;
+    if (typeof data === 'string') return data;
+    if (typeof data === 'number') return data;
+    if (typeof data === 'boolean') return data;
+    if (Array.isArray(data)) {
+        return data.map(item => sanitizeForJSON(item));
+    }
+    if (typeof data === 'object') {
+        const sanitized = {};
+        for (const [key, value] of Object.entries(data)) {
+            sanitized[key] = sanitizeForJSON(value);
+        }
+        return sanitized;
+    }
+    return data;
+};
+
 // CORRECT BRIGHT DATA API IMPLEMENTATION - Built from scratch based on research
 const extractLinkedInProfileCorrect = async (linkedinUrl) => {
     try {
@@ -620,25 +495,6 @@ const extractLinkedInProfileCorrect = async (linkedinUrl) => {
             message: 'LinkedIn profile extraction failed'
         };
     }
-};
-
-// Helper function to safely convert data to JSON-compatible format
-const sanitizeForJSON = (data) => {
-    if (data === null || data === undefined) return null;
-    if (typeof data === 'string') return data;
-    if (typeof data === 'number') return data;
-    if (typeof data === 'boolean') return data;
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeForJSON(item));
-    }
-    if (typeof data === 'object') {
-        const sanitized = {};
-        for (const [key, value] of Object.entries(data)) {
-            sanitized[key] = sanitizeForJSON(value);
-        }
-        return sanitized;
-    }
-    return data;
 };
 
 // Process and structure LinkedIn data
@@ -1035,7 +891,7 @@ app.get('/', (req, res) => {
     res.json({
         message: 'Msgly.AI Server with Google OAuth + COMPLETE LinkedIn Data Extraction',
         status: 'running',
-        version: '4.0-merged-complete-linkedin-data',
+        version: '4.1-complete-linkedin-data-fixed',
         backgroundProcessing: 'enabled',
         brightDataAPI: 'CORRECT implementation - ALL LinkedIn fields captured',
         dataCapture: {
@@ -1046,6 +902,7 @@ app.get('/', (req, res) => {
             technical: 'Raw Bright Data response, metadata, identifiers'
         },
         improvements: [
+            'Fixed server initialization errors',
             'Removed fallback that excluded complex data',
             'Added JSON sanitization for PostgreSQL compatibility', 
             'Enhanced error logging and debugging',
@@ -1060,6 +917,7 @@ app.get('/', (req, res) => {
             'POST /update-profile (protected)',
             'GET /profile-status (protected)',
             'POST /retry-extraction (protected)',
+            'GET /processing-status (protected)',
             'GET /packages',
             'GET /health',
             'POST /migrate-database'
@@ -1078,7 +936,7 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '4.0-merged-correct-brightdata-implementation',
+            version: '4.1-complete-linkedin-data-fixed',
             timestamp: new Date().toISOString(),
             brightdata: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1612,7 +1470,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'No credit card required'],
                 available: true
             },
             {
@@ -1623,7 +1481,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1635,7 +1493,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', 'Credits never expire'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -1647,7 +1505,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', 'Credits never expire'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -1661,7 +1519,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', 'No credit card required'],
+                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', 'No credit card required'],
                 available: true
             },
             {
@@ -1672,7 +1530,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1684,7 +1542,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', '7-day free trial included'],
+                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -1696,7 +1554,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'CORRECT LinkedIn extraction', '7-day free trial included'],
+                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -1744,7 +1602,7 @@ app.post('/migrate-database', async (req, res) => {
             
             console.log('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
             migrationResults.push('🎉 DATABASE MIGRATION COMPLETED SUCCESSFULLY!');
-            migrationResults.push('🚀 Your database is now ready for CORRECT LinkedIn profile extraction with Bright Data!');
+            migrationResults.push('🚀 Your database is now ready for COMPLETE LinkedIn profile extraction with Bright Data!');
             
         } finally {
             client.release();
@@ -1758,7 +1616,7 @@ app.post('/migrate-database', async (req, res) => {
                 usersTable: 'Updated with LinkedIn fields',
                 profilesTable: 'Complete LinkedIn schema created', 
                 indexes: 'Performance indexes created',
-                status: 'Ready for CORRECT LinkedIn data extraction with Bright Data'
+                status: 'Ready for COMPLETE LinkedIn data extraction with Bright Data'
             },
             timestamp: new Date().toISOString()
         });
@@ -1807,152 +1665,6 @@ app.get('/processing-status', authenticateToken, async (req, res) => {
     }
 });
 
-// Debug Bright Data configuration and test data formatting
-app.get('/debug-brightdata', async (req, res) => {
-    try {
-        console.log('🔍 Testing CORRECT Bright Data configuration...');
-        
-        const tests = [];
-        
-        // Test 1: API Connectivity
-        try {
-            const response = await axios.get('https://api.brightdata.com', { timeout: 10000 });
-            tests.push({
-                test: 'API Connectivity',
-                status: 'PASS ✅',
-                message: 'Bright Data API is accessible'
-            });
-        } catch (error) {
-            tests.push({
-                test: 'API Connectivity',
-                status: 'FAIL ❌',
-                message: `API connectivity issue: ${error.message}`
-            });
-        }
-        
-        // Test 2: Authentication & Dataset Access
-        try {
-            const testUrl = `https://api.brightdata.com/datasets/v3/log/test_snapshot`;
-            const authResponse = await axios.get(testUrl, {
-                headers: {
-                    'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 10000,
-                validateStatus: function (status) {
-                    return status < 500;
-                }
-            });
-            
-            if (authResponse.status === 404) {
-                tests.push({
-                    test: 'Authentication & Dataset Access',
-                    status: 'PASS ✅',
-                    message: `API key is valid and dataset is accessible (404 expected for test snapshot)`
-                });
-            } else {
-                tests.push({
-                    test: 'Authentication & Dataset Access',
-                    status: 'PASS ✅',
-                    message: `API key valid, response status: ${authResponse.status}`
-                });
-            }
-        } catch (authError) {
-            tests.push({
-                test: 'Authentication & Dataset Access',
-                status: 'FAIL ❌',
-                message: `Authentication failed: ${authError.message}`
-            });
-        }
-        
-        // Test 3: Database Connectivity
-        try {
-            const client = await pool.connect();
-            await client.query('SELECT 1');
-            client.release();
-            
-            tests.push({
-                test: 'Database Connectivity',
-                status: 'PASS ✅',
-                message: 'PostgreSQL database is accessible'
-            });
-        } catch (dbError) {
-            tests.push({
-                test: 'Database Connectivity',
-                status: 'FAIL ❌',
-                message: `Database error: ${dbError.message}`
-            });
-        }
-        
-        // Test 4: JSON Sanitization
-        try {
-            const testData = {
-                experience: [
-                    { company: "Test Corp", title: "Engineer", dates: "2020-2025" },
-                    { company: "Another Corp", title: "Developer" }
-                ],
-                skills: ["JavaScript", "Python", "React"],
-                education: [{ school: "Test University", degree: "BS Computer Science" }]
-            };
-            
-            const sanitized = sanitizeForJSON(testData);
-            const jsonString = JSON.stringify(sanitized);
-            const parsed = JSON.parse(jsonString);
-            
-            tests.push({
-                test: 'JSON Sanitization',
-                status: 'PASS ✅',
-                message: `JSON sanitization working correctly. Test data: ${jsonString.length} chars`
-            });
-        } catch (jsonError) {
-            tests.push({
-                test: 'JSON Sanitization',
-                status: 'FAIL ❌',
-                message: `JSON sanitization failed: ${jsonError.message}`
-            });
-        }
-        
-        res.json({
-            status: 'debug_complete',
-            timestamp: new Date().toISOString(),
-            brightdata_config: {
-                api_key_present: !!BRIGHT_DATA_API_KEY,
-                dataset_id: BRIGHT_DATA_DATASET_ID,
-                base_url: 'https://api.brightdata.com',
-                sync_endpoint: `/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}`,
-                trigger_endpoint: `/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}`,
-                status_endpoint: '/datasets/v3/log/{snapshot_id}',
-                data_endpoint: '/datasets/v3/snapshot/{snapshot_id} (CORRECTED)'
-            },
-            tests: tests,
-            linkedin_extraction: {
-                enabled: true,
-                comprehensive_data: true,
-                sync_method: 'Available (faster)',
-                async_method: 'Available (fallback)',
-                polling_timeout: '5-6 minutes (40 attempts)',
-                background_processing: true,
-                implementation: 'CORRECT - Built from scratch based on research',
-                data_captured: [
-                    'Basic Profile (name, headline, summary, location)',
-                    'Professional (experience, education, skills, certifications)',
-                    'Social (connections, followers, activity, articles)', 
-                    'Additional (languages, projects, publications, patents, organizations, honors, courses)',
-                    'Raw Data (complete Bright Data response)'
-                ],
-                fallback_removed: 'ALL data is now captured - no partial saves'
-            }
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-            status: 'debug_failed',
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
 // Error handling
 app.use((req, res) => {
     res.status(404).json({
@@ -1968,7 +1680,6 @@ app.use((req, res) => {
             'GET /processing-status',
             'GET /packages', 
             'GET /health',
-            'GET /debug-brightdata',
             'POST /migrate-database'
         ]
     });
@@ -2023,7 +1734,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server with Google OAuth + CORRECT Bright Data Implementation Started!');
+            console.log('🚀 Msgly.AI Server with Google OAuth + COMPLETE LinkedIn Data Extraction Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
@@ -2038,10 +1749,10 @@ const startServer = async () => {
             console.log(`🚫 Fallback Removed: NO MORE "Partial save - complex data excluded"`);
             console.log(`✅ JSON Sanitization: Complex arrays properly formatted for PostgreSQL`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
-            console.log(`🔧 Debug: http://localhost:${PORT}/debug-brightdata`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
             console.log(`🎯 USER EXPERIENCE: Register → Use App → COMPLETE Data Appears Automatically!`);
             console.log(`🔥 IMPLEMENTATION: Google OAuth + CORRECT Bright Data - ALL DATA CAPTURED`);
+            console.log(`✅ FIXED: Server initialization errors resolved`);
             console.log(`✅ FIXED: Correct data retrieval endpoint /datasets/v3/snapshot/{snapshot_id}`);
             console.log(`✅ FIXED: JSON formatting issues resolved with sanitization`);
             console.log(`🚀 BONUS: Dual method - sync (fast) + async (fallback)`);
