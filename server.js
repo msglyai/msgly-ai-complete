@@ -331,7 +331,7 @@ const initDB = async () => {
     }
 };
 
-// ==================== BRIGHT DATA FUNCTIONS (FIXED WITH COMPLETE DATA EXTRACTION) ====================
+// ==================== BRIGHT DATA FUNCTIONS (FIXED WITH TIMEOUT AND BETTER ERROR HANDLING) ====================
 
 const extractLinkedInProfile = async (linkedinUrl) => {
     try {
@@ -341,7 +341,9 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             throw new Error('Bright Data API key not configured');
         }
         
-        // Use synchronous API for immediate response
+        // INCREASED TIMEOUT: 120 seconds instead of 60
+        console.log('⏱️ Starting extraction with 120 second timeout...');
+        
         const scrapeResponse = await axios.post(
             `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
             [{ url: linkedinUrl }],
@@ -350,9 +352,20 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                     'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 60000 // 60 seconds timeout
+                timeout: 120000 // INCREASED to 120 seconds (2 minutes)
             }
-        );
+        ).catch(error => {
+            // Better error logging
+            if (error.code === 'ECONNABORTED') {
+                console.error('⏱️ Request timed out after 120 seconds');
+                throw new Error('Bright Data request timed out after 120 seconds. The profile might be too large or complex.');
+            }
+            if (error.response) {
+                console.error('❌ Bright Data API error:', error.response.status, error.response.data);
+                throw new Error(`Bright Data API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+            }
+            throw error;
+        });
 
         console.log(`📡 Bright Data API Response Status: ${scrapeResponse.status}`);
 
@@ -365,66 +378,32 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             // Log what fields Bright Data actually returned
             console.log('🔍 Fields returned by Bright Data:', Object.keys(profile));
             
-            // FIXED: Extract data with CORRECT field mapping based on actual Bright Data response
+            // Extract data with correct field mapping
             const extractedData = {
-                // BASIC PROFILE INFO - Using correct field names
+                // BASIC PROFILE INFO
                 fullName: profile.name || null,
                 firstName: profile.first_name || null,
                 lastName: profile.last_name || null,
-                
-                // HEADLINE - Bright Data doesn't return headline, but we can use about or current position
                 headline: profile.current_position || 
                          (profile.current_company ? `${profile.current_company.position || 'Professional'} at ${profile.current_company.name}` : null) ||
                          (profile.about ? profile.about.substring(0, 120) + '...' : null),
-                
                 summary: profile.about || null,
                 location: profile.city || profile.location || null,
                 industry: profile.industry || null,
-                
-                // CONNECTIONS & FOLLOWERS - correct field names
                 connectionsCount: profile.connections || null,
                 followersCount: profile.followers || null,
-                
-                // IMAGES - Using correct field names
                 profileImageUrl: profile.avatar || profile.profile_picture || null,
                 bannerImageUrl: profile.banner_image || profile.background_image || null,
                 
-                // CURRENT COMPANY - Extract from nested object
+                // CURRENT COMPANY
                 currentCompany: profile.current_company?.name || profile.current_company_name || null,
                 currentCompanyId: profile.current_company?.company_id || profile.current_company_company_id || null,
                 currentCompanyUrl: profile.current_company?.link || null,
                 
-                // EXPERIENCE - Handle as object or array
-                experience: (() => {
-                    // If experience is already an array
-                    if (Array.isArray(profile.experience)) {
-                        return profile.experience;
-                    }
-                    // If experience is an object, convert to array
-                    if (profile.experience && typeof profile.experience === 'object') {
-                        return [profile.experience];
-                    }
-                    // If no experience data, return empty array
-                    return [];
-                })(),
-                
-                // EDUCATION - Already an array with full details
+                // PROFESSIONAL DATA
+                experience: Array.isArray(profile.experience) ? profile.experience : (profile.experience ? [profile.experience] : []),
                 education: profile.education || [],
-                
-                // SKILLS - Check various possible field names
-                skills: (() => {
-                    if (profile.skills) {
-                        if (Array.isArray(profile.skills)) {
-                            return profile.skills;
-                        }
-                        if (typeof profile.skills === 'string') {
-                            return profile.skills.split(',').map(s => s.trim());
-                        }
-                    }
-                    return [];
-                })(),
-                
-                // ADDITIONAL DATA from Bright Data - ALL FIELDS
+                skills: Array.isArray(profile.skills) ? profile.skills : [],
                 certifications: profile.certifications || [],
                 languages: profile.languages || [],
                 recommendations: profile.recommendations || [],
@@ -437,7 +416,7 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 organizations: profile.organizations || [],
                 honorsAndAwards: profile.honors_and_awards || [],
                 
-                // ACTIVITY & POSTS
+                // SOCIAL ACTIVITY
                 posts: profile.posts || [],
                 activity: profile.activity || [],
                 peopleAlsoViewed: profile.people_also_viewed || profile.similar_profiles || [],
@@ -450,34 +429,19 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                 linkedinUrl: profile.url || profile.input_url || linkedinUrl,
                 timestamp: profile.timestamp || null,
                 
-                // RAW DATA for debugging
+                // RAW DATA
                 rawData: profile
             };
 
             console.log(`✅ Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
-            console.log(`📊 COMPLETE extraction summary:`, {
-                name: extractedData.fullName,
-                location: extractedData.location,
-                connections: extractedData.connectionsCount,
-                followers: extractedData.followersCount,
-                company: extractedData.currentCompany,
-                experience: extractedData.experience.length,
-                education: extractedData.education.length,
-                skills: extractedData.skills.length,
-                certifications: extractedData.certifications.length,
-                honors: extractedData.honorsAndAwards.length,
-                activity: extractedData.activity.length,
-                recommendations: extractedData.recommendations.length
-            });
-            
             return extractedData;
         }
         
         // If we get HTTP 202, it means the request is still processing
         if (scrapeResponse.status === 202) {
-            console.log('⏳ Request is still processing (HTTP 202), trying fallback approach...');
+            console.log('⏳ Request is still processing (HTTP 202), switching to async approach...');
             
-            // Fallback: Use async trigger approach
+            // DIRECTLY GO TO ASYNC APPROACH for better success rate
             const triggerResponse = await axios.post(
                 `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
                 [{ url: linkedinUrl }],
@@ -491,25 +455,27 @@ const extractLinkedInProfile = async (linkedinUrl) => {
             );
 
             if (!triggerResponse.data || !triggerResponse.data.snapshot_id) {
+                console.error('❌ Trigger response:', triggerResponse.data);
                 throw new Error('No snapshot ID returned from Bright Data trigger');
             }
 
             const snapshotId = triggerResponse.data.snapshot_id;
-            console.log(`📷 Fallback: Snapshot ID received: ${snapshotId}`);
+            console.log(`📷 Snapshot ID received: ${snapshotId}`);
+            console.log('⏳ Starting to poll for results...');
 
-            // Poll for completion (maximum 2 minutes for fallback)
-            const maxAttempts = 12; // 12 attempts * 10 seconds = 2 minutes
+            // Poll for completion (maximum 3 minutes)
+            const maxAttempts = 18; // 18 attempts * 10 seconds = 3 minutes
             let attempt = 0;
             
             while (attempt < maxAttempts) {
                 attempt++;
-                console.log(`⏳ Fallback polling attempt ${attempt}/${maxAttempts} for snapshot ${snapshotId}`);
+                console.log(`⏳ Polling attempt ${attempt}/${maxAttempts} for snapshot ${snapshotId}`);
                 
                 // Wait 10 seconds between polls
                 await new Promise(resolve => setTimeout(resolve, 10000));
                 
                 try {
-                    // Download the results directly
+                    // Try to download the results
                     const downloadResponse = await axios.get(
                         `https://api.brightdata.com/datasets/snapshots/${snapshotId}/download`,
                         {
@@ -521,13 +487,12 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                     );
 
                     if (downloadResponse.data && downloadResponse.data.length > 0) {
-                        console.log(`📊 Fallback: Downloaded ${downloadResponse.data.length} profile(s)`);
+                        console.log(`📊 Downloaded ${downloadResponse.data.length} profile(s)`);
                         
                         const profile = downloadResponse.data[0];
                         
-                        // Use the same extraction logic as above
+                        // Use the same extraction logic
                         const extractedData = {
-                            // BASIC PROFILE INFO
                             fullName: profile.name || null,
                             firstName: profile.first_name || null,
                             lastName: profile.last_name || null,
@@ -541,13 +506,9 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                             followersCount: profile.followers || null,
                             profileImageUrl: profile.avatar || profile.profile_picture || null,
                             bannerImageUrl: profile.banner_image || profile.background_image || null,
-                            
-                            // CURRENT COMPANY
                             currentCompany: profile.current_company?.name || profile.current_company_name || null,
                             currentCompanyId: profile.current_company?.company_id || profile.current_company_company_id || null,
                             currentCompanyUrl: profile.current_company?.link || null,
-                            
-                            // PROFESSIONAL DATA
                             experience: Array.isArray(profile.experience) ? profile.experience : (profile.experience ? [profile.experience] : []),
                             education: profile.education || [],
                             skills: Array.isArray(profile.skills) ? profile.skills : [],
@@ -562,44 +523,45 @@ const extractLinkedInProfile = async (linkedinUrl) => {
                             projects: profile.projects || [],
                             organizations: profile.organizations || [],
                             honorsAndAwards: profile.honors_and_awards || [],
-                            
-                            // SOCIAL ACTIVITY
                             posts: profile.posts || [],
                             activity: profile.activity || [],
                             peopleAlsoViewed: profile.people_also_viewed || profile.similar_profiles || [],
-                            
-                            // METADATA
                             countryCode: profile.country_code || null,
                             linkedinId: profile.linkedin_id || profile.id || null,
                             linkedinNumId: profile.linkedin_num_id || null,
                             publicIdentifier: profile.public_identifier || profile.linkedin_id || profile.id || null,
                             linkedinUrl: profile.url || profile.input_url || linkedinUrl,
                             timestamp: profile.timestamp || null,
-                            
-                            // RAW DATA
                             rawData: profile
                         };
 
-                        console.log(`✅ Fallback: Successfully extracted profile for: ${extractedData.fullName || 'Unknown'}`);
+                        console.log(`✅ Async extraction successful for: ${extractedData.fullName || 'Unknown'}`);
                         return extractedData;
                     }
                     
                 } catch (downloadError) {
-                    console.log(`⚠️ Fallback download attempt ${attempt} failed: ${downloadError.message}`);
+                    console.log(`⚠️ Download attempt ${attempt} failed: ${downloadError.message}`);
                     if (attempt === maxAttempts) {
-                        throw new Error(`Fallback failed after ${maxAttempts} attempts: ${downloadError.message}`);
+                        throw new Error(`Extraction failed after ${maxAttempts} attempts: ${downloadError.message}`);
                     }
                 }
             }
             
-            throw new Error(`Fallback extraction timed out after ${maxAttempts * 10} seconds`);
+            throw new Error(`Extraction timed out after ${maxAttempts * 10} seconds of polling`);
         }
         
-        // If we get here, something unexpected happened
+        // Unexpected response
         throw new Error(`Unexpected response from Bright Data: Status ${scrapeResponse.status}`);
         
     } catch (error) {
         console.error('❌ Bright Data extraction error:', error.message);
+        
+        // Log more details about the error
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', JSON.stringify(error.response.data));
+        }
+        
         throw error;
     }
 };
@@ -1633,6 +1595,7 @@ const startServer = async () => {
             console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`⏱️ Timeout: 120 seconds (2 minutes) for sync API`);
             console.log(`⚡ API: Synchronous (immediate response) + Async fallback`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
