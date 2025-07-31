@@ -1631,3 +1631,26 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
+
+
+    const collectionId = triggerResponse.data.collection_id;
+
+    let attempts = 0;
+    let profileData = null;
+    while (attempts < 10) {
+      const poll = await axios.get(`https://api.brightdata.com/dca/dataset?id=${collectionId}`, {
+        headers: {
+          Authorization: `Bearer ${brightDataApiKey}`,
+        }
+      });
+
+      if (poll.data.status === "done" && poll.data.data.length > 0) {
+        profileData = poll.data.data[0];
+        break;
+      }
+
+      await new Promise((r) => setTimeout(r, 5000)); // wait 5 seconds
+      attempts++;
+    }
+    console.log("Final Profile Data:", profileData);
+    
