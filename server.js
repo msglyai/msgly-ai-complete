@@ -153,20 +153,6 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-// ✅ ADD token verification endpoint (MINIMAL ADDITION)
-app.get('/api/verify-token', authenticateToken, (req, res) => {
-    res.json({
-        success: true,
-        user: {
-            id: req.user.id,
-            email: req.user.email,
-            displayName: req.user.display_name,
-            packageType: req.user.package_type,
-            credits: req.user.credits_remaining
-        }
-    });
-});
-
 // ==================== DATABASE SETUP ====================
 const initDB = async () => {
     try {
@@ -1166,6 +1152,20 @@ const authenticateToken = async (req, res, next) => {
         return res.status(403).json({ success: false, error: 'Invalid token' });
     }
 };
+
+// ✅ Token verification endpoint (moved here after authenticateToken definition)
+app.get('/api/verify-token', authenticateToken, (req, res) => {
+    res.json({
+        success: true,
+        user: {
+            id: req.user.id,
+            email: req.user.email,
+            displayName: req.user.display_name,
+            packageType: req.user.package_type,
+            credits: req.user.credits_remaining
+        }
+    });
+});
 
 // ==================== API ENDPOINTS ====================
 
