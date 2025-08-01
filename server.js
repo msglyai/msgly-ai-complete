@@ -9,6 +9,7 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
+const path = require('path'); // ✅ ADD this line for HTML serving
 require('dotenv').config();
 
 const app = express();
@@ -133,6 +134,37 @@ async (accessToken, refreshToken, profile, done) => {
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
+});
+
+// ✅ ADD HTML page routes (MINIMAL ADDITION)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/sign-up', (req, res) => {
+    res.sendFile(path.join(__dirname, 'sign-up.html'));
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// ✅ ADD token verification endpoint (MINIMAL ADDITION)
+app.get('/api/verify-token', authenticateToken, (req, res) => {
+    res.json({
+        success: true,
+        user: {
+            id: req.user.id,
+            email: req.user.email,
+            displayName: req.user.display_name,
+            packageType: req.user.package_type,
+            credits: req.user.credits_remaining
+        }
+    });
 });
 
 // ==================== DATABASE SETUP ====================
@@ -1251,6 +1283,14 @@ app.get('/auth/google/callback',
                 { expiresIn: '30d' }
             );
             
+            // ✅ ADD cookie setting (MINIMAL ADDITION)
+            res.cookie('authToken', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+            });
+            
             if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
                 console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
             }
@@ -1259,10 +1299,10 @@ app.get('/auth/google/callback',
             req.session.billingModel = null;
             
             const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/sign-up' 
-                : 'http://localhost:3000/sign-up';
+                ? 'https://msgly.ai/dashboard' 
+                : 'http://localhost:3000/dashboard';
                 
-            res.redirect(`${frontendUrl}?token=${token}`);
+            res.redirect(frontendUrl);
             
         } catch (error) {
             console.error('OAuth callback error:', error);
