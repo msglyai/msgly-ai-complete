@@ -69,9 +69,6 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files (for HTML pages)
-app.use(express.static(path.join(__dirname, 'public')));
-
 // Session configuration
 app.use(session({
     secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
@@ -102,11 +99,13 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// Google OAuth Strategy - PRODUCTION ONLY
+// Google OAuth Strategy
 passport.use(new GoogleStrategy({
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: "https://api.msgly.ai/auth/google/callback"
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
 },
 async (accessToken, refreshToken, profile, done) => {
     try {
@@ -135,6 +134,21 @@ async (accessToken, refreshToken, profile, done) => {
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
+});
+
+// ==================== STATIC FILE SERVING ====================
+
+// Serve static HTML files
+app.get('/sign-up', (req, res) => {
+    res.sendFile(path.join(__dirname, 'sign-up.html'));
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
 // ==================== DATABASE SETUP ====================
@@ -1137,43 +1151,20 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// ==================== STATIC ROUTES FOR HTML PAGES ====================
-
-// Serve sign-up page
-app.get('/sign-up', (req, res) => {
-    res.sendFile(path.join(__dirname, 'sign-up.html'));
-});
-
-// Serve login page
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-// Serve dashboard page (protected)
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
-});
-
-// Redirect root to sign-up
-app.get('/', (req, res) => {
-    res.redirect('/sign-up');
-});
-
 // ==================== API ENDPOINTS ====================
 
 // Home route
-app.get('/api', (req, res) => {
+app.get('/', (req, res) => {
     res.json({
         message: 'Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS',
         status: 'running',
-        version: '6.0-COMPLETE-NO-FALLBACKS-PRODUCTION',
+        version: '6.0-COMPLETE-NO-FALLBACKS',
         dataExtraction: 'COMPLETE LinkedIn profile data - ALL fields captured',
         noFallbacks: 'Either complete success or complete failure - NO partial saves',
         brightDataFields: 'ALL Bright Data LinkedIn fields properly mapped',
         jsonProcessing: 'FIXED - Proper PostgreSQL JSONB handling',
         backgroundProcessing: 'enabled',
         philosophy: 'ALL OR NOTHING - Complete data extraction or failure',
-        productionOnly: true,
         creditPackages: {
             free: '10 credits per month',
             silver: '75 credits',
@@ -1181,10 +1172,6 @@ app.get('/api', (req, res) => {
             platinum: '1000 credits'
         },
         endpoints: [
-            'GET /',
-            'GET /sign-up', 
-            'GET /login',
-            'GET /dashboard',
             'POST /register',
             'POST /login', 
             'GET /auth/google',
@@ -1211,10 +1198,9 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '6.0-COMPLETE-NO-FALLBACKS-PRODUCTION',
+            version: '6.0-COMPLETE-NO-FALLBACKS',
             timestamp: new Date().toISOString(),
             philosophy: 'ALL OR NOTHING - Complete LinkedIn data extraction',
-            productionOnly: true,
             creditPackages: {
                 free: '10 credits per month',
                 silver: '75 credits',
@@ -1239,8 +1225,7 @@ app.get('/health', async (req, res) => {
             authentication: {
                 google: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
                 jwt: !!JWT_SECRET,
-                passport: 'configured',
-                production: true
+                passport: 'configured'
             },
             backgroundProcessing: {
                 enabled: true,
@@ -1259,7 +1244,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ==================== GOOGLE OAUTH ROUTES - PRODUCTION ONLY ====================
+// ==================== GOOGLE OAUTH ROUTES ====================
 
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
@@ -1289,27 +1274,39 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Check if user is coming from sign-up or login
-            const referer = req.get('Referer');
-            const isFromLogin = referer && referer.includes('/login');
-            
-            if (isFromLogin) {
-                // Returning user - redirect to dashboard
-                res.redirect(`https://msgly.ai/dashboard?token=${token}`);
+            // Check if user has LinkedIn URL (returning user) - redirect to dashboard
+            if (req.user.linkedin_url) {
+                const frontendUrl = process.env.NODE_ENV === 'production' 
+                    ? 'https://msgly.ai/dashboard' 
+                    : 'http://localhost:3000/dashboard';
+                    
+                res.redirect(`${frontendUrl}?token=${token}`);
             } else {
-                // New user - redirect to sign-up for LinkedIn URL
-                res.redirect(`https://msgly.ai/sign-up?token=${token}`);
+                // New user - redirect to sign-up to complete profile
+                const frontendUrl = process.env.NODE_ENV === 'production' 
+                    ? 'https://msgly.ai/sign-up' 
+                    : 'http://localhost:3000/sign-up';
+                    
+                res.redirect(`${frontendUrl}?token=${token}`);
             }
             
         } catch (error) {
             console.error('OAuth callback error:', error);
-            res.redirect(`https://msgly.ai/sign-up?error=callback_error`);
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?error=callback_error`);
         }
     }
 );
 
 app.get('/auth/failed', (req, res) => {
-    res.redirect(`https://msgly.ai/sign-up?error=auth_failed`);
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://msgly.ai/sign-up' 
+        : 'http://localhost:3000/sign-up';
+        
+    res.redirect(`${frontendUrl}?error=auth_failed`);
 });
 
 // ==================== MAIN ENDPOINTS ====================
@@ -1569,39 +1566,114 @@ app.get('/profile', authenticateToken, async (req, res) => {
         );
         const profile = profileResult.rows[0];
 
-        // Format response for dashboard
-        const dashboardData = {
-            user: {
-                fullName: req.user.display_name || `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || null,
-                email: req.user.email,
-                userId: `user_${req.user.id}`,
-                signUpDate: req.user.created_at
-            },
-            subscription: {
-                plan: req.user.package_type ? req.user.package_type.charAt(0).toUpperCase() + req.user.package_type.slice(1) : 'Free',
-                creditsRemaining: req.user.credits_remaining || 0,
-                renewalDate: null // Free plan doesn't have renewal
-            },
-            linkedinProfile: null
-        };
-
-        // Add LinkedIn profile data if available
-        if (profile && profile.data_extraction_status === 'completed') {
-            dashboardData.linkedinProfile = {
-                fullName: profile.full_name,
-                headline: profile.headline,
-                company: profile.current_company || profile.current_company_name,
-                position: profile.current_position,
-                location: profile.location,
-                profileUrl: profile.linkedin_url
-            };
-        }
-
         res.json({
             success: true,
-            data: dashboardData
+            data: {
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    displayName: req.user.display_name,
+                    profilePicture: req.user.profile_picture,
+                    packageType: req.user.package_type,
+                    billingModel: req.user.billing_model,
+                    credits: req.user.credits_remaining,
+                    subscriptionStatus: req.user.subscription_status,
+                    hasGoogleAccount: !!req.user.google_id,
+                    createdAt: req.user.created_at
+                },
+                profile: profile ? {
+                    // Basic Information
+                    linkedinUrl: profile.linkedin_url,
+                    linkedinId: profile.linkedin_id,
+                    linkedinNumId: profile.linkedin_num_id,
+                    inputUrl: profile.input_url,
+                    url: profile.url,
+                    fullName: profile.full_name,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    headline: profile.headline,
+                    summary: profile.summary,
+                    about: profile.about,
+                    
+                    // Location
+                    location: profile.location,
+                    city: profile.city,
+                    state: profile.state,
+                    country: profile.country,
+                    countryCode: profile.country_code,
+                    
+                    // Professional
+                    industry: profile.industry,
+                    currentCompany: profile.current_company,
+                    currentCompanyName: profile.current_company_name,
+                    currentCompanyId: profile.current_company_id,
+                    currentCompanyCompanyId: profile.current_company_company_id,
+                    currentPosition: profile.current_position,
+                    
+                    // Metrics
+                    connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
+                    connections: profile.connections,
+                    followers: profile.followers,
+                    recommendationsCount: profile.recommendations_count,
+                    
+                    // Media
+                    profileImageUrl: profile.profile_image_url,
+                    avatar: profile.avatar,
+                    bannerImage: profile.banner_image,
+                    backgroundImageUrl: profile.background_image_url,
+                    publicIdentifier: profile.public_identifier,
+                    
+                    // Complex Data Arrays
+                    experience: profile.experience,
+                    education: profile.education,
+                    educationsDetails: profile.educations_details,
+                    skills: profile.skills,
+                    skillsWithEndorsements: profile.skills_with_endorsements,
+                    languages: profile.languages,
+                    certifications: profile.certifications,
+                    courses: profile.courses,
+                    projects: profile.projects,
+                    publications: profile.publications,
+                    patents: profile.patents,
+                    volunteerExperience: profile.volunteer_experience,
+                    volunteering: profile.volunteering,
+                    honorsAndAwards: profile.honors_and_awards,
+                    organizations: profile.organizations,
+                    recommendations: profile.recommendations,
+                    recommendationsGiven: profile.recommendations_given,
+                    recommendationsReceived: profile.recommendations_received,
+                    posts: profile.posts,
+                    activity: profile.activity,
+                    articles: profile.articles,
+                    peopleAlsoViewed: profile.people_also_viewed,
+                    
+                    // Metadata
+                    timestamp: profile.timestamp,
+                    dataSource: profile.data_source,
+                    extractionStatus: profile.data_extraction_status,
+                    extractionAttempted: profile.extraction_attempted_at,
+                    extractionCompleted: profile.extraction_completed_at,
+                    extractionError: profile.extraction_error,
+                    extractionRetryCount: profile.extraction_retry_count,
+                    profileAnalyzed: profile.profile_analyzed
+                } : null,
+                subscription: {
+                    plan: req.user.package_type,
+                    creditsRemaining: req.user.credits_remaining,
+                    renewalDate: null // Add renewal date logic if needed
+                },
+                automaticProcessing: {
+                    enabled: true,
+                    isCurrentlyProcessing: processingQueue.has(req.user.id),
+                    queuePosition: processingQueue.has(req.user.id) ? 
+                        Array.from(processingQueue.keys()).indexOf(req.user.id) + 1 : null,
+                    implementation: 'COMPLETE - All Bright Data fields mapped',
+                    dataCapture: 'ALL LinkedIn profile fields - NO FALLBACKS',
+                    philosophy: 'ALL OR NOTHING'
+                }
+            }
         });
-        
     } catch (error) {
         console.error('❌ Profile fetch error:', error);
         res.status(500).json({
@@ -1876,7 +1948,6 @@ app.post('/migrate-database', async (req, res) => {
                 indexes: 'Performance indexes created',
                 status: 'Ready for COMPLETE LinkedIn data extraction - ALL Bright Data fields supported',
                 philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
-                productionOnly: true,
                 creditPackages: {
                     free: '10 credits per month (updated)',
                     silver: '75 credits (updated)',
@@ -1948,18 +2019,17 @@ app.use((req, res) => {
     res.status(404).json({
         error: 'Route not found',
         availableRoutes: [
-            'GET /',
-            'GET /sign-up', 
-            'GET /login',
-            'GET /dashboard',
+            'GET /sign-up (serves sign-up.html)',
+            'GET /login (serves login.html)', 
+            'GET /dashboard (serves dashboard.html)',
             'POST /register', 
             'POST /login', 
             'GET /auth/google',
-            'GET /profile', 
-            'POST /update-profile',
-            'GET /profile-status',
-            'POST /retry-extraction',
-            'GET /processing-status',
+            'GET /profile (protected)', 
+            'POST /update-profile (protected)',
+            'GET /profile-status (protected)',
+            'POST /retry-extraction (protected)',
+            'GET /processing-status (protected)',
             'GET /packages', 
             'GET /health',
             'POST /migrate-database'
@@ -2016,17 +2086,16 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - PRODUCTION ONLY - Started!');
+            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with COMPLETE Bright Data schema`);
-            console.log(`🔐 Auth: JWT + Google OAuth Ready (PRODUCTION ONLY)`);
+            console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
             console.log(`⚡ Data Extraction: COMPLETE - ALL Bright Data LinkedIn fields ✅`);
             console.log(`🛠️ Field Mapping: COMPLETE - linkedin_id, current_company_name, educations_details, etc. ✅`);
             console.log(`📊 Data Processing: COMPLETE - All arrays properly processed ✅`);
             console.log(`🚫 Fallbacks: DISABLED - All or nothing approach ✅`);
-            console.log(`🏭 Production Mode: ENABLED - No localhost endpoints ✅`);
             console.log(`💰 Credit Packages Updated:`);
             console.log(`   🆓 Free: 10 credits per month`);
             console.log(`   🥈 Silver: 75 credits`);
@@ -2034,25 +2103,17 @@ const startServer = async () => {
             console.log(`   💎 Platinum: 1000 credits`);
             console.log(`💳 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
-            console.log(`🌐 Routes:`);
-            console.log(`   📄 Sign-up: https://msgly.ai/sign-up`);
-            console.log(`   🔐 Login: https://msgly.ai/login`);
-            console.log(`   📊 Dashboard: https://msgly.ai/dashboard`);
-            console.log(`   ❤️ Health: https://api.msgly.ai/health`);
-            console.log(`   🔐 OAuth: https://api.msgly.ai/auth/google`);
+            console.log(`📄 Static Files: /sign-up, /login, /dashboard served`);
+            console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 USER FLOW: Sign-up → Add LinkedIn URL → Dashboard with Real Data!`);
+            console.log(`🎯 USER EXPERIENCE: Google Sign-In → Add LinkedIn URL → Dashboard with ALL Data!`);
             console.log(`🔥 PHILOSOPHY: ALL OR NOTHING - Complete LinkedIn data extraction or complete failure`);
-            console.log(`🏭 PRODUCTION READY: All endpoints configured for msgly.ai domain`);
-            console.log(`✅ BRIGHT DATA FIELDS SUPPORTED:`);
-            console.log(`   ✅ linkedin_id, linkedin_num_id, input_url, url`);
-            console.log(`   ✅ current_company_name, current_company_company_id`);
-            console.log(`   ✅ educations_details (separate from education)`);
-            console.log(`   ✅ recommendations (full data, not just count)`);
-            console.log(`   ✅ avatar, banner_image (Bright Data format)`);
-            console.log(`   ✅ All professional and social activity arrays`);
-            console.log(`   ✅ Complete metadata and identification fields`);
-            console.log(`🚀 RESULT: Complete LinkedIn profile data extraction or nothing!`);
+            console.log(`✅ ROUTES ADDED:`);
+            console.log(`   ✅ GET /sign-up (serves sign-up.html)`);
+            console.log(`   ✅ GET /login (serves login.html)`);
+            console.log(`   ✅ GET /dashboard (serves dashboard.html)`);
+            console.log(`   ✅ GET /profile (protected) - Returns user + LinkedIn profile data`);
+            console.log(`🚀 RESULT: Complete login/signup flow with dashboard ready!`);
         });
         
     } catch (error) {
