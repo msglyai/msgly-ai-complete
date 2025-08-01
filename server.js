@@ -9,6 +9,7 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -67,6 +68,9 @@ app.use(cors(corsOptions));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files (for HTML pages)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Session configuration
 app.use(session({
@@ -1135,10 +1139,32 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
+// ==================== STATIC ROUTES FOR HTML PAGES ====================
+
+// Serve sign-up page
+app.get('/sign-up', (req, res) => {
+    res.sendFile(path.join(__dirname, 'sign-up.html'));
+});
+
+// Serve login page
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// Serve dashboard page (protected)
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// Redirect root to sign-up
+app.get('/', (req, res) => {
+    res.redirect('/sign-up');
+});
+
 // ==================== API ENDPOINTS ====================
 
 // Home route
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
     res.json({
         message: 'Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS',
         status: 'running',
@@ -1258,11 +1284,23 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/sign-up' 
-                : 'http://localhost:3000/sign-up';
-                
-            res.redirect(`${frontendUrl}?token=${token}`);
+            // Check if user is coming from sign-up or login
+            const referer = req.get('Referer');
+            const isFromLogin = referer && referer.includes('/login');
+            
+            if (isFromLogin) {
+                // Returning user - redirect to dashboard
+                const frontendUrl = process.env.NODE_ENV === 'production' 
+                    ? 'https://msgly.ai/dashboard' 
+                    : 'http://localhost:3000/dashboard';
+                res.redirect(`${frontendUrl}?token=${token}`);
+            } else {
+                // New user - redirect to sign-up for LinkedIn URL
+                const frontendUrl = process.env.NODE_ENV === 'production' 
+                    ? 'https://msgly.ai/sign-up' 
+                    : 'http://localhost:3000/sign-up';
+                res.redirect(`${frontendUrl}?token=${token}`);
+            }
             
         } catch (error) {
             console.error('OAuth callback error:', error);
@@ -1531,7 +1569,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get User Profile with extraction status
+// Get User Profile with extraction status - NEW DASHBOARD ENDPOINT
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
         const profileResult = await pool.query(
@@ -1540,109 +1578,39 @@ app.get('/profile', authenticateToken, async (req, res) => {
         );
         const profile = profileResult.rows[0];
 
+        // Format response for dashboard
+        const dashboardData = {
+            user: {
+                fullName: req.user.display_name || `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || null,
+                email: req.user.email,
+                userId: `user_${req.user.id}`,
+                signUpDate: req.user.created_at
+            },
+            subscription: {
+                plan: req.user.package_type ? req.user.package_type.charAt(0).toUpperCase() + req.user.package_type.slice(1) : 'Free',
+                creditsRemaining: req.user.credits_remaining || 0,
+                renewalDate: null // Free plan doesn't have renewal
+            },
+            linkedinProfile: null
+        };
+
+        // Add LinkedIn profile data if available
+        if (profile && profile.data_extraction_status === 'completed') {
+            dashboardData.linkedinProfile = {
+                fullName: profile.full_name,
+                headline: profile.headline,
+                company: profile.current_company || profile.current_company_name,
+                position: profile.current_position,
+                location: profile.location,
+                profileUrl: profile.linkedin_url
+            };
+        }
+
         res.json({
             success: true,
-            data: {
-                user: {
-                    id: req.user.id,
-                    email: req.user.email,
-                    displayName: req.user.display_name,
-                    profilePicture: req.user.profile_picture,
-                    packageType: req.user.package_type,
-                    billingModel: req.user.billing_model,
-                    credits: req.user.credits_remaining,
-                    subscriptionStatus: req.user.subscription_status,
-                    hasGoogleAccount: !!req.user.google_id,
-                    createdAt: req.user.created_at
-                },
-                profile: profile ? {
-                    // Basic Information
-                    linkedinUrl: profile.linkedin_url,
-                    linkedinId: profile.linkedin_id,
-                    linkedinNumId: profile.linkedin_num_id,
-                    inputUrl: profile.input_url,
-                    url: profile.url,
-                    fullName: profile.full_name,
-                    firstName: profile.first_name,
-                    lastName: profile.last_name,
-                    headline: profile.headline,
-                    summary: profile.summary,
-                    about: profile.about,
-                    
-                    // Location
-                    location: profile.location,
-                    city: profile.city,
-                    state: profile.state,
-                    country: profile.country,
-                    countryCode: profile.country_code,
-                    
-                    // Professional
-                    industry: profile.industry,
-                    currentCompany: profile.current_company,
-                    currentCompanyName: profile.current_company_name,
-                    currentCompanyId: profile.current_company_id,
-                    currentCompanyCompanyId: profile.current_company_company_id,
-                    currentPosition: profile.current_position,
-                    
-                    // Metrics
-                    connectionsCount: profile.connections_count,
-                    followersCount: profile.followers_count,
-                    connections: profile.connections,
-                    followers: profile.followers,
-                    recommendationsCount: profile.recommendations_count,
-                    
-                    // Media
-                    profileImageUrl: profile.profile_image_url,
-                    avatar: profile.avatar,
-                    bannerImage: profile.banner_image,
-                    backgroundImageUrl: profile.background_image_url,
-                    publicIdentifier: profile.public_identifier,
-                    
-                    // Complex Data Arrays
-                    experience: profile.experience,
-                    education: profile.education,
-                    educationsDetails: profile.educations_details,
-                    skills: profile.skills,
-                    skillsWithEndorsements: profile.skills_with_endorsements,
-                    languages: profile.languages,
-                    certifications: profile.certifications,
-                    courses: profile.courses,
-                    projects: profile.projects,
-                    publications: profile.publications,
-                    patents: profile.patents,
-                    volunteerExperience: profile.volunteer_experience,
-                    volunteering: profile.volunteering,
-                    honorsAndAwards: profile.honors_and_awards,
-                    organizations: profile.organizations,
-                    recommendations: profile.recommendations,
-                    recommendationsGiven: profile.recommendations_given,
-                    recommendationsReceived: profile.recommendations_received,
-                    posts: profile.posts,
-                    activity: profile.activity,
-                    articles: profile.articles,
-                    peopleAlsoViewed: profile.people_also_viewed,
-                    
-                    // Metadata
-                    timestamp: profile.timestamp,
-                    dataSource: profile.data_source,
-                    extractionStatus: profile.data_extraction_status,
-                    extractionAttempted: profile.extraction_attempted_at,
-                    extractionCompleted: profile.extraction_completed_at,
-                    extractionError: profile.extraction_error,
-                    extractionRetryCount: profile.extraction_retry_count,
-                    profileAnalyzed: profile.profile_analyzed
-                } : null,
-                automaticProcessing: {
-                    enabled: true,
-                    isCurrentlyProcessing: processingQueue.has(req.user.id),
-                    queuePosition: processingQueue.has(req.user.id) ? 
-                        Array.from(processingQueue.keys()).indexOf(req.user.id) + 1 : null,
-                    implementation: 'COMPLETE - All Bright Data fields mapped',
-                    dataCapture: 'ALL LinkedIn profile fields - NO FALLBACKS',
-                    philosophy: 'ALL OR NOTHING'
-                }
-            }
+            data: dashboardData
         });
+        
     } catch (error) {
         console.error('❌ Profile fetch error:', error);
         res.status(500).json({
@@ -1988,6 +1956,10 @@ app.use((req, res) => {
     res.status(404).json({
         error: 'Route not found',
         availableRoutes: [
+            'GET /',
+            'GET /sign-up', 
+            'GET /login',
+            'GET /dashboard',
             'POST /register', 
             'POST /login', 
             'GET /auth/google',
@@ -2069,9 +2041,13 @@ const startServer = async () => {
             console.log(`   💎 Platinum: 1000 credits`);
             console.log(`💳 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
-            console.log(`🌐 Health: http://localhost:${PORT}/health`);
+            console.log(`🌐 Routes:`);
+            console.log(`   📄 Sign-up: http://localhost:${PORT}/sign-up`);
+            console.log(`   🔐 Login: http://localhost:${PORT}/login`);
+            console.log(`   📊 Dashboard: http://localhost:${PORT}/dashboard`);
+            console.log(`   ❤️ Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 USER EXPERIENCE: Register → Add LinkedIn URL → ALL Data Appears or COMPLETE FAILURE!`);
+            console.log(`🎯 USER FLOW: Sign-up → Add LinkedIn URL → Dashboard with Real Data!`);
             console.log(`🔥 PHILOSOPHY: ALL OR NOTHING - Complete LinkedIn data extraction or complete failure`);
             console.log(`✅ BRIGHT DATA FIELDS SUPPORTED:`);
             console.log(`   ✅ linkedin_id, linkedin_num_id, input_url, url`);
