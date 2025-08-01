@@ -102,13 +102,11 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// Google OAuth Strategy
+// Google OAuth Strategy - PRODUCTION ONLY
 passport.use(new GoogleStrategy({
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? "https://api.msgly.ai/auth/google/callback"
-        : "http://localhost:3000/auth/google/callback"
+    callbackURL: "https://api.msgly.ai/auth/google/callback"
 },
 async (accessToken, refreshToken, profile, done) => {
     try {
@@ -1168,13 +1166,14 @@ app.get('/api', (req, res) => {
     res.json({
         message: 'Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS',
         status: 'running',
-        version: '6.0-COMPLETE-NO-FALLBACKS',
+        version: '6.0-COMPLETE-NO-FALLBACKS-PRODUCTION',
         dataExtraction: 'COMPLETE LinkedIn profile data - ALL fields captured',
         noFallbacks: 'Either complete success or complete failure - NO partial saves',
         brightDataFields: 'ALL Bright Data LinkedIn fields properly mapped',
         jsonProcessing: 'FIXED - Proper PostgreSQL JSONB handling',
         backgroundProcessing: 'enabled',
         philosophy: 'ALL OR NOTHING - Complete data extraction or failure',
+        productionOnly: true,
         creditPackages: {
             free: '10 credits per month',
             silver: '75 credits',
@@ -1182,6 +1181,10 @@ app.get('/api', (req, res) => {
             platinum: '1000 credits'
         },
         endpoints: [
+            'GET /',
+            'GET /sign-up', 
+            'GET /login',
+            'GET /dashboard',
             'POST /register',
             'POST /login', 
             'GET /auth/google',
@@ -1208,9 +1211,10 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '6.0-COMPLETE-NO-FALLBACKS',
+            version: '6.0-COMPLETE-NO-FALLBACKS-PRODUCTION',
             timestamp: new Date().toISOString(),
             philosophy: 'ALL OR NOTHING - Complete LinkedIn data extraction',
+            productionOnly: true,
             creditPackages: {
                 free: '10 credits per month',
                 silver: '75 credits',
@@ -1235,7 +1239,8 @@ app.get('/health', async (req, res) => {
             authentication: {
                 google: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
                 jwt: !!JWT_SECRET,
-                passport: 'configured'
+                passport: 'configured',
+                production: true
             },
             backgroundProcessing: {
                 enabled: true,
@@ -1254,7 +1259,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ==================== GOOGLE OAUTH ROUTES ====================
+// ==================== GOOGLE OAUTH ROUTES - PRODUCTION ONLY ====================
 
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
@@ -1290,35 +1295,21 @@ app.get('/auth/google/callback',
             
             if (isFromLogin) {
                 // Returning user - redirect to dashboard
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://msgly.ai/dashboard' 
-                    : 'http://localhost:3000/dashboard';
-                res.redirect(`${frontendUrl}?token=${token}`);
+                res.redirect(`https://msgly.ai/dashboard?token=${token}`);
             } else {
                 // New user - redirect to sign-up for LinkedIn URL
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://msgly.ai/sign-up' 
-                    : 'http://localhost:3000/sign-up';
-                res.redirect(`${frontendUrl}?token=${token}`);
+                res.redirect(`https://msgly.ai/sign-up?token=${token}`);
             }
             
         } catch (error) {
             console.error('OAuth callback error:', error);
-            const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/sign-up' 
-                : 'http://localhost:3000/sign-up';
-                
-            res.redirect(`${frontendUrl}?error=callback_error`);
+            res.redirect(`https://msgly.ai/sign-up?error=callback_error`);
         }
     }
 );
 
 app.get('/auth/failed', (req, res) => {
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://msgly.ai/sign-up' 
-        : 'http://localhost:3000/sign-up';
-        
-    res.redirect(`${frontendUrl}?error=auth_failed`);
+    res.redirect(`https://msgly.ai/sign-up?error=auth_failed`);
 });
 
 // ==================== MAIN ENDPOINTS ====================
@@ -1885,6 +1876,7 @@ app.post('/migrate-database', async (req, res) => {
                 indexes: 'Performance indexes created',
                 status: 'Ready for COMPLETE LinkedIn data extraction - ALL Bright Data fields supported',
                 philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
+                productionOnly: true,
                 creditPackages: {
                     free: '10 credits per month (updated)',
                     silver: '75 credits (updated)',
@@ -2024,16 +2016,17 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS Started!');
+            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - PRODUCTION ONLY - Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with COMPLETE Bright Data schema`);
-            console.log(`🔐 Auth: JWT + Google OAuth Ready`);
+            console.log(`🔐 Auth: JWT + Google OAuth Ready (PRODUCTION ONLY)`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
             console.log(`⚡ Data Extraction: COMPLETE - ALL Bright Data LinkedIn fields ✅`);
             console.log(`🛠️ Field Mapping: COMPLETE - linkedin_id, current_company_name, educations_details, etc. ✅`);
             console.log(`📊 Data Processing: COMPLETE - All arrays properly processed ✅`);
             console.log(`🚫 Fallbacks: DISABLED - All or nothing approach ✅`);
+            console.log(`🏭 Production Mode: ENABLED - No localhost endpoints ✅`);
             console.log(`💰 Credit Packages Updated:`);
             console.log(`   🆓 Free: 10 credits per month`);
             console.log(`   🥈 Silver: 75 credits`);
@@ -2042,13 +2035,15 @@ const startServer = async () => {
             console.log(`💳 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
             console.log(`🌐 Routes:`);
-            console.log(`   📄 Sign-up: http://localhost:${PORT}/sign-up`);
-            console.log(`   🔐 Login: http://localhost:${PORT}/login`);
-            console.log(`   📊 Dashboard: http://localhost:${PORT}/dashboard`);
-            console.log(`   ❤️ Health: http://localhost:${PORT}/health`);
+            console.log(`   📄 Sign-up: https://msgly.ai/sign-up`);
+            console.log(`   🔐 Login: https://msgly.ai/login`);
+            console.log(`   📊 Dashboard: https://msgly.ai/dashboard`);
+            console.log(`   ❤️ Health: https://api.msgly.ai/health`);
+            console.log(`   🔐 OAuth: https://api.msgly.ai/auth/google`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
             console.log(`🎯 USER FLOW: Sign-up → Add LinkedIn URL → Dashboard with Real Data!`);
             console.log(`🔥 PHILOSOPHY: ALL OR NOTHING - Complete LinkedIn data extraction or complete failure`);
+            console.log(`🏭 PRODUCTION READY: All endpoints configured for msgly.ai domain`);
             console.log(`✅ BRIGHT DATA FIELDS SUPPORTED:`);
             console.log(`   ✅ linkedin_id, linkedin_num_id, input_url, url`);
             console.log(`   ✅ current_company_name, current_company_company_id`);
