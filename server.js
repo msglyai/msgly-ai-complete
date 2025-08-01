@@ -152,7 +152,7 @@ const initDB = async () => {
                 last_name VARCHAR(100),
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
-                credits_remaining INTEGER DEFAULT 30,
+                credits_remaining INTEGER DEFAULT 10,
                 subscription_status VARCHAR(50) DEFAULT 'active',
                 linkedin_url TEXT,
                 profile_data JSONB,
@@ -1013,13 +1013,13 @@ const cleanLinkedInUrl = (url) => {
 
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
-        'free': 30,
-        'silver': billingModel === 'payAsYouGo' ? 100 : 100,
-        'gold': billingModel === 'payAsYouGo' ? 500 : 500,
-        'platinum': billingModel === 'payAsYouGo' ? 1500 : 1500
+        'free': 10,
+        'silver': billingModel === 'payAsYouGo' ? 75 : 75,
+        'gold': billingModel === 'payAsYouGo' ? 250 : 250,
+        'platinum': billingModel === 'payAsYouGo' ? 1000 : 1000
     };
     
-    const credits = creditsMap[packageType] || 30;
+    const credits = creditsMap[packageType] || 10;
     
     const result = await pool.query(
         'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
@@ -1030,13 +1030,13 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
 
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
-        'free': 30,
-        'silver': billingModel === 'payAsYouGo' ? 100 : 100,
-        'gold': billingModel === 'payAsYouGo' ? 500 : 500,
-        'platinum': billingModel === 'payAsYouGo' ? 1500 : 1500
+        'free': 10,
+        'silver': billingModel === 'payAsYouGo' ? 75 : 75,
+        'gold': billingModel === 'payAsYouGo' ? 250 : 250,
+        'platinum': billingModel === 'payAsYouGo' ? 1000 : 1000
     };
     
-    const credits = creditsMap[packageType] || 30;
+    const credits = creditsMap[packageType] || 10;
     
     const result = await pool.query(
         `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
@@ -1149,6 +1149,12 @@ app.get('/', (req, res) => {
         jsonProcessing: 'FIXED - Proper PostgreSQL JSONB handling',
         backgroundProcessing: 'enabled',
         philosophy: 'ALL OR NOTHING - Complete data extraction or failure',
+        creditPackages: {
+            free: '10 credits per month',
+            silver: '75 credits',
+            gold: '250 credits',
+            platinum: '1000 credits'
+        },
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -1179,6 +1185,12 @@ app.get('/health', async (req, res) => {
             version: '6.0-COMPLETE-NO-FALLBACKS',
             timestamp: new Date().toISOString(),
             philosophy: 'ALL OR NOTHING - Complete LinkedIn data extraction',
+            creditPackages: {
+                free: '10 credits per month',
+                silver: '75 credits',
+                gold: '250 credits',
+                platinum: '1000 credits'
+            },
             brightDataMapping: {
                 configured: !!BRIGHT_DATA_API_KEY,
                 datasetId: BRIGHT_DATA_DATASET_ID,
@@ -1749,47 +1761,47 @@ app.get('/packages', (req, res) => {
             {
                 id: 'free',
                 name: 'Free',
-                credits: 30,
+                credits: 10,
                 price: 0,
                 period: '/forever',
                 billing: 'monthly',
-                validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'No credit card required'],
+                validity: '10 free profiles forever',
+                features: ['10 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'No credit card required'],
                 available: true
             },
             {
                 id: 'silver',
                 name: 'Silver',
-                credits: 100,
+                credits: 75,
                 price: 12,
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
+                features: ['75 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'gold',
                 name: 'Gold',
-                credits: 500,
+                credits: 250,
                 price: 35,
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
+                features: ['250 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'platinum',
                 name: 'Platinum',
-                credits: 1500,
+                credits: 1000,
                 price: 70,
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
+                features: ['1,000 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -1798,47 +1810,47 @@ app.get('/packages', (req, res) => {
             {
                 id: 'free',
                 name: 'Free',
-                credits: 30,
+                credits: 10,
                 price: 0,
                 period: '/forever',
                 billing: 'monthly',
-                validity: '30 free profiles forever',
-                features: ['30 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'No credit card required'],
+                validity: '10 free profiles forever',
+                features: ['10 Credits per month', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', 'No credit card required'],
                 available: true
             },
             {
                 id: 'silver',
                 name: 'Silver',
-                credits: 100,
+                credits: 75,
                 price: 8.60,
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
+                features: ['75 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'gold',
                 name: 'Gold',
-                credits: 500,
+                credits: 250,
                 price: 25.20,
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
+                features: ['250 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'platinum',
                 name: 'Platinum',
-                credits: 1500,
+                credits: 1000,
                 price: 50.40,
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,500 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
+                features: ['1,000 Credits', 'Chrome extension', 'AI profile analysis', 'COMPLETE LinkedIn extraction - ALL fields', 'NO FALLBACKS - Complete data or nothing', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -1889,6 +1901,7 @@ app.post('/migrate-database', async (req, res) => {
             migrationResults.push('🚀 Your database is now ready for COMPLETE LinkedIn profile extraction!');
             migrationResults.push('✅ ALL Bright Data LinkedIn fields supported');
             migrationResults.push('✅ NO FALLBACKS - Complete success or complete failure');
+            migrationResults.push('✅ Updated credit packages: Free=10, Silver=75, Gold=250, Platinum=1000');
             
         } finally {
             client.release();
@@ -1904,6 +1917,12 @@ app.post('/migrate-database', async (req, res) => {
                 indexes: 'Performance indexes created',
                 status: 'Ready for COMPLETE LinkedIn data extraction - ALL Bright Data fields supported',
                 philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
+                creditPackages: {
+                    free: '10 credits per month (updated)',
+                    silver: '75 credits (updated)',
+                    gold: '250 credits (updated)',
+                    platinum: '1000 credits (updated)'
+                },
                 features: [
                     'All Bright Data LinkedIn fields properly mapped',
                     'Enhanced company information fields',
@@ -2043,8 +2062,12 @@ const startServer = async () => {
             console.log(`🛠️ Field Mapping: COMPLETE - linkedin_id, current_company_name, educations_details, etc. ✅`);
             console.log(`📊 Data Processing: COMPLETE - All arrays properly processed ✅`);
             console.log(`🚫 Fallbacks: DISABLED - All or nothing approach ✅`);
-            console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
-            console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
+            console.log(`💰 Credit Packages Updated:`);
+            console.log(`   🆓 Free: 10 credits per month`);
+            console.log(`   🥈 Silver: 75 credits`);
+            console.log(`   🥇 Gold: 250 credits`);
+            console.log(`   💎 Platinum: 1000 credits`);
+            console.log(`💳 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
