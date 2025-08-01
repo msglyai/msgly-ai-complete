@@ -1273,6 +1273,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
+// ✅ FIXED OAuth callback to match working server
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failed' }),
     async (req, res) => {
@@ -1283,14 +1284,6 @@ app.get('/auth/google/callback',
                 { expiresIn: '30d' }
             );
             
-            // ✅ ADD cookie setting (MINIMAL ADDITION)
-            res.cookie('authToken', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-            });
-            
             if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
                 console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
             }
@@ -1298,11 +1291,12 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
+            // ✅ FIXED: Redirect to sign-up page with token (like working server)
             const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/dashboard' 
-                : 'http://localhost:3000/dashboard';
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
                 
-            res.redirect(frontendUrl);
+            res.redirect(`${frontendUrl}?token=${token}`);
             
         } catch (error) {
             console.error('OAuth callback error:', error);
@@ -1960,7 +1954,7 @@ app.post('/migrate-database', async (req, res) => {
                 creditPackages: {
                     free: '10 credits per month (updated)',
                     silver: '75 credits (updated)',
-                    gold: '250 credits (updated)',
+                    gold: '250 (updated)',
                     platinum: '1000 credits (updated)'
                 },
                 features: [
