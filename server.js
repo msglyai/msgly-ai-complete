@@ -65,9 +65,6 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Add LinkedIn routes
-app.use('/api/linkedin-profile', linkedinRouter);
-
 // Session configuration
 app.use(session({
     secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
@@ -134,6 +131,9 @@ app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
+
+// Add LinkedIn routes AFTER all middleware is set up
+app.use('/api/linkedin-profile', linkedinRouter);
 
 // ==================== STATIC FILE SERVING ====================
 
