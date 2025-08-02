@@ -544,14 +544,14 @@ app.get('/auth/google/callback',
             // Check if user has LinkedIn URL (returning user) - redirect to dashboard
             if (req.user.linkedin_url) {
                 const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://msgly.ai/dashboard' 
+                    ? 'https://api.msgly.ai/dashboard' 
                     : 'http://localhost:3000/dashboard';
                     
                 res.redirect(`${frontendUrl}?token=${token}`);
             } else {
                 // New user - redirect to sign-up to complete profile
                 const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://msgly.ai/sign-up' 
+                    ? 'https://api.msgly.ai/sign-up' 
                     : 'http://localhost:3000/sign-up';
                     
                 res.redirect(`${frontendUrl}?token=${token}`);
@@ -560,7 +560,7 @@ app.get('/auth/google/callback',
         } catch (error) {
             console.error('OAuth callback error:', error);
             const frontendUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://msgly.ai/sign-up' 
+                ? 'https://api.msgly.ai/sign-up' 
                 : 'http://localhost:3000/sign-up';
                 
             res.redirect(`${frontendUrl}?error=callback_error`);
@@ -570,7 +570,7 @@ app.get('/auth/google/callback',
 
 app.get('/auth/failed', (req, res) => {
     const frontendUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://msgly.ai/sign-up' 
+        ? 'https://api.msgly.ai/sign-up' 
         : 'http://localhost:3000/sign-up';
         
     res.redirect(`${frontendUrl}?error=auth_failed`);
