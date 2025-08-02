@@ -43,6 +43,55 @@ const cleanLinkedInUrl = (url) => {
 };
 
 /**
+ * GET /api/linkedin-profile
+ * API information and usage instructions
+ */
+router.get('/', (req, res) => {
+    res.json({
+        message: 'LinkedIn Profile Processing API',
+        version: '1.0',
+        description: 'Extract and analyze LinkedIn profiles using Bright Data',
+        usage: {
+            processProfile: {
+                method: 'POST',
+                endpoint: '/api/linkedin-profile',
+                body: {
+                    profileUrl: 'https://www.linkedin.com/in/example-profile'
+                },
+                description: 'Submit a LinkedIn profile URL for processing'
+            },
+            getProfile: {
+                method: 'GET',
+                endpoint: '/api/linkedin-profile/:id',
+                description: 'Retrieve processed profile data by ID'
+            },
+            getStats: {
+                method: 'GET',
+                endpoint: '/api/linkedin-profile/status/stats',
+                description: 'Get processing statistics and system status'
+            }
+        },
+        examples: {
+            curl: 'curl -X POST https://api.msgly.ai/api/linkedin-profile -H "Content-Type: application/json" -d \'{"profileUrl": "https://www.linkedin.com/in/example"}\'',
+            javascript: `
+fetch('https://api.msgly.ai/api/linkedin-profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profileUrl: 'https://www.linkedin.com/in/example' })
+})
+.then(response => response.json())
+.then(data => console.log(data));`
+        },
+        brightData: {
+            configured: !!process.env.BRIGHT_DATA_API_KEY,
+            datasetId: process.env.BRIGHT_DATA_DATASET_ID
+        },
+        status: 'operational',
+        timestamp: new Date().toISOString()
+    });
+});
+
+/**
  * POST /api/linkedin-profile
  * Main endpoint for processing LinkedIn profile URLs
  */
@@ -357,6 +406,7 @@ router.post('/retry/:id', async (req, res) => {
 });
 
 console.log('[LINKEDIN_ROUTES] Routes configured:');
+console.log('  GET /api/linkedin-profile - API documentation');
 console.log('  POST /api/linkedin-profile - Main processing endpoint');
 console.log('  GET /api/linkedin-profile/:id - Get profile by ID');
 console.log('  GET /api/linkedin-profile/status/stats - Get statistics');
