@@ -1,353 +1,420 @@
-// Bright Data LinkedIn Profile Extraction Service
-// Production-ready service for fetching LinkedIn profiles via Bright Data API
+// Complete Bright Data Service - Production Ready
+// Uses your specific LinkedIn collector: hl_e6a13256
 
 const axios = require('axios');
 
-// Environment variables
-const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_KEY;
-const BRIGHT_DATA_DATASET_ID = process.env.BRIGHT_DATA_DATASET_ID;
-
-// Validate environment setup
-if (!BRIGHT_DATA_API_KEY) {
-    console.error('[BRIGHT_DATA] ERROR: BRIGHT_DATA_API_KEY not found in environment');
-    throw new Error('BRIGHT_DATA_API_KEY environment variable is required');
-}
-
-if (!BRIGHT_DATA_DATASET_ID) {
-    console.error('[BRIGHT_DATA] ERROR: BRIGHT_DATA_DATASET_ID not found in environment');
-    throw new Error('BRIGHT_DATA_DATASET_ID environment variable is required');
-}
-
-console.log('[BRIGHT_DATA] Service initialized with dataset ID:', BRIGHT_DATA_DATASET_ID);
-
-/**
- * Clean and validate LinkedIn URL
- * @param {string} profileUrl - Raw LinkedIn profile URL
- * @returns {string} - Cleaned LinkedIn URL
- */
-const cleanLinkedInUrl = (profileUrl) => {
-    try {
-        let cleanUrl = profileUrl.trim();
+class BrightDataService {
+    constructor() {
+        this.apiKey = process.env.BRIGHT_DATA_API_KEY;
+        this.datasetId = process.env.BRIGHT_DATA_DATASET_ID;
+        this.collectorId = process.env.BRIGHT_DATA_COLLECTOR_ID;
+        this.baseUrl = 'https://api.brightdata.com';
         
-        // Remove query parameters
-        if (cleanUrl.includes('?')) {
-            cleanUrl = cleanUrl.split('?')[0];
+        if (!this.apiKey || !this.datasetId) {
+            throw new Error('Bright Data configuration missing. Check BRIGHT_DATA_API_KEY and BRIGHT_DATA_DATASET_ID');
         }
         
-        // Remove trailing slash
-        if (cleanUrl.endsWith('/')) {
-            cleanUrl = cleanUrl.slice(0, -1);
-        }
-        
-        // Validate it's a LinkedIn profile URL
-        if (!cleanUrl.includes('linkedin.com/in/')) {
-            throw new Error('Invalid LinkedIn profile URL format');
-        }
-        
-        console.log('[BRIGHT_DATA] URL cleaned:', profileUrl, '->', cleanUrl);
-        return cleanUrl;
-        
-    } catch (error) {
-        console.error('[BRIGHT_DATA] URL cleaning error:', error.message);
-        throw new Error(`Invalid LinkedIn URL: ${error.message}`);
+        console.log('✅ Bright Data Service initialized');
+        console.log('📊 Dataset ID:', this.datasetId);
+        console.log('🎯 Collector ID:', this.collectorId || 'default');
     }
-};
 
-/**
- * Process and validate Bright Data response
- * @param {Object} rawData - Raw response from Bright Data
- * @returns {Object} - Processed LinkedIn profile data
- */
-const processLinkedInData = (rawData) => {
-    try {
-        console.log('[BRIGHT_DATA] Processing LinkedIn data...');
-        console.log('[BRIGHT_DATA] Raw data keys:', Object.keys(rawData || {}));
+    // Clean and validate LinkedIn URL
+    cleanLinkedInUrl(url) {
+        if (!url) throw new Error('LinkedIn URL is required');
         
-        if (!rawData) {
-            throw new Error('No data received from Bright Data API');
+        let cleanedUrl = url.split('?')[0].split('#')[0];
+        
+        if (!cleanedUrl.includes('linkedin.com/in/')) {
+            throw new Error('Invalid LinkedIn profile URL. Must be linkedin.com/in/ format');
         }
         
-        // Extract and structure the LinkedIn data
-        const processedData = {
-            // Basic Information
-            fullName: rawData.name || rawData.full_name || null,
-            firstName: rawData.first_name || (rawData.name ? rawData.name.split(' ')[0] : null),
-            lastName: rawData.last_name || (rawData.name ? rawData.name.split(' ').slice(1).join(' ') : null),
-            headline: rawData.headline || rawData.position || null,
-            summary: rawData.summary || rawData.about || null,
-            location: rawData.location || rawData.geo_location || null,
-            industry: rawData.industry || null,
-            
-            // Professional Information
-            currentCompany: rawData.current_company || rawData.company || null,
-            currentPosition: rawData.current_position || rawData.position || null,
-            
-            // Social Metrics
-            connectionsCount: parseLinkedInNumber(rawData.connections_count || rawData.connections),
-            followersCount: parseLinkedInNumber(rawData.followers_count || rawData.followers),
-            
-            // Media
-            profileImageUrl: rawData.profile_pic_url || rawData.profile_image || null,
-            backgroundImageUrl: rawData.background_image || rawData.banner_image || null,
-            
-            // Complex Data Arrays
-            experience: ensureArray(rawData.experience || rawData.work_experience || []),
-            education: ensureArray(rawData.education || rawData.schools || []),
-            skills: ensureArray(rawData.skills || rawData.skill_list || []),
-            certifications: ensureArray(rawData.certifications || rawData.certificates || []),
-            courses: ensureArray(rawData.courses || []),
-            projects: ensureArray(rawData.projects || []),
-            publications: ensureArray(rawData.publications || []),
-            volunteerWork: ensureArray(rawData.volunteer_work || rawData.volunteering || []),
-            honorsAwards: ensureArray(rawData.honors_and_awards || rawData.awards || []),
-            languages: ensureArray(rawData.languages || []),
-            activity: ensureArray(rawData.activity || rawData.recent_activity || []),
-            articles: ensureArray(rawData.articles || []),
-            recommendations: ensureArray(rawData.recommendations || []),
-            
-            // Store complete raw data for future use
-            rawData: rawData
-        };
+        if (!cleanedUrl.startsWith('https://')) {
+            cleanedUrl = cleanedUrl.replace(/^(https?:\/\/)?/, 'https://');
+        }
         
-        console.log('[BRIGHT_DATA] Data processing complete');
-        console.log('[BRIGHT_DATA] Profile summary:');
-        console.log(`  - Name: ${processedData.fullName || 'Not found'}`);
-        console.log(`  - Headline: ${processedData.headline || 'Not found'}`);
-        console.log(`  - Company: ${processedData.currentCompany || 'Not found'}`);
-        console.log(`  - Experience entries: ${processedData.experience.length}`);
-        console.log(`  - Education entries: ${processedData.education.length}`);
-        console.log(`  - Skills: ${processedData.skills.length}`);
-        console.log(`  - Connections: ${processedData.connectionsCount || 'Not found'}`);
+        cleanedUrl = cleanedUrl.replace(/\/$/, '');
         
-        return processedData;
-        
-    } catch (error) {
-        console.error('[BRIGHT_DATA] Data processing error:', error.message);
-        throw new Error(`Data processing failed: ${error.message}`);
+        console.log('[BRIGHT_DATA] ✅ URL cleaned:', cleanedUrl);
+        return cleanedUrl;
     }
-};
 
-/**
- * Helper function to parse LinkedIn numbers (handles K, M suffixes)
- * @param {string|number} value - Number with possible K/M suffix
- * @returns {number|null} - Parsed number or null
- */
-const parseLinkedInNumber = (value) => {
-    if (!value) return null;
-    if (typeof value === 'number') return value;
-    
-    try {
-        const str = value.toString().toLowerCase().trim();
-        
-        if (str.includes('k')) {
-            const num = parseFloat(str.match(/[\d.]+/)?.[0]);
-            return num ? Math.round(num * 1000) : null;
-        }
-        
-        if (str.includes('m')) {
-            const num = parseFloat(str.match(/[\d.]+/)?.[0]);
-            return num ? Math.round(num * 1000000) : null;
-        }
-        
-        const numbers = str.match(/[\d,]+/);
-        if (numbers) {
-            return parseInt(numbers[0].replace(/,/g, ''), 10) || null;
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('[BRIGHT_DATA] Number parsing error for value:', value, error);
-        return null;
-    }
-};
-
-/**
- * Ensure value is an array
- * @param {any} value - Value to convert to array
- * @returns {Array} - Array or empty array
- */
-const ensureArray = (value) => {
-    if (Array.isArray(value)) return value;
-    if (value && typeof value === 'object') return [value];
-    if (value) return [value];
-    return [];
-};
-
-/**
- * Main function to fetch LinkedIn profile data from Bright Data
- * @param {string} profileUrl - LinkedIn profile URL
- * @returns {Promise<Object>} - Promise resolving to processed LinkedIn data
- */
-const fetchLinkedInProfile = async (profileUrl) => {
-    console.log(`[BRIGHT_DATA] Fetching profile for ${profileUrl}`);
-    console.log(`[BRIGHT_DATA] Using dataset ID: ${BRIGHT_DATA_DATASET_ID}`);
-    
-    try {
-        // Clean the URL
-        const cleanUrl = cleanLinkedInUrl(profileUrl);
-        
-        // Try synchronous extraction first (faster when available)
-        console.log('[BRIGHT_DATA] Attempting synchronous extraction...');
+    // Extract complete LinkedIn profile
+    async extractLinkedInProfile(profileUrl) {
         try {
-            const syncResponse = await axios.post(
-                `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
-                [{ "url": cleanUrl }],
+            const cleanedUrl = this.cleanLinkedInUrl(profileUrl);
+            console.log('[BRIGHT_DATA] 🚀 Starting extraction for:', cleanedUrl);
+
+            // Create extraction request
+            const requestPayload = {
+                url: cleanedUrl,
+                format: 'json'
+            };
+
+            console.log('[BRIGHT_DATA] 📤 Submitting extraction job...');
+
+            // Submit to Bright Data
+            const response = await axios.post(
+                `${this.baseUrl}/datasets/${this.datasetId}/trigger`,
+                [requestPayload],
                 {
                     headers: {
-                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
+                        'Authorization': `Bearer ${this.apiKey}`,
                         'Content-Type': 'application/json'
                     },
-                    timeout: 90000 // 90 seconds for sync
+                    timeout: 30000
                 }
             );
+
+            const snapshotId = response.data.snapshot_id;
+            console.log('[BRIGHT_DATA] ✅ Job submitted. Snapshot ID:', snapshotId);
+
+            // Wait for results
+            const extractedData = await this.waitForResults(snapshotId);
             
-            if (syncResponse.status === 200 && syncResponse.data && syncResponse.data.length > 0) {
-                console.log('[BRIGHT_DATA] Synchronous extraction successful!');
-                const profileData = Array.isArray(syncResponse.data) ? syncResponse.data[0] : syncResponse.data;
-                console.log(`[BRIGHT_DATA] Fetched JSON keys: ${Object.keys(profileData || {})}`);
-                
-                return {
-                    success: true,
-                    data: processLinkedInData(profileData),
-                    method: 'synchronous',
-                    snapshotId: null
-                };
-            }
-        } catch (syncError) {
-            console.log('[BRIGHT_DATA] Synchronous extraction not available, using asynchronous method...');
-        }
-        
-        // Asynchronous extraction with polling
-        console.log('[BRIGHT_DATA] Starting asynchronous extraction...');
-        
-        // Step 1: Trigger extraction job
-        const triggerResponse = await axios.post(
-            `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
-            [{ "url": cleanUrl }],
-            {
-                headers: {
-                    'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 30000
-            }
-        );
-        
-        if (!triggerResponse.data?.snapshot_id) {
-            throw new Error('No snapshot ID returned from Bright Data trigger');
-        }
-        
-        const snapshotId = triggerResponse.data.snapshot_id;
-        console.log(`[BRIGHT_DATA] Extraction job triggered, snapshot ID: ${snapshotId}`);
-        
-        // Step 2: Poll for completion
-        const maxPolls = 30; // 6-7 minutes max
-        let pollCount = 0;
-        
-        while (pollCount < maxPolls) {
-            pollCount++;
-            console.log(`[BRIGHT_DATA] Polling attempt ${pollCount}/${maxPolls}...`);
+            console.log('[BRIGHT_DATA] 🎉 Extraction completed!');
             
+            // Process and return structured data
+            return this.processLinkedInData(extractedData[0], cleanedUrl);
+
+        } catch (error) {
+            console.error('[BRIGHT_DATA] ❌ Extraction failed:', error.message);
+            throw new Error(`LinkedIn extraction failed: ${error.message}`);
+        }
+    }
+
+    // Wait for extraction results with polling
+    async waitForResults(snapshotId, maxWaitTime = 300000) {
+        const pollInterval = 5000;
+        const startTime = Date.now();
+        
+        console.log('[BRIGHT_DATA] ⏳ Waiting for results...');
+        
+        while (Date.now() - startTime < maxWaitTime) {
             try {
-                await new Promise(resolve => setTimeout(resolve, 12000)); // Wait 12 seconds between polls
-                
+                // Check status
                 const statusResponse = await axios.get(
-                    `https://api.brightdata.com/datasets/v3/log/${snapshotId}`,
+                    `${this.baseUrl}/datasets/${this.datasetId}/snapshots/${snapshotId}`,
                     {
-                        headers: {
-                            'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`
-                        },
-                        timeout: 15000
+                        headers: { 'Authorization': `Bearer ${this.apiKey}` }
                     }
                 );
-                
-                const status = statusResponse.data?.Status || statusResponse.data?.status;
-                console.log(`[BRIGHT_DATA] Job status: ${status}`);
-                
+
+                const status = statusResponse.data.status;
+                console.log('[BRIGHT_DATA] 📊 Status:', status);
+
                 if (status === 'ready') {
-                    console.log('[BRIGHT_DATA] Extraction completed! Downloading data...');
-                    
-                    // Step 3: Get the data
+                    // Get data
                     const dataResponse = await axios.get(
-                        `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`,
+                        `${this.baseUrl}/datasets/${this.datasetId}/snapshots/${snapshotId}/data`,
                         {
                             headers: {
-                                'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`
-                            },
-                            timeout: 30000
+                                'Authorization': `Bearer ${this.apiKey}`,
+                                'Accept': 'application/json'
+                            }
                         }
                     );
-                    
-                    if (dataResponse.data) {
-                        const profileData = Array.isArray(dataResponse.data) ? dataResponse.data[0] : dataResponse.data;
-                        console.log(`[BRIGHT_DATA] Fetched JSON keys: ${Object.keys(profileData || {})}`);
-                        
-                        return {
-                            success: true,
-                            data: processLinkedInData(profileData),
-                            method: 'asynchronous',
-                            snapshotId: snapshotId
-                        };
-                    } else {
-                        throw new Error('No data in completed snapshot');
-                    }
-                    
-                } else if (status === 'error' || status === 'failed') {
-                    throw new Error(`Bright Data extraction failed with status: ${status}`);
+
+                    console.log('[BRIGHT_DATA] ✅ Data retrieved');
+                    return dataResponse.data;
                 }
-                
-                // Continue polling...
-                
-            } catch (pollError) {
-                console.error(`[BRIGHT_DATA] Polling error on attempt ${pollCount}:`, pollError.message);
-                
-                if (pollError.response?.status === 404) {
-                    console.log('[BRIGHT_DATA] Snapshot not found yet, continuing to poll...');
-                    continue;
+
+                if (status === 'failed' || status === 'error') {
+                    throw new Error(`Extraction failed with status: ${status}`);
                 }
-                
-                // For other errors, continue polling unless we've exhausted attempts
-                if (pollCount >= maxPolls - 2) {
-                    throw pollError;
-                }
+
+                // Wait before next check
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+            } catch (error) {
+                console.error('[BRIGHT_DATA] ⚠️ Polling error:', error.message);
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
             }
         }
-        
-        throw new Error(`Extraction timeout after ${maxPolls * 12} seconds of polling`);
-        
-    } catch (error) {
-        console.error('[BRIGHT_DATA] Fetch error:', error.message);
-        console.error('[BRIGHT_DATA] Error details:', {
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            data: error.response?.data
-        });
-        
-        throw new Error(`Bright Data fetch failed: ${error.message}`);
-    }
-};
 
-// For standalone testing (run with: node brightDataService.js "linkedin-url")
-if (require.main === module) {
-    const testUrl = process.argv[2];
-    if (!testUrl) {
-        console.log('Usage: node brightDataService.js "https://www.linkedin.com/in/example"');
-        process.exit(1);
+        throw new Error('Extraction timeout - please try again');
     }
-    
-    console.log('[BRIGHT_DATA] Testing with URL:', testUrl);
-    
-    fetchLinkedInProfile(testUrl)
-        .then(result => {
-            console.log('[BRIGHT_DATA] Test successful!');
-            console.log('[BRIGHT_DATA] Result:', JSON.stringify(result, null, 2));
-        })
-        .catch(error => {
-            console.error('[BRIGHT_DATA] Test failed:', error.message);
-            process.exit(1);
+
+    // Process raw LinkedIn data into structured format
+    processLinkedInData(rawData, originalUrl) {
+        console.log('[BRIGHT_DATA] 🔧 Processing LinkedIn data...');
+        
+        if (!rawData) {
+            console.warn('[BRIGHT_DATA] ⚠️ No data received');
+            return this.createEmptyProfile(originalUrl);
+        }
+
+        console.log('[BRIGHT_DATA] 📋 Raw data fields:', Object.keys(rawData));
+
+        const profile = {
+            // Basic Information
+            profile_url: originalUrl,
+            name: this.extractField(rawData, ['name', 'full_name', 'display_name']),
+            headline: this.extractField(rawData, ['headline', 'title', 'professional_headline']),
+            summary: this.extractField(rawData, ['summary', 'about', 'description']),
+            location: this.extractField(rawData, ['location', 'geo_location', 'city']),
+            
+            // Profile Media
+            profile_picture: this.extractField(rawData, ['profile_picture', 'avatar_url', 'photo']),
+            background_image: this.extractField(rawData, ['background_image', 'cover_photo']),
+            
+            // Current Position (HIGH PRIORITY!)
+            current_position: this.extractField(rawData, ['current_position', 'position', 'current_title', 'job_title']),
+            current_company: this.extractField(rawData, ['current_company', 'company', 'current_employer', 'employer']),
+            current_company_url: this.extractField(rawData, ['current_company_url', 'company_url']),
+            
+            // Metrics
+            connections_count: this.parseNumber(rawData.connections || rawData.connections_count || rawData.connection_count),
+            followers_count: this.parseNumber(rawData.followers || rawData.followers_count || rawData.follower_count),
+            
+            // Professional Data
+            experience: this.normalizeArray(rawData.experience || rawData.work_experience || rawData.positions, this.normalizeExperience),
+            education: this.normalizeArray(rawData.education || rawData.education_history || rawData.schools, this.normalizeEducation),
+            skills: this.normalizeArray(rawData.skills || rawData.skill_list || rawData.competencies, this.normalizeSkills),
+            certifications: this.normalizeArray(rawData.certifications || rawData.certificates, this.normalizeCertifications),
+            honors_awards: this.normalizeArray(rawData.honors_awards || rawData.awards || rawData.achievements, this.normalizeAwards),
+            publications: this.normalizeArray(rawData.publications || rawData.papers, this.normalizePublications),
+            projects: this.normalizeArray(rawData.projects || rawData.portfolio, this.normalizeProjects),
+            volunteer_experience: this.normalizeArray(rawData.volunteer_experience || rawData.volunteering, this.normalizeVolunteer),
+            languages: this.normalizeArray(rawData.languages || rawData.language_skills, this.normalizeLanguages),
+            courses: this.normalizeArray(rawData.courses || rawData.training, this.normalizeCourses),
+            
+            // Recommendations
+            recommendations_received: rawData.recommendations_received || [],
+            recommendations_given: rawData.recommendations_given || [],
+            
+            // Metadata
+            extraction_timestamp: new Date().toISOString(),
+            data_completeness: this.calculateCompleteness(rawData),
+            raw_data_summary: {
+                total_fields: Object.keys(rawData).length,
+                available_fields: Object.keys(rawData).slice(0, 15),
+                has_experience: !!(rawData.experience || rawData.work_experience),
+                has_education: !!(rawData.education || rawData.education_history),
+                has_skills: !!(rawData.skills || rawData.skill_list)
+            }
+        };
+
+        console.log('[BRIGHT_DATA] 📊 Extraction Summary:');
+        console.log('  👤 Name:', profile.name || 'Not found');
+        console.log('  💼 Position:', profile.current_position || 'Not found');
+        console.log('  🏢 Company:', profile.current_company || 'Not found');
+        console.log('  📈 Experience:', profile.experience.length, 'entries');
+        console.log('  🎓 Education:', profile.education.length, 'entries');
+        console.log('  🛠️ Skills:', profile.skills.length, 'items');
+        console.log('  🏆 Certifications:', profile.certifications.length, 'items');
+        console.log('  🌟 Awards:', profile.honors_awards.length, 'items');
+
+        return profile;
+    }
+
+    // Helper methods
+    extractField(data, possibleKeys) {
+        for (const key of possibleKeys) {
+            if (data[key] && typeof data[key] === 'string' && data[key].trim()) {
+                return data[key].trim();
+            }
+        }
+        return null;
+    }
+
+    parseNumber(value) {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+            const num = parseInt(value.replace(/[^\d]/g, ''));
+            return isNaN(num) ? 0 : num;
+        }
+        return 0;
+    }
+
+    normalizeArray(arr, normalizeFunc) {
+        if (!Array.isArray(arr)) return [];
+        return arr.map(item => normalizeFunc.call(this, item)).filter(item => item);
+    }
+
+    normalizeExperience(exp) {
+        if (!exp || typeof exp !== 'object') return null;
+        return {
+            title: exp.title || exp.position || exp.role || exp.job_title,
+            company: exp.company || exp.company_name || exp.employer,
+            company_url: exp.company_url || exp.company_linkedin_url,
+            location: exp.location,
+            duration: exp.duration || this.formatDuration(exp.start_date, exp.end_date),
+            start_date: exp.start_date || exp.from || exp.started,
+            end_date: exp.end_date || exp.to || exp.ended || (exp.current ? 'Present' : null),
+            description: exp.description || exp.summary,
+            is_current: exp.current || exp.is_current || false
+        };
+    }
+
+    normalizeEducation(edu) {
+        if (!edu || typeof edu !== 'object') return null;
+        return {
+            school: edu.school || edu.institution || edu.university || edu.college,
+            degree: edu.degree || edu.degree_name || edu.qualification,
+            field_of_study: edu.field_of_study || edu.major || edu.subject,
+            start_year: edu.start_year || edu.from,
+            end_year: edu.end_year || edu.to || edu.graduation_year,
+            grade: edu.grade || edu.gpa,
+            description: edu.description
+        };
+    }
+
+    normalizeSkills(skill) {
+        if (!skill) return null;
+        if (typeof skill === 'string') {
+            return { name: skill, endorsements: 0 };
+        }
+        return {
+            name: skill.name || skill.skill || skill.title,
+            endorsements: skill.endorsements || skill.endorsement_count || 0,
+            proficiency: skill.proficiency || skill.level
+        };
+    }
+
+    normalizeCertifications(cert) {
+        if (!cert || typeof cert !== 'object') return null;
+        return {
+            name: cert.name || cert.title || cert.certification,
+            issuer: cert.issuer || cert.organization || cert.authority,
+            issue_date: cert.issue_date || cert.date_earned,
+            expiry_date: cert.expiry_date || cert.expires,
+            credential_id: cert.credential_id || cert.id,
+            url: cert.url || cert.verification_url
+        };
+    }
+
+    normalizeAwards(award) {
+        if (!award || typeof award !== 'object') return null;
+        return {
+            title: award.title || award.name || award.award,
+            issuer: award.issuer || award.organization || award.authority,
+            date: award.date || award.year,
+            description: award.description
+        };
+    }
+
+    normalizePublications(pub) {
+        if (!pub || typeof pub !== 'object') return null;
+        return {
+            title: pub.title || pub.name,
+            publisher: pub.publisher || pub.journal,
+            date: pub.date || pub.published || pub.year,
+            url: pub.url || pub.link,
+            description: pub.description || pub.abstract
+        };
+    }
+
+    normalizeProjects(project) {
+        if (!project || typeof project !== 'object') return null;
+        return {
+            name: project.name || project.title,
+            description: project.description || project.summary,
+            start_date: project.start_date || project.from,
+            end_date: project.end_date || project.to,
+            url: project.url || project.link,
+            skills: Array.isArray(project.skills) ? project.skills : []
+        };
+    }
+
+    normalizeVolunteer(vol) {
+        if (!vol || typeof vol !== 'object') return null;
+        return {
+            organization: vol.organization || vol.company,
+            role: vol.role || vol.position || vol.title,
+            cause: vol.cause || vol.area,
+            start_date: vol.start_date || vol.from,
+            end_date: vol.end_date || vol.to,
+            description: vol.description
+        };
+    }
+
+    normalizeLanguages(lang) {
+        if (!lang) return null;
+        if (typeof lang === 'string') {
+            return { language: lang, proficiency: null };
+        }
+        return {
+            language: lang.language || lang.name,
+            proficiency: lang.proficiency || lang.level
+        };
+    }
+
+    normalizeCourses(course) {
+        if (!course || typeof course !== 'object') return null;
+        return {
+            name: course.name || course.title,
+            institution: course.institution || course.provider,
+            completion_date: course.completion_date || course.completed,
+            description: course.description
+        };
+    }
+
+    formatDuration(startDate, endDate) {
+        if (!startDate) return null;
+        if (!endDate || endDate === 'Present') {
+            return `${startDate} - Present`;
+        }
+        return `${startDate} - ${endDate}`;
+    }
+
+    calculateCompleteness(data) {
+        const fields = ['name', 'headline', 'current_position', 'current_company', 'experience', 'education', 'skills'];
+        let completed = 0;
+        
+        fields.forEach(field => {
+            if (data[field]) {
+                if (Array.isArray(data[field])) {
+                    if (data[field].length > 0) completed++;
+                } else if (data[field] !== '') {
+                    completed++;
+                }
+            }
         });
+        
+        return Math.round((completed / fields.length) * 100);
+    }
+
+    createEmptyProfile(url) {
+        return {
+            profile_url: url,
+            name: null,
+            headline: null,
+            summary: null,
+            location: null,
+            current_position: null,
+            current_company: null,
+            current_company_url: null,
+            connections_count: 0,
+            followers_count: 0,
+            experience: [],
+            education: [],
+            skills: [],
+            certifications: [],
+            honors_awards: [],
+            publications: [],
+            projects: [],
+            volunteer_experience: [],
+            languages: [],
+            courses: [],
+            recommendations_received: [],
+            recommendations_given: [],
+            extraction_timestamp: new Date().toISOString(),
+            data_completeness: 0,
+            raw_data_summary: { total_fields: 0, available_fields: [] }
+        };
+    }
+
+    // Get service statistics
+    async getStats() {
+        return {
+            service_status: 'operational',
+            bright_data_configured: !!this.apiKey,
+            dataset_id: this.datasetId,
+            collector_id: this.collectorId,
+            features: ['Complete Profile Extraction', 'Auto Retry', 'Data Normalization']
+        };
+    }
 }
 
-module.exports = {
-    fetchLinkedInProfile
-};
+module.exports = BrightDataService;
