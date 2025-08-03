@@ -130,6 +130,9 @@
 
         .page-header {
             margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .page-title {
@@ -142,6 +145,75 @@
         .page-subtitle {
             color: var(--gray);
             font-size: 1rem;
+        }
+
+        /* Chrome Extension Button */
+        .chrome-extension-btn {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            box-shadow: var(--shadow);
+        }
+
+        .chrome-extension-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-2px);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .chrome-extension-btn i {
+            font-size: 1.2rem;
+        }
+
+        /* Profile Sync Warning */
+        .sync-warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border: 2px solid var(--warning-orange);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .sync-warning-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .sync-warning-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--warning-orange);
+            font-size: 1.2rem;
+        }
+
+        .sync-warning-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--warning-orange);
+        }
+
+        .sync-warning-message {
+            color: var(--dark-gray);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .sync-warning-highlight {
+            font-weight: 600;
+            color: var(--black);
         }
 
         /* Dashboard Grid */
@@ -424,6 +496,12 @@
                 margin: 1rem auto;
             }
 
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
             .dashboard-grid {
                 grid-template-columns: 1fr;
                 gap: 1rem;
@@ -443,6 +521,15 @@
                 width: 60px;
                 height: 60px;
                 font-size: 1.5rem;
+            }
+
+            .sync-warning {
+                padding: 1rem;
+            }
+
+            .chrome-extension-btn {
+                padding: 0.8rem 1.5rem;
+                font-size: 0.9rem;
             }
         }
     </style>
@@ -476,8 +563,25 @@
     <main class="main-content">
         <!-- Page Header -->
         <div class="page-header">
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Welcome to your AI-powered LinkedIn messaging center</p>
+            <div>
+                <h1 class="page-title">Dashboard</h1>
+                <p class="page-subtitle">Welcome to your AI-powered LinkedIn messaging center</p>
+            </div>
+            <a href="https://chrome.google.com/webstore/category/extensions" target="_blank" class="chrome-extension-btn">
+                <i class="fab fa-chrome"></i>
+                Get Chrome Extension
+            </a>
+        </div>
+
+        <!-- Profile Sync Warning -->
+        <div class="sync-warning" id="syncWarning">
+            <div class="sync-warning-header">
+                <i class="fas fa-exclamation-triangle sync-warning-icon"></i>
+                <div class="sync-warning-title">Your profile is not fully synced yet.</div>
+            </div>
+            <div class="sync-warning-message">
+                To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="sync-warning-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+            </div>
         </div>
 
         <!-- Loading State -->
@@ -501,7 +605,7 @@
                     <div class="card-icon">
                         <i class="fas fa-user"></i>
                     </div>
-                    <h3 class="card-title">Account Information</h3>
+                    <h3 class="card-title">🧑💼 Account Information</h3>
                 </div>
                 
                 <div class="info-item">
@@ -528,7 +632,7 @@
                     <div class="card-icon">
                         <i class="fas fa-credit-card"></i>
                     </div>
-                    <h3 class="card-title">Subscription & Credits</h3>
+                    <h3 class="card-title">💳 Subscription & Credits</h3>
                 </div>
                 
                 <div class="plan-badge" id="planBadge">
@@ -555,7 +659,7 @@
                     <div class="card-icon">
                         <i class="fab fa-linkedin"></i>
                     </div>
-                    <h3 class="card-title">LinkedIn Profile Summary</h3>
+                    <h3 class="card-title">🔗 LinkedIn Profile Summary</h3>
                 </div>
                 
                 <div class="profile-summary">
@@ -674,10 +778,28 @@
         }
 
         function populateDashboard(data) {
-            const { user, profile, subscription } = data;
+            const { user, profile } = data;
 
             // Update navbar user info
             document.getElementById('userName').textContent = user.displayName || user.email;
+
+            // Determine if profile is incomplete (show sync warning)
+            const isProfileIncomplete = !profile || 
+                !profile.fullName || 
+                !profile.headline || 
+                !profile.currentCompany || 
+                !profile.location ||
+                profile.extractionStatus === 'not_started' ||
+                profile.extractionStatus === 'processing' ||
+                profile.extractionStatus === 'failed';
+
+            // Show/hide sync warning based on profile completeness
+            const syncWarning = document.getElementById('syncWarning');
+            if (isProfileIncomplete) {
+                syncWarning.style.display = 'block';
+            } else {
+                syncWarning.style.display = 'none';
+            }
 
             // Section 1: Account Information
             document.getElementById('accountFullName').textContent = user.displayName || 'Not provided';
@@ -707,7 +829,8 @@
             }
 
             // Section 3: LinkedIn Profile Summary
-            if (profile) {
+            if (profile && profile.fullName) {
+                // Display existing data from database
                 document.getElementById('profileFullName').textContent = profile.fullName || 'Not available';
                 document.getElementById('profileHeadline').textContent = profile.headline || 'No headline provided';
                 
@@ -731,12 +854,20 @@
                 const initials = getInitials(profile.fullName || user.displayName || user.email);
                 document.getElementById('profileInitials').textContent = initials;
             } else {
-                // No LinkedIn profile data
-                document.getElementById('profileFullName').textContent = 'LinkedIn profile not analyzed yet';
-                document.getElementById('profileHeadline').textContent = 'Analysis in progress...';
-                document.getElementById('profileCompany').textContent = 'Please wait for analysis to complete';
-                document.getElementById('profileLocation').textContent = 'Analysis in progress...';
-                document.getElementById('profileUrl').textContent = 'LinkedIn URL will appear after analysis';
+                // No LinkedIn profile data or incomplete data
+                document.getElementById('profileFullName').textContent = 'LinkedIn profile not synced yet';
+                document.getElementById('profileHeadline').textContent = 'Visit your profile with extension active';
+                document.getElementById('profileCompany').textContent = 'Sync required for company information';
+                document.getElementById('profileLocation').textContent = 'Sync required for location';
+                
+                const profileUrlElement = document.getElementById('profileUrl');
+                if (profile?.linkedinUrl) {
+                    profileUrlElement.href = profile.linkedinUrl;
+                    profileUrlElement.textContent = profile.linkedinUrl;
+                } else {
+                    profileUrlElement.textContent = 'LinkedIn URL will appear after sync';
+                    profileUrlElement.removeAttribute('href');
+                }
                 
                 const initials = getInitials(user.displayName || user.email);
                 document.getElementById('profileInitials').textContent = initials;
