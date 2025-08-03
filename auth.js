@@ -182,35 +182,57 @@ const setupGoogleAuthRoutes = (app) => {
                             </div>
                             
                             <script>
-                                // Store token for the extension
-                                if (window.chrome && window.chrome.storage) {
-                                    // We're in a Chrome extension context
-                                    chrome.storage.local.set({ 'msgly_auth_token': '${token}' }, function() {
-                                        console.log('Token stored for Chrome extension');
-                                        // Send message to extension content script
-                                        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-                                            if (tabs[0]) {
-                                                chrome.tabs.sendMessage(tabs[0].id, {
-                                                    type: 'MSGLY_OAUTH_SUCCESS',
-                                                    token: '${token}'
-                                                });
-                                            }
-                                        });
-                                    });
-                                } else {
-                                    // Fallback - try to communicate with opener window
+                                console.log('🔐 Extension OAuth success page loaded');
+                                const token = '${token}';
+                                
+                                // Primary method: Send message to opener window (Chrome extension)
+                                if (window.opener && !window.opener.closed) {
+                                    console.log('📨 Sending token to opener window');
+                                    window.opener.postMessage({
+                                        type: 'MSGLY_OAUTH_SUCCESS',
+                                        token: token
+                                    }, '*');
+                                    
+                                    // Send multiple times to ensure delivery
+                                    setTimeout(() => {
+                                        window.opener.postMessage({
+                                            type: 'MSGLY_OAUTH_SUCCESS',
+                                            token: token
+                                        }, '*');
+                                    }, 500);
+                                    
+                                    setTimeout(() => {
+                                        window.opener.postMessage({
+                                            type: 'MSGLY_OAUTH_SUCCESS',
+                                            token: token
+                                        }, '*');
+                                    }, 1000);
+                                }
+                                
+                                // Fallback method: Try localStorage (extension can check this)
+                                try {
+                                    localStorage.setItem('msgly_temp_token', token);
+                                    console.log('📝 Token stored in localStorage as fallback');
+                                } catch (error) {
+                                    console.log('Could not store in localStorage:', error);
+                                }
+                                
+                                // Auto-close the popup after 3 seconds
+                                setTimeout(() => {
+                                    console.log('🔐 Auto-closing authentication window');
+                                    window.close();
+                                }, 3000);
+                                
+                                // Also try to close when user clicks anywhere
+                                document.addEventListener('click', () => {
                                     if (window.opener) {
                                         window.opener.postMessage({
                                             type: 'MSGLY_OAUTH_SUCCESS',
-                                            token: '${token}'
+                                            token: token
                                         }, '*');
                                     }
-                                    
-                                    // Auto-close after a delay
-                                    setTimeout(() => {
-                                        window.close();
-                                    }, 3000);
-                                }
+                                    setTimeout(() => window.close(), 500);
+                                });
                             </script>
                         </body>
                         </html>
