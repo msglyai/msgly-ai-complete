@@ -6,13 +6,10 @@ const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
 require('dotenv').config();
-
-// Import auth module
-const { initAuth, setupGoogleAuthRoutes, authenticateToken, passport } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -87,6 +84,51 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Passport serialization
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user = await getUserById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
+    }
+});
+
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+    try {
+        let user = await getUserByEmail(profile.emails[0].value);
+        
+        if (!user) {
+            user = await createGoogleUser(
+                profile.emails[0].value,
+                profile.displayName,
+                profile.id,
+                profile.photos[0]?.value
+            );
+        } else if (!user.google_id) {
+            await linkGoogleAccount(user.id, profile.id);
+            user = await getUserById(user.id);
+        }
+        
+        return done(null, user);
+    } catch (error) {
+        console.error('Google OAuth error:', error);
+        return done(error, null);
+    }
+}));
+
 // Logging middleware
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -117,7 +159,6 @@ const initDB = async () => {
                 extraction_status VARCHAR(50) DEFAULT 'not_started',
                 error_message TEXT,
                 profile_completed BOOLEAN DEFAULT false,
-                registration_completed BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -242,7 +283,20 @@ const initDB = async () => {
         try {
             await pool.query(`
                 ALTER TABLE users 
-                ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false;
+                ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
+                ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS first_name VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS last_name VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS linkedin_url TEXT,
+                ADD COLUMN IF NOT EXISTS profile_data JSONB,
+                ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT 'not_started',
+                ADD COLUMN IF NOT EXISTS error_message TEXT,
+                ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT false;
+            `);
+            
+            await pool.query(`
+                ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
             
             console.log('✅ Database columns updated successfully');
@@ -262,7 +316,6 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_retry_count ON user_profiles(extraction_retry_count);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_updated_at ON user_profiles(updated_at);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_current_company ON user_profiles(current_company);
-                CREATE INDEX IF NOT EXISTS idx_users_registration_completed ON users(registration_completed);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -969,8 +1022,8 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     const credits = creditsMap[packageType] || 10;
     
     const result = await pool.query(
-        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining, registration_completed) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [email, passwordHash, packageType, billingModel, credits, false]
+        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [email, passwordHash, packageType, billingModel, credits]
     );
     return result.rows[0];
 };
@@ -985,13 +1038,10 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     const credits = creditsMap[packageType] || 10;
     
-    // Only create temporary user entry if packageType is 'temp'
-    const isTemporary = packageType === 'temp';
-    
     const result = await pool.query(
-        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining, registration_completed) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [email, googleId, displayName, profilePicture, isTemporary ? 'free' : packageType, billingModel, credits, !isTemporary]
+        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
     );
     return result.rows[0];
 };
@@ -1013,14 +1063,6 @@ const getUserById = async (userId) => {
     const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     return result.rows[0];
 };
-
-// Initialize auth module with database functions
-initAuth({
-    getUserByEmail,
-    getUserById,
-    createGoogleUser,
-    linkGoogleAccount
-});
 
 // Create or update user profile with COMPLETE extraction - NO FALLBACKS
 const createOrUpdateUserProfileCompleteNoFallbacks = async (userId, linkedinUrl, displayName = null) => {
@@ -1069,96 +1111,51 @@ const createOrUpdateUserProfileCompleteNoFallbacks = async (userId, linkedinUrl,
     }
 };
 
-// Helper function to check if profile sync is incomplete
-const isProfileSyncIncomplete = (user, profile) => {
-    if (!profile) return true;
-    
-    // Check if extraction is not completed
-    if (profile.data_extraction_status !== 'completed') return true;
-    
-    // Check if essential data is missing
-    const hasBasicData = profile.full_name && profile.headline;
-    const hasExperience = profile.experience && profile.experience.length > 0;
-    const hasEducation = profile.education && profile.education.length > 0;
-    
-    return !hasBasicData || (!hasExperience && !hasEducation);
+// JWT Authentication middleware
+const authenticateToken = async (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ success: false, error: 'Access token required' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await getUserById(decoded.userId);
+        
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Invalid token' });
+        }
+        
+        req.user = user;
+        next();
+    } catch (error) {
+        return res.status(403).json({ success: false, error: 'Invalid token' });
+    }
 };
 
-// ==================== STATIC PAGE ROUTES ====================
-
-// Serve static HTML pages
-app.get('/sign-up', (req, res) => {
-    try {
-        const signUpPath = path.join(__dirname, 'sign-up.html');
-        if (fs.existsSync(signUpPath)) {
-            res.sendFile(signUpPath);
-        } else {
-            res.status(404).send('Sign-up page not found');
-        }
-    } catch (error) {
-        console.error('Error serving sign-up page:', error);
-        res.status(500).send('Error loading sign-up page');
-    }
-});
-
-app.get('/login', (req, res) => {
-    try {
-        const loginPath = path.join(__dirname, 'login.html');
-        if (fs.existsSync(loginPath)) {
-            res.sendFile(loginPath);
-        } else {
-            res.status(404).send('Login page not found');
-        }
-    } catch (error) {
-        console.error('Error serving login page:', error);
-        res.status(500).send('Error loading login page');
-    }
-});
-
-app.get('/dashboard', (req, res) => {
-    try {
-        const dashboardPath = path.join(__dirname, 'Dashboard.html');
-        if (fs.existsSync(dashboardPath)) {
-            res.sendFile(dashboardPath);
-        } else {
-            res.status(404).send('Dashboard page not found');
-        }
-    } catch (error) {
-        console.error('Error serving dashboard page:', error);
-        res.status(500).send('Error loading dashboard page');
-    }
-});
-
 // ==================== API ENDPOINTS ====================
-
-// Setup Google Auth routes
-setupGoogleAuthRoutes(app);
 
 // Home route
 app.get('/', (req, res) => {
     res.json({
         message: 'Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS',
         status: 'running',
-        version: '6.1-STATIC-PAGES-SIGNUP-FIX',
+        version: '6.0-COMPLETE-NO-FALLBACKS',
         dataExtraction: 'COMPLETE LinkedIn profile data - ALL fields captured',
         noFallbacks: 'Either complete success or complete failure - NO partial saves',
         brightDataFields: 'ALL Bright Data LinkedIn fields properly mapped',
         jsonProcessing: 'FIXED - Proper PostgreSQL JSONB handling',
         backgroundProcessing: 'enabled',
         philosophy: 'ALL OR NOTHING - Complete data extraction or failure',
-        staticPages: 'sign-up, login, dashboard served from Express',
-        signUpFix: 'Users only registered after complete flow completion',
         endpoints: [
-            'GET /sign-up (static page)',
-            'GET /login (static page)',
-            'GET /dashboard (static page)',
             'POST /register',
             'POST /login', 
             'GET /auth/google',
             'GET /auth/google/callback',
             'GET /profile (protected)',
             'POST /update-profile (protected)',
-            'POST /complete-registration (protected)',
             'GET /profile-status (protected)',
             'POST /retry-extraction (protected)',
             'GET /packages',
@@ -1179,19 +1176,9 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '6.1-STATIC-PAGES-SIGNUP-FIX',
+            version: '6.0-COMPLETE-NO-FALLBACKS',
             timestamp: new Date().toISOString(),
             philosophy: 'ALL OR NOTHING - Complete LinkedIn data extraction',
-            staticPages: {
-                signUp: 'Served at /sign-up',
-                login: 'Served at /login', 
-                dashboard: 'Served at /dashboard'
-            },
-            signUpFix: {
-                implemented: true,
-                description: 'Users only registered after complete flow completion',
-                registrationCompleted: 'Tracked in users.registration_completed column'
-            },
             brightDataMapping: {
                 configured: !!BRIGHT_DATA_API_KEY,
                 datasetId: BRIGHT_DATA_DATASET_ID,
@@ -1210,8 +1197,7 @@ app.get('/health', async (req, res) => {
             authentication: {
                 google: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
                 jwt: !!JWT_SECRET,
-                passport: 'configured',
-                authModule: 'separated'
+                passport: 'configured'
             },
             backgroundProcessing: {
                 enabled: true,
@@ -1229,6 +1215,63 @@ app.get('/health', async (req, res) => {
         });
     }
 });
+
+// ==================== GOOGLE OAUTH ROUTES ====================
+
+app.get('/auth/google', (req, res, next) => {
+    if (req.query.package) {
+        req.session.selectedPackage = req.query.package;
+        req.session.billingModel = req.query.billing || 'monthly';
+    }
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'] 
+    })(req, res, next);
+});
+
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/auth/failed' }),
+    async (req, res) => {
+        try {
+            const token = jwt.sign(
+                { userId: req.user.id, email: req.user.email },
+                JWT_SECRET,
+                { expiresIn: '30d' }
+            );
+            
+            if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
+                console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
+            }
+            
+            req.session.selectedPackage = null;
+            req.session.billingModel = null;
+            
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?token=${token}`);
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?error=callback_error`);
+        }
+    }
+);
+
+app.get('/auth/failed', (req, res) => {
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://msgly.ai/sign-up' 
+        : 'http://localhost:3000/sign-up';
+        
+    res.redirect(`${frontendUrl}?error=auth_failed`);
+});
+
+// ==================== MAIN ENDPOINTS ====================
 
 // User Registration
 app.post('/register', async (req, res) => {
@@ -1377,90 +1420,6 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Complete registration - FIXED to finalize user registration
-app.post('/complete-registration', authenticateToken, async (req, res) => {
-    console.log('✅ Complete registration request for user:', req.user.id);
-    
-    try {
-        const { linkedinUrl, packageType, termsAccepted } = req.body;
-        
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
-            });
-        }
-        
-        if (!termsAccepted) {
-            return res.status(400).json({
-                success: false,
-                error: 'You must accept the terms and conditions'
-            });
-        }
-        
-        // FINALIZE user registration - mark as completed
-        await pool.query(
-            'UPDATE users SET registration_completed = $1, package_type = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-            [true, packageType || 'free', req.user.id]
-        );
-        
-        // Create or update user profile with COMPLETE extraction - NO FALLBACKS
-        const profile = await createOrUpdateUserProfileCompleteNoFallbacks(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        const updatedUser = await getUserById(req.user.id);
-        
-        res.json({
-            success: true,
-            message: 'Registration completed successfully - COMPLETE LinkedIn data extraction started (NO FALLBACKS)!',
-            data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining,
-                    registrationCompleted: updatedUser.registration_completed
-                },
-                profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status,
-                    message: 'COMPLETE LinkedIn extraction - ALL data or COMPLETE FAILURE'
-                },
-                automaticProcessing: {
-                    enabled: true,
-                    status: 'started',
-                    expectedCompletionTime: '1-3 minutes (sync) or 3-5 minutes (async)',
-                    dataCapture: 'COMPLETE - ALL LinkedIn profile data with ALL Bright Data fields',
-                    philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
-                    implementation: 'COMPLETE - All Bright Data fields properly mapped'
-                }
-            }
-        });
-        
-        console.log(`✅ Registration completed for user ${updatedUser.email} - COMPLETE LinkedIn extraction (NO FALLBACKS) started!`);
-        
-    } catch (error) {
-        console.error('❌ Complete registration error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to complete registration',
-            details: error.message
-        });
-    }
-});
-
 // Update user profile with LinkedIn URL - COMPLETE extraction - NO FALLBACKS
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
@@ -1528,7 +1487,22 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     expectedCompletionTime: '1-3 minutes (sync) or 3-5 minutes (async)',
                     dataCapture: 'COMPLETE - ALL LinkedIn profile data with ALL Bright Data fields',
                     philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
-                    implementation: 'COMPLETE - All Bright Data fields properly mapped'
+                    implementation: 'COMPLETE - All Bright Data fields properly mapped',
+                    willCapture: [
+                        'ALL Bright Data LinkedIn profile fields',
+                        'linkedin_id, linkedin_num_id, input_url, url',
+                        'current_company_name, current_company_company_id',
+                        'educations_details (separate from education)',
+                        'recommendations (full data, not just count)',
+                        'avatar, banner_image (Bright Data format)',
+                        'Enhanced professional and social activity data',
+                        'Complete experience and education history',
+                        'All skills, certifications, projects, languages',
+                        'Articles, posts, volunteering, organizations',
+                        'People also viewed, recommendations given/received',
+                        'Complete raw data and metadata',
+                        'NO FALLBACKS - Complete success or complete failure'
+                    ]
                 }
             }
         });
@@ -1545,14 +1519,72 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get User Profile with extraction status
+// ✨ ENHANCED Get User Profile with extraction status AND SYNC STATUS LOGIC
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
-        const profileResult = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [req.user.id]
-        );
+        const profileResult = await pool.query(`
+            SELECT 
+                up.*,
+                u.extraction_status as user_extraction_status,
+                u.profile_completed as user_profile_completed
+            FROM user_profiles up 
+            RIGHT JOIN users u ON u.id = up.user_id 
+            WHERE u.id = $1
+        `, [req.user.id]);
+        
         const profile = profileResult.rows[0];
+
+        // ✨ SYNC STATUS LOGIC - Determine if profile sync is incomplete
+        let syncStatus = {
+            isIncomplete: false,
+            missingFields: [],
+            extractionStatus: 'unknown'
+        };
+
+        if (!profile || !profile.user_id) {
+            // No profile record exists at all
+            syncStatus = {
+                isIncomplete: true,
+                missingFields: ['complete_profile'],
+                extractionStatus: 'not_started',
+                reason: 'No profile data found'
+            };
+        } else {
+            const extractionStatus = profile.data_extraction_status || 'not_started';
+            const isProfileAnalyzed = profile.profile_analyzed || false;
+            
+            // Check for missing critical fields
+            const missingFields = [];
+            if (!profile.full_name) missingFields.push('full_name');
+            if (!profile.headline) missingFields.push('headline');  
+            if (!profile.current_company && !profile.current_position) missingFields.push('company_info');
+            if (!profile.location) missingFields.push('location');
+            
+            // Profile is incomplete if:
+            // 1. Extraction hasn't completed successfully
+            // 2. Profile isn't analyzed  
+            // 3. Critical fields are missing
+            // 4. Currently processing
+            const isIncomplete = (
+                extractionStatus !== 'completed' ||
+                !isProfileAnalyzed ||
+                missingFields.length > 0 ||
+                processingQueue.has(req.user.id)
+            );
+            
+            syncStatus = {
+                isIncomplete: isIncomplete,
+                missingFields: missingFields,
+                extractionStatus: extractionStatus,
+                profileAnalyzed: isProfileAnalyzed,
+                isCurrentlyProcessing: processingQueue.has(req.user.id),
+                reason: isIncomplete ? 
+                    `Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
+                    'Profile complete'
+            };
+        }
+
+        console.log(`🔍 Sync status for user ${req.user.id}:`, syncStatus);
 
         res.json({
             success: true,
@@ -1567,10 +1599,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     credits: req.user.credits_remaining,
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
-                    createdAt: req.user.created_at,
-                    registrationCompleted: req.user.registration_completed
+                    createdAt: req.user.created_at
                 },
-                profile: profile ? {
+                profile: profile && profile.user_id ? {
                     // Basic Information
                     linkedinUrl: profile.linkedin_url,
                     linkedinId: profile.linkedin_id,
@@ -1647,12 +1678,10 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     extractionRetryCount: profile.extraction_retry_count,
                     profileAnalyzed: profile.profile_analyzed
                 } : null,
-                syncStatus: {
-                    isIncomplete: isProfileSyncIncomplete(req.user, profile),
-                    message: isProfileSyncIncomplete(req.user, profile) ? 
-                        'Your profile is not fully synced yet. To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit your own LinkedIn profile with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you\'ll unlock the full power of our AI-generated messages.' : 
-                        'Profile fully synced'
-                },
+                
+                // ✨ SYNC STATUS - Used by frontend to show/hide warning
+                syncStatus: syncStatus,
+                
                 automaticProcessing: {
                     enabled: true,
                     isCurrentlyProcessing: processingQueue.has(req.user.id),
@@ -1682,7 +1711,6 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
                 u.error_message,
                 u.profile_completed,
                 u.linkedin_url,
-                u.registration_completed,
                 up.data_extraction_status,
                 up.extraction_completed_at,
                 up.extraction_retry_count,
@@ -1705,13 +1733,11 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             profile_completed: status.profile_completed,
             linkedin_url: status.linkedin_url,
             error_message: status.error_message,
-            registration_completed: status.registration_completed,
             data_extraction_status: status.data_extraction_status,
             extraction_completed_at: status.extraction_completed_at,
             extraction_retry_count: status.extraction_retry_count,
             extraction_error: status.extraction_error,
             is_currently_processing: processingQueue.has(req.user.id),
-            sync_incomplete: isProfileSyncIncomplete(req.user, status),
             message: getStatusMessage(status.extraction_status),
             implementation: 'COMPLETE - All Bright Data fields mapped',
             dataCapture: status.extraction_status === 'completed' ? 
@@ -1900,7 +1926,6 @@ app.post('/migrate-database', async (req, res) => {
             migrationResults.push('✅ Database initialization completed');
             migrationResults.push('✅ All tables created/updated successfully');
             migrationResults.push('✅ Performance indexes created successfully');
-            migrationResults.push('✅ Registration completion tracking added');
             
             const usersTableInfo = await client.query(`
                 SELECT column_name 
@@ -1926,8 +1951,6 @@ app.post('/migrate-database', async (req, res) => {
             migrationResults.push('🚀 Your database is now ready for COMPLETE LinkedIn profile extraction!');
             migrationResults.push('✅ ALL Bright Data LinkedIn fields supported');
             migrationResults.push('✅ NO FALLBACKS - Complete success or complete failure');
-            migrationResults.push('✅ Sign-up bug fix - Users only registered after complete flow');
-            migrationResults.push('✅ Static pages served from Express');
             
         } finally {
             client.release();
@@ -1938,11 +1961,9 @@ app.post('/migrate-database', async (req, res) => {
             message: 'Database migration completed successfully!',
             steps: migrationResults,
             summary: {
-                usersTable: 'Updated with LinkedIn fields and registration_completed',
+                usersTable: 'Updated with LinkedIn fields',
                 profilesTable: 'COMPLETE LinkedIn schema with ALL Bright Data fields', 
                 indexes: 'Performance indexes created',
-                signUpFix: 'Users only registered after complete flow completion',
-                staticPages: 'sign-up, login, dashboard served from Express',
                 status: 'Ready for COMPLETE LinkedIn data extraction - ALL Bright Data fields supported',
                 philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
                 features: [
@@ -1953,9 +1974,7 @@ app.post('/migrate-database', async (req, res) => {
                     'Enhanced media fields (avatar, banner_image)',
                     'All professional and social activity arrays',
                     'Complete metadata and identification fields',
-                    'NO FALLBACKS - Complete extraction or complete failure',
-                    'Sign-up bug fixed - Users only registered after complete flow',
-                    'Profile sync status tracking for dashboard warning'
+                    'NO FALLBACKS - Complete extraction or complete failure'
                 ]
             },
             timestamp: new Date().toISOString()
@@ -1993,7 +2012,6 @@ app.get('/processing-status', authenticateToken, async (req, res) => {
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 totalProcessingQueue: processingQueue.size,
                 processingStartTime: processingQueue.get(req.user.id)?.startTime,
-                syncIncomplete: isProfileSyncIncomplete(req.user, profile),
                 implementation: 'COMPLETE - All Bright Data LinkedIn fields mapped',
                 dataCapture: 'ALL LinkedIn profile fields - NO FALLBACKS',
                 philosophy: 'ALL OR NOTHING - Complete success or complete failure'
@@ -2013,15 +2031,11 @@ app.use((req, res) => {
     res.status(404).json({
         error: 'Route not found',
         availableRoutes: [
-            'GET /sign-up (static page)',
-            'GET /login (static page)',
-            'GET /dashboard (static page)',
             'POST /register', 
             'POST /login', 
             'GET /auth/google',
             'GET /profile', 
             'POST /update-profile',
-            'POST /complete-registration',
             'GET /profile-status',
             'POST /retry-extraction',
             'GET /processing-status',
@@ -2081,12 +2095,10 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - STATIC PAGES - SIGNUP FIX Started!');
+            console.log('🚀 Msgly.AI Server - COMPLETE LinkedIn Data Extraction - NO FALLBACKS Started!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with COMPLETE Bright Data schema`);
-            console.log(`🔐 Auth: JWT + Google OAuth Ready (Separated module)`);
-            console.log(`📄 Static Pages: sign-up, login, dashboard served from Express`);
-            console.log(`🐞 Sign-up Bug: FIXED - Users only registered after complete flow`);
+            console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
             console.log(`⚡ Data Extraction: COMPLETE - ALL Bright Data LinkedIn fields ✅`);
@@ -2097,17 +2109,9 @@ const startServer = async () => {
             console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
-            console.log(`📄 Sign-up: http://localhost:${PORT}/sign-up`);
-            console.log(`📄 Login: http://localhost:${PORT}/login`);
-            console.log(`📄 Dashboard: http://localhost:${PORT}/dashboard`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 USER EXPERIENCE: Register → Complete Flow → ALL Data Appears or COMPLETE FAILURE!`);
+            console.log(`🎯 USER EXPERIENCE: Register → Add LinkedIn URL → ALL Data Appears or COMPLETE FAILURE!`);
             console.log(`🔥 PHILOSOPHY: ALL OR NOTHING - Complete LinkedIn data extraction or complete failure`);
-            console.log(`🐞 BUG FIXES:`);
-            console.log(`   ✅ Sign-up bug fixed - Users only registered after complete flow`);
-            console.log(`   ✅ Profile sync warning added to dashboard`);
-            console.log(`   ✅ Static pages served from Express (no external dependencies)`);
-            console.log(`   ✅ Google authentication separated to auth.js module`);
             console.log(`✅ BRIGHT DATA FIELDS SUPPORTED:`);
             console.log(`   ✅ linkedin_id, linkedin_num_id, input_url, url`);
             console.log(`   ✅ current_company_name, current_company_company_id`);
@@ -2122,6 +2126,7 @@ const startServer = async () => {
             console.log(`   ✅ Silver: 75 credits`);
             console.log(`   ✅ Gold: 250 credits`);
             console.log(`   ✅ Platinum: 1,000 credits`);
+            console.log(`🔄 SYNC WARNING: Fixed - Now properly detects incomplete profiles!`);
         });
         
     } catch (error) {
