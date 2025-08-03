@@ -9,7 +9,6 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -134,21 +133,6 @@ async (accessToken, refreshToken, profile, done) => {
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
-});
-
-// ==================== STATIC FILE SERVING ====================
-
-// Serve static HTML files
-app.get('/sign-up', (req, res) => {
-    res.sendFile(path.join(__dirname, 'sign-up.html'));
-});
-
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
 // ==================== DATABASE SETUP ====================
@@ -1165,12 +1149,6 @@ app.get('/', (req, res) => {
         jsonProcessing: 'FIXED - Proper PostgreSQL JSONB handling',
         backgroundProcessing: 'enabled',
         philosophy: 'ALL OR NOTHING - Complete data extraction or failure',
-        creditPackages: {
-            free: '10 credits per month',
-            silver: '75 credits',
-            gold: '250 credits',
-            platinum: '1000 credits'
-        },
         endpoints: [
             'POST /register',
             'POST /login', 
@@ -1201,12 +1179,6 @@ app.get('/health', async (req, res) => {
             version: '6.0-COMPLETE-NO-FALLBACKS',
             timestamp: new Date().toISOString(),
             philosophy: 'ALL OR NOTHING - Complete LinkedIn data extraction',
-            creditPackages: {
-                free: '10 credits per month',
-                silver: '75 credits',
-                gold: '250 credits',
-                platinum: '1000 credits'
-            },
             brightDataMapping: {
                 configured: !!BRIGHT_DATA_API_KEY,
                 datasetId: BRIGHT_DATA_DATASET_ID,
@@ -1274,21 +1246,11 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Check if user has LinkedIn URL (returning user) - redirect to dashboard
-            if (req.user.linkedin_url) {
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://msgly.ai/dashboard' 
-                    : 'http://localhost:3000/dashboard';
-                    
-                res.redirect(`${frontendUrl}?token=${token}`);
-            } else {
-                // New user - redirect to sign-up to complete profile
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://msgly.ai/sign-up' 
-                    : 'http://localhost:3000/sign-up';
-                    
-                res.redirect(`${frontendUrl}?token=${token}`);
-            }
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://msgly.ai/sign-up' 
+                : 'http://localhost:3000/sign-up';
+                
+            res.redirect(`${frontendUrl}?token=${token}`);
             
         } catch (error) {
             console.error('OAuth callback error:', error);
@@ -1557,7 +1519,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get User Profile with extraction status - NEW DASHBOARD ENDPOINT
+// Get User Profile with extraction status
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
         const profileResult = await pool.query(
@@ -1658,11 +1620,6 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     extractionRetryCount: profile.extraction_retry_count,
                     profileAnalyzed: profile.profile_analyzed
                 } : null,
-                subscription: {
-                    plan: req.user.package_type,
-                    creditsRemaining: req.user.credits_remaining,
-                    renewalDate: null // Add renewal date logic if needed
-                },
                 automaticProcessing: {
                     enabled: true,
                     isCurrentlyProcessing: processingQueue.has(req.user.id),
@@ -1932,7 +1889,6 @@ app.post('/migrate-database', async (req, res) => {
             migrationResults.push('🚀 Your database is now ready for COMPLETE LinkedIn profile extraction!');
             migrationResults.push('✅ ALL Bright Data LinkedIn fields supported');
             migrationResults.push('✅ NO FALLBACKS - Complete success or complete failure');
-            migrationResults.push('✅ Updated credit packages: Free=10, Silver=75, Gold=250, Platinum=1000');
             
         } finally {
             client.release();
@@ -1948,12 +1904,6 @@ app.post('/migrate-database', async (req, res) => {
                 indexes: 'Performance indexes created',
                 status: 'Ready for COMPLETE LinkedIn data extraction - ALL Bright Data fields supported',
                 philosophy: 'ALL OR NOTHING - No partial saves, no fallbacks',
-                creditPackages: {
-                    free: '10 credits per month (updated)',
-                    silver: '75 credits (updated)',
-                    gold: '250 credits (updated)',
-                    platinum: '1000 credits (updated)'
-                },
                 features: [
                     'All Bright Data LinkedIn fields properly mapped',
                     'Enhanced company information fields',
@@ -2019,17 +1969,14 @@ app.use((req, res) => {
     res.status(404).json({
         error: 'Route not found',
         availableRoutes: [
-            'GET /sign-up (serves sign-up.html)',
-            'GET /login (serves login.html)', 
-            'GET /dashboard (serves dashboard.html)',
             'POST /register', 
             'POST /login', 
             'GET /auth/google',
-            'GET /profile (protected)', 
-            'POST /update-profile (protected)',
-            'GET /profile-status (protected)',
-            'POST /retry-extraction (protected)',
-            'GET /processing-status (protected)',
+            'GET /profile', 
+            'POST /update-profile',
+            'GET /profile-status',
+            'POST /retry-extraction',
+            'GET /processing-status',
             'GET /packages', 
             'GET /health',
             'POST /migrate-database'
@@ -2096,24 +2043,27 @@ const startServer = async () => {
             console.log(`🛠️ Field Mapping: COMPLETE - linkedin_id, current_company_name, educations_details, etc. ✅`);
             console.log(`📊 Data Processing: COMPLETE - All arrays properly processed ✅`);
             console.log(`🚫 Fallbacks: DISABLED - All or nothing approach ✅`);
-            console.log(`💰 Credit Packages Updated:`);
-            console.log(`   🆓 Free: 10 credits per month`);
-            console.log(`   🥈 Silver: 75 credits`);
-            console.log(`   🥇 Gold: 250 credits`);
-            console.log(`   💎 Platinum: 1000 credits`);
-            console.log(`💳 Billing: Pay-As-You-Go & Monthly`);
+            console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
+            console.log(`💰 Billing: Pay-As-You-Go & Monthly`);
             console.log(`🔗 LinkedIn: COMPLETE Profile Extraction - ALL Bright Data fields!`);
-            console.log(`📄 Static Files: /sign-up, /login, /dashboard served`);
             console.log(`🌐 Health: http://localhost:${PORT}/health`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 USER EXPERIENCE: Google Sign-In → Add LinkedIn URL → Dashboard with ALL Data!`);
+            console.log(`🎯 USER EXPERIENCE: Register → Add LinkedIn URL → ALL Data Appears or COMPLETE FAILURE!`);
             console.log(`🔥 PHILOSOPHY: ALL OR NOTHING - Complete LinkedIn data extraction or complete failure`);
-            console.log(`✅ ROUTES ADDED:`);
-            console.log(`   ✅ GET /sign-up (serves sign-up.html)`);
-            console.log(`   ✅ GET /login (serves login.html)`);
-            console.log(`   ✅ GET /dashboard (serves dashboard.html)`);
-            console.log(`   ✅ GET /profile (protected) - Returns user + LinkedIn profile data`);
-            console.log(`🚀 RESULT: Complete login/signup flow with dashboard ready!`);
+            console.log(`✅ BRIGHT DATA FIELDS SUPPORTED:`);
+            console.log(`   ✅ linkedin_id, linkedin_num_id, input_url, url`);
+            console.log(`   ✅ current_company_name, current_company_company_id`);
+            console.log(`   ✅ educations_details (separate from education)`);
+            console.log(`   ✅ recommendations (full data, not just count)`);
+            console.log(`   ✅ avatar, banner_image (Bright Data format)`);
+            console.log(`   ✅ All professional and social activity arrays`);
+            console.log(`   ✅ Complete metadata and identification fields`);
+            console.log(`🚀 RESULT: Complete LinkedIn profile data extraction or nothing!`);
+            console.log(`💰 CREDITS:`);
+            console.log(`   ✅ Free: 10 credits`);
+            console.log(`   ✅ Silver: 75 credits`);
+            console.log(`   ✅ Gold: 250 credits`);
+            console.log(`   ✅ Platinum: 1,000 credits`);
         });
         
     } catch (error) {
