@@ -1,4 +1,4 @@
-// auth.js - Google Authentication Module
+// auth.js - Google Authentication Module with Chrome Extension Support
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
@@ -44,21 +44,25 @@ passport.use(new GoogleStrategy({
 async (accessToken, refreshToken, profile, done) => {
     try {
         let user = await getUserByEmail(profile.emails[0].value);
+        let isNewUser = false;
         
         if (!user) {
-            // Create temporary user entry - will be finalized in complete-registration
             user = await createGoogleUser(
                 profile.emails[0].value,
                 profile.displayName,
                 profile.id,
                 profile.photos[0]?.value,
-                'temp', // Temporary status
+                'free', // Default package
                 'monthly'
             );
+            isNewUser = true;
         } else if (!user.google_id) {
             await linkGoogleAccount(user.id, profile.id);
             user = await getUserById(user.id);
         }
+        
+        // Add isNewUser flag to user object
+        user.isNewUser = isNewUser;
         
         return done(null, user);
     } catch (error) {
@@ -69,10 +73,18 @@ async (accessToken, refreshToken, profile, done) => {
 
 // Google Auth Routes
 const setupGoogleAuthRoutes = (app) => {
+    
+    // FIXED: Google OAuth for Chrome Extension
     app.get('/auth/google', (req, res, next) => {
+        // Store package selection if provided
         if (req.query.package) {
             req.session.selectedPackage = req.query.package;
             req.session.billingModel = req.query.billing || 'monthly';
+        }
+        
+        // Check if this is a Chrome extension request
+        if (req.query.extension === 'true') {
+            req.session.isExtension = true;
         }
         
         passport.authenticate('google', { 
@@ -80,6 +92,7 @@ const setupGoogleAuthRoutes = (app) => {
         })(req, res, next);
     });
 
+    // FIXED: OAuth callback with Chrome extension support
     app.get('/auth/google/callback',
         passport.authenticate('google', { failureRedirect: '/auth/failed' }),
         async (req, res) => {
@@ -90,51 +103,152 @@ const setupGoogleAuthRoutes = (app) => {
                     { expiresIn: '30d' }
                 );
                 
-                if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
-                    console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
-                }
-                
+                // Reset session data
+                const isExtension = req.session.isExtension;
                 req.session.selectedPackage = null;
                 req.session.billingModel = null;
+                req.session.isExtension = null;
                 
-                // 🔧 FIXED: Check if user is already registered
-                const user = req.user;
-                const isRegistered = user.registration_completed;
-                
-                let redirectPath;
-                if (isRegistered) {
-                    // Existing registered user → dashboard
-                    redirectPath = '/dashboard';
-                    console.log('✅ Redirecting registered user to dashboard');
-                } else {
-                    // New user or incomplete registration → sign-up
-                    redirectPath = '/sign-up';
-                    console.log('🔄 Redirecting new user to sign-up flow');
-                }
-                
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? `https://api.msgly.ai${redirectPath}` 
-                    : `http://localhost:3000${redirectPath}`;
+                // FIXED: Handle Chrome extension authentication differently
+                if (isExtension) {
+                    // For Chrome extension - send a success page that communicates with the extension
+                    const successPageHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>Msgly.AI - Authentication Successful</title>
+                            <style>
+                                body {
+                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                                    background: linear-gradient(135deg, #8039DF 0%, #3E0075 100%);
+                                    color: white;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    min-height: 100vh;
+                                    margin: 0;
+                                    text-align: center;
+                                }
+                                .container {
+                                    background: rgba(255, 255, 255, 0.1);
+                                    padding: 40px;
+                                    border-radius: 16px;
+                                    backdrop-filter: blur(10px);
+                                    border: 1px solid rgba(255, 255, 255, 0.2);
+                                    max-width: 400px;
+                                }
+                                .success-icon {
+                                    width: 60px;
+                                    height: 60px;
+                                    background: #10B981;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin: 0 auto 20px;
+                                    font-size: 24px;
+                                }
+                                h1 {
+                                    margin: 0 0 10px 0;
+                                    font-size: 24px;
+                                    font-weight: 700;
+                                }
+                                p {
+                                    margin: 0 0 20px 0;
+                                    opacity: 0.9;
+                                    line-height: 1.5;
+                                }
+                                .close-btn {
+                                    background: linear-gradient(135deg, #10B981, #059669);
+                                    color: white;
+                                    border: none;
+                                    padding: 12px 24px;
+                                    border-radius: 8px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: transform 0.2s;
+                                }
+                                .close-btn:hover {
+                                    transform: translateY(-2px);
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <div class="success-icon">✓</div>
+                                <h1>Authentication Successful!</h1>
+                                <p>You can now close this window and return to LinkedIn to use Msgly.AI.</p>
+                                <button class="close-btn" onclick="window.close()">Close Window</button>
+                            </div>
+                            
+                            <script>
+                                // Store token for the extension
+                                if (window.chrome && window.chrome.storage) {
+                                    // We're in a Chrome extension context
+                                    chrome.storage.local.set({ 'msgly_auth_token': '${token}' }, function() {
+                                        console.log('Token stored for Chrome extension');
+                                        // Send message to extension content script
+                                        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+                                            if (tabs[0]) {
+                                                chrome.tabs.sendMessage(tabs[0].id, {
+                                                    type: 'MSGLY_OAUTH_SUCCESS',
+                                                    token: '${token}'
+                                                });
+                                            }
+                                        });
+                                    });
+                                } else {
+                                    // Fallback - try to communicate with opener window
+                                    if (window.opener) {
+                                        window.opener.postMessage({
+                                            type: 'MSGLY_OAUTH_SUCCESS',
+                                            token: '${token}'
+                                        }, '*');
+                                    }
+                                    
+                                    // Auto-close after a delay
+                                    setTimeout(() => {
+                                        window.close();
+                                    }, 3000);
+                                }
+                            </script>
+                        </body>
+                        </html>
+                    `;
                     
-                res.redirect(`${frontendUrl}?token=${token}`);
+                    res.send(successPageHTML);
+                } else {
+                    // For regular web authentication - redirect based on user status
+                    const needsOnboarding = req.user.isNewUser || 
+                                           !req.user.linkedin_url || 
+                                           !req.user.profile_completed ||
+                                           req.user.extraction_status === 'not_started';
+                    
+                    console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+                    console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+                    console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
+                    console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
+                    console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
+                    console.log(`   - Needs onboarding: ${needsOnboarding}`);
+                    
+                    if (needsOnboarding) {
+                        console.log(`➡️ Redirecting to sign-up for onboarding`);
+                        res.redirect(`/sign-up?token=${token}`);
+                    } else {
+                        console.log(`➡️ Redirecting to dashboard`);
+                        res.redirect(`/dashboard?token=${token}`);
+                    }
+                }
                 
             } catch (error) {
                 console.error('OAuth callback error:', error);
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://api.msgly.ai/sign-up' 
-                    : 'http://localhost:3000/sign-up';
-                    
-                res.redirect(`${frontendUrl}?error=callback_error`);
+                res.redirect(`/sign-up?error=callback_error`);
             }
         }
     );
 
     app.get('/auth/failed', (req, res) => {
-        const frontendUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://api.msgly.ai/sign-up' 
-            : 'http://localhost:3000/sign-up';
-            
-        res.redirect(`${frontendUrl}?error=auth_failed`);
+        res.redirect(`/sign-up?error=auth_failed`);
     });
 };
 
