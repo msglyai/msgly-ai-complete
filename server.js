@@ -110,6 +110,7 @@ passport.use(new GoogleStrategy({
 async (accessToken, refreshToken, profile, done) => {
     try {
         let user = await getUserByEmail(profile.emails[0].value);
+        let isNewUser = false;
         
         if (!user) {
             user = await createGoogleUser(
@@ -118,10 +119,14 @@ async (accessToken, refreshToken, profile, done) => {
                 profile.id,
                 profile.photos[0]?.value
             );
+            isNewUser = true;
         } else if (!user.google_id) {
             await linkGoogleAccount(user.id, profile.id);
             user = await getUserById(user.id);
         }
+        
+        // Add isNewUser flag to user object
+        user.isNewUser = isNewUser;
         
         return done(null, user);
     } catch (error) {
@@ -1100,14 +1105,13 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '6.3-COMPLETE-ALL-ENDPOINTS',
+            version: '6.4-OAUTH-REDIRECT-FIXED',
             timestamp: new Date().toISOString(),
             changes: {
-                frontendServing: 'Added - Beautiful HTML files served properly',
-                completeRegistration: 'Added - Missing /complete-registration endpoint',
-                statusFieldFix: 'Added support for both Status and status fields',
-                fieldMappingEnhanced: 'Added fallback field mapping for better data capture',
-                staticFileSupport: 'Serving files from root directory with express.static'
+                oauthRedirectFixed: 'FIXED - New users go to sign-up, existing users go to dashboard',
+                smartUserDetection: 'Added - Detects new/existing users with profile completion status',
+                loginRedirectFixed: 'FIXED - Login page now correctly redirects to dashboard',
+                previousChanges: 'All previous features maintained'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1157,8 +1161,9 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
+// 🎯 FIXED: Smart OAuth callback - redirects based on user status
 app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/auth/failed' }),
+    passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
     async (req, res) => {
         try {
             const token = jwt.sign(
@@ -1170,18 +1175,38 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // ✅ FIXED: Redirect to your sign-up page with token
-            res.redirect(`/sign-up?token=${token}`);
+            // 🎯 SMART REDIRECT LOGIC:
+            const needsOnboarding = req.user.isNewUser || 
+                                   !req.user.linkedin_url || 
+                                   !req.user.profile_completed ||
+                                   req.user.extraction_status === 'not_started';
+            
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+            console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
+            console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
+            console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
+            console.log(`   - Needs onboarding: ${needsOnboarding}`);
+            
+            if (needsOnboarding) {
+                // New users or incomplete profiles → sign-up for onboarding
+                console.log(`➡️ Redirecting to sign-up for onboarding`);
+                res.redirect(`/sign-up?token=${token}`);
+            } else {
+                // Existing users with complete profiles → dashboard
+                console.log(`➡️ Redirecting to dashboard`);
+                res.redirect(`/dashboard?token=${token}`);
+            }
             
         } catch (error) {
             console.error('OAuth callback error:', error);
-            res.redirect(`/sign-up?error=callback_error`);
+            res.redirect(`/login?error=callback_error`);
         }
     }
 );
 
 app.get('/auth/failed', (req, res) => {
-    res.redirect(`/sign-up?error=auth_failed`);
+    res.redirect(`/login?error=auth_failed`);
 });
 
 // User Registration
@@ -1466,7 +1491,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with enhanced compatibility!',
+            message: 'Profile updated - LinkedIn data extraction started with smart redirect functionality!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -1481,14 +1506,14 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     extractionStatus: profile.data_extraction_status
                 },
                 changes: {
-                    frontendFixed: 'Beautiful design restored with proper file serving',
-                    statusFieldFix: 'Now checks both Status and status fields',
-                    fieldMappingEnhanced: 'Enhanced field mapping for better data capture'
+                    oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                    loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                    newUserDetection: 'ADDED - Proper new vs existing user detection'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Enhanced extraction started!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Smart redirect enabled!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -1637,10 +1662,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 } : null,
                 syncStatus: syncStatus,
                 changes: {
-                    frontendFixed: 'Beautiful design restored and working properly',
-                    completeRegistration: 'Missing endpoint added and working',
-                    statusFieldFix: 'Applied - checks both Status and status',
-                    fieldMappingEnhanced: 'Applied - flexible field mapping'
+                    oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                    loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                    newUserDetection: 'ADDED - Proper new vs existing user detection'
                 }
             }
         });
@@ -1691,10 +1715,9 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             is_currently_processing: processingQueue.has(req.user.id),
             message: getStatusMessage(status.extraction_status),
             changes: {
-                frontendFixed: 'Beautiful design restored and working properly',
-                completeRegistration: 'Missing endpoint added and working',
-                statusFieldFix: 'Applied - both Status and status supported',
-                fieldMappingEnhanced: 'Applied - flexible field mapping'
+                oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                newUserDetection: 'ADDED - Proper new vs existing user detection'
             }
         });
         
@@ -1710,9 +1733,9 @@ const getStatusMessage = (status) => {
         case 'not_started':
             return 'LinkedIn extraction not started';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with enhanced compatibility...';
+            return 'LinkedIn profile extraction in progress with smart redirect functionality...';
         case 'completed':
-            return 'LinkedIn profile extraction completed successfully with enhanced data capture!';
+            return 'LinkedIn profile extraction completed successfully with smart redirect enabled!';
         case 'failed':
             return 'LinkedIn profile extraction failed';
         default:
@@ -1742,13 +1765,12 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with enhanced compatibility!',
+            message: 'LinkedIn extraction retry initiated with smart redirect functionality!',
             status: 'processing',
             changes: {
-                frontendFixed: 'Beautiful design restored and working properly',
-                completeRegistration: 'Missing endpoint added and working',
-                statusFieldFix: 'Applied - both Status and status supported',
-                fieldMappingEnhanced: 'Applied - flexible field mapping'
+                oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                newUserDetection: 'ADDED - Proper new vs existing user detection'
             }
         });
         
@@ -1939,12 +1961,17 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - COMPLETE WITH ALL ENDPOINTS!');
+            console.log('🚀 Msgly.AI Server - OAUTH REDIRECT FIXED!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with LinkedIn schema`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
+            console.log(`🎯 OAUTH REDIRECT FIXED:`);
+            console.log(`   ✅ New users → sign-up for onboarding`);
+            console.log(`   ✅ Existing users → dashboard directly`);
+            console.log(`   ✅ Smart detection of user completion status`);
+            console.log(`   ✅ Login page now redirects correctly`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
@@ -1954,7 +1981,7 @@ const startServer = async () => {
             console.log(`📋 ALL ENDPOINTS COMPLETE:`);
             console.log(`   ✅ Frontend: /, /sign-up, /login, /dashboard`);
             console.log(`   ✅ Auth: /auth/google, /auth/google/callback, /register, /login`);
-            console.log(`   ✅ Profile: /profile, /update-profile, /complete-registration ← ADDED!`);
+            console.log(`   ✅ Profile: /profile, /update-profile, /complete-registration`);
             console.log(`   ✅ Status: /profile-status, /retry-extraction`);
             console.log(`   ✅ Utility: /packages, /health`);
             console.log(`📋 LinkedIn Extraction ENHANCED:`);
@@ -1964,7 +1991,7 @@ const startServer = async () => {
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: EVERYTHING IS WORKING! Beautiful frontend + Complete backend! 🎉`);
+            console.log(`🎯 Status: LOGIN REDIRECT ISSUE FIXED! 🎉`);
         });
         
     } catch (error) {
