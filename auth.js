@@ -97,9 +97,24 @@ const setupGoogleAuthRoutes = (app) => {
                 req.session.selectedPackage = null;
                 req.session.billingModel = null;
                 
+                // 🔧 FIXED: Check if user is already registered
+                const user = req.user;
+                const isRegistered = user.registration_completed;
+                
+                let redirectPath;
+                if (isRegistered) {
+                    // Existing registered user → dashboard
+                    redirectPath = '/dashboard';
+                    console.log('✅ Redirecting registered user to dashboard');
+                } else {
+                    // New user or incomplete registration → sign-up
+                    redirectPath = '/sign-up';
+                    console.log('🔄 Redirecting new user to sign-up flow');
+                }
+                
                 const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://api.msgly.ai/sign-up' 
-                    : 'http://localhost:3000/sign-up';
+                    ? `https://api.msgly.ai${redirectPath}` 
+                    : `http://localhost:3000${redirectPath}`;
                     
                 res.redirect(`${frontendUrl}?token=${token}`);
                 
