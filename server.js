@@ -1,4 +1,4 @@
-// Msgly.AI Server - COMPLETE with Initial Profile Scraping Logic
+// Msgly.AI Server - COMPLETE with URL Normalization Fixes
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -33,6 +33,48 @@ const pool = new Pool({
 
 // Background processing tracking
 const processingQueue = new Map();
+
+// ✅ FIXED: LinkedIn URL Normalization Utility (matches frontend logic exactly)
+const cleanLinkedInUrl = (url) => {
+    try {
+        if (!url) return null;
+        
+        console.log('🔧 Backend cleaning URL:', url);
+        
+        let cleanUrl = url.trim();
+        
+        // Remove protocol
+        cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
+        
+        // Remove www. prefix
+        cleanUrl = cleanUrl.replace(/^www\./, '');
+        
+        // Remove query parameters
+        if (cleanUrl.includes('?')) {
+            cleanUrl = cleanUrl.split('?')[0];
+        }
+        
+        // Remove hash fragments
+        if (cleanUrl.includes('#')) {
+            cleanUrl = cleanUrl.split('#')[0];
+        }
+        
+        // Remove trailing slash
+        if (cleanUrl.endsWith('/')) {
+            cleanUrl = cleanUrl.slice(0, -1);
+        }
+        
+        // Convert to lowercase for comparison
+        cleanUrl = cleanUrl.toLowerCase();
+        
+        console.log('🔧 Backend cleaned URL result:', cleanUrl);
+        return cleanUrl;
+        
+    } catch (error) {
+        console.error('❌ Error cleaning URL in backend:', error);
+        return url;
+    }
+};
 
 // CORS configuration
 const corsOptions = {
@@ -1031,22 +1073,6 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
     }, retryCount === 0 ? 10000 : retryDelay);
 };
 
-// Clean LinkedIn URL
-const cleanLinkedInUrl = (url) => {
-    try {
-        let cleanUrl = url.trim();
-        if (cleanUrl.includes('?')) {
-            cleanUrl = cleanUrl.split('?')[0];
-        }
-        if (cleanUrl.endsWith('/')) {
-            cleanUrl = cleanUrl.slice(0, -1);
-        }
-        return cleanUrl;
-    } catch (error) {
-        return url;
-    }
-};
-
 // ✅ Process scraped data from content script (with URL validation)
 const processScrapedProfileData = (scrapedData, isUserProfile = false) => {
     try {
@@ -1167,13 +1193,17 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// Create or update user profile
+// ✅ FIXED: Create or update user profile with URL normalization
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
+        // ✅ CRITICAL: Normalize LinkedIn URL before saving
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
         console.log(`🚀 Creating profile for user ${userId}`);
+        console.log(`🔧 Original URL: ${linkedinUrl}`);
+        console.log(`🔧 Normalized URL: ${cleanUrl}`);
         
+        // ✅ Save normalized URL to users table
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
             [cleanUrl, 'processing', userId]
@@ -1202,7 +1232,8 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
         console.log(`🔄 Starting background extraction for user ${userId}`);
         processingQueue.set(userId, { status: 'processing', startTime: Date.now() });
         
-        scheduleBackgroundExtraction(userId, cleanUrl, 0);
+        // ✅ Use original URL for Bright Data API (they need full URL)
+        scheduleBackgroundExtraction(userId, linkedinUrl, 0);
         
         console.log(`✅ Profile created and extraction started for user ${userId}`);
         return profile;
@@ -1303,6 +1334,9 @@ app.post('/auth/chrome-extension', async (req, res) => {
             user = await getUserById(user.id);
         }
         
+        // Add isNewUser flag to user object
+        user.isNewUser = isNewUser;
+        
         // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
@@ -1382,16 +1416,14 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '7.0-INITIAL-SCRAPING-COMPLETE',
+            version: '8.0-URL-NORMALIZATION-FIXED',
             timestamp: new Date().toISOString(),
             changes: {
-                initialScrapingLogic: 'COMPLETE - Foolproof initial profile scraping system implemented',
-                databaseField: 'ADDED - initial_scraping_done boolean field to user_profiles',
-                newEndpoints: 'ADDED - /profile/user and /user/initial-scraping-status',
-                extensionLogic: 'COMPLETE - Blocks functionality until user completes initial sync',
-                dashboardLogic: 'COMPLETE - Shows blocking warning if initial sync not done',
-                urlValidation: 'COMPLETE - Idiot-proof URL matching for own profile detection',
-                securityMeasures: 'COMPLETE - Prevents target profile scraping before initial sync'
+                urlNormalization: 'FIXED - Backend now normalizes URLs before saving',
+                apiEndpoint: 'FIXED - /user/initial-scraping-status always returns linkedin_url',
+                backendUtility: 'ADDED - cleanLinkedInUrl() function matches frontend logic',
+                databaseSaving: 'FIXED - All LinkedIn URLs normalized before storage',
+                comparison: 'FIXED - Both frontend and backend use same normalization'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1401,26 +1433,12 @@ app.get('/health', async (req, res) => {
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
-                newTables: ['target_profiles'],
-                newFields: ['initial_scraping_done']
+                urlNormalization: 'ACTIVE'
             },
             backgroundProcessing: {
                 enabled: true,
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys())
-            },
-            frontend: {
-                staticServing: 'Enabled from root directory',
-                routes: ['/sign-up', '/login', '/dashboard'],
-                htmlFiles: ['sign-up.html', 'login.html', 'Dashboard.html'],
-                design: 'Beautiful purple gradient design preserved'
-            },
-            endpoints: {
-                frontend: ['/', '/sign-up', '/login', '/dashboard'],
-                auth: ['/auth/google', '/auth/google/callback', '/auth/chrome-extension', '/register', '/login'],
-                profile: ['/profile', '/profile/user', '/profile/target', '/update-profile', '/complete-registration', '/profile-status', '/retry-extraction'],
-                scraping: ['/user/initial-scraping-status'],
-                utility: ['/packages', '/health']
             }
         });
     } catch (error) {
@@ -1432,7 +1450,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ✅ NEW ENDPOINT: Check initial scraping status
+// ✅ FIXED: Check initial scraping status - Always returns linkedin_url
 app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 Checking initial scraping status for user ${req.user.id}`);
@@ -1440,11 +1458,12 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
         const result = await pool.query(`
             SELECT 
                 up.initial_scraping_done,
-                up.linkedin_url,
+                up.linkedin_url as profile_linkedin_url,
                 up.data_extraction_status,
-                u.linkedin_url as user_linkedin_url
-            FROM user_profiles up 
-            RIGHT JOIN users u ON u.id = up.user_id 
+                u.linkedin_url as user_linkedin_url,
+                COALESCE(up.linkedin_url, u.linkedin_url) as linkedin_url
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id 
             WHERE u.id = $1
         `, [req.user.id]);
         
@@ -1452,14 +1471,17 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
         let userLinkedInUrl = null;
         let extractionStatus = 'not_started';
         
-        if (result.rows.length > 0 && result.rows[0].user_id) {
-            const profile = result.rows[0];
-            initialScrapingDone = profile.initial_scraping_done || false;
-            userLinkedInUrl = profile.linkedin_url || profile.user_linkedin_url;
-            extractionStatus = profile.data_extraction_status || 'not_started';
-        } else {
-            // No profile found, check user table
-            userLinkedInUrl = req.user.linkedin_url;
+        if (result.rows.length > 0) {
+            const data = result.rows[0];
+            initialScrapingDone = data.initial_scraping_done || false;
+            // ✅ FIXED: Always return a LinkedIn URL (from either table)
+            userLinkedInUrl = data.linkedin_url || data.user_linkedin_url || data.profile_linkedin_url;
+            extractionStatus = data.data_extraction_status || 'not_started';
+            
+            console.log(`📊 Initial scraping data for user ${req.user.id}:`);
+            console.log(`   - Profile linkedin_url: ${data.profile_linkedin_url || 'null'}`);
+            console.log(`   - User linkedin_url: ${data.user_linkedin_url || 'null'}`);
+            console.log(`   - Final linkedin_url: ${userLinkedInUrl || 'null'}`);
         }
         
         console.log(`📊 Initial scraping status for user ${req.user.id}:`);
@@ -1471,7 +1493,7 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
             success: true,
             data: {
                 initialScrapingDone: initialScrapingDone,
-                userLinkedInUrl: userLinkedInUrl,
+                userLinkedInUrl: userLinkedInUrl, // ✅ ALWAYS INCLUDED
                 extractionStatus: extractionStatus,
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 user: {
@@ -1492,7 +1514,7 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
     }
 });
 
-// ✅ NEW ENDPOINT: User profile scraping (initial sync)
+// ✅ FIXED: User profile scraping with URL normalization
 app.post('/profile/user', authenticateToken, async (req, res) => {
     try {
         console.log(`🔒 User profile scraping request from user ${req.user.id}`);
@@ -1518,27 +1540,30 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // Clean and validate URL
-        const profileUrl = cleanLinkedInUrl(profileData.url || profileData.linkedinUrl);
+        // ✅ FIXED: Clean and validate URL using backend normalization
+        const profileUrl = profileData.url || profileData.linkedinUrl;
+        const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        if (!profileUrl.includes('linkedin.com/in/')) {
+        if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid LinkedIn profile URL'
             });
         }
         
-        // ✅ Validate this is the user's own profile
+        // ✅ FIXED: Validate this is the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
-            const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
             
-            if (cleanUserUrl.toLowerCase() !== cleanProfileUrl.toLowerCase()) {
-                console.log(`🚫 URL mismatch for user ${req.user.id}:`);
-                console.log(`   - User URL: ${cleanUserUrl}`);
-                console.log(`   - Profile URL: ${cleanProfileUrl}`);
-                
+            console.log(`🔍 URL Comparison for user ${req.user.id}:`);
+            console.log(`   - Profile URL: ${profileUrl}`);
+            console.log(`   - Clean Profile: ${cleanProfileUrl}`);
+            console.log(`   - User URL: ${userLinkedInUrl}`);
+            console.log(`   - Clean User: ${cleanUserUrl}`);
+            console.log(`   - Match: ${cleanUserUrl === cleanProfileUrl}`);
+            
+            if (cleanUserUrl !== cleanProfileUrl) {
                 return res.status(403).json({
                     success: false,
                     error: 'You can only scrape your own LinkedIn profile for initial setup'
@@ -1548,6 +1573,10 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         
         // Process the scraped data
         const processedData = processScrapedProfileData(profileData, true);
+        
+        // ✅ FIXED: Normalize the LinkedIn URL in processed data
+        processedData.linkedinUrl = cleanProfileUrl;
+        processedData.url = cleanProfileUrl;
         
         console.log('💾 Saving user profile data...');
         
@@ -1692,7 +1721,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             profile = result.rows[0];
         }
         
-        // Update user table
+        // ✅ FIXED: Update user table with normalized LinkedIn URL
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
             [processedData.linkedinUrl, 'completed', true, req.user.id]
@@ -1737,7 +1766,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ NEW ENDPOINT: Target profile scraping (after initial setup)
+// ✅ FIXED: Target profile scraping with URL normalization
 app.post('/profile/target', authenticateToken, async (req, res) => {
     try {
         console.log(`🎯 Target profile scraping request from user ${req.user.id}`);
@@ -1774,23 +1803,23 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             });
         }
         
-        // Clean and validate URL
-        const profileUrl = cleanLinkedInUrl(profileData.url || profileData.linkedinUrl);
+        // ✅ FIXED: Clean and validate URL using backend normalization
+        const profileUrl = profileData.url || profileData.linkedinUrl;
+        const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        if (!profileUrl.includes('linkedin.com/in/')) {
+        if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid LinkedIn profile URL'
             });
         }
         
-        // ✅ Validate this is NOT the user's own profile
+        // ✅ FIXED: Validate this is NOT the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
-            const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
             
-            if (cleanUserUrl.toLowerCase() === cleanProfileUrl.toLowerCase()) {
+            if (cleanUserUrl === cleanProfileUrl) {
                 return res.status(400).json({
                     success: false,
                     error: 'This appears to be your own profile. Use /profile/user endpoint for your own profile.'
@@ -1800,6 +1829,10 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
         
         // Process the scraped data
         const processedData = processScrapedProfileData(profileData, false);
+        
+        // ✅ FIXED: Normalize the LinkedIn URL in processed data
+        processedData.linkedinUrl = cleanProfileUrl;
+        processedData.url = cleanProfileUrl;
         
         console.log('💾 Saving target profile data...');
         
@@ -2175,7 +2208,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// ✅ COMPLETE REGISTRATION ENDPOINT - The missing one!
+// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     console.log('🎯 Complete registration request for user:', req.user.id);
     
@@ -2265,7 +2298,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
     }
 });
 
-// Update user profile with LinkedIn URL
+// ✅ FIXED: Update user profile with LinkedIn URL normalization
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
@@ -2310,7 +2343,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with initial scraping logic!',
+            message: 'Profile updated - LinkedIn data extraction started with URL normalization!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2323,16 +2356,11 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     extractionStatus: profile.data_extraction_status
-                },
-                changes: {
-                    initialScrapingLogic: 'COMPLETE - Foolproof initial profile scraping system implemented',
-                    databaseField: 'ADDED - initial_scraping_done boolean field',
-                    securityMeasures: 'COMPLETE - Prevents target scraping before initial setup'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Initial scraping logic enabled!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - URL normalization applied!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -2485,12 +2513,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     profileAnalyzed: profile.profile_analyzed,
                     initialScrapingDone: profile.initial_scraping_done
                 } : null,
-                syncStatus: syncStatus,
-                changes: {
-                    initialScrapingLogic: 'COMPLETE - Foolproof initial profile scraping system implemented',
-                    databaseField: 'ADDED - initial_scraping_done boolean field',
-                    securityMeasures: 'COMPLETE - Prevents target scraping before initial setup'
-                }
+                syncStatus: syncStatus
             }
         });
     } catch (error) {
@@ -2540,12 +2563,7 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: processingQueue.has(req.user.id),
-            message: getStatusMessage(status.extraction_status, status.initial_scraping_done),
-            changes: {
-                initialScrapingLogic: 'COMPLETE - Foolproof initial profile scraping system implemented',
-                databaseField: 'ADDED - initial_scraping_done boolean field',
-                securityMeasures: 'COMPLETE - Prevents target scraping before initial setup'
-            }
+            message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
     } catch (error) {
@@ -2560,11 +2578,11 @@ const getStatusMessage = (status, initialScrapingDone = false) => {
         case 'not_started':
             return 'LinkedIn extraction not started - please complete initial profile setup';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with initial scraping validation...';
+            return 'LinkedIn profile extraction in progress with URL normalization...';
         case 'completed':
             return initialScrapingDone ? 
                 'LinkedIn profile extraction completed! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with initial scraping logic!';
+                'LinkedIn profile extraction completed successfully with URL normalization!';
         case 'failed':
             return 'LinkedIn profile extraction failed';
         default:
@@ -2594,13 +2612,8 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with initial scraping validation!',
-            status: 'processing',
-            changes: {
-                initialScrapingLogic: 'COMPLETE - Foolproof initial profile scraping system implemented',
-                databaseField: 'ADDED - initial_scraping_done boolean field',
-                securityMeasures: 'COMPLETE - Prevents target scraping before initial setup'
-            }
+            message: 'LinkedIn extraction retry initiated with URL normalization!',
+            status: 'processing'
         });
         
     } catch (error) {
@@ -2794,42 +2807,33 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - INITIAL SCRAPING LOGIC COMPLETE!');
+            console.log('🚀 Msgly.AI Server - URL NORMALIZATION FIXED!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Connected with LinkedIn + Initial Scraping schema`);
+            console.log(`🗃️ Database: Connected with URL normalization`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🔒 INITIAL SCRAPING LOGIC COMPLETE:`);
-            console.log(`   ✅ Database field: initial_scraping_done added to user_profiles`);
-            console.log(`   ✅ New endpoint: POST /profile/user for initial user profile sync`);
-            console.log(`   ✅ New endpoint: POST /profile/target for target profiles (after initial)`);
-            console.log(`   ✅ New endpoint: GET /user/initial-scraping-status`);
-            console.log(`   ✅ URL validation: Idiot-proof URL matching implemented`);
-            console.log(`   ✅ Security measures: Blocks target scraping until initial sync complete`);
-            console.log(`   ✅ Content script logic: Ready for implementation`);
-            console.log(`   ✅ Dashboard logic: Ready for blocking warnings`);
+            console.log(`🔧 URL NORMALIZATION FIXES COMPLETE:`);
+            console.log(`   ✅ Backend utility: cleanLinkedInUrl() function added`);
+            console.log(`   ✅ Profile saving: All URLs normalized before database storage`);
+            console.log(`   ✅ API endpoint: /user/initial-scraping-status always returns linkedin_url`);
+            console.log(`   ✅ URL comparison: Both frontend and backend use same normalization`);
+            console.log(`   ✅ Database updates: Users and user_profiles tables handle normalized URLs`);
+            console.log(`   ✅ Profile endpoints: Both /profile/user and /profile/target use normalization`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
             console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`   ✅ Static files served from root directory`);
-            console.log(`   ✅ Purple gradient design preserved`);
-            console.log(`📋 ALL ENDPOINTS COMPLETE:`);
-            console.log(`   ✅ Frontend: /, /sign-up, /login, /dashboard`);
-            console.log(`   ✅ Auth: /auth/google, /auth/google/callback, /auth/chrome-extension, /register, /login`);
-            console.log(`   ✅ Profile: /profile, /profile/user, /profile/target, /update-profile, /complete-registration`);
-            console.log(`   ✅ Status: /profile-status, /user/initial-scraping-status, /retry-extraction`);
-            console.log(`   ✅ Utility: /packages, /health`);
-            console.log(`📋 LinkedIn Extraction ENHANCED:`);
-            console.log(`   ✅ Status field fix: Now checks both Status and status`);
-            console.log(`   ✅ Field mapping: Enhanced with fallback options`); 
-            console.log(`   ✅ All Bright Data LinkedIn fields supported`);
-            console.log(`   ✅ Initial scraping validation: Foolproof system implemented`);
+            console.log(`📋 ALL ENDPOINTS WITH URL NORMALIZATION:`);
+            console.log(`   ✅ /user/initial-scraping-status - Always returns linkedin_url`);
+            console.log(`   ✅ /profile/user - Normalizes URLs before saving`);
+            console.log(`   ✅ /profile/target - Normalizes URLs before comparison`);
+            console.log(`   ✅ /update-profile - Uses URL normalization`);
+            console.log(`   ✅ /complete-registration - Normalizes URLs`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: INITIAL SCRAPING LOGIC COMPLETE! 🔒`);
+            console.log(`🎯 Status: URL NORMALIZATION FIXED! 🔧`);
         });
         
     } catch (error) {
