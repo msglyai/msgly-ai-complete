@@ -1,4 +1,4 @@
-// Msgly.AI Server - FIXED: Proper Database Transaction Management
+// Msgly.AI Server - FIXED: Only Mark Initial Scraping Done After Real Data Confirmation
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -1054,15 +1054,25 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             ]);
 
             // ✅ CRITICAL FIX: Only update status fields AFTER confirming data was saved successfully
-            await client.query(`
+            // AND check that we have meaningful array data as per requirements
+            const statusUpdateResult = await client.query(`
                 UPDATE user_profiles SET 
                     data_extraction_status = 'completed',
                     extraction_completed_at = CURRENT_TIMESTAMP,
                     extraction_error = NULL,
                     profile_analyzed = true,
                     initial_scraping_done = true
-                WHERE user_id = $1 AND full_name IS NOT NULL
+                WHERE user_id = $1 
+                  AND full_name IS NOT NULL
+                  AND (jsonb_array_length(experience) > 0 OR jsonb_array_length(education) > 0 OR jsonb_array_length(skills) > 0)
+                RETURNING initial_scraping_done
             `, [userId]);
+
+            if (statusUpdateResult.rowCount === 0) {
+                // ✅ CRITICAL FIX: Rollback if no meaningful data
+                await client.query('ROLLBACK');
+                throw new Error('Incomplete profile data - missing name or no experience/education/skills arrays have data');
+            }
 
             await client.query(`
                 UPDATE users SET 
@@ -1462,14 +1472,14 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '8.0-TRANSACTION-MANAGEMENT-FIXED',
+            version: '9.0-DATA-VALIDATION-FIXED',
             timestamp: new Date().toISOString(),
             changes: {
-                transactionManagement: 'FIXED - Database status only updated AFTER confirming data receipt',
-                dataValidation: 'ADDED - Validates extracted data before marking as complete',
-                rollbackMechanism: 'IMPLEMENTED - Proper transaction rollback on errors',
-                statusIntegrity: 'FIXED - No more false positives where status=true but data=empty',
-                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries'
+                dataValidation: 'FIXED - Only marks initial_scraping_done=true when arrays contain real data',
+                statusIntegrity: 'FIXED - Checks experience OR education OR skills arrays have data',
+                rollbackMechanism: 'ENHANCED - Rollback if no meaningful data found',
+                transactionManagement: 'COMPLETE - All database operations use proper transactions',
+                requirements: 'IMPLEMENTED - Follows paste.txt requirements exactly'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1561,7 +1571,7 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
     }
 });
 
-// ✅ FIXED: User profile scraping with transaction management
+// ✅ CRITICAL FIX: User profile scraping - Only mark complete when real data exists
 app.post('/profile/user', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
@@ -1774,57 +1784,85 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             profile = result.rows[0];
         }
         
-        // ✅ CRITICAL FIX: Only update status fields AFTER confirming data was saved AND contains meaningful information
+        // ✅ CRITICAL FIX: Only update status fields AFTER confirming data AND checking array lengths per requirements
         if (profile && profile.full_name) {
-            await client.query(`
-                UPDATE user_profiles SET 
-                    data_extraction_status = 'completed',
-                    extraction_completed_at = CURRENT_TIMESTAMP,
-                    extraction_error = NULL,
-                    profile_analyzed = true,
-                    initial_scraping_done = true
-                WHERE user_id = $1 AND full_name IS NOT NULL
-            `, [req.user.id]);
+            // Check if we have meaningful array data (at least one of experience, education, or skills)
+            const hasExperience = processedData.experience && processedData.experience.length > 0;
+            const hasEducation = processedData.education && processedData.education.length > 0; 
+            const hasSkills = processedData.skills && processedData.skills.length > 0;
             
-            // ✅ FIXED: Update user table with normalized LinkedIn URL
-            await client.query(
-                'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
-                [processedData.linkedinUrl, 'completed', true, req.user.id]
-            );
+            console.log(`🔍 Data validation for user ${req.user.id}:`);
+            console.log(`   - Has name: ${!!profile.full_name}`);
+            console.log(`   - Has experience: ${hasExperience} (${processedData.experience?.length || 0} entries)`);
+            console.log(`   - Has education: ${hasEducation} (${processedData.education?.length || 0} entries)`);
+            console.log(`   - Has skills: ${hasSkills} (${processedData.skills?.length || 0} entries)`);
             
-            // ✅ FIXED: Commit transaction only after all validations pass
-            await client.query('COMMIT');
-            
-            // Remove from processing queue if present
-            processingQueue.delete(req.user.id);
-            
-            console.log(`🎉 User profile successfully saved for user ${req.user.id} with transaction integrity!`);
-            console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
-            
-            res.json({
-                success: true,
-                message: 'User profile saved successfully! You can now use Msgly.AI fully.',
-                data: {
-                    profile: {
-                        id: profile.id,
-                        linkedinUrl: profile.linkedin_url,
-                        fullName: profile.full_name,
-                        headline: profile.headline,
-                        currentCompany: profile.current_company,
-                        location: profile.location,
-                        profileImageUrl: profile.profile_image_url,
-                        initialScrapingDone: true, // ✅ Only true when data is confirmed
-                        extractionStatus: 'completed',
-                        extractionCompleted: profile.extraction_completed_at
-                    },
-                    user: {
-                        profileCompleted: true,
-                        extractionStatus: 'completed'
-                    }
+            if (hasExperience || hasEducation || hasSkills) {
+                // ✅ CRITICAL FIX AS PER REQUIREMENTS: Only mark complete when arrays have data
+                const statusUpdateResult = await client.query(`
+                    UPDATE user_profiles SET 
+                        data_extraction_status = 'completed',
+                        extraction_completed_at = CURRENT_TIMESTAMP,
+                        extraction_error = NULL,
+                        profile_analyzed = true,
+                        initial_scraping_done = true
+                    WHERE user_id = $1 
+                      AND full_name IS NOT NULL
+                      AND (jsonb_array_length(experience) > 0 OR jsonb_array_length(education) > 0 OR jsonb_array_length(skills) > 0)
+                    RETURNING initial_scraping_done
+                `, [req.user.id]);
+                
+                if (statusUpdateResult.rowCount > 0) {
+                    // ✅ FIXED: Update user table with normalized LinkedIn URL
+                    await client.query(
+                        'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
+                        [processedData.linkedinUrl, 'completed', true, req.user.id]
+                    );
+                    
+                    // ✅ FIXED: Commit transaction only after all validations pass
+                    await client.query('COMMIT');
+                    
+                    // Remove from processing queue if present
+                    processingQueue.delete(req.user.id);
+                    
+                    console.log(`🎉 User profile successfully saved for user ${req.user.id} with data validation!`);
+                    console.log(`🔒 Initial scraping marked as complete ONLY after confirming meaningful array data`);
+                    
+                    res.json({
+                        success: true,
+                        message: 'User profile saved successfully! You can now use Msgly.AI fully.',
+                        data: {
+                            profile: {
+                                id: profile.id,
+                                linkedinUrl: profile.linkedin_url,
+                                fullName: profile.full_name,
+                                headline: profile.headline,
+                                currentCompany: profile.current_company,
+                                location: profile.location,
+                                profileImageUrl: profile.profile_image_url,
+                                initialScrapingDone: true, // ✅ Only true when data is confirmed
+                                extractionStatus: 'completed',
+                                extractionCompleted: profile.extraction_completed_at
+                            },
+                            user: {
+                                profileCompleted: true,
+                                extractionStatus: 'completed'
+                            }
+                        }
+                    });
+                    return;
                 }
+            }
+            
+            // ✅ CRITICAL FIX: Rollback if no meaningful array data
+            await client.query('ROLLBACK');
+            
+            res.status(400).json({
+                success: false,
+                error: 'Incomplete profile data - please ensure your LinkedIn profile has experience, education, or skills data visible and try again.'
             });
         } else {
-            // ✅ FIXED: Rollback if no meaningful data was saved
+            // ✅ FIXED: Rollback if no name data
             await client.query('ROLLBACK');
             
             res.status(400).json({
@@ -2425,7 +2463,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with transaction management!',
+            message: 'Profile updated - LinkedIn data extraction started with data validation!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2442,7 +2480,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Transaction management applied!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Data validation applied!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -2660,11 +2698,11 @@ const getStatusMessage = (status, initialScrapingDone = false) => {
         case 'not_started':
             return 'LinkedIn extraction not started - please complete initial profile setup';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with transaction management...';
+            return 'LinkedIn profile extraction in progress with data validation...';
         case 'completed':
             return initialScrapingDone ? 
                 'LinkedIn profile extraction completed! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with transaction management!';
+                'LinkedIn profile extraction completed successfully with data validation!';
         case 'failed':
             return 'LinkedIn profile extraction failed';
         default:
@@ -2694,7 +2732,7 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with transaction management!',
+            message: 'LinkedIn extraction retry initiated with data validation!',
             status: 'processing'
         });
         
@@ -3015,35 +3053,33 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - ALL CRITICAL ISSUES FIXED!');
+            console.log('🚀 Msgly.AI Server - DATA VALIDATION ISSUE FIXED!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Connected with transaction management`);
+            console.log(`🗃️ Database: Connected with data validation`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🔧 CRITICAL FIXES COMPLETE:`);
-            console.log(`   ✅ Issue #1: Auto-trigger functionality implemented in content.js`);
-            console.log(`   ✅ Issue #2: Proper 401 token handling in background.js and content.js`);
-            console.log(`   ✅ Issue #3: Transaction management - status only updated AFTER data confirmation`);
-            console.log(`   ✅ Database integrity: No more false positives (status=true but data=empty)`);
-            console.log(`   ✅ Data validation: Checks for meaningful data before marking complete`);
-            console.log(`   ✅ Rollback mechanism: Proper transaction boundaries on all database operations`);
-            console.log(`   ✅ Token management: Enhanced caching and validation with proper expiration`);
-            console.log(`   ✅ Credit system: Transactional deduction with proper rollback on failure`);
-            console.log(`🎨 FRONTEND COMPLETE:`);
-            console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
-            console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
-            console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`📋 ALL ENDPOINTS WITH TRANSACTION SAFETY:`);
+            console.log(`🔧 CRITICAL FIX COMPLETE - DATA VALIDATION:`);
+            console.log(`   ✅ Issue FIXED: Only marks initial_scraping_done=true when arrays contain real data`);
+            console.log(`   ✅ Requirements IMPLEMENTED: Uses exact SQL from paste.txt requirements`);
+            console.log(`   ✅ Status checks: experience OR education OR skills arrays must have data`);
+            console.log(`   ✅ Transaction rollback: If no meaningful data found, rollback and show error`);
+            console.log(`   ✅ Database integrity: No more false positives where status=true but arrays=empty`);
+            console.log(`   ✅ Data validation: Validates array lengths before marking complete`);
+            console.log(`🎯 EXACT FIXES FROM REQUIREMENTS:`);
+            console.log(`   ✅ Backend uses: "AND (jsonb_array_length(experience) > 0 OR jsonb_array_length(education) > 0 OR jsonb_array_length(skills) > 0)"`);
+            console.log(`   ✅ Rollback mechanism: "await client.query('ROLLBACK')" if no meaningful data`);
+            console.log(`   ✅ Error message: "Incomplete profile data - missing arrays" when arrays are empty`);
+            console.log(`📋 ALL ENDPOINTS WITH DATA VALIDATION:`);
             console.log(`   ✅ /user/initial-scraping-status - Always returns linkedin_url`);
-            console.log(`   ✅ /profile/user - Validates data before marking complete`);
+            console.log(`   ✅ /profile/user - FIXED: Only marks complete when arrays have data`);
             console.log(`   ✅ /profile/target - Validates data before saving`);
             console.log(`   ✅ /generate-message - Transactional credit deduction`);
             console.log(`   ✅ /auth/chrome-extension - ALWAYS returns credits`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: ALL CRITICAL ISSUES FIXED - Manual setup → Auto-trigger ✓ Token errors → Proper 401 handling ✓ False status updates → Transaction integrity ✓`);
+            console.log(`🎯 Status: DATA VALIDATION FIXED - No more false positives ✓ Arrays must contain data ✓ Transaction rollback on empty data ✓`);
         });
         
     } catch (error) {
