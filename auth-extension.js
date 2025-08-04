@@ -1,20 +1,19 @@
-// auth-extension.js - Chrome Extension Google Auth Endpoint
+// auth-extension.js - Chrome Extension Google Auth Endpoint - FIXED
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const fetch = require('node-fetch');
 
 const router = express.Router();
+let dbFunctions = {};
 
 const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 
-// Load user DB functions
-const {
-  getUserByEmail,
-  getUserById,
-  createGoogleUser,
-  linkGoogleAccount
-} = require('./db'); // adjust if needed
+// Initialize with database functions from server.js
+const initAuthExtension = (functions) => {
+    dbFunctions = functions;
+};
 
+// Chrome Extension OAuth endpoint
 router.post('/auth/chrome-extension', async (req, res) => {
     console.log('🔐 Chrome Extension OAuth request received');
     console.log('📊 Request body:', req.body);
@@ -60,37 +59,40 @@ router.post('/auth/chrome-extension', async (req, res) => {
             });
         }
         
-        const email = profile.email;
-        const name = profile.name;
-        const avatar = profile.picture;
-        const googleId = profile.id;
-        
-        console.log('🔍 Looking up user by email:', email);
-        
-        // Create or get user (using same functions as web auth)
-        let user = await getUserByEmail(email);
+        // Find or create user
+        let user = await dbFunctions.getUserByEmail(profile.email);
         let isNewUser = false;
         
         if (!user) {
-            console.log('👤 Creating new user for Chrome extension...');
-            user = await createGoogleUser(email, name, googleId, avatar, 'free', 'monthly');
+            // Create new user for Chrome extension
+            console.log('👤 Creating new user from Chrome extension auth');
+            user = await dbFunctions.createGoogleUser(
+                profile.email,
+                profile.name,
+                profile.id,
+                profile.picture,
+                'free',
+                'monthly'
+            );
             isNewUser = true;
         } else if (!user.google_id) {
-            console.log('🔗 Linking Google account to existing user...');
-            await linkGoogleAccount(user.id, googleId);
-            user = await getUserById(user.id);
+            // Link Google account to existing user
+            console.log('🔗 Linking Google account to existing user');
+            await dbFunctions.linkGoogleAccount(user.id, profile.id);
+            user = await dbFunctions.getUserById(user.id);
         }
         
-        console.log(`✅ User authenticated: ${user.email} (${isNewUser ? 'new' : 'existing'})`);
-        
-        // Generate JWT token (same as web auth)
+        // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             JWT_SECRET,
             { expiresIn: '30d' }
         );
         
-        const responseData = {
+        console.log(`✅ Chrome extension auth successful for user: ${user.email}`);
+        
+        // Return user data and token
+        res.json({
             success: true,
             message: 'Chrome extension authentication successful',
             data: {
@@ -100,38 +102,38 @@ router.post('/auth/chrome-extension', async (req, res) => {
                     email: user.email,
                     displayName: user.display_name,
                     profilePicture: user.profile_picture,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
                     packageType: user.package_type,
+                    billingModel: user.billing_model,
                     credits: user.credits_remaining,
                     subscriptionStatus: user.subscription_status,
+                    hasGoogleAccount: !!user.google_id,
+                    linkedinUrl: user.linkedin_url,
+                    profileCompleted: user.profile_completed,
+                    extractionStatus: user.extraction_status,
+                    createdAt: user.created_at,
                     isNewUser: isNewUser
-                },
-                extensionId: extensionId
+                }
             }
-        };
-        
-        console.log('🎉 Chrome Extension OAuth completed successfully!');
-        res.json(responseData);
+        });
         
     } catch (error) {
-        console.error('❌ Chrome extension OAuth error:', error);
+        console.error('❌ Chrome extension auth error:', error);
         
-        let errorMessage = 'Authentication failed';
-        let statusCode = 500;
-        
-        if (error.code === 'ENOTFOUND' || error.code === 'ECONNABORTED') {
-            statusCode = 503;
-            errorMessage = 'Network error - please try again';
-        } else if (error.message.includes('Google')) {
-            statusCode = 401;
-            errorMessage = error.message;
+        if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+            return res.status(503).json({
+                success: false,
+                error: 'Google authentication service temporarily unavailable'
+            });
         }
         
-        res.status(statusCode).json({
+        res.status(500).json({
             success: false,
-            error: errorMessage,
+            error: 'Chrome extension authentication failed',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
 
-module.exports = router;
+module.exports = { router, initAuthExtension };
