@@ -236,15 +236,26 @@ const setupGoogleAuthRoutes = (app) => {
                             
                             <script>
                                 console.log('🔐 Chrome Extension OAuth success page loaded');
-                                const token = '${token}';
                                 
-                                // Primary method: Send message to opener window (Chrome extension)
+                                const authData = {
+                                    token: '${token}',
+                                    user: {
+                                        id: ${req.user.id},
+                                        email: '${req.user.email}',
+                                        name: '${req.user.name || ''}',
+                                        avatar: '${req.user.avatar || ''}'
+                                    }
+                                };
+                                
+                                console.log('🔐 Sending auth data to extension:', authData);
+                                
+                                // FIXED: Send message to opener window (Chrome extension) with correct message type and data structure
                                 function sendTokenToExtension() {
                                     if (window.opener && !window.opener.closed) {
-                                        console.log('📨 Sending token to extension');
+                                        console.log('📨 Sending token to extension via postMessage');
                                         window.opener.postMessage({
-                                            type: 'MSGLY_OAUTH_SUCCESS',
-                                            token: token
+                                            type: 'MSGLY_AUTH_SUCCESS',  // FIXED: Correct message type
+                                            data: authData               // FIXED: Correct data structure
                                         }, '*');
                                         return true;
                                     }
@@ -254,12 +265,33 @@ const setupGoogleAuthRoutes = (app) => {
                                 // Send token immediately
                                 sendTokenToExtension();
                                 
-                                // Fallback: Store in localStorage temporarily
+                                // Method 2: Store in localStorage as fallback
                                 try {
-                                    localStorage.setItem('msgly_temp_token', token);
+                                    localStorage.setItem('msgly_auth_data', JSON.stringify(authData));
                                     console.log('📝 Token stored in localStorage as fallback');
                                 } catch (error) {
                                     console.log('Could not store in localStorage:', error);
+                                }
+                                
+                                // Method 3: BroadcastChannel for modern browsers
+                                try {
+                                    const channel = new BroadcastChannel('msgly_auth');
+                                    channel.postMessage({
+                                        type: 'MSGLY_AUTH_SUCCESS',
+                                        data: authData
+                                    });
+                                    console.log('📡 Sent via BroadcastChannel');
+                                } catch (e) {
+                                    console.log('BroadcastChannel not available:', e);
+                                }
+                                
+                                // Method 4: Send to parent if in iframe
+                                if (window.parent && window.parent !== window) {
+                                    console.log('📨 Sending to window.parent');
+                                    window.parent.postMessage({
+                                        type: 'MSGLY_AUTH_SUCCESS',
+                                        data: authData
+                                    }, '*');
                                 }
                                 
                                 // Close window function
