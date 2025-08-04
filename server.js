@@ -1379,23 +1379,39 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// Google OAuth Routes
+// ==================== FIXED OAUTH ROUTES FOR CHROME EXTENSION ====================
+
+// Google OAuth Routes - ENHANCED for Chrome Extension
 app.get('/auth/google', (req, res, next) => {
+    console.log('🔐 Google OAuth request:', req.query);
+    
+    // Store package selection
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
         req.session.billingModel = req.query.billing || 'monthly';
     }
     
-    passport.authenticate('google', { 
+    // ✅ FIX: Detect Chrome extension request and store in state
+    let passportOptions = { 
         scope: ['profile', 'email'] 
-    })(req, res, next);
+    };
+    
+    if (req.query.extension === 'true') {
+        console.log('🔐 Chrome extension OAuth detected');
+        // Use state parameter to persist extension flag through OAuth flow
+        passportOptions.state = JSON.stringify({ isExtension: true });
+    }
+    
+    passport.authenticate('google', passportOptions)(req, res, next);
 });
 
-// Smart OAuth callback - redirects based on user status
+// Smart OAuth callback - FIXED for Chrome Extension
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
     async (req, res) => {
         try {
+            console.log('🔐 OAuth callback state:', req.query.state);
+            
             const token = jwt.sign(
                 { userId: req.user.id, email: req.user.email },
                 JWT_SECRET,
@@ -1405,14 +1421,176 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Smart redirect logic
+            // ✅ FIX: Check if this is from Chrome extension via state parameter
+            let isExtension = false;
+            try {
+                if (req.query.state) {
+                    const stateData = JSON.parse(req.query.state);
+                    isExtension = stateData.isExtension === true;
+                }
+            } catch (e) {
+                console.log('Could not parse state data:', e.message);
+            }
+            
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`   - Is extension: ${isExtension}`);
+            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+            
+            // ✅ FIX: Handle Chrome extension differently
+            if (isExtension) {
+                console.log('🔐 Showing extension success page instead of redirecting');
+                
+                // Show success page that communicates with extension
+                const successPageHTML = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Authentication Successful</title>
+                    <style>
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            color: white;
+                        }
+                        .container {
+                            text-align: center;
+                            background: rgba(255, 255, 255, 0.1);
+                            padding: 40px;
+                            border-radius: 20px;
+                            backdrop-filter: blur(10px);
+                            border: 1px solid rgba(255, 255, 255, 0.2);
+                            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                        }
+                        .checkmark {
+                            font-size: 64px;
+                            margin-bottom: 20px;
+                            animation: bounce 1s ease-in-out;
+                        }
+                        @keyframes bounce {
+                            0%, 20%, 60%, 100% { transform: translateY(0); }
+                            40% { transform: translateY(-20px); }
+                            80% { transform: translateY(-10px); }
+                        }
+                        h1 { margin: 0 0 10px 0; font-size: 28px; }
+                        p { margin: 0; font-size: 16px; opacity: 0.9; }
+                        .spinner {
+                            display: inline-block;
+                            width: 20px;
+                            height: 20px;
+                            border: 2px solid rgba(255, 255, 255, 0.3);
+                            border-radius: 50%;
+                            border-top-color: white;
+                            animation: spin 1s ease-in-out infinite;
+                            margin-left: 10px;
+                        }
+                        @keyframes spin {
+                            to { transform: rotate(360deg); }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="checkmark">✅</div>
+                        <h1>Authentication Successful!</h1>
+                        <p>Connecting to Msgly.AI extension<span class="spinner"></span></p>
+                    </div>
+                    
+                    <script>
+                        console.log('🔐 Extension success page loaded');
+                        
+                        // Store token and user data
+                        const authData = {
+                            token: '${token}',
+                            user: {
+                                id: ${req.user.id},
+                                email: '${req.user.email}',
+                                displayName: '${req.user.display_name || ''}',
+                                profilePicture: '${req.user.profile_picture || ''}',
+                                isNewUser: ${req.user.isNewUser || false}
+                            }
+                        };
+                        
+                        console.log('🔐 Sending auth data to extension:', authData);
+                        
+                        // Method 1: Try to communicate with opener (extension popup)
+                        if (window.opener) {
+                            console.log('🔐 Sending to window.opener');
+                            try {
+                                window.opener.postMessage({
+                                    type: 'MSGLY_AUTH_SUCCESS',
+                                    data: authData
+                                }, '*');
+                            } catch (e) {
+                                console.error('Failed to post to opener:', e);
+                            }
+                        }
+                        
+                        // Method 2: Try localStorage as fallback
+                        try {
+                            localStorage.setItem('msgly_auth_token', authData.token);
+                            localStorage.setItem('msgly_auth_user', JSON.stringify(authData.user));
+                            console.log('🔐 Stored in localStorage as fallback');
+                        } catch (e) {
+                            console.error('Failed to store in localStorage:', e);
+                        }
+                        
+                        // Method 3: Broadcast to all windows
+                        try {
+                            const bc = new BroadcastChannel('msgly_auth_channel');
+                            bc.postMessage({
+                                type: 'MSGLY_AUTH_SUCCESS',
+                                data: authData
+                            });
+                            console.log('🔐 Broadcasted via BroadcastChannel');
+                        } catch (e) {
+                            console.error('BroadcastChannel not supported:', e);
+                        }
+                        
+                        // Method 4: Try parent window
+                        if (window.parent && window.parent !== window) {
+                            try {
+                                window.parent.postMessage({
+                                    type: 'MSGLY_AUTH_SUCCESS',
+                                    data: authData
+                                }, '*');
+                                console.log('🔐 Sent to parent window');
+                            } catch (e) {
+                                console.error('Failed to post to parent:', e);
+                            }
+                        }
+                        
+                        // Auto-close after 3 seconds
+                        setTimeout(() => {
+                            console.log('🔐 Auto-closing auth popup');
+                            try {
+                                window.close();
+                            } catch (e) {
+                                console.log('Could not auto-close window');
+                            }
+                        }, 3000);
+                        
+                        // Allow manual close
+                        document.addEventListener('click', () => {
+                            window.close();
+                        });
+                    </script>
+                </body>
+                </html>`;
+                
+                return res.send(successPageHTML);
+            }
+            
+            // Normal web flow - Smart redirect logic  
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.linkedin_url || 
                                    !req.user.profile_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
-            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
             console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
@@ -2455,7 +2633,7 @@ const startServer = async () => {
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: CHROME EXTENSION ENHANCED! 🎉`);
+            console.log(`🎯 Status: CHROME EXTENSION ENHANCED WITH OAUTH FIX! 🎉`);
         });
         
     } catch (error) {
