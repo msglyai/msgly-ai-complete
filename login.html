@@ -360,9 +360,13 @@
     </div>
 
     <script>
+        // FIXED: Enhanced debug logging for login page
+        console.log('🔐 Login page loaded');
+
         // Handle Google Sign In
         function handleGoogleSignIn(e) {
             e.preventDefault();
+            console.log('🔐 Starting Google OAuth for login');
             
             // Show loading state
             document.getElementById('loginForm').style.display = 'none';
@@ -372,24 +376,91 @@
             window.location.href = 'https://api.msgly.ai/auth/google';
         }
 
-        // Check if returning from Google OAuth with success
+        // FIXED: Enhanced OAuth return detection for login
         window.addEventListener('load', () => {
+            console.log('🔐 Login page loaded, checking for OAuth return');
+            
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
+            const error = urlParams.get('error');
+            const packageParam = urlParams.get('package');
+            const billing = urlParams.get('billing');
             
-            if (token) {
-                // Store token and redirect to dashboard
-                localStorage.setItem('authToken', token);
-                window.location.href = '/dashboard';
+            console.log('🔍 Login URL params check:');
+            console.log('   - Token:', token ? 'Present' : 'Missing');
+            console.log('   - Error:', error || 'None');
+            console.log('   - Package:', packageParam || 'None');
+            console.log('   - Billing:', billing || 'None');
+            
+            if (error) {
+                console.log('❌ Login OAuth error detected:', error);
+                alert('Login failed: ' + error + '. Please try again.');
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('loginForm').style.display = 'block';
+                return;
             }
             
-            const error = urlParams.get('error');
-            if (error) {
-                alert('Login failed. Please try again.');
+            if (token) {
+                console.log('✅ Login OAuth token detected, redirecting to dashboard...');
+                
+                // Store token for API calls
+                localStorage.setItem('authToken', token);
+                
+                // Show success message briefly
+                document.getElementById('loadingState').style.display = 'block';
+                document.getElementById('loginForm').style.display = 'none';
+                
+                // Redirect to dashboard after brief delay
+                setTimeout(() => {
+                    console.log('➡️ Redirecting to dashboard');
+                    window.location.href = '/dashboard';
+                }, 1000);
+                
+                // Clean URL
+                setTimeout(() => {
+                    const cleanUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }, 500);
+                
+                console.log('✅ Login OAuth processing complete');
+            } else {
+                console.log('ℹ️ No OAuth token found, staying on login form');
+                
+                // Make sure login form is visible
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('loginForm').style.display = 'block';
             }
         });
+
+        // FIXED: Additional safety check for late token detection
+        let tokenCheckCount = 0;
+        const maxTokenChecks = 5;
+        
+        const tokenCheckInterval = setInterval(() => {
+            tokenCheckCount++;
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            
+            if (token && localStorage.getItem('authToken') !== token) {
+                console.log('🔄 Late token detection on login page, redirecting to dashboard');
+                localStorage.setItem('authToken', token);
+                window.location.href = '/dashboard';
+                clearInterval(tokenCheckInterval);
+            }
+            
+            if (tokenCheckCount >= maxTokenChecks) {
+                clearInterval(tokenCheckInterval);
+            }
+        }, 1000);
+
+        // FIXED: Handle direct dashboard redirects (for existing logged-in users)
+        if (localStorage.getItem('authToken') && !window.location.search.includes('token=')) {
+            console.log('ℹ️ Existing token found, checking if still valid...');
+            
+            // You could add a token validation check here if needed
+            // For now, just let the user stay on login page to re-authenticate
+        }
     </script>
 </body>
 </html>
