@@ -1,4 +1,4 @@
-// auth.js - Google Authentication Module with Chrome Extension Support
+// auth.js - Google Authentication Module with Chrome Extension Support - OAUTH FIXED
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
@@ -143,7 +143,7 @@ const setupGoogleAuthRoutes = (app) => {
                 
                 console.log(`🔐 OAuth callback - Extension: ${isExtension}`);
                 
-                // FIXED: Handle Chrome extension authentication - SIMPLIFIED SUCCESS PAGE
+                // FIXED: Handle Chrome extension authentication - OPTIMIZED SUCCESS PAGE
                 if (isExtension) {
                     console.log('🔐 Sending Chrome extension success page');
                     
@@ -229,30 +229,32 @@ const setupGoogleAuthRoutes = (app) => {
                             <div class="container">
                                 <div class="success-icon">✓</div>
                                 <h1>Authentication Successful!</h1>
-                                <p>You have been successfully authenticated with Msgly.AI. This window will close automatically.</p>
+                                <p>You have been successfully authenticated with Msgly.AI. Chrome extension is now ready to use!</p>
                                 <button class="close-btn" onclick="closeWindow()">Close Window</button>
                                 <div class="countdown">Closing in <span id="countdown">3</span> seconds...</div>
                             </div>
                             
                             <script>
-                                console.log('🔐 Extension success page loaded');
+                                console.log('🔐 Chrome Extension OAuth success page loaded');
                                 
                                 const authData = {
                                     token: '${token}',
                                     user: {
                                         id: ${req.user.id},
                                         email: '${req.user.email}',
-                                        name: '${req.user.name || ''}',
-                                        avatar: '${req.user.avatar || ''}'
+                                        name: '${req.user.display_name || ''}',
+                                        avatar: '${req.user.profile_picture || ''}',
+                                        isNewUser: ${req.user.isNewUser || false}
                                     }
                                 };
                                 
-                                console.log('🔐 Sending auth data:', authData);
+                                console.log('🔐 Sending auth data to Chrome extension:', authData);
                                 
-                                // Send message to extension - SIMPLIFIED
+                                // FIXED: Multiple communication methods for Chrome extension
                                 function sendToExtension() {
                                     try {
-                                        if (window.opener) {
+                                        // Method 1: Send to opener window (primary)
+                                        if (window.opener && !window.opener.closed) {
                                             console.log('📨 Sending to window.opener');
                                             window.opener.postMessage({
                                                 type: 'MSGLY_AUTH_SUCCESS',
@@ -260,16 +262,47 @@ const setupGoogleAuthRoutes = (app) => {
                                             }, '*');
                                         }
                                         
-                                        // Store in localStorage as backup
-                                        localStorage.setItem('msgly_auth_data', JSON.stringify(authData));
-                                        console.log('💾 Stored in localStorage');
+                                        // Method 2: Store in localStorage (fallback)
+                                        try {
+                                            localStorage.setItem('msgly_auth_token', authData.token);
+                                            localStorage.setItem('msgly_auth_user', JSON.stringify(authData.user));
+                                            console.log('💾 Stored in localStorage');
+                                        } catch (e) {
+                                            console.warn('localStorage not available:', e);
+                                        }
+                                        
+                                        // Method 3: BroadcastChannel (modern browsers)
+                                        try {
+                                            const bc = new BroadcastChannel('msgly_auth_channel');
+                                            bc.postMessage({
+                                                type: 'MSGLY_AUTH_SUCCESS',
+                                                data: authData
+                                            });
+                                            console.log('📡 Sent via BroadcastChannel');
+                                            bc.close();
+                                        } catch (e) {
+                                            console.warn('BroadcastChannel not available:', e);
+                                        }
+                                        
+                                        // Method 4: Send to parent window (iframe fallback)
+                                        if (window.parent && window.parent !== window) {
+                                            try {
+                                                window.parent.postMessage({
+                                                    type: 'MSGLY_AUTH_SUCCESS',
+                                                    data: authData
+                                                }, '*');
+                                                console.log('📤 Sent to parent window');
+                                            } catch (e) {
+                                                console.warn('Parent messaging failed:', e);
+                                            }
+                                        }
                                         
                                     } catch (error) {
-                                        console.error('❌ Error sending message:', error);
+                                        console.error('❌ Error sending auth data:', error);
                                     }
                                 }
                                 
-                                // Send immediately and multiple times
+                                // Send immediately and retry multiple times
                                 sendToExtension();
                                 setTimeout(sendToExtension, 500);
                                 setTimeout(sendToExtension, 1000);
@@ -278,7 +311,13 @@ const setupGoogleAuthRoutes = (app) => {
                                 // Close window function
                                 function closeWindow() {
                                     sendToExtension();
-                                    setTimeout(() => window.close(), 100);
+                                    setTimeout(() => {
+                                        try {
+                                            window.close();
+                                        } catch (e) {
+                                            console.log('Window close not allowed');
+                                        }
+                                    }, 100);
                                 }
                                 
                                 // Countdown and auto-close
@@ -294,6 +333,9 @@ const setupGoogleAuthRoutes = (app) => {
                                         closeWindow();
                                     }
                                 }, 1000);
+                                
+                                // Allow manual close by clicking anywhere
+                                document.addEventListener('click', closeWindow);
                             </script>
                         </body>
                         </html>
@@ -395,11 +437,17 @@ const setupGoogleAuthRoutes = (app) => {
                             <div class="error">
                                 <div class="error-icon">❌</div>
                                 <h2>Authentication Error</h2>
-                                <p>There was an error during authentication. Please try again.</p>
+                                <p>There was an error during Chrome extension authentication. Please try again.</p>
                                 <button onclick="window.close()">Close Window</button>
                             </div>
                             <script>
-                                setTimeout(() => window.close(), 5000);
+                                setTimeout(() => {
+                                    try {
+                                        window.close();
+                                    } catch (e) {
+                                        console.log('Window close not allowed');
+                                    }
+                                }, 5000);
                             </script>
                         </body>
                         </html>
