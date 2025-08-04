@@ -1,12 +1,14 @@
-// Msgly.AI Server - FIXED: Removed Duplicate OAuth Setup
+// Msgly.AI Server - COMPLETE LinkedIn Data Extraction + Frontend Serving + All Endpoints
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const path = require('path');
+const path = require('path'); // ✅ For serving static files
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
 require('dotenv').config();
 
@@ -16,7 +18,8 @@ const PORT = process.env.PORT || 3000;
 // Environment variables
 const DATABASE_URL = process.env.DATABASE_URL;
 const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 // Bright Data Configuration
 const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_KEY || process.env.BRIGHT_DATA_API_TOKEN || 'brd-t6dqfwj2p8p-ac38c-b1l9-1f98-79e9-d8ceb4fd3c70_b59b8c39-8e9f-4db5-9bea-92e8b9e8b8b0';
@@ -78,13 +81,67 @@ app.use(session({
     }
 }));
 
+// Passport initialization
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user = await getUserById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
+    }
+});
+
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+    try {
+        let user = await getUserByEmail(profile.emails[0].value);
+        let isNewUser = false;
+        
+        if (!user) {
+            user = await createGoogleUser(
+                profile.emails[0].value,
+                profile.displayName,
+                profile.id,
+                profile.photos[0]?.value
+            );
+            isNewUser = true;
+        } else if (!user.google_id) {
+            await linkGoogleAccount(user.id, profile.id);
+            user = await getUserById(user.id);
+        }
+        
+        // Add isNewUser flag to user object
+        user.isNewUser = isNewUser;
+        
+        return done(null, user);
+    } catch (error) {
+        console.error('Google OAuth error:', error);
+        return done(error, null);
+    }
+}));
+
 // Logging middleware
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
-// Frontend serving
+// ✅ FRONTEND SERVING - Serve static files from root directory
 app.use(express.static(__dirname));
 
 // ==================== DATABASE SETUP ====================
@@ -208,45 +265,13 @@ const initDB = async () => {
         `);
 
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS target_profiles (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                linkedin_url TEXT NOT NULL,
-                linkedin_id TEXT,
-                full_name TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                headline TEXT,
-                about TEXT,
-                location TEXT,
-                current_company TEXT,
-                current_position TEXT,
-                profile_image_url TEXT,
-                connections_count INTEGER,
-                followers_count INTEGER,
-                
-                -- Complete profile data
-                profile_data JSONB,
-                
-                -- Metadata
-                extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Unique constraint to prevent duplicates
-                UNIQUE(user_id, linkedin_url)
-            );
-        `);
-
-        await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
-                target_profile_id INTEGER REFERENCES target_profiles(id),
                 target_name VARCHAR(255),
                 target_url VARCHAR(500),
                 generated_message TEXT,
                 message_context TEXT,
-                ai_score INTEGER,
                 credits_used INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -300,10 +325,6 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_retry_count ON user_profiles(extraction_retry_count);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_updated_at ON user_profiles(updated_at);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_current_company ON user_profiles(current_company);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url ON target_profiles(linkedin_url);
-                CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
-                CREATE INDEX IF NOT EXISTS idx_message_logs_target_profile_id ON message_logs(target_profile_id);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -1051,215 +1072,14 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// ==================== DATABASE FUNCTIONS ====================
-
-// Save target profile from extension
-const saveTargetProfile = async (userId, profileData) => {
-    try {
-        const cleanUrl = cleanLinkedInUrl(profileData.url || profileData.linkedinUrl);
-        
-        // Check if target profile already exists
-        const existingTarget = await pool.query(
-            'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
-            [userId, cleanUrl]
-        );
-        
-        if (existingTarget.rows.length > 0) {
-            // Update existing target profile
-            const result = await pool.query(`
-                UPDATE target_profiles SET 
-                    linkedin_id = $1,
-                    full_name = $2,
-                    first_name = $3,
-                    last_name = $4,
-                    headline = $5,
-                    about = $6,
-                    location = $7,
-                    current_company = $8,
-                    current_position = $9,
-                    profile_image_url = $10,
-                    connections_count = $11,
-                    followers_count = $12,
-                    profile_data = $13,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $14 AND linkedin_url = $15
-                RETURNING *
-            `, [
-                profileData.linkedinId,
-                profileData.fullName || profileData.name,
-                profileData.firstName,
-                profileData.lastName,
-                profileData.headline,
-                profileData.about || profileData.summary,
-                profileData.location,
-                profileData.currentCompany || profileData.company,
-                profileData.currentPosition || profileData.position,
-                profileData.profileImageUrl || profileData.avatar,
-                parseLinkedInNumber(profileData.connectionsCount || profileData.connections),
-                parseLinkedInNumber(profileData.followersCount || profileData.followers),
-                JSON.stringify(profileData),
-                userId,
-                cleanUrl
-            ]);
-            
-            return result.rows[0];
-        } else {
-            // Insert new target profile
-            const result = await pool.query(`
-                INSERT INTO target_profiles (
-                    user_id, linkedin_url, linkedin_id, full_name, first_name, last_name,
-                    headline, about, location, current_company, current_position,
-                    profile_image_url, connections_count, followers_count, profile_data
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-                RETURNING *
-            `, [
-                userId,
-                cleanUrl,
-                profileData.linkedinId,
-                profileData.fullName || profileData.name,
-                profileData.firstName,
-                profileData.lastName,
-                profileData.headline,
-                profileData.about || profileData.summary,
-                profileData.location,
-                profileData.currentCompany || profileData.company,
-                profileData.currentPosition || profileData.position,
-                profileData.profileImageUrl || profileData.avatar,
-                parseLinkedInNumber(profileData.connectionsCount || profileData.connections),
-                parseLinkedInNumber(profileData.followersCount || profileData.followers),
-                JSON.stringify(profileData)
-            ]);
-            
-            return result.rows[0];
-        }
-    } catch (error) {
-        console.error('Error saving target profile:', error);
-        throw error;
-    }
-};
-
-// ==================== GPT-4.1 MESSAGE GENERATION ====================
-
-const generatePersonalizedMessage = async (userProfile, targetProfile, context) => {
-    try {
-        if (!OPENAI_API_KEY) {
-            throw new Error('OpenAI API key not configured');
-        }
-
-        // Build comprehensive prompt for GPT-4.1
-        const prompt = `You are a professional LinkedIn message writer. Generate a personalized LinkedIn connection request or direct message based on the following information:
-
-USER PROFILE:
-- Name: ${userProfile.full_name || userProfile.display_name || 'User'}
-- Headline: ${userProfile.headline || 'Professional'}
-- Company: ${userProfile.current_company || 'N/A'}
-- Location: ${userProfile.location || 'N/A'}
-- Skills: ${userProfile.skills ? userProfile.skills.slice(0, 5).map(s => s.name || s).join(', ') : 'N/A'}
-
-TARGET PROFILE:
-- Name: ${targetProfile.full_name}
-- Headline: ${targetProfile.headline || 'Professional'}
-- Company: ${targetProfile.current_company || 'N/A'}
-- Location: ${targetProfile.location || 'N/A'}
-- About: ${targetProfile.about ? targetProfile.about.substring(0, 500) : 'N/A'}
-
-MESSAGE CONTEXT: ${context}
-
-INSTRUCTIONS:
-1. Write a personalized LinkedIn message (150-300 words)
-2. Be professional, genuine, and engaging
-3. Reference specific details from both profiles to show genuine interest
-4. Include the message context naturally
-5. End with a clear call-to-action
-6. Avoid being too salesy or generic
-7. Make it sound human and authentic
-
-Generate only the message text, nothing else.`;
-
-        console.log('🤖 Calling OpenAI GPT-4.1 for message generation...');
-        
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: 'gpt-4-turbo-preview', // GPT-4.1
-            messages: [
-                {
-                    role: 'system',
-                    content: 'You are a professional LinkedIn message writer who creates personalized, engaging messages that get responses.'
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            max_tokens: 500,
-            temperature: 0.7,
-            top_p: 1,
-            frequency_penalty: 0.3,
-            presence_penalty: 0.3
-        }, {
-            headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000
-        });
-
-        if (!response.data.choices || response.data.choices.length === 0) {
-            throw new Error('No message generated by OpenAI');
-        }
-
-        const generatedMessage = response.data.choices[0].message.content.trim();
-        
-        // Calculate AI score based on personalization factors
-        let score = 70; // Base score
-        
-        // Bonus points for personalization
-        if (generatedMessage.includes(targetProfile.full_name)) score += 10;
-        if (generatedMessage.includes(targetProfile.current_company)) score += 5;
-        if (generatedMessage.includes(userProfile.current_company)) score += 5;
-        if (generatedMessage.length >= 150 && generatedMessage.length <= 300) score += 5;
-        if (generatedMessage.includes('?')) score += 3; // Questions increase engagement
-        
-        // Cap at 98 to seem realistic
-        score = Math.min(score, 98);
-        
-        console.log(`✅ Message generated successfully with ${score}% score`);
-        
-        return {
-            message: generatedMessage,
-            score: score,
-            usage: response.data.usage
-        };
-        
-    } catch (error) {
-        console.error('❌ GPT-4.1 message generation failed:', error);
-        throw new Error(`Message generation failed: ${error.message}`);
-    }
-};
-
-// ==================== INITIALIZE AUTH MODULE ====================
-
-// Import and initialize auth module
-const { initAuth, setupGoogleAuthRoutes, authenticateToken: authMiddleware } = require('./auth');
-
-// Initialize auth with database functions
-initAuth({
-    getUserByEmail,
-    getUserById,
-    createGoogleUser,
-    linkGoogleAccount
-});
-
-// Setup Google OAuth routes
-setupGoogleAuthRoutes(app);
-
 // ==================== FRONTEND ROUTES ====================
 
-// Home route - serves your sign-up page
+// ✅ Home route - serves your sign-up page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'sign-up.html'));
 });
 
-// Specific HTML page routes
+// ✅ Specific HTML page routes
 app.get('/sign-up', (req, res) => {
     res.sendFile(path.join(__dirname, 'sign-up.html'));
 });
@@ -1285,46 +1105,38 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '8.0-WEB-AUTH-FIXED',
+            version: '6.4-OAUTH-REDIRECT-FIXED',
             timestamp: new Date().toISOString(),
             changes: {
-                duplicateOAuthFixed: 'FIXED - Removed duplicate Google OAuth setup from server.js',
-                webAuthenticationFixed: 'FIXED - Clean separation between web and extension auth',
-                authModuleProper: 'FIXED - Using auth.js module properly without conflicts',
-                signUpLoginFixed: 'FIXED - Sign-up and login pages should work now'
+                oauthRedirectFixed: 'FIXED - New users go to sign-up, existing users go to dashboard',
+                smartUserDetection: 'Added - Detects new/existing users with profile completion status',
+                loginRedirectFixed: 'FIXED - Login page now correctly redirects to dashboard',
+                previousChanges: 'All previous features maintained'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
                 datasetId: BRIGHT_DATA_DATASET_ID,
                 endpoints: 'All verified working'
             },
-            openAI: {
-                configured: !!OPENAI_API_KEY,
-                model: 'gpt-4-turbo-preview (GPT-4.1)',
-                features: 'Personalized message generation with scoring'
-            },
             database: {
                 connected: true,
-                ssl: process.env.NODE_ENV === 'production',
-                tables: ['users', 'user_profiles', 'target_profiles', 'message_logs', 'credits_transactions']
+                ssl: process.env.NODE_ENV === 'production'
             },
             backgroundProcessing: {
                 enabled: true,
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys())
             },
-            webAuthentication: {
-                duplicateOAuthRemoved: true,
-                authModuleUsed: true,
-                signUpFixed: true,
-                loginFixed: true,
-                conflictsResolved: true
+            frontend: {
+                staticServing: 'Enabled from root directory',
+                routes: ['/sign-up', '/login', '/dashboard'],
+                htmlFiles: ['sign-up.html', 'login.html', 'Dashboard.html'],
+                design: 'Beautiful purple gradient design preserved'
             },
             endpoints: {
                 frontend: ['/', '/sign-up', '/login', '/dashboard'],
                 auth: ['/auth/google', '/auth/google/callback', '/register', '/login'],
                 profile: ['/profile', '/update-profile', '/complete-registration', '/profile-status', '/retry-extraction'],
-                extension: ['/extract-linkedin', '/save-target-profile', '/generate-message'],
                 utility: ['/packages', '/health']
             }
         });
@@ -1335,6 +1147,66 @@ app.get('/health', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     }
+});
+
+// Google OAuth Routes
+app.get('/auth/google', (req, res, next) => {
+    if (req.query.package) {
+        req.session.selectedPackage = req.query.package;
+        req.session.billingModel = req.query.billing || 'monthly';
+    }
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'] 
+    })(req, res, next);
+});
+
+// 🎯 FIXED: Smart OAuth callback - redirects based on user status
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
+    async (req, res) => {
+        try {
+            const token = jwt.sign(
+                { userId: req.user.id, email: req.user.email },
+                JWT_SECRET,
+                { expiresIn: '30d' }
+            );
+            
+            req.session.selectedPackage = null;
+            req.session.billingModel = null;
+            
+            // 🎯 SMART REDIRECT LOGIC:
+            const needsOnboarding = req.user.isNewUser || 
+                                   !req.user.linkedin_url || 
+                                   !req.user.profile_completed ||
+                                   req.user.extraction_status === 'not_started';
+            
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+            console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
+            console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
+            console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
+            console.log(`   - Needs onboarding: ${needsOnboarding}`);
+            
+            if (needsOnboarding) {
+                // New users or incomplete profiles → sign-up for onboarding
+                console.log(`➡️ Redirecting to sign-up for onboarding`);
+                res.redirect(`/sign-up?token=${token}`);
+            } else {
+                // Existing users with complete profiles → dashboard
+                console.log(`➡️ Redirecting to dashboard`);
+                res.redirect(`/dashboard?token=${token}`);
+            }
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            res.redirect(`/login?error=callback_error`);
+        }
+    }
+);
+
+app.get('/auth/failed', (req, res) => {
+    res.redirect(`/login?error=auth_failed`);
 });
 
 // User Registration
@@ -1484,7 +1356,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Complete registration endpoint
+// ✅ COMPLETE REGISTRATION ENDPOINT - The missing one!
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     console.log('🎯 Complete registration request for user:', req.user.id);
     
@@ -1619,7 +1491,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started!',
+            message: 'Profile updated - LinkedIn data extraction started with smart redirect functionality!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -1634,14 +1506,14 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     extractionStatus: profile.data_extraction_status
                 },
                 changes: {
-                    duplicateOAuthFixed: 'FIXED - Removed duplicate Google OAuth setup',
-                    webAuthenticationFixed: 'FIXED - Clean separation between web and extension auth',
-                    authModuleProper: 'FIXED - Using auth.js module properly'
+                    oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                    loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                    newUserDetection: 'ADDED - Proper new vs existing user detection'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Web authentication fixed!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Smart redirect enabled!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -1723,8 +1595,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     credits: req.user.credits_remaining,
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
-                    createdAt: req.user.created_at,
-                    linkedinUrl: req.user.linkedin_url
+                    createdAt: req.user.created_at
                 },
                 profile: profile && profile.user_id ? {
                     linkedinUrl: profile.linkedin_url,
@@ -1791,9 +1662,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 } : null,
                 syncStatus: syncStatus,
                 changes: {
-                    duplicateOAuthFixed: 'FIXED - Removed duplicate Google OAuth setup',
-                    webAuthenticationFixed: 'FIXED - Clean separation between web and extension auth',
-                    authModuleProper: 'FIXED - Using auth.js module properly'
+                    oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                    loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                    newUserDetection: 'ADDED - Proper new vs existing user detection'
                 }
             }
         });
@@ -1844,9 +1715,9 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             is_currently_processing: processingQueue.has(req.user.id),
             message: getStatusMessage(status.extraction_status),
             changes: {
-                duplicateOAuthFixed: 'FIXED - Removed duplicate Google OAuth setup',
-                webAuthenticationFixed: 'FIXED - Clean separation between web and extension auth',
-                authModuleProper: 'FIXED - Using auth.js module properly'
+                oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                newUserDetection: 'ADDED - Proper new vs existing user detection'
             }
         });
         
@@ -1862,9 +1733,9 @@ const getStatusMessage = (status) => {
         case 'not_started':
             return 'LinkedIn extraction not started';
         case 'processing':
-            return 'LinkedIn profile extraction in progress...';
+            return 'LinkedIn profile extraction in progress with smart redirect functionality...';
         case 'completed':
-            return 'LinkedIn profile extraction completed successfully!';
+            return 'LinkedIn profile extraction completed successfully with smart redirect enabled!';
         case 'failed':
             return 'LinkedIn profile extraction failed';
         default:
@@ -1894,241 +1765,18 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated!',
+            message: 'LinkedIn extraction retry initiated with smart redirect functionality!',
             status: 'processing',
             changes: {
-                duplicateOAuthFixed: 'FIXED - Removed duplicate Google OAuth setup',
-                webAuthenticationFixed: 'FIXED - Clean separation between web and extension auth'
+                oauthRedirectFixed: 'FIXED - Smart redirect based on user status',
+                loginRedirectFixed: 'FIXED - Existing users go to dashboard',
+                newUserDetection: 'ADDED - Proper new vs existing user detection'
             }
         });
         
     } catch (error) {
         console.error('Retry extraction error:', error);
         res.status(500).json({ error: 'Retry failed' });
-    }
-});
-
-// ==================== CHROME EXTENSION ENDPOINTS ====================
-
-// Extract LinkedIn profile (for user's own profile)
-app.post('/extract-linkedin', authenticateToken, async (req, res) => {
-    console.log('🚀 Chrome extension LinkedIn extraction request');
-    
-    try {
-        const { linkedinUrl } = req.body;
-        
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
-            });
-        }
-        
-        // Use existing extraction logic
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        res.json({
-            success: true,
-            message: 'LinkedIn profile extraction started',
-            data: {
-                profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status
-                }
-            }
-        });
-        
-        console.log(`✅ Extension extraction started for user ${req.user.email}`);
-        
-    } catch (error) {
-        console.error('❌ Extension extraction error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'LinkedIn extraction failed',
-            details: error.message
-        });
-    }
-});
-
-// Save target profile (scraped from LinkedIn by extension)
-app.post('/save-target-profile', authenticateToken, async (req, res) => {
-    console.log('🎯 Saving target profile from Chrome extension');
-    
-    try {
-        const profileData = req.body;
-        
-        if (!profileData.url && !profileData.linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        const savedProfile = await saveTargetProfile(req.user.id, profileData);
-        
-        res.json({
-            success: true,
-            message: 'Target profile saved successfully',
-            data: {
-                targetProfile: {
-                    id: savedProfile.id,
-                    linkedinUrl: savedProfile.linkedin_url,
-                    fullName: savedProfile.full_name,
-                    headline: savedProfile.headline,
-                    currentCompany: savedProfile.current_company,
-                    location: savedProfile.location,
-                    extractedAt: savedProfile.extracted_at
-                }
-            }
-        });
-        
-        console.log(`✅ Target profile saved: ${savedProfile.full_name}`);
-        
-    } catch (error) {
-        console.error('❌ Save target profile error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to save target profile',
-            details: error.message
-        });
-    }
-});
-
-// Generate personalized message using GPT-4.1
-app.post('/generate-message', authenticateToken, async (req, res) => {
-    console.log('🤖 Generating personalized message with GPT-4.1');
-    
-    try {
-        const { targetProfile, context, messageType = 'direct_message' } = req.body;
-        
-        if (!targetProfile) {
-            return res.status(400).json({
-                success: false,
-                error: 'Target profile is required'
-            });
-        }
-        
-        if (!context || context.trim().length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Message context is required'
-            });
-        }
-        
-        if (req.user.credits_remaining <= 0) {
-            return res.status(402).json({
-                success: false,
-                error: 'Insufficient credits'
-            });
-        }
-        
-        // Get user's complete profile
-        const userProfileResult = await pool.query(`
-            SELECT up.*, u.display_name, u.linkedin_url
-            FROM user_profiles up 
-            JOIN users u ON u.id = up.user_id 
-            WHERE u.id = $1
-        `, [req.user.id]);
-        
-        if (userProfileResult.rows.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'User profile not found. Please complete your profile first.'
-            });
-        }
-        
-        const userProfile = userProfileResult.rows[0];
-        
-        // Generate message using GPT-4.1
-        const messageResult = await generatePersonalizedMessage(
-            userProfile,
-            targetProfile,
-            context.trim()
-        );
-        
-        // Deduct credit
-        await pool.query(
-            'UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-            [req.user.id]
-        );
-        
-        // Save target profile if it doesn't exist
-        let targetProfileId = null;
-        try {
-            const savedTarget = await saveTargetProfile(req.user.id, targetProfile);
-            targetProfileId = savedTarget.id;
-        } catch (error) {
-            console.warn('Could not save target profile:', error.message);
-        }
-        
-        // Log the message generation
-        await pool.query(`
-            INSERT INTO message_logs (
-                user_id, target_profile_id, target_name, target_url, 
-                generated_message, message_context, ai_score, credits_used
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [
-            req.user.id,
-            targetProfileId,
-            targetProfile.fullName || targetProfile.name,
-            targetProfile.url || targetProfile.linkedinUrl,
-            messageResult.message,
-            context.trim(),
-            messageResult.score,
-            1
-        ]);
-        
-        // Log credit transaction
-        await pool.query(`
-            INSERT INTO credits_transactions (
-                user_id, transaction_type, credits_change, description
-            ) VALUES ($1, $2, $3, $4)
-        `, [
-            req.user.id,
-            'message_generation',
-            -1,
-            `Generated message for ${targetProfile.fullName || targetProfile.name}`
-        ]);
-        
-        const updatedUser = await getUserById(req.user.id);
-        
-        res.json({
-            success: true,
-            message: 'Personalized message generated successfully',
-            data: {
-                message: messageResult.message,
-                score: messageResult.score,
-                creditsRemaining: updatedUser.credits_remaining,
-                targetProfile: {
-                    name: targetProfile.fullName || targetProfile.name,
-                    headline: targetProfile.headline,
-                    company: targetProfile.currentCompany || targetProfile.company
-                },
-                usage: messageResult.usage
-            }
-        });
-        
-        console.log(`✅ Message generated for ${targetProfile.fullName || targetProfile.name} with ${messageResult.score}% score`);
-        
-    } catch (error) {
-        console.error('❌ Message generation error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Message generation failed',
-            details: error.message
-        });
     }
 });
 
@@ -2258,9 +1906,6 @@ app.use((req, res, next) => {
             'POST /complete-registration',
             'GET /profile-status',
             'POST /retry-extraction',
-            'POST /extract-linkedin',
-            'POST /save-target-profile',
-            'POST /generate-message',
             'GET /packages', 
             'GET /health'
         ]
@@ -2290,10 +1935,6 @@ const validateEnvironment = () => {
         console.warn('⚠️ Warning: BRIGHT_DATA_API_KEY not set - profile extraction will fail');
     }
     
-    if (!OPENAI_API_KEY) {
-        console.warn('⚠️ Warning: OPENAI_API_KEY not set - message generation will fail');
-    }
-    
     console.log('✅ Environment validated');
 };
 
@@ -2320,33 +1961,37 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - WEB AUTHENTICATION FIXED!');
+            console.log('🚀 Msgly.AI Server - OAUTH REDIRECT FIXED!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Connected with LinkedIn + Target Profiles schema`);
+            console.log(`🗃️ Database: Connected with LinkedIn schema`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
-            console.log(`🤖 OpenAI GPT-4.1: ${OPENAI_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🎯 WEB AUTHENTICATION FIXES:`);
-            console.log(`   ✅ FIXED: Removed duplicate Google OAuth setup from server.js`);
-            console.log(`   ✅ FIXED: Clean separation between web and extension auth`);
-            console.log(`   ✅ FIXED: Using auth.js module properly without conflicts`);
-            console.log(`   ✅ FIXED: Sign-up and login pages should work now`);
+            console.log(`🎯 OAUTH REDIRECT FIXED:`);
+            console.log(`   ✅ New users → sign-up for onboarding`);
+            console.log(`   ✅ Existing users → dashboard directly`);
+            console.log(`   ✅ Smart detection of user completion status`);
+            console.log(`   ✅ Login page now redirects correctly`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
             console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
+            console.log(`   ✅ Static files served from root directory`);
+            console.log(`   ✅ Purple gradient design preserved`);
             console.log(`📋 ALL ENDPOINTS COMPLETE:`);
             console.log(`   ✅ Frontend: /, /sign-up, /login, /dashboard`);
             console.log(`   ✅ Auth: /auth/google, /auth/google/callback, /register, /login`);
             console.log(`   ✅ Profile: /profile, /update-profile, /complete-registration`);
             console.log(`   ✅ Status: /profile-status, /retry-extraction`);
-            console.log(`   ✅ Extension: /extract-linkedin, /save-target-profile, /generate-message`);
             console.log(`   ✅ Utility: /packages, /health`);
+            console.log(`📋 LinkedIn Extraction ENHANCED:`);
+            console.log(`   ✅ Status field fix: Now checks both Status and status`);
+            console.log(`   ✅ Field mapping: Enhanced with fallback options`); 
+            console.log(`   ✅ All Bright Data LinkedIn fields supported`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: WEB AUTHENTICATION FULLY FIXED! 🎉`);
+            console.log(`🎯 Status: LOGIN REDIRECT ISSUE FIXED! 🎉`);
         });
         
     } catch (error) {
