@@ -1293,6 +1293,118 @@ Generate only the message text, nothing else.`;
     }
 };
 
+// ==================== INITIALIZE AUTH MODULE ====================
+
+// Import and initialize auth module
+const { initAuth, setupGoogleAuthRoutes, authenticateToken: authMiddleware } = require('./auth');
+
+// Initialize auth with database functions
+initAuth({
+    getUserByEmail,
+    getUserById,
+    createGoogleUser,
+    linkGoogleAccount
+});
+
+// Setup Google OAuth routes
+setupGoogleAuthRoutes(app);
+
+// ==================== NEW: CHROME EXTENSION OAUTH ENDPOINT ====================
+
+// Chrome Extension OAuth Token Exchange - NEW FIX
+app.post('/auth/chrome-extension', async (req, res) => {
+    try {
+        console.log('🔐 Chrome Extension OAuth token exchange request');
+        const { authCode, redirectUri } = req.body;
+        
+        if (!authCode) {
+            return res.status(400).json({
+                success: false,
+                error: 'Authorization code is required'
+            });
+        }
+        
+        // Exchange authorization code for access token
+        const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            code: authCode,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectUri || 'chrome-extension://your-extension-id/'
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+        
+        if (!tokenResponse.data.access_token) {
+            throw new Error('No access token received from Google');
+        }
+        
+        // Get user info from Google
+        const userResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+                'Authorization': `Bearer ${tokenResponse.data.access_token}`
+            },
+            timeout: 30000
+        });
+        
+        const googleUser = userResponse.data;
+        
+        // Find or create user
+        let user = await getUserByEmail(googleUser.email);
+        let isNewUser = false;
+        
+        if (!user) {
+            user = await createGoogleUser(
+                googleUser.email,
+                googleUser.name,
+                googleUser.id,
+                googleUser.picture
+            );
+            isNewUser = true;
+        } else if (!user.google_id) {
+            await linkGoogleAccount(user.id, googleUser.id);
+            user = await getUserById(user.id);
+        }
+        
+        // Generate JWT token
+        const token = jwt.sign(
+            { userId: user.id, email: user.email },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        console.log(`✅ Chrome extension OAuth successful for: ${user.email}`);
+        
+        res.json({
+            success: true,
+            message: 'Chrome extension authentication successful',
+            data: {
+                token: token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    displayName: user.display_name,
+                    profilePicture: user.profile_picture,
+                    packageType: user.package_type,
+                    credits: user.credits_remaining,
+                    isNewUser: isNewUser
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Chrome extension OAuth error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Chrome extension authentication failed',
+            details: error.message
+        });
+    }
+});
+
 // ==================== FRONTEND ROUTES ====================
 
 // Home route - serves your sign-up page
@@ -1326,15 +1438,14 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '7.0-ENHANCED-CHROME-EXTENSION',
+            version: '7.1-CHROME-EXTENSION-OAUTH-FIXED',
             timestamp: new Date().toISOString(),
             changes: {
-                chromeExtensionEnhanced: 'ADDED - Target profiles, GPT-4.1 message generation, profile status detection',
-                targetProfilesTable: 'ADDED - Stores scraped LinkedIn target profiles',
-                gpt41Integration: 'ADDED - Advanced message generation with scoring',
-                extensionAuthentication: 'ENHANCED - Mirror sign-up Google OAuth flow',
-                profileCompletion: 'ENHANCED - Visual indicators for incomplete profiles',
-                messageGeneration: 'NEW - Personalized messages with copy functionality'
+                chromeExtensionOAuth: 'FIXED - Added Chrome Identity API support',
+                chromeExtensionEndpoint: 'ADDED - /auth/chrome-extension for token exchange',
+                oauthSecurityIssue: 'RESOLVED - window.opener null issue bypassed',
+                targetProfilesTable: 'MAINTAINED - Stores scraped LinkedIn target profiles',
+                gpt41Integration: 'MAINTAINED - Advanced message generation with scoring'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1356,15 +1467,15 @@ app.get('/health', async (req, res) => {
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys())
             },
-            frontend: {
-                staticServing: 'Enabled from root directory',
-                routes: ['/sign-up', '/login', '/dashboard'],
-                htmlFiles: ['sign-up.html', 'login.html', 'Dashboard.html'],
-                design: 'Beautiful purple gradient design preserved'
+            chromeExtension: {
+                oauthFixed: true,
+                identityApiSupport: true,
+                tokenExchangeEndpoint: '/auth/chrome-extension',
+                fallbackMethods: ['localStorage', 'BroadcastChannel', 'parentWindow']
             },
             endpoints: {
                 frontend: ['/', '/sign-up', '/login', '/dashboard'],
-                auth: ['/auth/google', '/auth/google/callback', '/register', '/login'],
+                auth: ['/auth/google', '/auth/google/callback', '/auth/chrome-extension', '/register', '/login'],
                 profile: ['/profile', '/update-profile', '/complete-registration', '/profile-status', '/retry-extraction'],
                 extension: ['/extract-linkedin', '/save-target-profile', '/generate-message'],
                 utility: ['/packages', '/health']
@@ -1377,242 +1488,6 @@ app.get('/health', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     }
-});
-
-// ==================== FIXED OAUTH ROUTES FOR CHROME EXTENSION ====================
-
-// Google OAuth Routes - ENHANCED for Chrome Extension
-app.get('/auth/google', (req, res, next) => {
-    console.log('🔐 Google OAuth request:', req.query);
-    
-    // Store package selection
-    if (req.query.package) {
-        req.session.selectedPackage = req.query.package;
-        req.session.billingModel = req.query.billing || 'monthly';
-    }
-    
-    // ✅ FIX: Detect Chrome extension request and store in state
-    let passportOptions = { 
-        scope: ['profile', 'email'] 
-    };
-    
-    if (req.query.extension === 'true') {
-        console.log('🔐 Chrome extension OAuth detected');
-        // Use state parameter to persist extension flag through OAuth flow
-        passportOptions.state = JSON.stringify({ isExtension: true });
-    }
-    
-    passport.authenticate('google', passportOptions)(req, res, next);
-});
-
-// Smart OAuth callback - FIXED for Chrome Extension
-app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
-    async (req, res) => {
-        try {
-            console.log('🔐 OAuth callback state:', req.query.state);
-            
-            const token = jwt.sign(
-                { userId: req.user.id, email: req.user.email },
-                JWT_SECRET,
-                { expiresIn: '30d' }
-            );
-            
-            req.session.selectedPackage = null;
-            req.session.billingModel = null;
-            
-            // ✅ FIX: Check if this is from Chrome extension via state parameter
-            let isExtension = false;
-            try {
-                if (req.query.state) {
-                    const stateData = JSON.parse(req.query.state);
-                    isExtension = stateData.isExtension === true;
-                }
-            } catch (e) {
-                console.log('Could not parse state data:', e.message);
-            }
-            
-            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
-            console.log(`   - Is extension: ${isExtension}`);
-            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
-            
-            // ✅ FIX: Handle Chrome extension differently
-            if (isExtension) {
-                console.log('🔐 Showing extension success page instead of redirecting');
-                
-                // Show success page that communicates with extension
-                const successPageHTML = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Authentication Successful</title>
-                    <style>
-                        body {
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            min-height: 100vh;
-                            margin: 0;
-                            color: white;
-                        }
-                        .container {
-                            text-align: center;
-                            background: rgba(255, 255, 255, 0.1);
-                            padding: 40px;
-                            border-radius: 20px;
-                            backdrop-filter: blur(10px);
-                            border: 1px solid rgba(255, 255, 255, 0.2);
-                            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-                        }
-                        .checkmark {
-                            font-size: 64px;
-                            margin-bottom: 20px;
-                            animation: bounce 1s ease-in-out;
-                        }
-                        @keyframes bounce {
-                            0%, 20%, 60%, 100% { transform: translateY(0); }
-                            40% { transform: translateY(-20px); }
-                            80% { transform: translateY(-10px); }
-                        }
-                        h1 { margin: 0 0 10px 0; font-size: 28px; }
-                        p { margin: 0; font-size: 16px; opacity: 0.9; }
-                        .spinner {
-                            display: inline-block;
-                            width: 20px;
-                            height: 20px;
-                            border: 2px solid rgba(255, 255, 255, 0.3);
-                            border-radius: 50%;
-                            border-top-color: white;
-                            animation: spin 1s ease-in-out infinite;
-                            margin-left: 10px;
-                        }
-                        @keyframes spin {
-                            to { transform: rotate(360deg); }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="checkmark">✅</div>
-                        <h1>Authentication Successful!</h1>
-                        <p>Connecting to Msgly.AI extension<span class="spinner"></span></p>
-                    </div>
-                    
-                    <script>
-                        console.log('🔐 Extension success page loaded');
-                        
-                        // Store token and user data
-                        const authData = {
-                            token: '${token}',
-                            user: {
-                                id: ${req.user.id},
-                                email: '${req.user.email}',
-                                displayName: '${req.user.display_name || ''}',
-                                profilePicture: '${req.user.profile_picture || ''}',
-                                isNewUser: ${req.user.isNewUser || false}
-                            }
-                        };
-                        
-                        console.log('🔐 Sending auth data to extension:', authData);
-                        
-                        // Method 1: Try to communicate with opener (extension popup)
-                        if (window.opener) {
-                            console.log('🔐 Sending to window.opener');
-                            try {
-                                window.opener.postMessage({
-                                    type: 'MSGLY_AUTH_SUCCESS',
-                                    data: authData
-                                }, '*');
-                            } catch (e) {
-                                console.error('Failed to post to opener:', e);
-                            }
-                        }
-                        
-                        // Method 2: Try localStorage as fallback
-                        try {
-                            localStorage.setItem('msgly_auth_token', authData.token);
-                            localStorage.setItem('msgly_auth_user', JSON.stringify(authData.user));
-                            console.log('🔐 Stored in localStorage as fallback');
-                        } catch (e) {
-                            console.error('Failed to store in localStorage:', e);
-                        }
-                        
-                        // Method 3: Broadcast to all windows
-                        try {
-                            const bc = new BroadcastChannel('msgly_auth_channel');
-                            bc.postMessage({
-                                type: 'MSGLY_AUTH_SUCCESS',
-                                data: authData
-                            });
-                            console.log('🔐 Broadcasted via BroadcastChannel');
-                        } catch (e) {
-                            console.error('BroadcastChannel not supported:', e);
-                        }
-                        
-                        // Method 4: Try parent window
-                        if (window.parent && window.parent !== window) {
-                            try {
-                                window.parent.postMessage({
-                                    type: 'MSGLY_AUTH_SUCCESS',
-                                    data: authData
-                                }, '*');
-                                console.log('🔐 Sent to parent window');
-                            } catch (e) {
-                                console.error('Failed to post to parent:', e);
-                            }
-                        }
-                        
-                        // Auto-close after 3 seconds
-                        setTimeout(() => {
-                            console.log('🔐 Auto-closing auth popup');
-                            try {
-                                window.close();
-                            } catch (e) {
-                                console.log('Could not auto-close window');
-                            }
-                        }, 3000);
-                        
-                        // Allow manual close
-                        document.addEventListener('click', () => {
-                            window.close();
-                        });
-                    </script>
-                </body>
-                </html>`;
-                
-                return res.send(successPageHTML);
-            }
-            
-            // Normal web flow - Smart redirect logic  
-            const needsOnboarding = req.user.isNewUser || 
-                                   !req.user.linkedin_url || 
-                                   !req.user.profile_completed ||
-                                   req.user.extraction_status === 'not_started';
-            
-            console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-            console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
-            console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
-            console.log(`   - Needs onboarding: ${needsOnboarding}`);
-            
-            if (needsOnboarding) {
-                console.log(`➡️ Redirecting to sign-up for onboarding`);
-                res.redirect(`/sign-up?token=${token}`);
-            } else {
-                console.log(`➡️ Redirecting to dashboard`);
-                res.redirect(`/dashboard?token=${token}`);
-            }
-            
-        } catch (error) {
-            console.error('OAuth callback error:', error);
-            res.redirect(`/login?error=callback_error`);
-        }
-    }
-);
-
-app.get('/auth/failed', (req, res) => {
-    res.redirect(`/login?error=auth_failed`);
 });
 
 // User Registration
@@ -1897,7 +1772,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with enhanced Chrome extension support!',
+            message: 'Profile updated - LinkedIn data extraction started with Chrome extension OAuth fixed!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -1912,14 +1787,14 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     extractionStatus: profile.data_extraction_status
                 },
                 changes: {
-                    chromeExtensionEnhanced: 'ADDED - Target profiles, GPT-4.1 message generation',
-                    targetProfilesTable: 'ADDED - Stores scraped LinkedIn profiles',
-                    gpt41Integration: 'ADDED - Advanced message generation with scoring'
+                    chromeExtensionOAuth: 'FIXED - Chrome Identity API support added',
+                    chromeExtensionEndpoint: 'ADDED - /auth/chrome-extension for token exchange',
+                    oauthSecurityIssue: 'RESOLVED - window.opener null issue bypassed'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Enhanced Chrome extension ready!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Chrome extension OAuth fixed!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -2002,7 +1877,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at,
-                    linkedinUrl: req.user.linkedin_url // NEW: Include user's LinkedIn URL
+                    linkedinUrl: req.user.linkedin_url
                 },
                 profile: profile && profile.user_id ? {
                     linkedinUrl: profile.linkedin_url,
@@ -2069,9 +1944,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 } : null,
                 syncStatus: syncStatus,
                 changes: {
-                    chromeExtensionEnhanced: 'ADDED - Target profiles, GPT-4.1 message generation',
-                    targetProfilesTable: 'ADDED - Stores scraped LinkedIn profiles',
-                    gpt41Integration: 'ADDED - Advanced message generation with scoring'
+                    chromeExtensionOAuth: 'FIXED - Chrome Identity API support added',
+                    chromeExtensionEndpoint: 'ADDED - /auth/chrome-extension for token exchange',
+                    oauthSecurityIssue: 'RESOLVED - window.opener null issue bypassed'
                 }
             }
         });
@@ -2122,9 +1997,9 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             is_currently_processing: processingQueue.has(req.user.id),
             message: getStatusMessage(status.extraction_status),
             changes: {
-                chromeExtensionEnhanced: 'ADDED - Target profiles, GPT-4.1 message generation',
-                targetProfilesTable: 'ADDED - Stores scraped LinkedIn profiles',
-                gpt41Integration: 'ADDED - Advanced message generation with scoring'
+                chromeExtensionOAuth: 'FIXED - Chrome Identity API support added',
+                chromeExtensionEndpoint: 'ADDED - /auth/chrome-extension for token exchange',
+                oauthSecurityIssue: 'RESOLVED - window.opener null issue bypassed'
             }
         });
         
@@ -2140,9 +2015,9 @@ const getStatusMessage = (status) => {
         case 'not_started':
             return 'LinkedIn extraction not started';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with enhanced Chrome extension support...';
+            return 'LinkedIn profile extraction in progress with Chrome extension OAuth fixed...';
         case 'completed':
-            return 'LinkedIn profile extraction completed successfully with Chrome extension ready!';
+            return 'LinkedIn profile extraction completed successfully with Chrome extension OAuth fixed!';
         case 'failed':
             return 'LinkedIn profile extraction failed';
         default:
@@ -2172,12 +2047,12 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with enhanced Chrome extension support!',
+            message: 'LinkedIn extraction retry initiated with Chrome extension OAuth fixed!',
             status: 'processing',
             changes: {
-                chromeExtensionEnhanced: 'ADDED - Target profiles, GPT-4.1 message generation',
-                targetProfilesTable: 'ADDED - Stores scraped LinkedIn profiles',
-                gpt41Integration: 'ADDED - Advanced message generation with scoring'
+                chromeExtensionOAuth: 'FIXED - Chrome Identity API support added',
+                chromeExtensionEndpoint: 'ADDED - /auth/chrome-extension for token exchange',
+                oauthSecurityIssue: 'RESOLVED - window.opener null issue bypassed'
             }
         });
         
@@ -2187,7 +2062,7 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== NEW: CHROME EXTENSION ENDPOINTS ====================
+// ==================== CHROME EXTENSION ENDPOINTS ====================
 
 // Extract LinkedIn profile (for user's own profile)
 app.post('/extract-linkedin', authenticateToken, async (req, res) => {
@@ -2532,6 +2407,7 @@ app.use((req, res, next) => {
             'POST /register', 
             'POST /login', 
             'GET /auth/google',
+            'POST /auth/chrome-extension',
             'GET /profile', 
             'POST /update-profile',
             'POST /complete-registration',
@@ -2599,41 +2475,34 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - CHROME EXTENSION ENHANCED!');
+            console.log('🚀 Msgly.AI Server - CHROME EXTENSION OAUTH FIXED!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with LinkedIn + Target Profiles schema`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 OpenAI GPT-4.1: ${OPENAI_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🎯 CHROME EXTENSION ENHANCED:`);
-            console.log(`   ✅ Target profiles table added`);
-            console.log(`   ✅ GPT-4.1 message generation with scoring`);
-            console.log(`   ✅ Profile completion status detection`);
-            console.log(`   ✅ Authentication mirroring sign-up flow`);
-            console.log(`   ✅ Visual indicators for incomplete profiles`);
-            console.log(`   ✅ Copy message functionality with animations`);
+            console.log(`🎯 CHROME EXTENSION OAUTH FIXED:`);
+            console.log(`   ✅ Chrome Identity API support added`);
+            console.log(`   ✅ /auth/chrome-extension endpoint for token exchange`);
+            console.log(`   ✅ window.opener null issue bypassed`);
+            console.log(`   ✅ Fallback methods: localStorage, BroadcastChannel, parentWindow`);
+            console.log(`   ✅ Target profiles and GPT-4.1 message generation maintained`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
             console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`   ✅ Static files served from root directory`);
-            console.log(`   ✅ Purple gradient design preserved`);
             console.log(`📋 ALL ENDPOINTS COMPLETE:`);
             console.log(`   ✅ Frontend: /, /sign-up, /login, /dashboard`);
-            console.log(`   ✅ Auth: /auth/google, /auth/google/callback, /register, /login`);
+            console.log(`   ✅ Auth: /auth/google, /auth/google/callback, /auth/chrome-extension, /register, /login`);
             console.log(`   ✅ Profile: /profile, /update-profile, /complete-registration`);
             console.log(`   ✅ Status: /profile-status, /retry-extraction`);
             console.log(`   ✅ Extension: /extract-linkedin, /save-target-profile, /generate-message`);
             console.log(`   ✅ Utility: /packages, /health`);
-            console.log(`📋 LinkedIn Extraction ENHANCED:`);
-            console.log(`   ✅ Status field fix: Now checks both Status and status`);
-            console.log(`   ✅ Field mapping: Enhanced with fallback options`); 
-            console.log(`   ✅ All Bright Data LinkedIn fields supported`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: CHROME EXTENSION ENHANCED WITH OAUTH FIX! 🎉`);
+            console.log(`🎯 Status: CHROME EXTENSION OAUTH FULLY FIXED! 🎉`);
         });
         
     } catch (error) {
