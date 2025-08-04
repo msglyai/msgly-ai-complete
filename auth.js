@@ -1,7 +1,8 @@
-// auth.js - Google Authentication Module with Chrome Extension Support - OAUTH FIXED
+// auth.js - Google Authentication Module with Chrome Extension Support - OAUTH FIXED v2
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 // Environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
@@ -33,15 +34,15 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// FIXED: Google OAuth Strategy with state support
+// Google OAuth Strategy for web flow
 passport.use(new GoogleStrategy({
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
     callbackURL: process.env.NODE_ENV === 'production' 
         ? "https://api.msgly.ai/auth/google/callback"
         : "http://localhost:3000/auth/google/callback",
-    passReqToCallback: true,  // IMPORTANT: This allows us to access req in the callback
-    state: true  // IMPORTANT: Enable state parameter support
+    passReqToCallback: true,
+    state: true
 },
 async (req, accessToken, refreshToken, profile, done) => {
     try {
@@ -54,7 +55,7 @@ async (req, accessToken, refreshToken, profile, done) => {
                 profile.displayName,
                 profile.id,
                 profile.photos[0]?.value,
-                'free', // Default package
+                'free',
                 'monthly'
             );
             isNewUser = true;
@@ -63,9 +64,7 @@ async (req, accessToken, refreshToken, profile, done) => {
             user = await getUserById(user.id);
         }
         
-        // Add isNewUser flag to user object
         user.isNewUser = isNewUser;
-        
         return done(null, user);
     } catch (error) {
         console.error('Google OAuth error:', error);
@@ -76,31 +75,26 @@ async (req, accessToken, refreshToken, profile, done) => {
 // Google Auth Routes
 const setupGoogleAuthRoutes = (app) => {
     
-    // FIXED: Google OAuth for Chrome Extension using state parameter
+    // Web OAuth flow (existing)
     app.get('/auth/google', (req, res, next) => {
         console.log('🔐 Google OAuth request:', req.query);
         
-        // Create state object for OAuth
         let stateData = {};
         
-        // Store package selection if provided
         if (req.query.package) {
             stateData.package = req.query.package;
             stateData.billing = req.query.billing || 'monthly';
         }
         
-        // IMPORTANT: Check if this is a Chrome extension request
         if (req.query.extension === 'true') {
             console.log('🔐 Chrome extension OAuth detected');
             stateData.isExtension = true;
         }
         
-        // FIXED: Use state parameter instead of session
         const authOptions = {
             scope: ['profile', 'email']
         };
         
-        // If we have state data, pass it to OAuth
         if (Object.keys(stateData).length > 0) {
             authOptions.state = JSON.stringify(stateData);
             console.log('🔐 OAuth state data:', stateData);
@@ -109,13 +103,12 @@ const setupGoogleAuthRoutes = (app) => {
         passport.authenticate('google', authOptions)(req, res, next);
     });
 
-    // FIXED: OAuth callback with state-based Chrome extension detection
+    // Web OAuth callback (existing)
     app.get('/auth/google/callback',
         passport.authenticate('google', { failureRedirect: '/auth/failed' }),
         async (req, res) => {
             try {
                 console.log('🔐 OAuth callback received');
-                console.log('Query params:', req.query);
                 
                 const token = jwt.sign(
                     { userId: req.user.id, email: req.user.email },
@@ -123,7 +116,6 @@ const setupGoogleAuthRoutes = (app) => {
                     { expiresIn: '30d' }
                 );
                 
-                // FIXED: Parse state parameter to detect Chrome extension
                 let isExtension = false;
                 let packageSelection = null;
                 let billingModel = null;
@@ -131,8 +123,6 @@ const setupGoogleAuthRoutes = (app) => {
                 if (req.query.state) {
                     try {
                         const stateData = JSON.parse(req.query.state);
-                        console.log('🔐 Parsed state data:', stateData);
-                        
                         isExtension = stateData.isExtension === true;
                         packageSelection = stateData.package;
                         billingModel = stateData.billing;
@@ -141,12 +131,8 @@ const setupGoogleAuthRoutes = (app) => {
                     }
                 }
                 
-                console.log(`🔐 OAuth callback - Extension: ${isExtension}`);
-                
-                // FIXED: Handle Chrome extension authentication - OPTIMIZED SUCCESS PAGE
                 if (isExtension) {
-                    console.log('🔐 Sending Chrome extension success page');
-                    
+                    // Return extension success page (existing code)
                     const successPageHTML = `
                         <!DOCTYPE html>
                         <html>
@@ -179,32 +165,8 @@ const setupGoogleAuthRoutes = (app) => {
                                     from { opacity: 0; transform: translateY(20px); }
                                     to { opacity: 1; transform: translateY(0); }
                                 }
-                                .success-icon {
-                                    width: 60px;
-                                    height: 60px;
-                                    background: #10B981;
-                                    border-radius: 50%;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    margin: 0 auto 20px;
-                                    font-size: 24px;
-                                    animation: pulse 2s infinite;
-                                }
-                                @keyframes pulse {
-                                    0%, 100% { transform: scale(1); }
-                                    50% { transform: scale(1.05); }
-                                }
-                                h1 {
-                                    margin: 0 0 10px 0;
-                                    font-size: 24px;
-                                    font-weight: 700;
-                                }
-                                p {
-                                    margin: 0 0 20px 0;
-                                    opacity: 0.9;
-                                    line-height: 1.5;
-                                }
+                                h1 { margin: 0 0 10px 0; font-size: 24px; font-weight: 700; }
+                                p { margin: 0 0 20px 0; opacity: 0.9; line-height: 1.5; }
                                 .close-btn {
                                     background: linear-gradient(135deg, #10B981, #059669);
                                     color: white;
@@ -213,252 +175,186 @@ const setupGoogleAuthRoutes = (app) => {
                                     border-radius: 8px;
                                     font-weight: 600;
                                     cursor: pointer;
-                                    transition: transform 0.2s;
-                                }
-                                .close-btn:hover {
-                                    transform: translateY(-2px);
-                                }
-                                .countdown {
-                                    font-size: 14px;
-                                    opacity: 0.7;
-                                    margin-top: 16px;
                                 }
                             </style>
                         </head>
                         <body>
                             <div class="container">
-                                <div class="success-icon">✓</div>
-                                <h1>Authentication Successful!</h1>
-                                <p>You have been successfully authenticated with Msgly.AI. Chrome extension is now ready to use!</p>
-                                <button class="close-btn" onclick="closeWindow()">Close Window</button>
-                                <div class="countdown">Closing in <span id="countdown">3</span> seconds...</div>
+                                <h1>✅ Authentication Successful!</h1>
+                                <p>Chrome extension is now ready to use!</p>
+                                <button class="close-btn" onclick="window.close()">Close Window</button>
                             </div>
-                            
                             <script>
-                                console.log('🔐 Chrome Extension OAuth success page loaded');
-                                
-                                const authData = {
-                                    token: '${token}',
-                                    user: {
-                                        id: ${req.user.id},
-                                        email: '${req.user.email}',
-                                        name: '${req.user.display_name || ''}',
-                                        avatar: '${req.user.profile_picture || ''}',
-                                        isNewUser: ${req.user.isNewUser || false}
-                                    }
-                                };
-                                
-                                console.log('🔐 Sending auth data to Chrome extension:', authData);
-                                
-                                // FIXED: Multiple communication methods for Chrome extension
-                                function sendToExtension() {
-                                    try {
-                                        // Method 1: Send to opener window (primary)
-                                        if (window.opener && !window.opener.closed) {
-                                            console.log('📨 Sending to window.opener');
-                                            window.opener.postMessage({
-                                                type: 'MSGLY_AUTH_SUCCESS',
-                                                data: authData
-                                            }, '*');
-                                        }
-                                        
-                                        // Method 2: Store in localStorage (fallback)
-                                        try {
-                                            localStorage.setItem('msgly_auth_token', authData.token);
-                                            localStorage.setItem('msgly_auth_user', JSON.stringify(authData.user));
-                                            console.log('💾 Stored in localStorage');
-                                        } catch (e) {
-                                            console.warn('localStorage not available:', e);
-                                        }
-                                        
-                                        // Method 3: BroadcastChannel (modern browsers)
-                                        try {
-                                            const bc = new BroadcastChannel('msgly_auth_channel');
-                                            bc.postMessage({
-                                                type: 'MSGLY_AUTH_SUCCESS',
-                                                data: authData
-                                            });
-                                            console.log('📡 Sent via BroadcastChannel');
-                                            bc.close();
-                                        } catch (e) {
-                                            console.warn('BroadcastChannel not available:', e);
-                                        }
-                                        
-                                        // Method 4: Send to parent window (iframe fallback)
-                                        if (window.parent && window.parent !== window) {
-                                            try {
-                                                window.parent.postMessage({
-                                                    type: 'MSGLY_AUTH_SUCCESS',
-                                                    data: authData
-                                                }, '*');
-                                                console.log('📤 Sent to parent window');
-                                            } catch (e) {
-                                                console.warn('Parent messaging failed:', e);
-                                            }
-                                        }
-                                        
-                                    } catch (error) {
-                                        console.error('❌ Error sending auth data:', error);
-                                    }
-                                }
-                                
-                                // Send immediately and retry multiple times
-                                sendToExtension();
-                                setTimeout(sendToExtension, 500);
-                                setTimeout(sendToExtension, 1000);
-                                setTimeout(sendToExtension, 2000);
-                                
-                                // Close window function
-                                function closeWindow() {
-                                    sendToExtension();
-                                    setTimeout(() => {
-                                        try {
-                                            window.close();
-                                        } catch (e) {
-                                            console.log('Window close not allowed');
-                                        }
-                                    }, 100);
-                                }
-                                
-                                // Countdown and auto-close
-                                let seconds = 3;
-                                const countdownEl = document.getElementById('countdown');
-                                
-                                const countdown = setInterval(() => {
-                                    seconds--;
-                                    if (countdownEl) countdownEl.textContent = seconds;
-                                    
-                                    if (seconds <= 0) {
-                                        clearInterval(countdown);
-                                        closeWindow();
-                                    }
-                                }, 1000);
-                                
-                                // Allow manual close by clicking anywhere
-                                document.addEventListener('click', closeWindow);
+                                setTimeout(() => {
+                                    try { window.close(); } catch (e) { }
+                                }, 3000);
                             </script>
                         </body>
                         </html>
                     `;
-                    
                     return res.send(successPageHTML);
                 } else {
-                    // For regular web authentication - redirect based on user status
+                    // Regular web flow redirects
                     const needsOnboarding = req.user.isNewUser || 
                                            !req.user.linkedin_url || 
                                            !req.user.profile_completed ||
                                            req.user.extraction_status === 'not_started';
                     
-                    console.log(`🔍 OAuth callback - User: ${req.user.email}`);
-                    console.log(`   - Is new user: ${req.user.isNewUser || false}`);
-                    console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-                    console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
-                    console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
-                    console.log(`   - Needs onboarding: ${needsOnboarding}`);
-                    
-                    // Handle package selection redirect
                     if (packageSelection) {
-                        console.log('📦 Redirecting with package selection:', packageSelection);
                         const redirectUrl = needsOnboarding 
                             ? `/sign-up?token=${token}&package=${packageSelection}&billing=${billingModel}`
                             : `/dashboard?token=${token}&package=${packageSelection}&billing=${billingModel}`;
                         return res.redirect(redirectUrl);
                     }
                     
-                    // Default redirect logic
                     if (needsOnboarding) {
-                        console.log(`➡️ Redirecting to sign-up for onboarding`);
                         res.redirect(`/sign-up?token=${token}`);
                     } else {
-                        console.log(`➡️ Redirecting to dashboard`);
                         res.redirect(`/dashboard?token=${token}`);
                     }
                 }
                 
             } catch (error) {
                 console.error('❌ OAuth callback error:', error);
-                
-                // Check if it was an extension request by looking at the state
-                let isExtensionError = false;
-                if (req.query.state) {
-                    try {
-                        const stateData = JSON.parse(req.query.state);
-                        isExtensionError = stateData.isExtension === true;
-                    } catch (e) {
-                        // Ignore parse errors
-                    }
-                }
-                
-                if (isExtensionError) {
-                    // Send error page for extension
-                    return res.send(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>Authentication Error - Msgly.AI</title>
-                            <style>
-                                body { 
-                                    font-family: Arial, sans-serif; 
-                                    text-align: center; 
-                                    padding: 50px; 
-                                    background: linear-gradient(135deg, #FF2370, #8039DF); 
-                                    color: white;
-                                    min-height: 100vh;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    margin: 0;
-                                }
-                                .error {
-                                    background: rgba(255, 255, 255, 0.1);
-                                    padding: 30px;
-                                    border-radius: 16px;
-                                    backdrop-filter: blur(10px);
-                                    border: 1px solid rgba(255, 255, 255, 0.2);
-                                    max-width: 400px;
-                                }
-                                .error-icon {
-                                    font-size: 48px;
-                                    margin-bottom: 16px;
-                                }
-                                button {
-                                    background: linear-gradient(135deg, #10B981, #059669);
-                                    color: white;
-                                    border: none;
-                                    padding: 12px 24px;
-                                    border-radius: 8px;
-                                    font-weight: 600;
-                                    cursor: pointer;
-                                    margin-top: 16px;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="error">
-                                <div class="error-icon">❌</div>
-                                <h2>Authentication Error</h2>
-                                <p>There was an error during Chrome extension authentication. Please try again.</p>
-                                <button onclick="window.close()">Close Window</button>
-                            </div>
-                            <script>
-                                setTimeout(() => {
-                                    try {
-                                        window.close();
-                                    } catch (e) {
-                                        console.log('Window close not allowed');
-                                    }
-                                }, 5000);
-                            </script>
-                        </body>
-                        </html>
-                    `);
-                } else {
-                    // Regular web error redirect
-                    res.redirect(`/sign-up?error=callback_error`);
-                }
+                res.redirect(`/sign-up?error=callback_error`);
             }
         }
     );
+
+    // ==================== FIXED CHROME EXTENSION TOKEN EXCHANGE ====================
+    
+    // Chrome Extension OAuth Token Exchange - FIXED
+    app.post('/auth/chrome-extension', async (req, res) => {
+        try {
+            console.log('🔐 Chrome Extension OAuth token exchange request - FIXED');
+            console.log('📦 Request body:', req.body);
+            
+            const { authCode, redirectUri } = req.body;
+            
+            if (!authCode) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Authorization code is required'
+                });
+            }
+            
+            if (!redirectUri) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Redirect URI is required'
+                });
+            }
+            
+            console.log('🔄 Exchanging authorization code for access token...');
+            console.log('🔗 Redirect URI:', redirectUri);
+            
+            // Exchange authorization code for access token with Google
+            const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+                client_id: GOOGLE_CLIENT_ID,
+                client_secret: GOOGLE_CLIENT_SECRET,
+                code: authCode,
+                grant_type: 'authorization_code',
+                redirect_uri: redirectUri
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
+            });
+            
+            if (!tokenResponse.data.access_token) {
+                throw new Error('No access token received from Google');
+            }
+            
+            console.log('✅ Access token received from Google');
+            
+            // Get user info from Google using the access token
+            const userResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: {
+                    'Authorization': `Bearer ${tokenResponse.data.access_token}`
+                },
+                timeout: 30000
+            });
+            
+            const googleUser = userResponse.data;
+            console.log('👤 Google User Info received:', { 
+                id: googleUser.id, 
+                email: googleUser.email, 
+                name: googleUser.name 
+            });
+            
+            // Find or create user in our database
+            let user = await getUserByEmail(googleUser.email);
+            let isNewUser = false;
+            
+            if (!user) {
+                user = await createGoogleUser(
+                    googleUser.email,
+                    googleUser.name,
+                    googleUser.id,
+                    googleUser.picture,
+                    'free',
+                    'monthly'
+                );
+                isNewUser = true;
+                console.log('👤 New user created:', user.email);
+            } else if (!user.google_id) {
+                await linkGoogleAccount(user.id, googleUser.id);
+                user = await getUserById(user.id);
+                console.log('🔗 Google account linked to existing user:', user.email);
+            } else {
+                console.log('👤 Existing user found:', user.email);
+            }
+            
+            // Generate our app's JWT token
+            const appToken = jwt.sign(
+                { userId: user.id, email: user.email },
+                JWT_SECRET,
+                { expiresIn: '30d' }
+            );
+            
+            console.log('✅ Chrome extension authentication successful for:', user.email);
+            
+            res.json({
+                success: true,
+                message: 'Chrome extension authentication successful',
+                data: {
+                    token: appToken,
+                    user: {
+                        id: user.id,
+                        email: user.email,
+                        displayName: user.display_name,
+                        profilePicture: user.profile_picture,
+                        packageType: user.package_type,
+                        credits: user.credits_remaining,
+                        isNewUser: isNewUser
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Chrome extension OAuth error:', error);
+            
+            let errorMessage = 'Chrome extension authentication failed';
+            let statusCode = 500;
+            
+            if (error.response) {
+                // Google API error
+                console.error('Google API Error:', error.response.data);
+                errorMessage = `Google OAuth error: ${error.response.data.error_description || error.response.data.error}`;
+                statusCode = 400;
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout - please try again';
+                statusCode = 408;
+            }
+            
+            res.status(statusCode).json({
+                success: false,
+                error: errorMessage,
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    });
 
     app.get('/auth/failed', (req, res) => {
         res.redirect(`/sign-up?error=auth_failed`);
