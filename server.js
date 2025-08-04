@@ -10,6 +10,7 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
+const fetch = require('node-fetch'); // ✅ Added for Chrome extension auth
 require('dotenv').config();
 
 const app = express();
@@ -49,7 +50,7 @@ const corsOptions = {
             'https://test.msgly.ai'
         ];
         
-        if (origin.startsWith('chrome-extension://')) {
+        if (origin && origin.startsWith('chrome-extension://')) {
             return callback(null, true);
         }
         
@@ -1098,6 +1099,18 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
+// ✅ ==================== CHROME EXTENSION AUTH IMPORT ====================
+// ✅ Import the separate Chrome Extension auth routes (after DB functions are defined)
+const { router: authExtensionRoutes, initAuthExtension } = require('./auth-extension');
+
+// ✅ Initialize auth extension with database functions
+initAuthExtension({
+    getUserByEmail,
+    getUserById,
+    createGoogleUser,
+    linkGoogleAccount
+});
+
 // ==================== FRONTEND ROUTES ====================
 
 // ✅ Home route - serves your sign-up page
@@ -1131,14 +1144,15 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '6.5-CHROME-EXTENSION-OAUTH-READY',
+            version: '6.5-CHROME-EXTENSION-OAUTH-FIXED-SEPARATE-COMPLETE',
             timestamp: new Date().toISOString(),
             changes: {
-                chromeExtensionOAuth: 'ADDED - Separate Chrome Extension OAuth endpoint',
+                chromeExtensionOAuth: 'FIXED - Chrome Extension OAuth in separate auth-extension.js file',
                 webAuthPreserved: 'MAINTAINED - Web authentication completely unchanged',
                 targetProfilesTable: 'ADDED - For Chrome extension target profile storage',
                 generateMessageEndpoint: 'ADDED - For Chrome extension message generation',
-                saveTargetProfileEndpoint: 'ADDED - For Chrome extension profile saving'
+                saveTargetProfileEndpoint: 'ADDED - For Chrome extension profile saving',
+                allOriginalFunctionality: 'PRESERVED - Complete LinkedIn extraction system intact'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1173,140 +1187,6 @@ app.get('/health', async (req, res) => {
             status: 'unhealthy',
             error: error.message,
             timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// ==================== CHROME EXTENSION OAUTH ENDPOINT ====================
-// 🚀 NEW: Separate Chrome Extension OAuth endpoint (doesn't affect web auth)
-app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension OAuth request');
-    
-    try {
-        const { authCode, redirectUri } = req.body;
-        
-        if (!authCode) {
-            return res.status(400).json({
-                success: false,
-                error: 'Authorization code is required'
-            });
-        }
-        
-        if (!redirectUri) {
-            return res.status(400).json({
-                success: false,
-                error: 'Redirect URI is required'
-            });
-        }
-        
-        console.log('🔄 Exchanging authorization code for access token...');
-        
-        // Exchange authorization code for access token
-        const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-            client_id: GOOGLE_CLIENT_ID,
-            client_secret: GOOGLE_CLIENT_SECRET,
-            code: authCode,
-            grant_type: 'authorization_code',
-            redirect_uri: redirectUri
-        }, {
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000
-        });
-        
-        if (!tokenResponse.data.access_token) {
-            throw new Error('No access token received from Google');
-        }
-        
-        const { access_token } = tokenResponse.data;
-        console.log('✅ Access token received');
-        
-        // Get user info from Google
-        console.log('👤 Fetching user info from Google...');
-        const userResponse = await axios.get(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`, {
-            timeout: 15000
-        });
-        
-        const profile = userResponse.data;
-        console.log('👤 User info received:', profile.email);
-        
-        if (!profile.email) {
-            throw new Error('No email received from Google profile');
-        }
-        
-        // Create or login user (same logic as web OAuth but separate)
-        let user = await getUserByEmail(profile.email);
-        let isNewUser = false;
-        
-        if (!user) {
-            console.log('👤 Creating new user for Chrome extension...');
-            user = await createGoogleUser(
-                profile.email,
-                profile.name,
-                profile.id,
-                profile.picture
-            );
-            isNewUser = true;
-        } else if (!user.google_id) {
-            console.log('🔗 Linking Google account to existing user...');
-            await linkGoogleAccount(user.id, profile.id);
-            user = await getUserById(user.id);
-        }
-        
-        console.log(`✅ User authenticated: ${user.email} (${isNewUser ? 'new' : 'existing'})`);
-        
-        // Generate JWT token
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-        );
-        
-        res.json({
-            success: true,
-            message: 'Chrome extension authentication successful',
-            data: {
-                token: token,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    displayName: user.display_name,
-                    profilePicture: user.profile_picture,
-                    packageType: user.package_type,
-                    credits: user.credits_remaining,
-                    subscriptionStatus: user.subscription_status,
-                    isNewUser: isNewUser
-                }
-            }
-        });
-        
-        console.log('🎉 Chrome Extension OAuth completed successfully!');
-        
-    } catch (error) {
-        console.error('❌ Chrome extension OAuth error:', error);
-        
-        let errorMessage = 'Authentication failed';
-        let statusCode = 500;
-        
-        if (error.response) {
-            // Google API error
-            statusCode = error.response.status || 500;
-            errorMessage = error.response.data ? 
-                `Google API error: ${JSON.stringify(error.response.data)}` : 
-                'Google API authentication failed';
-        } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNABORTED') {
-            statusCode = 503;
-            errorMessage = 'Network error - please try again';
-        } else if (error.message.includes('No access token')) {
-            statusCode = 400;
-            errorMessage = 'Invalid authorization code';
-        }
-        
-        res.status(statusCode).json({
-            success: false,
-            error: errorMessage,
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
@@ -1428,7 +1308,7 @@ app.post('/generate-message', authenticateToken, async (req, res) => {
         
         const userProfile = userProfileResult.rows[0];
         
-        // Simple AI message generation (you can replace this with actual AI service)
+        // Simple AI message generation (replace with actual AI service)
         const generateAIMessage = (user, target, context) => {
             const targetName = target.fullName || target.name || target.firstName || 'there';
             const targetCompany = target.currentCompany || target.company || '';
@@ -1499,6 +1379,9 @@ app.post('/generate-message', authenticateToken, async (req, res) => {
         });
     }
 });
+
+// ✅ Use the Chrome Extension auth routes
+app.use(authExtensionRoutes);
 
 // Google OAuth Routes (WEB ONLY - unchanged)
 app.get('/auth/google', (req, res, next) => {
@@ -1857,7 +1740,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     extractionStatus: profile.data_extraction_status
                 },
                 changes: {
-                    chromeExtensionOAuth: 'ADDED - Separate Chrome Extension OAuth endpoint',
+                    chromeExtensionOAuth: 'FIXED - Chrome Extension OAuth in separate auth-extension.js file',
                     webAuthPreserved: 'MAINTAINED - Web authentication completely unchanged',
                     extensionEndpoints: 'ADDED - save-target-profile and generate-message'
                 }
@@ -2014,7 +1897,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 } : null,
                 syncStatus: syncStatus,
                 changes: {
-                    chromeExtensionOAuth: 'ADDED - Separate Chrome Extension OAuth endpoint',
+                    chromeExtensionOAuth: 'FIXED - Chrome Extension OAuth in separate auth-extension.js file',
                     webAuthPreserved: 'MAINTAINED - Web authentication completely unchanged',
                     extensionEndpoints: 'ADDED - save-target-profile and generate-message'
                 }
@@ -2067,7 +1950,7 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             is_currently_processing: processingQueue.has(req.user.id),
             message: getStatusMessage(status.extraction_status),
             changes: {
-                chromeExtensionOAuth: 'ADDED - Separate Chrome Extension OAuth endpoint',
+                chromeExtensionOAuth: 'FIXED - Chrome Extension OAuth in separate auth-extension.js file',
                 webAuthPreserved: 'MAINTAINED - Web authentication completely unchanged',
                 extensionEndpoints: 'ADDED - save-target-profile and generate-message'
             }
@@ -2120,7 +2003,7 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
             message: 'LinkedIn extraction retry initiated with Chrome Extension OAuth support!',
             status: 'processing',
             changes: {
-                chromeExtensionOAuth: 'ADDED - Separate Chrome Extension OAuth endpoint',
+                chromeExtensionOAuth: 'FIXED - Chrome Extension OAuth in separate auth-extension.js file',
                 webAuthPreserved: 'MAINTAINED - Web authentication completely unchanged',
                 extensionEndpoints: 'ADDED - save-target-profile and generate-message'
             }
@@ -2316,14 +2199,14 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - CHROME EXTENSION OAUTH READY!');
+            console.log('🚀 Msgly.AI Server - CHROME EXTENSION OAUTH FIXED WITH SEPARATE FILE - COMPLETE!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with LinkedIn schema + Target Profiles`);
             console.log(`🔐 Auth: JWT + Google OAuth Ready (Web + Chrome Extension)`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🎯 CHROME EXTENSION OAUTH READY:`);
-            console.log(`   ✅ POST /auth/chrome-extension - Separate OAuth endpoint`);
+            console.log(`🎯 CHROME EXTENSION OAUTH FIXED:`);
+            console.log(`   ✅ auth-extension.js - Separate Chrome Extension OAuth file`);
             console.log(`   ✅ Web authentication completely unchanged`);
             console.log(`   ✅ Chrome extension gets same user data as web`);
             console.log(`   ✅ POST /save-target-profile - Save scraped LinkedIn profiles`);
@@ -2338,18 +2221,20 @@ const startServer = async () => {
             console.log(`📋 ALL ENDPOINTS COMPLETE:`);
             console.log(`   ✅ Frontend: /, /sign-up, /login, /dashboard`);
             console.log(`   ✅ Auth: /auth/google, /auth/google/callback, /auth/chrome-extension, /register, /login`);
-            console.log(`   ✅ Profile: /profile, /update-profile, /complete-registration`);
-            console.log(`   ✅ Status: /profile-status, /retry-extraction`);
+            console.log(`   ✅ Profile: /profile, /update-profile, /complete-registration, /profile-status, /retry-extraction`);
             console.log(`   ✅ Extension: /save-target-profile, /generate-message`);
             console.log(`   ✅ Utility: /packages, /health`);
             console.log(`📋 LinkedIn Extraction ENHANCED:`);
             console.log(`   ✅ Status field fix: Now checks both Status and status`);
             console.log(`   ✅ Field mapping: Enhanced with fallback options`); 
             console.log(`   ✅ All Bright Data LinkedIn fields supported`);
+            console.log(`   ✅ Complete background processing system`);
+            console.log(`   ✅ Enhanced error handling and retry logic`);
+            console.log(`   ✅ Full JSON sanitization and validation`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: CHROME EXTENSION OAUTH READY! 🎉`);
+            console.log(`🎯 Status: CHROME EXTENSION OAUTH FIXED WITH COMPLETE SYSTEM! 🎉`);
         });
         
     } catch (error) {
