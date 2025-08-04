@@ -1,4 +1,4 @@
-// auth-extension.js - Chrome Extension Google Auth Endpoint - FIXED
+// auth-extension.js - Chrome Extension Google Auth Endpoint - FIXED with Enhanced Debugging
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const fetch = require('node-fetch');
@@ -13,86 +13,260 @@ const initAuthExtension = (functions) => {
     dbFunctions = functions;
 };
 
-// Chrome Extension OAuth endpoint
+// Chrome Extension OAuth endpoint - FIXED with Enhanced Debugging
 router.post('/auth/chrome-extension', async (req, res) => {
     console.log('🔐 Chrome Extension OAuth request received');
-    console.log('📊 Request body:', req.body);
+    console.log('📊 Request headers:', req.headers);
+    console.log('📊 Request body (sanitized):', {
+        clientType: req.body.clientType,
+        extensionId: req.body.extensionId,
+        hasToken: !!req.body.googleAccessToken,
+        tokenLength: req.body.googleAccessToken?.length,
+        debug: req.body.debug
+    });
     
     try {
-        const { googleAccessToken, clientType, extensionId } = req.body;
+        const { googleAccessToken, clientType, extensionId, debug } = req.body;
         
+        // Enhanced validation
         if (!googleAccessToken) {
             console.error('❌ Missing Google access token');
             return res.status(400).json({
                 success: false,
-                error: 'Missing Google access token'
+                error: 'Missing Google access token',
+                received: {
+                    clientType,
+                    extensionId,
+                    hasToken: false,
+                    debug
+                }
+            });
+        }
+        
+        if (!extensionId) {
+            console.error('❌ Missing extension ID');
+            return res.status(400).json({
+                success: false,
+                error: 'Missing extension ID',
+                received: {
+                    clientType,
+                    hasToken: !!googleAccessToken,
+                    debug
+                }
             });
         }
         
         console.log('🔄 Fetching user info from Google using access token...');
+        console.log('🔍 Token info (first 20 chars):', googleAccessToken.substring(0, 20) + '...');
+        console.log('🆔 Extension ID:', extensionId);
+        console.log('🐛 Debug info:', debug);
         
-        // Get user info from Google using the access token
+        // FIXED: Enhanced token validation before Google API call
+        try {
+            // First validate the token with Google's tokeninfo endpoint
+            console.log('🔍 Validating token with Google tokeninfo...');
+            const tokenInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${googleAccessToken}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 10000
+            });
+            
+            if (!tokenInfoResponse.ok) {
+                console.error('❌ Token validation failed:', tokenInfoResponse.status, tokenInfoResponse.statusText);
+                const tokenErrorText = await tokenInfoResponse.text().catch(() => 'No response body');
+                console.error('❌ Token validation error body:', tokenErrorText);
+                
+                return res.status(401).json({
+                    success: false,
+                    error: 'Invalid Google access token - token validation failed',
+                    details: {
+                        status: tokenInfoResponse.status,
+                        statusText: tokenInfoResponse.statusText,
+                        body: tokenErrorText
+                    }
+                });
+            }
+            
+            const tokenInfo = await tokenInfoResponse.json();
+            console.log('✅ Token validation successful:', {
+                scope: tokenInfo.scope,
+                audience: tokenInfo.audience,
+                expires_in: tokenInfo.expires_in
+            });
+            
+            // Check if token has required scopes
+            const hasEmailScope = tokenInfo.scope && tokenInfo.scope.includes('userinfo.email');
+            const hasProfileScope = tokenInfo.scope && tokenInfo.scope.includes('userinfo.profile');
+            
+            if (!hasEmailScope || !hasProfileScope) {
+                console.error('❌ Token missing required scopes:', tokenInfo.scope);
+                return res.status(401).json({
+                    success: false,
+                    error: 'Token missing required scopes',
+                    details: {
+                        receivedScopes: tokenInfo.scope,
+                        requiredScopes: 'userinfo.email userinfo.profile'
+                    }
+                });
+            }
+            
+        } catch (tokenValidationError) {
+            console.error('❌ Token validation error:', tokenValidationError);
+            return res.status(401).json({
+                success: false,
+                error: 'Token validation failed',
+                details: tokenValidationError.message
+            });
+        }
+        
+        // Get user info from Google using the validated access token
+        console.log('👤 Fetching user profile from Google...');
         const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
                 'Authorization': `Bearer ${googleAccessToken}`,
+                'Accept': 'application/json'
             },
+            timeout: 15000
         });
         
+        console.log('📡 Google userinfo response status:', userResponse.status);
+        console.log('📡 Google userinfo response headers:', [...userResponse.headers.entries()]);
+        
         if (!userResponse.ok) {
-            console.error('❌ Google API error:', userResponse.status, userResponse.statusText);
-            const errorText = await userResponse.text();
-            console.error('❌ Google API error body:', errorText);
+            console.error('❌ Google userinfo API error:', userResponse.status, userResponse.statusText);
+            const errorText = await userResponse.text().catch(() => 'No response body');
+            console.error('❌ Google userinfo API error body:', errorText);
+            
+            let errorMessage = 'Failed to fetch user info from Google';
+            
+            if (userResponse.status === 401) {
+                errorMessage = 'Invalid or expired Google access token';
+            } else if (userResponse.status === 403) {
+                errorMessage = 'Insufficient permissions for Google access token';
+            } else if (userResponse.status === 429) {
+                errorMessage = 'Google API rate limit exceeded';
+            } else {
+                errorMessage = `Google API error: ${userResponse.status} ${userResponse.statusText}`;
+            }
+            
             return res.status(401).json({
                 success: false,
-                error: 'Invalid Google access token'
+                error: errorMessage,
+                details: {
+                    googleStatus: userResponse.status,
+                    googleStatusText: userResponse.statusText,
+                    googleError: errorText
+                }
             });
         }
         
         const profile = await userResponse.json();
-        console.log('✅ Google user info received:', { email: profile.email, name: profile.name });
+        console.log('✅ Google user info received:', { 
+            email: profile.email, 
+            name: profile.name,
+            id: profile.id,
+            verified_email: profile.verified_email,
+            picture: profile.picture
+        });
         
+        // Enhanced profile validation
         if (!profile.email || !profile.id) {
             console.error('❌ Incomplete Google profile data:', profile);
             return res.status(401).json({
                 success: false,
-                error: 'Invalid Google token - incomplete profile data'
+                error: 'Incomplete Google profile data',
+                details: {
+                    hasEmail: !!profile.email,
+                    hasId: !!profile.id,
+                    hasName: !!profile.name,
+                    receivedFields: Object.keys(profile)
+                }
             });
         }
+        
+        if (!profile.verified_email) {
+            console.error('❌ Google email not verified:', profile.email);
+            return res.status(401).json({
+                success: false,
+                error: 'Google email not verified',
+                details: {
+                    email: profile.email,
+                    verified_email: profile.verified_email
+                }
+            });
+        }
+        
+        console.log('🔍 Database lookup for user:', profile.email);
         
         // Find or create user
         let user = await dbFunctions.getUserByEmail(profile.email);
         let isNewUser = false;
         
+        console.log('👤 Existing user found:', !!user);
+        
         if (!user) {
             // Create new user for Chrome extension
             console.log('👤 Creating new user from Chrome extension auth');
-            user = await dbFunctions.createGoogleUser(
-                profile.email,
-                profile.name,
-                profile.id,
-                profile.picture,
-                'free',
-                'monthly'
-            );
-            isNewUser = true;
+            try {
+                user = await dbFunctions.createGoogleUser(
+                    profile.email,
+                    profile.name,
+                    profile.id,
+                    profile.picture,
+                    'free',
+                    'monthly'
+                );
+                isNewUser = true;
+                console.log('✅ New user created successfully:', user.id);
+            } catch (createError) {
+                console.error('❌ Failed to create new user:', createError);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to create new user account',
+                    details: createError.message
+                });
+            }
         } else if (!user.google_id) {
             // Link Google account to existing user
-            console.log('🔗 Linking Google account to existing user');
-            await dbFunctions.linkGoogleAccount(user.id, profile.id);
-            user = await dbFunctions.getUserById(user.id);
+            console.log('🔗 Linking Google account to existing user:', user.id);
+            try {
+                await dbFunctions.linkGoogleAccount(user.id, profile.id);
+                user = await dbFunctions.getUserById(user.id);
+                console.log('✅ Google account linked successfully');
+            } catch (linkError) {
+                console.error('❌ Failed to link Google account:', linkError);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to link Google account',
+                    details: linkError.message
+                });
+            }
+        } else {
+            console.log('✅ Existing user with Google account found');
         }
         
         // Generate JWT token
+        console.log('🔑 Generating JWT token for user:', user.id);
         const token = jwt.sign(
-            { userId: user.id, email: user.email },
+            { 
+                userId: user.id, 
+                email: user.email,
+                source: 'chrome_extension',
+                extensionId: extensionId
+            },
             JWT_SECRET,
             { expiresIn: '30d' }
         );
         
         console.log(`✅ Chrome extension auth successful for user: ${user.email}`);
+        console.log(`👤 User ID: ${user.id}`);
+        console.log(`🆔 Extension ID: ${extensionId}`);
+        console.log(`🆕 Is new user: ${isNewUser}`);
         
-        // Return user data and token
-        res.json({
+        // Return user data and token - ENHANCED response
+        const responseData = {
             success: true,
             message: 'Chrome extension authentication successful',
             data: {
@@ -114,26 +288,82 @@ router.post('/auth/chrome-extension', async (req, res) => {
                     extractionStatus: user.extraction_status,
                     createdAt: user.created_at,
                     isNewUser: isNewUser
+                },
+                metadata: {
+                    extensionId: extensionId,
+                    authMethod: 'chrome_extension',
+                    tokenExpiry: '30 days',
+                    timestamp: new Date().toISOString()
                 }
             }
-        });
+        };
+        
+        res.json(responseData);
         
     } catch (error) {
         console.error('❌ Chrome extension auth error:', error);
+        console.error('❌ Error stack:', error.stack);
+        
+        // Enhanced error handling
+        let errorMessage = 'Chrome extension authentication failed';
+        let statusCode = 500;
         
         if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-            return res.status(503).json({
-                success: false,
-                error: 'Google authentication service temporarily unavailable'
-            });
+            errorMessage = 'Google authentication service temporarily unavailable';
+            statusCode = 503;
+        } else if (error.name === 'TimeoutError' || error.code === 'ETIMEDOUT') {
+            errorMessage = 'Request to Google services timed out';
+            statusCode = 504;
+        } else if (error.message.includes('invalid_grant')) {
+            errorMessage = 'Invalid or expired Google token';
+            statusCode = 401;
+        } else if (error.message.includes('invalid_client')) {
+            errorMessage = 'OAuth client configuration error';
+            statusCode = 400;
         }
         
-        res.status(500).json({
+        res.status(statusCode).json({
             success: false,
-            error: 'Chrome extension authentication failed',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            error: errorMessage,
+            details: process.env.NODE_ENV === 'development' ? {
+                message: error.message,
+                stack: error.stack,
+                code: error.code,
+                name: error.name
+            } : {
+                message: error.message
+            },
+            timestamp: new Date().toISOString()
         });
     }
+});
+
+// FIXED: Health check endpoint for Chrome extension debugging
+router.get('/auth/chrome-extension/health', (req, res) => {
+    console.log('🏥 Chrome extension auth health check');
+    
+    res.json({
+        success: true,
+        service: 'Chrome Extension Auth',
+        status: 'healthy',
+        version: '2.0.8-FIXED-ENHANCED-DEBUG',
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            auth: '/auth/chrome-extension',
+            health: '/auth/chrome-extension/health'
+        },
+        requirements: {
+            googleAccessToken: 'required',
+            extensionId: 'required',
+            clientType: 'optional (defaults to chrome_extension)',
+            scopes: 'userinfo.email, userinfo.profile'
+        },
+        debugging: {
+            enhanced: true,
+            tokenValidation: true,
+            errorDetails: process.env.NODE_ENV === 'development'
+        }
+    });
 });
 
 module.exports = { router, initAuthExtension };
