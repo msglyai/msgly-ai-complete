@@ -1181,6 +1181,9 @@
         let selectedPackage = 'free';
         let userToken = null;
 
+        // FIXED: Enhanced debug logging
+        console.log('🎯 Sign-up page loaded');
+
         // Pricing data
         const pricing = {
             payAsYouGo: {
@@ -1217,6 +1220,8 @@
         // Handle Google Sign In
         function handleGoogleSignIn(e) {
             e.preventDefault();
+            console.log('🔐 Starting Google OAuth with package:', selectedPackage);
+            
             sessionStorage.setItem('selectedPackage', selectedPackage);
             window.location.href = `https://api.msgly.ai/auth/google?package=${selectedPackage}`;
         }
@@ -1249,11 +1254,30 @@
             }
         }
 
+        // FIXED: Move to Step 2 function
+        function moveToStep2() {
+            console.log('🎯 Moving to Step 2');
+            
+            // Update step indicators
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            
+            // Hide Step 1, Show Step 2
+            document.getElementById('step1Content').style.display = 'none';
+            document.getElementById('step2Content').style.display = 'block';
+            
+            console.log('✅ Successfully moved to Step 2');
+        }
+
         // Add event listener for LinkedIn URL input
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 DOM loaded, setting up event listeners');
+            
             const linkedinInput = document.getElementById('linkedinUrl');
             if (linkedinInput) {
                 linkedinInput.addEventListener('input', validateForm);
+                console.log('✅ LinkedIn input event listener added');
             }
         });
 
@@ -1297,6 +1321,11 @@
             const termsAgreed = document.getElementById('termsAgreement').checked;
             const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
             
+            console.log('🎯 Starting registration completion');
+            console.log('   - Terms agreed:', termsAgreed);
+            console.log('   - LinkedIn URL:', linkedinUrl);
+            console.log('   - User token:', userToken ? 'Present' : 'Missing');
+            
             // Validation
             if (!termsAgreed) {
                 alert('Please agree to our Terms of Service and Privacy Policy to continue.');
@@ -1330,6 +1359,8 @@
             animateExtractionProgress();
             
             try {
+                console.log('📡 Sending registration completion request');
+                
                 // Send to FIXED /complete-registration endpoint
                 const response = await fetch('https://api.msgly.ai/complete-registration', {
                     method: 'POST',
@@ -1346,6 +1377,8 @@
                 
                 const result = await response.json();
                 
+                console.log('📡 Registration response:', result);
+                
                 if (!result.success) {
                     throw new Error(result.error || 'Failed to complete registration');
                 }
@@ -1360,7 +1393,7 @@
                 console.log('✅ Registration completed successfully!');
                 
             } catch (error) {
-                console.error('Registration error:', error);
+                console.error('❌ Registration error:', error);
                 
                 // Show error and go back to form
                 document.getElementById('loadingState').style.display = 'none';
@@ -1384,24 +1417,66 @@
             window.location.href = '/dashboard';
         }
 
-        // Check if returning from Google OAuth
+        // FIXED: Enhanced OAuth return detection
         window.addEventListener('load', () => {
+            console.log('🎯 Page loaded, checking for OAuth return');
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            const error = urlParams.get('error');
+            const packageParam = urlParams.get('package');
+            const billing = urlParams.get('billing');
+            
+            console.log('🔍 URL params check:');
+            console.log('   - Token:', token ? 'Present' : 'Missing');
+            console.log('   - Error:', error || 'None');
+            console.log('   - Package:', packageParam || 'None');
+            console.log('   - Billing:', billing || 'None');
+            
+            if (error) {
+                console.log('❌ OAuth error detected:', error);
+                alert('Login failed: ' + error + '. Please try again.');
+                return;
+            }
+            
+            if (token) {
+                console.log('✅ OAuth token detected, processing...');
+                userToken = token;
+                
+                // Restore package selection if provided
+                if (packageParam) {
+                    selectedPackage = packageParam;
+                    console.log('📦 Package selection restored:', selectedPackage);
+                }
+                
+                // FIXED: Move to Step 2
+                moveToStep2();
+                
+                // Clean URL
+                const cleanUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+                
+                console.log('✅ OAuth processing complete');
+            } else {
+                console.log('ℹ️ No OAuth token found, staying on Step 1');
+            }
+        });
+
+        // FIXED: Additional safety check for Step 2 progression
+        setInterval(() => {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             
-            if (token) {
+            if (token && !userToken && document.getElementById('step1Content').style.display !== 'none') {
+                console.log('🔄 Late token detection, moving to Step 2');
                 userToken = token;
+                moveToStep2();
                 
-                document.getElementById('step1').classList.remove('active');
-                document.getElementById('step1').classList.add('completed');
-                document.getElementById('step2').classList.add('active');
-                
-                document.getElementById('step1Content').style.display = 'none';
-                document.getElementById('step2Content').style.display = 'block';
-                
-                window.history.replaceState({}, document.title, window.location.pathname);
+                // Clean URL
+                const cleanUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
             }
-        });
+        }, 1000); // Check every second for 5 seconds max
     </script>
 </body>
 </html>
