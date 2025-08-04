@@ -143,7 +143,7 @@ const setupGoogleAuthRoutes = (app) => {
                 
                 console.log(`🔐 OAuth callback - Extension: ${isExtension}`);
                 
-                // FIXED: Handle Chrome extension authentication
+                // FIXED: Handle Chrome extension authentication - SIMPLIFIED SUCCESS PAGE
                 if (isExtension) {
                     console.log('🔐 Sending Chrome extension success page');
                     
@@ -235,7 +235,7 @@ const setupGoogleAuthRoutes = (app) => {
                             </div>
                             
                             <script>
-                                console.log('🔐 Chrome Extension OAuth success page loaded');
+                                console.log('🔐 Extension success page loaded');
                                 
                                 const authData = {
                                     token: '${token}',
@@ -247,56 +247,37 @@ const setupGoogleAuthRoutes = (app) => {
                                     }
                                 };
                                 
-                                console.log('🔐 Sending auth data to extension:', authData);
+                                console.log('🔐 Sending auth data:', authData);
                                 
-                                // FIXED: Send message to opener window (Chrome extension) with correct message type and data structure
-                                function sendTokenToExtension() {
-                                    if (window.opener && !window.opener.closed) {
-                                        console.log('📨 Sending token to extension via postMessage');
-                                        window.opener.postMessage({
-                                            type: 'MSGLY_AUTH_SUCCESS',  // FIXED: Correct message type
-                                            data: authData               // FIXED: Correct data structure
-                                        }, '*');
-                                        return true;
+                                // Send message to extension - SIMPLIFIED
+                                function sendToExtension() {
+                                    try {
+                                        if (window.opener) {
+                                            console.log('📨 Sending to window.opener');
+                                            window.opener.postMessage({
+                                                type: 'MSGLY_AUTH_SUCCESS',
+                                                data: authData
+                                            }, '*');
+                                        }
+                                        
+                                        // Store in localStorage as backup
+                                        localStorage.setItem('msgly_auth_data', JSON.stringify(authData));
+                                        console.log('💾 Stored in localStorage');
+                                        
+                                    } catch (error) {
+                                        console.error('❌ Error sending message:', error);
                                     }
-                                    return false;
                                 }
                                 
-                                // Send token immediately
-                                sendTokenToExtension();
-                                
-                                // Method 2: Store in localStorage as fallback
-                                try {
-                                    localStorage.setItem('msgly_auth_data', JSON.stringify(authData));
-                                    console.log('📝 Token stored in localStorage as fallback');
-                                } catch (error) {
-                                    console.log('Could not store in localStorage:', error);
-                                }
-                                
-                                // Method 3: BroadcastChannel for modern browsers
-                                try {
-                                    const channel = new BroadcastChannel('msgly_auth');
-                                    channel.postMessage({
-                                        type: 'MSGLY_AUTH_SUCCESS',
-                                        data: authData
-                                    });
-                                    console.log('📡 Sent via BroadcastChannel');
-                                } catch (e) {
-                                    console.log('BroadcastChannel not available:', e);
-                                }
-                                
-                                // Method 4: Send to parent if in iframe
-                                if (window.parent && window.parent !== window) {
-                                    console.log('📨 Sending to window.parent');
-                                    window.parent.postMessage({
-                                        type: 'MSGLY_AUTH_SUCCESS',
-                                        data: authData
-                                    }, '*');
-                                }
+                                // Send immediately and multiple times
+                                sendToExtension();
+                                setTimeout(sendToExtension, 500);
+                                setTimeout(sendToExtension, 1000);
+                                setTimeout(sendToExtension, 2000);
                                 
                                 // Close window function
                                 function closeWindow() {
-                                    sendTokenToExtension();
+                                    sendToExtension();
                                     setTimeout(() => window.close(), 100);
                                 }
                                 
@@ -313,18 +294,6 @@ const setupGoogleAuthRoutes = (app) => {
                                         closeWindow();
                                     }
                                 }, 1000);
-                                
-                                // Send token multiple times to ensure delivery
-                                setTimeout(() => sendTokenToExtension(), 500);
-                                setTimeout(() => sendTokenToExtension(), 1000);
-                                setTimeout(() => sendTokenToExtension(), 1500);
-                                
-                                // Handle clicks anywhere to close
-                                document.addEventListener('click', (e) => {
-                                    if (e.target.tagName !== 'BUTTON') {
-                                        closeWindow();
-                                    }
-                                });
                             </script>
                         </body>
                         </html>
