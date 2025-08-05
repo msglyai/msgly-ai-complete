@@ -69,45 +69,60 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// ✅ HTML preprocessing for OpenAI (similar but optimized for GPT-3.5)
+// ✅ LinkedIn-optimized HTML preprocessing for OpenAI
 function preprocessHTMLForOpenAI(html) {
     try {
         console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         
-        // OpenAI-optimized cleaning
+        // STEP 1: Remove only truly unnecessary elements
         processedHtml = processedHtml
-            // Remove scripts and styles
+            // Remove scripts, styles, and non-content elements
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-            // Remove SVGs (large and not needed)
+            // Remove all images and media (only need text data)
+            .replace(/<img[^>]*\/?>/gi, '')
+            .replace(/<picture[^>]*>[\s\S]*?<\/picture>/gi, '')
             .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
-            // Remove forms and interactive elements
-            .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
-            .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
-            .replace(/<input[^>]*\/?>/gi, '')
-            // Remove media elements
             .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
             .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
             .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-            // Clean attributes
-            .replace(/\s+data-(?!section|experience|skills|education)[^=]*="[^"]*"/gi, '')
-            .replace(/\s+class="[^"]{100,}"/gi, ' class=""')
-            .replace(/\s+style="[^"]*"/gi, '')
-            .replace(/\s+on\w+="[^"]*"/gi, '')
-            // Remove empty elements
-            .replace(/<div[^>]*>\s*<\/div>/gi, '')
-            .replace(/<p[^>]*>\s*<\/p>/gi, '')
-            .replace(/<span[^>]*>\s*<\/span>/gi, '')
-            // Compress whitespace
-            .replace(/\s+/g, ' ')
-            .replace(/>\s+</g, '><')
+            .replace(/<canvas[^>]*>[\s\S]*?<\/canvas>/gi, '')
+            // Remove only excessive attributes, keep LinkedIn-specific ones
+            .replace(/\s+on\w+="[^"]*"/gi, '') // Remove event handlers
+            .replace(/\s+style="[^"]{100,}"/gi, '') // Remove only very long styles
+            .replace(/\s+class="[^"]{150,}"/gi, ' class=""') // Remove only extremely long classes
+            // PRESERVE LinkedIn data attributes that might contain profile info
+            // .replace(/\s+data-(?!section|experience|skills|education)[^=]*="[^"]*"/gi, '') // REMOVED - too aggressive
+            
+        // STEP 2: Light compression only
+        processedHtml = processedHtml
+            .replace(/\s{3,}/g, ' ') // Replace 3+ spaces with 1
+            .replace(/\n\s*\n\s*\n/g, '\n\n') // Replace 3+ newlines with 2
             .trim();
+        
+        // STEP 3: Check if still too large for OpenAI
+        const sizeKB = processedHtml.length / 1024;
+        if (sizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
+            console.log(`⚠️ Still too large (${sizeKB.toFixed(2)} KB), applying additional optimization...`);
+            
+            // Only if absolutely necessary, do more aggressive cleaning
+            processedHtml = processedHtml
+                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // Remove navigation
+                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // Remove footer
+                .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '') // Remove sidebars
+                // Keep main content areas that likely contain profile data
+                .replace(/\s+/g, ' ') // Final whitespace compression
+                .replace(/>\s+</g, '><'); // Remove whitespace between tags
+        }
         
         const finalSize = processedHtml.length / 1024;
         console.log(`✅ HTML preprocessed for OpenAI (final size: ${finalSize.toFixed(2)} KB)`);
+        
+        // Log a preview of what's being sent
+        console.log(`🔍 Content preview (first 300 chars): ${processedHtml.substring(0, 300)}...`);
         
         return processedHtml;
         
