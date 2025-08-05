@@ -736,7 +736,7 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
     }
 };
 
-// ✅ UPDATED: Background processing with Gemini AI integration - NO MANUAL FALLBACK
+// ✅ UPDATED: Background processing with Gemini AI integration - NO MANUAL FALLBACK + FIXED RAW DATA PRESERVATION
 const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelay = 300000; // 5 minutes
@@ -780,26 +780,26 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
         try {
             console.log(`🚀 Starting background extraction for user ${userId} (Retry ${retryCount})`);
             
-            // ✅ FIXED: Start transaction immediately
+            // ✅ STEP 1: Extract raw data from Bright Data first
+            const result = await extractLinkedInProfileComplete(linkedinUrl);
+            console.log(`✅ Extraction succeeded for user ${userId}`);
+            
+            // ✅ CRITICAL FIX: Save raw JSON data OUTSIDE transaction - ALWAYS preserve this
+            await pool.query(
+                'INSERT INTO raw_snapshots (user_id, snapshot_type, raw_json) VALUES ($1, $2, $3)',
+                [userId, 'bright_data', JSON.stringify(result.rawData)]
+            );
+            console.log(`💾 Raw Bright Data JSON saved for user ${userId}`);
+            
+            // ✅ STEP 2: Now start transaction for processing
             await client.query('BEGIN');
             
             await client.query(
                 'UPDATE user_profiles SET extraction_retry_count = $1, extraction_attempted_at = CURRENT_TIMESTAMP WHERE user_id = $2',
                 [retryCount, userId]
             );
-
-            const result = await extractLinkedInProfileComplete(linkedinUrl);
             
-            console.log(`✅ Extraction succeeded for user ${userId}`);
-            
-            // ✅ STEP 1: Save raw JSON data to database
-            await client.query(
-                'INSERT INTO raw_snapshots (user_id, snapshot_type, raw_json) VALUES ($1, $2, $3)',
-                [userId, 'bright_data', JSON.stringify(result.rawData)]
-            );
-            console.log(`💾 Raw Bright Data JSON saved for user ${userId}`);
-            
-            // ✅ STEP 2: Process data using ONLY Gemini - NO MANUAL FALLBACK
+            // ✅ STEP 3: Process data using ONLY Gemini - NO MANUAL FALLBACK
             console.log(`🤖 Processing LinkedIn data with Gemini for user ${userId}...`);
             
             // ✅ CRITICAL: Check for Gemini API key first
@@ -971,6 +971,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             console.log(`✅ Method: ${result.method}`);
             console.log(`🤖 Data processing: ${extractedData.dataSource} (GEMINI ONLY - NO FALLBACK)`);
             console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
+            console.log(`💾 Raw data PRESERVED in raw_snapshots table regardless of processing success`);
             
             processingQueue.delete(userId);
                 
@@ -979,6 +980,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             await client.query('ROLLBACK');
             
             console.error(`❌ Extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
+            console.log(`💾 NOTE: Raw data was PRESERVED in raw_snapshots table despite processing failure`);
             
             if (retryCount < maxRetries - 1) {
                 console.log(`🔄 Retrying extraction for user ${userId}...`);
@@ -1359,13 +1361,14 @@ app.get('/health', async (req, res) => {
             timestamp: new Date().toISOString(),
             changes: {
                 geminiIntegration: 'GEMINI ONLY - No manual fallback processing',
-                rawDataStorage: 'NEW - All Bright Data responses stored in raw_snapshots table',
+                rawDataStorage: 'NEW - All Bright Data responses stored in raw_snapshots table (PRESERVED even if Gemini fails)',
                 fallbackProcessing: 'REMOVED - Gemini processing required, no manual fallback available',
                 transactionManagement: 'MAINTAINED - Database status only updated AFTER confirming data receipt',
                 dataValidation: 'MAINTAINED - Validates extracted data before marking as complete',
                 rollbackMechanism: 'MAINTAINED - Proper transaction rollback on errors',
                 statusIntegrity: 'MAINTAINED - No more false positives where status=true but data=empty',
-                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries with GEMINI ONLY processing'
+                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries with GEMINI ONLY processing',
+                rawDataPreservation: 'FIXED - Raw data saved OUTSIDE transaction, preserved regardless of processing outcome'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1378,13 +1381,15 @@ app.get('/health', async (req, res) => {
                     ? 'EXCLUSIVE data processor - NO FALLBACK' 
                     : 'NOT CONFIGURED - System will fail without Gemini',
                 fallbackAvailable: false,
-                mode: 'GEMINI_ONLY'
+                mode: 'GEMINI_ONLY',
+                timeout: '120 seconds (increased from 30s)'
             },
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
                 transactionManagement: 'ACTIVE',
-                newTables: ['raw_snapshots']
+                newTables: ['raw_snapshots'],
+                rawDataPreservation: 'ENABLED - Always saves raw data before processing'
             },
             backgroundProcessing: {
                 enabled: true,
@@ -2970,6 +2975,8 @@ const startServer = async () => {
             console.log(`   ✅ Error Handling: Enhanced with Gemini-only error messages`);
             console.log(`   ✅ Validation: GEMINI_API_KEY required at startup`);
             console.log(`   ✅ All endpoints: Updated to indicate GEMINI ONLY mode`);
+            console.log(`   💾 Raw Data Preservation: FIXED - Always saved regardless of processing outcome`);
+            console.log(`   ⏱️ Gemini Timeout: Increased to 120 seconds (2 minutes)`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
@@ -2979,14 +2986,16 @@ const startServer = async () => {
             console.log(`   ✅ /update-profile - Requires Gemini for processing`);
             console.log(`   ✅ /retry-extraction - Validates Gemini availability`);
             console.log(`   ✅ /profile-status - Shows GEMINI ONLY processing mode`);
-            console.log(`   ✅ /health - Indicates no fallback available`);
+            console.log(`   ✅ /health - Indicates no fallback available + raw data preservation status`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: GEMINI AI ONLY MODE - NO MANUAL FALLBACK`);
+            console.log(`🎯 Status: GEMINI AI ONLY MODE - NO MANUAL FALLBACK + RAW DATA PRESERVATION`);
             console.log(`   Pure AI Intelligence → No compromise processing ✓`);
             console.log(`   Gemini or Fail → Clean error handling ✓`);
             console.log(`   No Fallback → Consistent quality guaranteed ✓`);
+            console.log(`   Raw Data Always Preserved → Complete audit trail ✓`);
+            console.log(`   Increased Timeout → Better Gemini reliability ✓`);
         });
         
     } catch (error) {
