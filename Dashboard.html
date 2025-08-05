@@ -784,6 +784,71 @@
             margin-bottom: 1.5rem;
         }
 
+        /* Authentication Warning */
+        .auth-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .auth-warning-content {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .auth-warning-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--warning-orange);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+            color: var(--white);
+        }
+
+        .auth-warning-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--black);
+        }
+
+        .auth-warning-message {
+            color: var(--gray);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .auth-warning-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-purple);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .auth-warning-btn:hover {
+            background: var(--dark-purple);
+        }
+
         /* Mobile Responsive */
         @media (max-width: 1024px) {
             .dashboard-row {
@@ -855,6 +920,20 @@
     </style>
 </head>
 <body>
+    <!-- Authentication Warning (shows while checking auth) -->
+    <div class="auth-warning" id="authWarning" style="display: none;">
+        <div class="auth-warning-content">
+            <div class="auth-warning-icon">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h3 class="auth-warning-title">Authentication Required</h3>
+            <p class="auth-warning-message">You need to sign in to access your dashboard.</p>
+            <button class="auth-warning-btn" onclick="redirectToLogin()">
+                Go to Login
+            </button>
+        </div>
+    </div>
+
     <!-- Mobile Sidebar Toggle -->
     <button class="sidebar-toggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
@@ -1203,7 +1282,7 @@
         // Global variables
         let currentUserData = null;
 
-        // Check authentication on page load
+        // ✅ SMART AUTHENTICATION: Check auth on page load and redirect to login if needed
         document.addEventListener('DOMContentLoaded', function() {
             initializeTimezone();
             checkAuthentication();
@@ -1263,11 +1342,13 @@
             }
         }
 
+        // ✅ FIXED: Smart authentication check - redirect to LOGIN if no auth
         async function checkAuthentication() {
             const token = getAuthToken();
             
             if (!token) {
-                redirectToSignup();
+                console.log('❌ No authentication token found - redirecting to login');
+                redirectToLogin();
                 return;
             }
 
@@ -1275,7 +1356,13 @@
                 await loadDashboardData(token);
             } catch (error) {
                 console.error('Dashboard load error:', error);
-                showError('Failed to load dashboard data. Please try logging in again.');
+                
+                if (error.message.includes('401') || error.message.includes('403')) {
+                    console.log('❌ Token invalid - redirecting to login');
+                    redirectToLogin();
+                } else {
+                    showError('Failed to load dashboard data. Please try logging in again.');
+                }
             }
         }
 
@@ -1295,8 +1382,22 @@
             return localStorage.getItem('authToken');
         }
 
-        function redirectToSignup() {
-            window.location.href = '/sign-up';
+        // ✅ FIXED: Redirect to LOGIN page (not sign-up)
+        function redirectToLogin() {
+            console.log('🔒 Redirecting to login page...');
+            
+            // Show auth warning first
+            document.getElementById('authWarning').style.display = 'flex';
+            
+            // Redirect after 2 seconds
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 2000);
+        }
+
+        // ✅ Added explicit redirect function for auth warning button
+        function redirectToLoginNow() {
+            window.location.href = '/login';
         }
 
         async function loadDashboardData(token) {
@@ -1312,8 +1413,7 @@
                 if (!response.ok) {
                     if (response.status === 401 || response.status === 403) {
                         localStorage.removeItem('authToken');
-                        redirectToSignup();
-                        return;
+                        throw new Error(`Authentication failed: ${response.status}`);
                     }
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
@@ -1329,7 +1429,7 @@
                 
             } catch (error) {
                 console.error('API Error:', error);
-                showError(error.message);
+                throw error; // Re-throw for checkAuthentication to handle
             }
         }
 
@@ -1596,7 +1696,7 @@
 
         function logout() {
             localStorage.removeItem('authToken');
-            window.location.href = '/sign-up';
+            window.location.href = '/login';
         }
 
         // Close sidebar when clicking outside on mobile
