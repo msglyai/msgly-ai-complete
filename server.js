@@ -1,4 +1,4 @@
-// Msgly.AI Server - FIXED: Proper Database Transaction Management + Gemini AI Integration
+ // Msgly.AI Server - FIXED: Proper Database Transaction Management + Gemini AI Integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -736,7 +736,7 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
     }
 };
 
-// ✅ UPDATED: Background processing with Gemini AI integration - NO MANUAL FALLBACK + FIXED RAW DATA PRESERVATION
+// ✅ UPDATED: Background processing with improved Gemini debugging - Database → Gemini flow
 const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelay = 300000; // 5 minutes
@@ -782,14 +782,41 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             
             // ✅ STEP 1: Extract raw data from Bright Data first
             const result = await extractLinkedInProfileComplete(linkedinUrl);
-            console.log(`✅ Extraction succeeded for user ${userId}`);
+            console.log(`✅ Bright Data extraction succeeded for user ${userId}`);
             
-            // ✅ CRITICAL FIX: Save raw JSON data OUTSIDE transaction - ALWAYS preserve this
+            // ✅ CRITICAL FIX: Save raw snapshot first (always preserve data) - OUTSIDE transaction
             await pool.query(
                 'INSERT INTO raw_snapshots (user_id, snapshot_type, raw_json) VALUES ($1, $2, $3)',
                 [userId, 'bright_data', JSON.stringify(result.rawData)]
             );
-            console.log(`💾 Raw Bright Data JSON saved for user ${userId}`);
+            console.log(`💾 Raw Bright Data saved for user ${userId}`);
+            
+            // ✅ DEBUG: Read back from DB to confirm
+            const { rows } = await pool.query(
+                'SELECT raw_json FROM raw_snapshots WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+                [userId]
+            );
+            
+            if (!rows || !rows[0] || !rows[0].raw_json) {
+                console.error(`❌ Could not retrieve raw snapshot for user ${userId}`);
+                throw new Error('Raw Bright Data snapshot missing from DB');
+            }
+            
+            const rawJson = rows[0].raw_json;
+            
+            // ✅ GEMINI DEBUG START
+            console.log(`🧠 Sending raw snapshot to Gemini for user ${userId}`);
+            console.log('📦 Snapshot preview (first 500 chars):', JSON.stringify(rawJson).slice(0, 500));
+            
+            let extractedData;
+            try {
+                extractedData = await sendToGemini(rawJson);
+                console.log(`✅ Gemini processing successful for user ${userId}`);
+            } catch (geminiError) {
+                console.error(`❌ Gemini processing failed for user ${userId}:`, geminiError.message);
+                throw new Error(`Gemini processing error: ${geminiError.message}`);
+            }
+            // ✅ GEMINI DEBUG END
             
             // ✅ STEP 2: Now start transaction for processing
             await client.query('BEGIN');
@@ -798,18 +825,6 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                 'UPDATE user_profiles SET extraction_retry_count = $1, extraction_attempted_at = CURRENT_TIMESTAMP WHERE user_id = $2',
                 [retryCount, userId]
             );
-            
-            // ✅ STEP 3: Process data using ONLY Gemini - NO MANUAL FALLBACK
-            console.log(`🤖 Processing LinkedIn data with Gemini for user ${userId}...`);
-            
-            // ✅ CRITICAL: Check for Gemini API key first
-            if (!process.env.GEMINI_API_KEY) {
-                throw new Error('GEMINI_API_KEY is required - no manual fallback available');
-            }
-            
-            // ✅ CRITICAL: Only Gemini processing - fail if it doesn't work
-            const extractedData = await sendToGemini(result.rawData);
-            console.log(`✅ Gemini processing completed for user ${userId}`);
             
             // ✅ CRITICAL FIX: Validate extracted data BEFORE updating database status
             console.log(`📊 Data validation for user ${userId}:`);
@@ -1357,18 +1372,19 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '10.0-GEMINI-ONLY-NO-FALLBACK',
+            version: '10.0-GEMINI-DEBUG-ENHANCED',
             timestamp: new Date().toISOString(),
             changes: {
-                geminiIntegration: 'GEMINI ONLY - No manual fallback processing',
-                rawDataStorage: 'NEW - All Bright Data responses stored in raw_snapshots table (PRESERVED even if Gemini fails)',
+                geminiIntegration: 'GEMINI ONLY - Enhanced debugging with DB → Gemini flow',
+                rawDataStorage: 'ENHANCED - Raw data preserved OUTSIDE transaction, read back from DB for Gemini',
                 fallbackProcessing: 'REMOVED - Gemini processing required, no manual fallback available',
                 transactionManagement: 'MAINTAINED - Database status only updated AFTER confirming data receipt',
                 dataValidation: 'MAINTAINED - Validates extracted data before marking as complete',
                 rollbackMechanism: 'MAINTAINED - Proper transaction rollback on errors',
                 statusIntegrity: 'MAINTAINED - No more false positives where status=true but data=empty',
                 backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries with GEMINI ONLY processing',
-                rawDataPreservation: 'FIXED - Raw data saved OUTSIDE transaction, preserved regardless of processing outcome'
+                rawDataPreservation: 'ENHANCED - Raw data saved OUTSIDE transaction, then read from DB for Gemini processing',
+                debuggingFlow: 'NEW - Added DB read-back verification and detailed Gemini error logging'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1378,23 +1394,24 @@ app.get('/health', async (req, res) => {
             geminiAI: {
                 configured: !!process.env.GEMINI_API_KEY,
                 status: process.env.GEMINI_API_KEY 
-                    ? 'EXCLUSIVE data processor - NO FALLBACK' 
+                    ? 'EXCLUSIVE data processor - NO FALLBACK with enhanced debugging' 
                     : 'NOT CONFIGURED - System will fail without Gemini',
                 fallbackAvailable: false,
-                mode: 'GEMINI_ONLY',
-                timeout: '120 seconds (increased from 30s)'
+                mode: 'GEMINI_ONLY_DEBUG_ENHANCED',
+                timeout: '120 seconds (increased from 30s)',
+                dataFlow: 'Bright Data → DB → Gemini (with read-back verification)'
             },
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
                 transactionManagement: 'ACTIVE',
                 newTables: ['raw_snapshots'],
-                rawDataPreservation: 'ENABLED - Always saves raw data before processing'
+                rawDataPreservation: 'ENABLED - Always saves raw data before processing + read-back verification'
             },
             backgroundProcessing: {
                 enabled: true,
                 aiProcessing: !!process.env.GEMINI_API_KEY,
-                processingMode: 'GEMINI_ONLY',
+                processingMode: 'GEMINI_ONLY_DEBUG_ENHANCED',
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys())
             }
@@ -2266,7 +2283,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started with Gemini AI (NO FALLBACK).',
+            message: 'Registration completed successfully! LinkedIn profile analysis started with Gemini AI DEBUG ENHANCED (NO FALLBACK).',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2283,14 +2300,14 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                 automaticProcessing: {
                     enabled: true,
                     status: 'started',
-                    processingMode: 'GEMINI_ONLY',
+                    processingMode: 'GEMINI_ONLY_DEBUG_ENHANCED',
                     expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background using Gemini AI ONLY - no manual fallback'
+                    message: 'Your LinkedIn profile is being analyzed in the background using Gemini AI ONLY - no manual fallback with enhanced debugging'
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction with Gemini ONLY started!`);
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction with Gemini DEBUG ENHANCED started!`);
         
     } catch (error) {
         console.error('❌ Complete registration error:', error);
@@ -2356,7 +2373,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with Gemini AI ONLY (no fallback)!',
+            message: 'Profile updated - LinkedIn data extraction started with Gemini AI DEBUG ENHANCED ONLY (no fallback)!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2373,7 +2390,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Gemini AI ONLY integration applied!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Gemini AI DEBUG ENHANCED integration applied!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -2576,7 +2593,7 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: processingQueue.has(req.user.id),
-            processing_mode: 'GEMINI_ONLY',
+            processing_mode: 'GEMINI_ONLY_DEBUG_ENHANCED',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2592,11 +2609,11 @@ const getStatusMessage = (status, initialScrapingDone = false) => {
         case 'not_started':
             return 'LinkedIn extraction not started - please complete initial profile setup';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with Gemini AI processing (NO FALLBACK)...';
+            return 'LinkedIn profile extraction in progress with Gemini AI DEBUG ENHANCED processing (NO FALLBACK)...';
         case 'completed':
             return initialScrapingDone ? 
-                'LinkedIn profile extraction completed with Gemini AI! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with Gemini AI (NO FALLBACK)!';
+                'LinkedIn profile extraction completed with Gemini AI DEBUG ENHANCED! You can now scrape target profiles.' :
+                'LinkedIn profile extraction completed successfully with Gemini AI DEBUG ENHANCED (NO FALLBACK)!';
         case 'failed':
             return 'LinkedIn profile extraction failed - Gemini AI processing required (no manual fallback)';
         default:
@@ -2635,9 +2652,9 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with Gemini AI ONLY (no fallback)!',
+            message: 'LinkedIn extraction retry initiated with Gemini AI DEBUG ENHANCED ONLY (no fallback)!',
             status: 'processing',
-            processingMode: 'GEMINI_ONLY'
+            processingMode: 'GEMINI_ONLY_DEBUG_ENHANCED'
         });
         
     } catch (error) {
@@ -2962,39 +2979,41 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - GEMINI AI ONLY MODE ACTIVE!');
+            console.log('🚀 Msgly.AI Server - GEMINI AI DEBUG ENHANCED MODE ACTIVE!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with transaction management`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
-            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured ✅ (EXCLUSIVE data processor - NO FALLBACK)' : 'NOT CONFIGURED ❌ - SYSTEM WILL FAIL'}`);
-            console.log(`🤖 Processing Mode: GEMINI ONLY - NO MANUAL FALLBACK`);
+            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured ✅ (EXCLUSIVE data processor - NO FALLBACK - DEBUG ENHANCED)' : 'NOT CONFIGURED ❌ - SYSTEM WILL FAIL'}`);
+            console.log(`🤖 Processing Mode: GEMINI_ONLY_DEBUG_ENHANCED - NO MANUAL FALLBACK`);
             console.log(`🔧 CRITICAL MODE CHANGE:`);
             console.log(`   ✅ Gemini Processing: REQUIRED - No fallback available`);
             console.log(`   ✅ Manual Processing: REMOVED - System fails if Gemini fails`);
             console.log(`   ✅ Error Handling: Enhanced with Gemini-only error messages`);
             console.log(`   ✅ Validation: GEMINI_API_KEY required at startup`);
-            console.log(`   ✅ All endpoints: Updated to indicate GEMINI ONLY mode`);
-            console.log(`   💾 Raw Data Preservation: FIXED - Always saved regardless of processing outcome`);
+            console.log(`   ✅ All endpoints: Updated to indicate GEMINI DEBUG ENHANCED mode`);
+            console.log(`   💾 Raw Data Preservation: ENHANCED - Always saved OUTSIDE transaction + DB read-back verification`);
+            console.log(`   🔍 Debug Flow: NEW - Bright Data → DB → Gemini with detailed logging`);
             console.log(`   ⏱️ Gemini Timeout: Increased to 120 seconds (2 minutes)`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
             console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`📋 ALL ENDPOINTS WITH GEMINI ONLY MODE:`);
+            console.log(`📋 ALL ENDPOINTS WITH GEMINI DEBUG ENHANCED MODE:`);
             console.log(`   ✅ /complete-registration - Checks for Gemini API key`);
             console.log(`   ✅ /update-profile - Requires Gemini for processing`);
             console.log(`   ✅ /retry-extraction - Validates Gemini availability`);
-            console.log(`   ✅ /profile-status - Shows GEMINI ONLY processing mode`);
-            console.log(`   ✅ /health - Indicates no fallback available + raw data preservation status`);
+            console.log(`   ✅ /profile-status - Shows GEMINI DEBUG ENHANCED processing mode`);
+            console.log(`   ✅ /health - Indicates no fallback available + enhanced raw data preservation status`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: GEMINI AI ONLY MODE - NO MANUAL FALLBACK + RAW DATA PRESERVATION`);
+            console.log(`🎯 Status: GEMINI AI DEBUG ENHANCED MODE - NO MANUAL FALLBACK + RAW DATA PRESERVATION`);
             console.log(`   Pure AI Intelligence → No compromise processing ✓`);
             console.log(`   Gemini or Fail → Clean error handling ✓`);
             console.log(`   No Fallback → Consistent quality guaranteed ✓`);
-            console.log(`   Raw Data Always Preserved → Complete audit trail ✓`);
+            console.log(`   Raw Data Always Preserved → Complete audit trail with DB verification ✓`);
+            console.log(`   Enhanced Debugging → DB → Gemini flow with detailed logging ✓`);
             console.log(`   Increased Timeout → Better Gemini reliability ✓`);
         });
         
