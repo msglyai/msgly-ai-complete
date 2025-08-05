@@ -1,4 +1,4 @@
-// Msgly.AI Server - FIXED: Only Mark Initial Scraping Done After Real Data Confirmation
+// Msgly.AI Server - ENHANCED STATUS SYSTEM - Complete Merged Version
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -33,6 +33,56 @@ const pool = new Pool({
 
 // Background processing tracking
 const processingQueue = new Map();
+
+// ✅ NEW: Helper function to determine if data extraction is successful
+function checkIfDataExtractionSuccessful(user) {
+    try {
+        console.log('🔍 Checking data extraction success for user:', user.id || user.user_id);
+        
+        // Parse JSON fields if they're strings
+        const experience = typeof user.experience === 'string' 
+            ? JSON.parse(user.experience || '[]') 
+            : (user.experience || []);
+            
+        const education = typeof user.education === 'string' 
+            ? JSON.parse(user.education || '[]') 
+            : (user.education || []);
+            
+        const skills = typeof user.skills === 'string' 
+            ? JSON.parse(user.skills || '[]') 
+            : (user.skills || []);
+        
+        // Check if meaningful profile data exists
+        const hasExperience = Array.isArray(experience) && experience.length > 0;
+        const hasEducation = Array.isArray(education) && education.length > 0;
+        const hasHeadline = user.headline && user.headline.length > 10;
+        const hasSkills = Array.isArray(skills) && skills.length > 3;
+        const hasName = user.full_name && user.full_name.length > 2;
+        const hasCompany = user.current_company && user.current_company.length > 2;
+        
+        console.log(`📊 Data check for user ${user.id || user.user_id}:`, {
+            hasExperience: hasExperience,
+            hasEducation: hasEducation,
+            hasHeadline: hasHeadline,
+            hasSkills: hasSkills,
+            hasName: hasName,
+            hasCompany: hasCompany,
+            experienceCount: experience.length,
+            educationCount: education.length,
+            skillsCount: skills.length
+        });
+        
+        // At least one substantial data point must exist
+        const isSuccessful = hasExperience || hasEducation || hasHeadline || hasSkills || (hasName && hasCompany);
+        
+        console.log(`✅ Data extraction successful: ${isSuccessful}`);
+        return isSuccessful;
+        
+    } catch (error) {
+        console.error('❌ Error checking data extraction success:', error);
+        return false;
+    }
+}
 
 // ✅ CRITICAL FIX: LinkedIn URL Normalization Utility (matches frontend logic exactly)
 const cleanLinkedInUrl = (url) => {
@@ -220,8 +270,10 @@ const initDB = async () => {
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
                 
-                -- ✅ NEW FIELD: Initial scraping completion flag
-                initial_scraping_done BOOLEAN DEFAULT false,
+                -- ✅ ENHANCED STATUS FIELDS
+                initial_scraping_started BOOLEAN DEFAULT false,
+                extracting_data_successful BOOLEAN DEFAULT false,
+                setup_status VARCHAR(50) DEFAULT 'not_started',
                 
                 -- Basic Profile Information
                 linkedin_url TEXT,
@@ -438,13 +490,27 @@ const initDB = async () => {
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
 
-            // ✅ Add initial_scraping_done to existing user_profiles if it doesn't exist
+            // ✅ ENHANCED STATUS: Add new status fields to existing user_profiles
             await pool.query(`
                 ALTER TABLE user_profiles 
-                ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false;
+                ADD COLUMN IF NOT EXISTS initial_scraping_started BOOLEAN DEFAULT false,
+                ADD COLUMN IF NOT EXISTS extracting_data_successful BOOLEAN DEFAULT false,
+                ADD COLUMN IF NOT EXISTS setup_status VARCHAR(50) DEFAULT 'not_started';
             `);
+
+            // ✅ MIGRATION: Rename initial_scraping_done to initial_scraping_started (if exists)
+            try {
+                await pool.query(`
+                    ALTER TABLE user_profiles 
+                    RENAME COLUMN initial_scraping_done TO initial_scraping_started;
+                `);
+                console.log('✅ Renamed initial_scraping_done to initial_scraping_started');
+            } catch (renameError) {
+                // Column might not exist or already renamed
+                console.log('Note: initial_scraping_done column might not exist or already renamed');
+            }
             
-            console.log('✅ Database columns updated successfully');
+            console.log('✅ Enhanced status fields added successfully');
         } catch (err) {
             console.log('Some columns might already exist:', err.message);
         }
@@ -456,7 +522,9 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_linkedin_id ON user_profiles(linkedin_id);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_linkedin_num_id ON user_profiles(linkedin_num_id);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_extraction_status ON user_profiles(data_extraction_status);
-                CREATE INDEX IF NOT EXISTS idx_user_profiles_initial_scraping ON user_profiles(initial_scraping_done);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_initial_scraping ON user_profiles(initial_scraping_started);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_extracting_successful ON user_profiles(extracting_data_successful);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_setup_status ON user_profiles(setup_status);
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_retry_count ON user_profiles(extraction_retry_count);
@@ -471,7 +539,7 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ Database tables created successfully');
+        console.log('✅ Database tables created successfully with enhanced status system');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -860,24 +928,24 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
     }
 };
 
-// ✅ FIXED: Background processing with proper transaction management
+// ✅ ENHANCED: Background processing with enhanced status management
 const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelay = 300000; // 5 minutes
     
-    console.log(`🔄 Scheduling background extraction for user ${userId}, retry ${retryCount}`);
+    console.log(`🔄 Scheduling enhanced background extraction for user ${userId}, retry ${retryCount}`);
     
     if (retryCount >= maxRetries) {
         console.log(`❌ Max retries (${maxRetries}) reached for user ${userId}`);
         
-        // ✅ FIXED: Use transaction for failure updates
+        // ✅ ENHANCED: Use transaction for failure updates
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
             
             await client.query(
-                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, initial_scraping_done = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
-                ['failed', `Max retries (${maxRetries}) exceeded`, false, userId]
+                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, extracting_data_successful = $3, setup_status = $4, updated_at = CURRENT_TIMESTAMP WHERE user_id = $5',
+                ['failed', `Max retries (${maxRetries}) exceeded`, false, 'failed', userId]
             );
             await client.query(
                 'UPDATE users SET extraction_status = $1, error_message = $2, profile_completed = $3 WHERE id = $4',
@@ -885,11 +953,11 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             );
             
             await client.query('COMMIT');
-            console.log(`✅ Failure status committed to database for user ${userId}`);
+            console.log(`✅ Enhanced failure status committed to database for user ${userId}`);
             
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error(`❌ Failed to update failure status for user ${userId}:`, error);
+            console.error(`❌ Failed to update enhanced failure status for user ${userId}:`, error);
         } finally {
             client.release();
         }
@@ -902,9 +970,9 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
         const client = await pool.connect();
         
         try {
-            console.log(`🚀 Starting background extraction for user ${userId} (Retry ${retryCount})`);
+            console.log(`🚀 Starting enhanced background extraction for user ${userId} (Retry ${retryCount})`);
             
-            // ✅ FIXED: Start transaction immediately
+            // ✅ ENHANCED: Start transaction immediately
             await client.query('BEGIN');
             
             await client.query(
@@ -914,25 +982,25 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
 
             const result = await extractLinkedInProfileComplete(linkedinUrl);
             
-            console.log(`✅ Extraction succeeded for user ${userId}`);
+            console.log(`✅ Enhanced extraction succeeded for user ${userId}`);
             
             const extractedData = result.data;
             
-            // ✅ CRITICAL FIX: Validate extracted data BEFORE updating database status
-            console.log(`📊 Data validation for user ${userId}:`);
+            // ✅ ENHANCED: Validate extracted data BEFORE updating database status
+            console.log(`📊 Enhanced data validation for user ${userId}:`);
             console.log(`   - LinkedIn ID: ${extractedData.linkedinId || 'Not available'}`);
             console.log(`   - Full Name: ${extractedData.fullName || 'Not available'}`);
             console.log(`   - Headline: ${extractedData.headline || 'Not available'}`);
             console.log(`   - Current Company: ${extractedData.currentCompany || 'Not available'}`);
             console.log(`   - Experience: ${extractedData.experience?.length || 0} entries`);
             
-            // ✅ FIXED: Only proceed if we have meaningful data
+            // ✅ ENHANCED: Only proceed if we have meaningful data
             if (!extractedData.fullName && !extractedData.headline && !extractedData.currentCompany) {
                 throw new Error('Extracted data appears to be incomplete - no name, headline, or company found');
             }
             
-            // ✅ FIXED: Database save with transactional integrity - ONLY update status AFTER confirming data
-            console.log('💾 Saving LinkedIn data to database with transactional integrity...');
+            // ✅ ENHANCED: Database save with transactional integrity
+            console.log('💾 Saving LinkedIn data to database with enhanced status management...');
             
             await client.query(`
                 UPDATE user_profiles SET 
@@ -1053,62 +1121,64 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                 userId
             ]);
 
-            // ✅ CRITICAL FIX: Only update status fields AFTER confirming data was saved successfully
-            // AND check that we have meaningful array data as per requirements
-            const statusUpdateResult = await client.query(`
+            // ✅ ENHANCED: Check if data extraction was successful using the helper function
+            const updatedUser = await client.query(
+                'SELECT * FROM user_profiles WHERE user_id = $1',
+                [userId]
+            );
+            
+            const user = updatedUser.rows[0];
+            const isDataSuccessful = checkIfDataExtractionSuccessful(user);
+            
+            // ✅ ENHANCED: Update status fields with enhanced logic
+            await client.query(`
                 UPDATE user_profiles SET 
                     data_extraction_status = 'completed',
                     extraction_completed_at = CURRENT_TIMESTAMP,
                     extraction_error = NULL,
                     profile_analyzed = true,
-                    initial_scraping_done = true
-                WHERE user_id = $1 
-                  AND full_name IS NOT NULL
-                  AND (jsonb_array_length(experience) > 0 OR jsonb_array_length(education) > 0 OR jsonb_array_length(skills) > 0)
-                RETURNING initial_scraping_done
-            `, [userId]);
-
-            if (statusUpdateResult.rowCount === 0) {
-                // ✅ CRITICAL FIX: Rollback if no meaningful data
-                await client.query('ROLLBACK');
-                throw new Error('Incomplete profile data - missing name or no experience/education/skills arrays have data');
-            }
+                    initial_scraping_started = true,
+                    extracting_data_successful = $1,
+                    setup_status = $2
+                WHERE user_id = $3 AND full_name IS NOT NULL
+            `, [isDataSuccessful, isDataSuccessful ? 'completed' : 'in_progress', userId]);
 
             await client.query(`
                 UPDATE users SET 
                     extraction_status = 'completed', 
-                    profile_completed = true, 
+                    profile_completed = $1, 
                     error_message = NULL 
-                WHERE id = $1
-            `, [userId]);
+                WHERE id = $2
+            `, [isDataSuccessful, userId]);
 
-            // ✅ FIXED: Commit transaction only after all data is confirmed
+            // ✅ ENHANCED: Commit transaction only after all data is confirmed
             await client.query('COMMIT');
             
-            console.log(`🎉 LinkedIn profile data successfully saved for user ${userId} with transactional integrity!`);
+            console.log(`🎉 Enhanced LinkedIn profile data successfully saved for user ${userId}!`);
             console.log(`✅ Method: ${result.method}`);
-            console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
+            console.log(`🔒 Enhanced status: extracting_data_successful = ${isDataSuccessful}`);
+            console.log(`📊 Setup status: ${isDataSuccessful ? 'completed' : 'in_progress'}`);
             
             processingQueue.delete(userId);
                 
         } catch (error) {
-            // ✅ FIXED: Rollback transaction on any error
+            // ✅ ENHANCED: Rollback transaction on any error
             await client.query('ROLLBACK');
             
-            console.error(`❌ Extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
+            console.error(`❌ Enhanced extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
             
             if (retryCount < maxRetries - 1) {
-                console.log(`🔄 Retrying extraction for user ${userId}...`);
+                console.log(`🔄 Retrying enhanced extraction for user ${userId}...`);
                 await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
             } else {
-                console.log(`❌ Final failure for user ${userId} - no more retries`);
+                console.log(`❌ Final enhanced failure for user ${userId} - no more retries`);
                 
                 // Start new transaction for failure updates
                 try {
                     await client.query('BEGIN');
                     await client.query(
-                        'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, initial_scraping_done = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
-                        ['failed', `Final failure: ${error.message}`, false, userId]
+                        'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, extracting_data_successful = $3, setup_status = $4, updated_at = CURRENT_TIMESTAMP WHERE user_id = $5',
+                        ['failed', `Final failure: ${error.message}`, false, 'failed', userId]
                     );
                     await client.query(
                         'UPDATE users SET extraction_status = $1, error_message = $2, profile_completed = $3 WHERE id = $4',
@@ -1117,7 +1187,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                     await client.query('COMMIT');
                 } catch (updateError) {
                     await client.query('ROLLBACK');
-                    console.error(`❌ Failed to update failure status: ${updateError.message}`);
+                    console.error(`❌ Failed to update enhanced failure status: ${updateError.message}`);
                 }
                 
                 processingQueue.delete(userId);
@@ -1248,17 +1318,17 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ CRITICAL FIX: Create or update user profile with URL normalization
+// ✅ ENHANCED: Create or update user profile with enhanced status management
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
-        // ✅ CRITICAL: Normalize LinkedIn URL before saving
+        // ✅ ENHANCED: Normalize LinkedIn URL before saving
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        console.log(`🚀 Creating profile for user ${userId}`);
+        console.log(`🚀 Creating enhanced profile for user ${userId}`);
         console.log(`🔧 Original URL: ${linkedinUrl}`);
         console.log(`🔧 Normalized URL: ${cleanUrl}`);
         
-        // ✅ Save normalized URL to users table
+        // ✅ ENHANCED: Save normalized URL to users table
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
             [cleanUrl, 'processing', userId]
@@ -1272,29 +1342,29 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
         let profile;
         if (existingProfile.rows.length > 0) {
             const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
-                [cleanUrl, displayName, 'processing', userId]
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, initial_scraping_started = $4, setup_status = $5, updated_at = CURRENT_TIMESTAMP WHERE user_id = $6 RETURNING *',
+                [cleanUrl, displayName, 'processing', false, 'not_started', userId]
             );
             profile = result.rows[0];
         } else {
             const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_done) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-                [userId, cleanUrl, displayName, 'processing', 0, false]
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_started, extracting_data_successful, setup_status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+                [userId, cleanUrl, displayName, 'processing', 0, false, false, 'not_started']
             );
             profile = result.rows[0];
         }
         
-        console.log(`🔄 Starting background extraction for user ${userId}`);
+        console.log(`🔄 Starting enhanced background extraction for user ${userId}`);
         processingQueue.set(userId, { status: 'processing', startTime: Date.now() });
         
-        // ✅ Use original URL for Bright Data API (they need full URL)
+        // ✅ ENHANCED: Use original URL for Bright Data API (they need full URL)
         scheduleBackgroundExtraction(userId, linkedinUrl, 0);
         
-        console.log(`✅ Profile created and extraction started for user ${userId}`);
+        console.log(`✅ Enhanced profile created and extraction started for user ${userId}`);
         return profile;
         
     } catch (error) {
-        console.error('Error in profile creation/extraction:', error);
+        console.error('Error in enhanced profile creation/extraction:', error);
         throw error;
     }
 };
@@ -1323,11 +1393,286 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
+// ==================== ENHANCED STATUS SYSTEM ENDPOINTS ====================
+
+// ✅ NEW: Enhanced API Endpoint - GET /user/setup-status
+app.get('/user/setup-status', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        console.log('🔍 Getting enhanced setup status for user:', userId);
+        
+        // Get user with relevant fields
+        const user = await pool.query(`
+            SELECT 
+                up.id, 
+                up.user_id,
+                u.email, 
+                up.full_name,
+                up.headline,
+                up.current_company,
+                up.initial_scraping_started,
+                up.extracting_data_successful,
+                up.setup_status,
+                up.experience, 
+                up.education, 
+                up.skills,
+                up.linkedin_url,
+                up.profile_image_url,
+                up.created_at,
+                up.updated_at
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.id = $1
+        `, [userId]);
+        
+        if (user.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const userData = user.rows[0];
+        
+        console.log('📊 Current enhanced user status:', {
+            initial_scraping_started: userData.initial_scraping_started,
+            extracting_data_successful: userData.extracting_data_successful,
+            setup_status: userData.setup_status
+        });
+        
+        // ✅ ENHANCED: Auto-update logic - Check if extracting_data_successful should be true
+        let shouldBeSuccessful = false;
+        if (userData.user_id) { // Only if profile exists
+            shouldBeSuccessful = checkIfDataExtractionSuccessful(userData);
+        }
+        
+        let finalExtractingSuccess = userData.extracting_data_successful;
+        let finalSetupStatus = userData.setup_status || 'not_started';
+        
+        if (shouldBeSuccessful && !userData.extracting_data_successful) {
+            // Auto-update to successful if meaningful data exists
+            await pool.query(`
+                UPDATE user_profiles 
+                SET extracting_data_successful = true, setup_status = 'completed', updated_at = CURRENT_TIMESTAMP 
+                WHERE user_id = $1
+            `, [userId]);
+            
+            finalExtractingSuccess = true;
+            finalSetupStatus = 'completed';
+            console.log(`✅ Auto-updated user ${userId} to extracting_data_successful = true`);
+        }
+        
+        // Determine overall status
+        let overallStatus = 'not_started';
+        if (!userData.initial_scraping_started) {
+            overallStatus = 'not_started';
+        } else if (userData.initial_scraping_started && !finalExtractingSuccess) {
+            overallStatus = 'in_progress';
+        } else if (finalExtractingSuccess) {
+            overallStatus = 'completed';
+        }
+        
+        // Update setup_status if it doesn't match
+        if (finalSetupStatus !== overallStatus) {
+            await pool.query(`
+                UPDATE user_profiles 
+                SET setup_status = $1, updated_at = CURRENT_TIMESTAMP 
+                WHERE user_id = $2
+            `, [overallStatus, userId]);
+            finalSetupStatus = overallStatus;
+        }
+        
+        console.log('📊 Final enhanced status:', {
+            initialScrapingStarted: userData.initial_scraping_started || false,
+            extractingDataSuccessful: finalExtractingSuccess,
+            overallStatus: overallStatus
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                initialScrapingStarted: userData.initial_scraping_started || false,
+                extractingDataSuccessful: finalExtractingSuccess,
+                overallStatus: overallStatus,
+                setupStatus: finalSetupStatus,
+                userLinkedInUrl: userData.linkedin_url,
+                lastUpdated: userData.updated_at,
+                // Optional: Include data counts for frontend display
+                dataCounts: {
+                    experience: userData.experience ? (typeof userData.experience === 'string' ? JSON.parse(userData.experience).length : userData.experience.length) : 0,
+                    education: userData.education ? (typeof userData.education === 'string' ? JSON.parse(userData.education).length : userData.education.length) : 0,
+                    skills: userData.skills ? (typeof userData.skills === 'string' ? JSON.parse(userData.skills).length : userData.skills.length) : 0,
+                    hasHeadline: !!(userData.headline && userData.headline.length > 10),
+                    hasName: !!(userData.full_name && userData.full_name.length > 2),
+                    hasCompany: !!(userData.current_company && userData.current_company.length > 2)
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error checking enhanced setup status:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check enhanced setup status',
+            details: error.message
+        });
+    }
+});
+
+// ✅ NEW: Retry setup endpoint
+app.post('/user/retry-setup', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        console.log('🔄 Resetting enhanced setup status for user:', userId);
+        
+        // Reset status to allow retry
+        await pool.query(`
+            UPDATE user_profiles 
+            SET initial_scraping_started = false, extracting_data_successful = false, setup_status = 'not_started', updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = $1
+        `, [userId]);
+        
+        console.log('✅ Enhanced setup status reset successfully');
+        
+        res.json({
+            success: true,
+            message: 'Enhanced setup status reset successfully',
+            data: {
+                initialScrapingStarted: false,
+                extractingDataSuccessful: false,
+                overallStatus: 'not_started'
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error resetting enhanced setup:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to reset enhanced setup status',
+            details: error.message
+        });
+    }
+});
+
+// ✅ NEW: Admin endpoint to check all users' enhanced status
+app.get('/admin/users-status', authenticateToken, async (req, res) => {
+    try {
+        // Add admin authentication check here if needed
+        // if (req.user.role !== 'admin') return res.status(403).json({...});
+        
+        const users = await pool.query(`
+            SELECT 
+                u.id,
+                u.email,
+                up.full_name,
+                up.initial_scraping_started,
+                up.extracting_data_successful,
+                up.setup_status,
+                u.created_at,
+                u.updated_at
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            ORDER BY u.updated_at DESC
+        `);
+        
+        const stats = {
+            total: users.rows.length,
+            not_started: users.rows.filter(u => (u.setup_status || 'not_started') === 'not_started').length,
+            in_progress: users.rows.filter(u => (u.setup_status || 'not_started') === 'in_progress').length,
+            completed: users.rows.filter(u => (u.setup_status || 'not_started') === 'completed').length,
+            failed: users.rows.filter(u => (u.setup_status || 'not_started') === 'failed').length
+        };
+        
+        res.json({
+            success: true,
+            data: {
+                users: users.rows,
+                statistics: stats
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting enhanced users status:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get enhanced users status'
+        });
+    }
+});
+
+// ✅ NEW: Background job to auto-update successful extractions
+async function updateSuccessfulExtractions() {
+    try {
+        console.log('🔄 Running enhanced background job to update successful extractions...');
+        
+        // Find users who started scraping but aren't marked as successful yet
+        const users = await pool.query(`
+            SELECT * FROM user_profiles
+            WHERE initial_scraping_started = true 
+            AND extracting_data_successful = false
+        `);
+        
+        console.log(`📊 Found ${users.rows.length} users to check for successful extraction`);
+        
+        let updatedCount = 0;
+        
+        for (const user of users.rows) {
+            const isSuccessful = checkIfDataExtractionSuccessful(user);
+            
+            if (isSuccessful) {
+                await pool.query(`
+                    UPDATE user_profiles 
+                    SET extracting_data_successful = true, setup_status = 'completed', updated_at = CURRENT_TIMESTAMP 
+                    WHERE user_id = $1
+                `, [user.user_id]);
+                
+                updatedCount++;
+                console.log(`✅ Enhanced auto-updated user ${user.user_id} to successful`);
+            }
+        }
+        
+        console.log(`✅ Enhanced background job completed: ${updatedCount} users updated to successful`);
+        
+        return { success: true, updated: updatedCount };
+        
+    } catch (error) {
+        console.error('❌ Error in enhanced background job:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ✅ NEW: Manual trigger for enhanced background job (for testing)
+app.post('/admin/update-successful-extractions', authenticateToken, async (req, res) => {
+    try {
+        const result = await updateSuccessfulExtractions();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ✅ NEW: Start enhanced background jobs
+function startBackgroundJobs() {
+    console.log('🚀 Starting enhanced background jobs...');
+    
+    // Run immediately on startup
+    setTimeout(updateSuccessfulExtractions, 5000);
+    
+    // Run every 5 minutes
+    setInterval(updateSuccessfulExtractions, 5 * 60 * 1000);
+    
+    console.log('✅ Enhanced background jobs started');
+}
+
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
-// ✅ CRITICAL FIX: Chrome Extension Authentication - ALWAYS returns credits
-app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension Auth Request:', {
+// ✅ ENHANCED: Chrome Extension Authentication - ALWAYS returns credits
+app.post('/auth/chrome-extension', authenticateToken, async (req, res) => {
+    console.log('🔐 Enhanced Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -1399,12 +1744,12 @@ app.post('/auth/chrome-extension', async (req, res) => {
             { expiresIn: '30d' }
         );
         
-        console.log('✅ Chrome extension authentication successful');
+        console.log('✅ Enhanced chrome extension authentication successful');
         
-        // ✅ CRITICAL FIX: ALWAYS return credits and complete user data
+        // ✅ ENHANCED: ALWAYS return credits and complete user data
         res.json({
             success: true,
-            message: 'Authentication successful',
+            message: 'Enhanced authentication successful',
             data: {
                 token: token,
                 user: {
@@ -1422,7 +1767,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Chrome extension auth error:', error);
+        console.error('❌ Enhanced chrome extension auth error:', error);
         
         if (error.response && error.response.status === 401) {
             return res.status(401).json({
@@ -1433,7 +1778,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         
         res.status(500).json({
             success: false,
-            error: 'Authentication failed',
+            error: 'Enhanced authentication failed',
             details: error.message
         });
     }
@@ -1461,7 +1806,7 @@ app.get('/dashboard', (req, res) => {
 
 // ==================== API ENDPOINTS ====================
 
-// Health Check
+// Enhanced Health Check
 app.get('/health', async (req, res) => {
     try {
         const client = await pool.connect();
@@ -1472,14 +1817,19 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '9.0-DATA-VALIDATION-FIXED',
+            version: '9.0-ENHANCED-STATUS-SYSTEM',
             timestamp: new Date().toISOString(),
             changes: {
-                dataValidation: 'FIXED - Only marks initial_scraping_done=true when arrays contain real data',
-                statusIntegrity: 'FIXED - Checks experience OR education OR skills arrays have data',
-                rollbackMechanism: 'ENHANCED - Rollback if no meaningful data found',
-                transactionManagement: 'COMPLETE - All database operations use proper transactions',
-                requirements: 'IMPLEMENTED - Follows paste.txt requirements exactly'
+                enhancedStatusSystem: 'IMPLEMENTED - Granular progress tracking with 3 status levels',
+                dataValidation: 'ENHANCED - Smart detection of meaningful profile data',
+                autoStatusUpdates: 'ACTIVE - Background job auto-promotes successful extractions',
+                userExperience: 'IMPROVED - Clear messaging at each stage of setup',
+                adminTools: 'ADDED - Enhanced monitoring and management endpoints'
+            },
+            statusFlow: {
+                not_started: 'User has not begun profile setup',
+                in_progress: 'Initial scraping started, extracting data...',
+                completed: 'Meaningful data extracted, all features unlocked'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1489,12 +1839,13 @@ app.get('/health', async (req, res) => {
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
-                transactionManagement: 'ACTIVE'
+                enhancedStatusFields: 'ACTIVE'
             },
             backgroundProcessing: {
                 enabled: true,
                 currentlyProcessing: processingCount,
-                processingUsers: Array.from(processingQueue.keys())
+                processingUsers: Array.from(processingQueue.keys()),
+                autoUpdateJob: 'RUNNING'
             }
         });
     } catch (error) {
@@ -1506,14 +1857,16 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ✅ CRITICAL FIX: Check initial scraping status - ALWAYS returns linkedin_url
+// ✅ ENHANCED: Check initial scraping status with enhanced system
 app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => {
     try {
-        console.log(`🔍 Checking initial scraping status for user ${req.user.id}`);
+        console.log(`🔍 Checking enhanced initial scraping status for user ${req.user.id}`);
         
         const result = await pool.query(`
             SELECT 
-                up.initial_scraping_done,
+                up.initial_scraping_started,
+                up.extracting_data_successful,
+                up.setup_status,
                 up.linkedin_url as profile_linkedin_url,
                 up.data_extraction_status,
                 u.linkedin_url as user_linkedin_url,
@@ -1523,34 +1876,44 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
             WHERE u.id = $1
         `, [req.user.id]);
         
-        let initialScrapingDone = false;
+        let initialScrapingStarted = false;
+        let extractingDataSuccessful = false;
+        let setupStatus = 'not_started';
         let userLinkedInUrl = null;
         let extractionStatus = 'not_started';
         
         if (result.rows.length > 0) {
             const data = result.rows[0];
-            initialScrapingDone = data.initial_scraping_done || false;
-            // ✅ CRITICAL FIX: ALWAYS return a LinkedIn URL (from either table)
+            initialScrapingStarted = data.initial_scraping_started || false;
+            extractingDataSuccessful = data.extracting_data_successful || false;
+            setupStatus = data.setup_status || 'not_started';
+            // ✅ ENHANCED: ALWAYS return a LinkedIn URL (from either table)
             userLinkedInUrl = data.linkedin_url || data.user_linkedin_url || data.profile_linkedin_url;
             extractionStatus = data.data_extraction_status || 'not_started';
             
-            console.log(`📊 Initial scraping data for user ${req.user.id}:`);
-            console.log(`   - Profile linkedin_url: ${data.profile_linkedin_url || 'null'}`);
-            console.log(`   - User linkedin_url: ${data.user_linkedin_url || 'null'}`);
-            console.log(`   - Final linkedin_url: ${userLinkedInUrl || 'null'}`);
+            console.log(`📊 Enhanced initial scraping data for user ${req.user.id}:`, {
+                initialScrapingStarted,
+                extractingDataSuccessful,
+                setupStatus,
+                userLinkedInUrl: userLinkedInUrl || 'null'
+            });
         }
         
-        console.log(`📊 Initial scraping status for user ${req.user.id}:`);
-        console.log(`   - Initial scraping done: ${initialScrapingDone}`);
+        console.log(`📊 Enhanced initial scraping status for user ${req.user.id}:`);
+        console.log(`   - Initial scraping started: ${initialScrapingStarted}`);
+        console.log(`   - Extracting data successful: ${extractingDataSuccessful}`);
+        console.log(`   - Setup status: ${setupStatus}`);
         console.log(`   - User LinkedIn URL: ${userLinkedInUrl || 'Not set'}`);
         console.log(`   - Extraction status: ${extractionStatus}`);
         
-        // ✅ CRITICAL FIX: ALWAYS include userLinkedInUrl even if null
+        // ✅ ENHANCED: ALWAYS include userLinkedInUrl even if null
         res.json({
             success: true,
             data: {
-                initialScrapingDone: initialScrapingDone,
-                userLinkedInUrl: userLinkedInUrl, // ✅ ALWAYS INCLUDED (won't trigger emergency)
+                initialScrapingStarted: initialScrapingStarted,
+                extractingDataSuccessful: extractingDataSuccessful,
+                setupStatus: setupStatus,
+                userLinkedInUrl: userLinkedInUrl, // ✅ ALWAYS INCLUDED
                 extractionStatus: extractionStatus,
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 user: {
@@ -1562,22 +1925,22 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
         });
         
     } catch (error) {
-        console.error('❌ Error checking initial scraping status:', error);
+        console.error('❌ Error checking enhanced initial scraping status:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to check initial scraping status',
+            error: 'Failed to check enhanced initial scraping status',
             details: error.message
         });
     }
 });
 
-// ✅ CRITICAL FIX: User profile scraping - Only mark complete when real data exists
+// ✅ ENHANCED: User profile scraping with enhanced status management
 app.post('/profile/user', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
     try {
-        console.log(`🔒 User profile scraping request from user ${req.user.id}`);
-        console.log('📊 Request data:', {
+        console.log(`🔒 Enhanced user profile scraping request from user ${req.user.id}`);
+        console.log('📊 Enhanced request data:', {
             hasProfileData: !!req.body.profileData,
             profileUrl: req.body.profileData?.url || req.body.profileData?.linkedinUrl,
             dataSource: req.body.profileData?.extractedFrom || 'unknown'
@@ -1599,7 +1962,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Clean and validate URL using backend normalization
+        // ✅ ENHANCED: Clean and validate URL using backend normalization
         const profileUrl = profileData.url || profileData.linkedinUrl;
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
@@ -1610,12 +1973,12 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Validate this is the user's own profile using normalized URLs
+        // ✅ ENHANCED: Validate this is the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
             
-            console.log(`🔍 URL Comparison for user ${req.user.id}:`);
+            console.log(`🔍 Enhanced URL Comparison for user ${req.user.id}:`);
             console.log(`   - Profile URL: ${profileUrl}`);
             console.log(`   - Clean Profile: ${cleanProfileUrl}`);
             console.log(`   - User URL: ${userLinkedInUrl}`);
@@ -1633,11 +1996,11 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         // Process the scraped data
         const processedData = processScrapedProfileData(profileData, true);
         
-        // ✅ FIXED: Normalize the LinkedIn URL in processed data
+        // ✅ ENHANCED: Normalize the LinkedIn URL in processed data
         processedData.linkedinUrl = cleanProfileUrl;
         processedData.url = cleanProfileUrl;
         
-        // ✅ CRITICAL FIX: Validate data completeness BEFORE database transaction
+        // ✅ ENHANCED: Validate data completeness BEFORE database transaction
         if (!processedData.fullName && !processedData.headline && !processedData.currentCompany) {
             return res.status(400).json({
                 success: false,
@@ -1645,10 +2008,29 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        console.log('💾 Saving user profile data with transaction management...');
+        console.log('💾 Saving enhanced user profile data with transaction management...');
         
-        // ✅ FIXED: Start transaction
+        // ✅ ENHANCED: Start transaction
         await client.query('BEGIN');
+        
+        // ✅ ENHANCED: Mark scraping as started
+        await client.query(`
+            UPDATE user_profiles 
+            SET initial_scraping_started = true, setup_status = 'in_progress', updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = $1
+        `, [req.user.id]);
+        
+        // Or create profile if doesn't exist
+        await client.query(`
+            INSERT INTO user_profiles (user_id, initial_scraping_started, setup_status) 
+            VALUES ($1, true, 'in_progress') 
+            ON CONFLICT (user_id) DO UPDATE SET 
+                initial_scraping_started = true, 
+                setup_status = 'in_progress', 
+                updated_at = CURRENT_TIMESTAMP
+        `, [req.user.id]);
+        
+        console.log('✅ Marked user as initial_scraping_started = true');
         
         // Check if profile exists
         const existingProfile = await client.query(
@@ -1731,154 +2113,74 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             ]);
             
             profile = result.rows[0];
-        } else {
-            // Create new profile
-            const result = await client.query(`
-                INSERT INTO user_profiles (
-                    user_id, linkedin_url, linkedin_id, linkedin_num_id, input_url, url,
-                    full_name, first_name, last_name, headline, about, summary,
-                    location, city, state, country, country_code, industry,
-                    current_company, current_company_name, current_position,
-                    connections_count, followers_count, connections, followers,
-                    profile_image_url, avatar, experience, education, skills,
-                    timestamp, data_source
-                ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-                    $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32
-                ) RETURNING *
-            `, [
-                req.user.id,
-                processedData.linkedinUrl,
-                processedData.linkedinId,
-                processedData.linkedinNumId,
-                processedData.inputUrl,
-                processedData.url,
-                processedData.fullName,
-                processedData.firstName,
-                processedData.lastName,
-                processedData.headline,
-                processedData.about,
-                processedData.summary,
-                processedData.location,
-                processedData.city,
-                processedData.state,
-                processedData.country,
-                processedData.countryCode,
-                processedData.industry,
-                processedData.currentCompany,
-                processedData.currentCompanyName,
-                processedData.currentPosition,
-                processedData.connectionsCount,
-                processedData.followersCount,
-                processedData.connections,
-                processedData.followers,
-                processedData.profileImageUrl,
-                processedData.avatar,
-                JSON.stringify(processedData.experience),
-                JSON.stringify(processedData.education),
-                JSON.stringify(processedData.skills),
-                processedData.timestamp,
-                processedData.dataSource
-            ]);
-            
-            profile = result.rows[0];
         }
         
-        // ✅ CRITICAL FIX: Only update status fields AFTER confirming data AND checking array lengths per requirements
-        if (profile && profile.full_name) {
-            // Check if we have meaningful array data (at least one of experience, education, or skills)
-            const hasExperience = processedData.experience && processedData.experience.length > 0;
-            const hasEducation = processedData.education && processedData.education.length > 0; 
-            const hasSkills = processedData.skills && processedData.skills.length > 0;
-            
-            console.log(`🔍 Data validation for user ${req.user.id}:`);
-            console.log(`   - Has name: ${!!profile.full_name}`);
-            console.log(`   - Has experience: ${hasExperience} (${processedData.experience?.length || 0} entries)`);
-            console.log(`   - Has education: ${hasEducation} (${processedData.education?.length || 0} entries)`);
-            console.log(`   - Has skills: ${hasSkills} (${processedData.skills?.length || 0} entries)`);
-            
-            if (hasExperience || hasEducation || hasSkills) {
-                // ✅ CRITICAL FIX AS PER REQUIREMENTS: Only mark complete when arrays have data
-                const statusUpdateResult = await client.query(`
-                    UPDATE user_profiles SET 
-                        data_extraction_status = 'completed',
-                        extraction_completed_at = CURRENT_TIMESTAMP,
-                        extraction_error = NULL,
-                        profile_analyzed = true,
-                        initial_scraping_done = true
-                    WHERE user_id = $1 
-                      AND full_name IS NOT NULL
-                      AND (jsonb_array_length(experience) > 0 OR jsonb_array_length(education) > 0 OR jsonb_array_length(skills) > 0)
-                    RETURNING initial_scraping_done
-                `, [req.user.id]);
-                
-                if (statusUpdateResult.rowCount > 0) {
-                    // ✅ FIXED: Update user table with normalized LinkedIn URL
-                    await client.query(
-                        'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
-                        [processedData.linkedinUrl, 'completed', true, req.user.id]
-                    );
-                    
-                    // ✅ FIXED: Commit transaction only after all validations pass
-                    await client.query('COMMIT');
-                    
-                    // Remove from processing queue if present
-                    processingQueue.delete(req.user.id);
-                    
-                    console.log(`🎉 User profile successfully saved for user ${req.user.id} with data validation!`);
-                    console.log(`🔒 Initial scraping marked as complete ONLY after confirming meaningful array data`);
-                    
-                    res.json({
-                        success: true,
-                        message: 'User profile saved successfully! You can now use Msgly.AI fully.',
-                        data: {
-                            profile: {
-                                id: profile.id,
-                                linkedinUrl: profile.linkedin_url,
-                                fullName: profile.full_name,
-                                headline: profile.headline,
-                                currentCompany: profile.current_company,
-                                location: profile.location,
-                                profileImageUrl: profile.profile_image_url,
-                                initialScrapingDone: true, // ✅ Only true when data is confirmed
-                                extractionStatus: 'completed',
-                                extractionCompleted: profile.extraction_completed_at
-                            },
-                            user: {
-                                profileCompleted: true,
-                                extractionStatus: 'completed'
-                            }
-                        }
-                    });
-                    return;
+        // ✅ ENHANCED: Check if data extraction was successful using the helper function
+        const isDataSuccessful = checkIfDataExtractionSuccessful(profile);
+        
+        console.log('📊 Enhanced data extraction check result:', isDataSuccessful);
+        
+        // ✅ ENHANCED: Update extraction success status
+        const finalStatus = isDataSuccessful ? 'completed' : 'in_progress';
+        await client.query(`
+            UPDATE user_profiles 
+            SET extracting_data_successful = $1, setup_status = $2, updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = $3
+        `, [isDataSuccessful, finalStatus, req.user.id]);
+        
+        console.log(`✅ Enhanced user status: extracting_data_successful = ${isDataSuccessful}, setup_status = ${finalStatus}`);
+        
+        // ✅ ENHANCED: Update user table with normalized LinkedIn URL
+        await client.query(
+            'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
+            [processedData.linkedinUrl, 'completed', isDataSuccessful, req.user.id]
+        );
+        
+        // ✅ ENHANCED: Commit transaction only after all validations pass
+        await client.query('COMMIT');
+        
+        // Remove from processing queue if present
+        processingQueue.delete(req.user.id);
+        
+        console.log(`🎉 Enhanced user profile successfully saved for user ${req.user.id}!`);
+        console.log(`🔒 Enhanced status management applied successfully`);
+        
+        res.json({
+            success: true,
+            message: 'Enhanced profile processing completed!',
+            data: {
+                initialScrapingStarted: true,
+                extractingDataSuccessful: isDataSuccessful,
+                overallStatus: finalStatus,
+                profile: {
+                    name: processedData.fullName,
+                    headline: processedData.headline,
+                    company: processedData.currentCompany,
+                    linkedinUrl: processedData.linkedinUrl
                 }
             }
-            
-            // ✅ CRITICAL FIX: Rollback if no meaningful array data
-            await client.query('ROLLBACK');
-            
-            res.status(400).json({
-                success: false,
-                error: 'Incomplete profile data - please ensure your LinkedIn profile has experience, education, or skills data visible and try again.'
-            });
-        } else {
-            // ✅ FIXED: Rollback if no name data
-            await client.query('ROLLBACK');
-            
-            res.status(400).json({
-                success: false,
-                error: 'Profile data was saved but appears to be incomplete. Please try again with a complete LinkedIn profile.'
-            });
-        }
+        });
         
     } catch (error) {
-        // ✅ FIXED: Always rollback on error
+        // ✅ ENHANCED: Always rollback on error
         await client.query('ROLLBACK');
         
-        console.error('❌ User profile scraping error:', error);
+        console.error('❌ Enhanced user profile scraping error:', error);
+        
+        // ✅ ENHANCED: Mark as failed if error occurs
+        try {
+            await pool.query(`
+                UPDATE user_profiles 
+                SET setup_status = 'failed', updated_at = CURRENT_TIMESTAMP 
+                WHERE user_id = $1
+            `, [req.user.id]);
+        } catch (updateError) {
+            console.error('❌ Error updating enhanced failed status:', updateError);
+        }
+        
         res.status(500).json({
             success: false,
-            error: 'Failed to save user profile',
+            error: 'Failed to process enhanced profile data',
             details: error.message
         });
     } finally {
@@ -1886,24 +2188,29 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ FIXED: Target profile scraping with URL normalization
+// ✅ ENHANCED: Target profile scraping with enhanced validation
 app.post('/profile/target', authenticateToken, async (req, res) => {
     try {
-        console.log(`🎯 Target profile scraping request from user ${req.user.id}`);
+        console.log(`🎯 Enhanced target profile scraping request from user ${req.user.id}`);
         
-        // ✅ First, check if initial scraping is done
+        // ✅ ENHANCED: First, check if initial scraping is done using enhanced status
         const initialStatus = await pool.query(`
-            SELECT initial_scraping_done, data_extraction_status
+            SELECT initial_scraping_started, extracting_data_successful, setup_status, data_extraction_status
             FROM user_profiles 
             WHERE user_id = $1
         `, [req.user.id]);
         
-        if (initialStatus.rows.length === 0 || !initialStatus.rows[0].initial_scraping_done) {
-            console.log(`🚫 User ${req.user.id} has not completed initial scraping`);
+        if (initialStatus.rows.length === 0 || !initialStatus.rows[0].extracting_data_successful) {
+            console.log(`🚫 User ${req.user.id} has not completed enhanced initial scraping`);
             return res.status(403).json({
                 success: false,
                 error: 'Please complete your own profile scraping first before scraping target profiles',
-                code: 'INITIAL_SCRAPING_REQUIRED'
+                code: 'INITIAL_SCRAPING_REQUIRED',
+                currentStatus: {
+                    initialScrapingStarted: initialStatus.rows[0]?.initial_scraping_started || false,
+                    extractingDataSuccessful: initialStatus.rows[0]?.extracting_data_successful || false,
+                    setupStatus: initialStatus.rows[0]?.setup_status || 'not_started'
+                }
             });
         }
         
@@ -1923,7 +2230,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Clean and validate URL using backend normalization
+        // ✅ ENHANCED: Clean and validate URL using backend normalization
         const profileUrl = profileData.url || profileData.linkedinUrl;
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
@@ -1934,7 +2241,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Validate this is NOT the user's own profile using normalized URLs
+        // ✅ ENHANCED: Validate this is NOT the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
@@ -1950,11 +2257,11 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
         // Process the scraped data
         const processedData = processScrapedProfileData(profileData, false);
         
-        // ✅ FIXED: Normalize the LinkedIn URL in processed data
+        // ✅ ENHANCED: Normalize the LinkedIn URL in processed data
         processedData.linkedinUrl = cleanProfileUrl;
         processedData.url = cleanProfileUrl;
         
-        console.log('💾 Saving target profile data...');
+        console.log('💾 Saving enhanced target profile data...');
         
         // Check if this target profile already exists for this user
         const existingTarget = await pool.query(
@@ -2090,13 +2397,13 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             targetProfile = result.rows[0];
         }
         
-        console.log(`🎯 Target profile successfully saved for user ${req.user.id}!`);
+        console.log(`🎯 Enhanced target profile successfully saved for user ${req.user.id}!`);
         console.log(`   - Target: ${targetProfile.full_name || 'Unknown'}`);
         console.log(`   - Company: ${targetProfile.current_company || 'Unknown'}`);
         
         res.json({
             success: true,
-            message: 'Target profile saved successfully!',
+            message: 'Enhanced target profile saved successfully!',
             data: {
                 targetProfile: {
                     id: targetProfile.id,
@@ -2112,10 +2419,10 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Target profile scraping error:', error);
+        console.error('❌ Enhanced target profile scraping error:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to save target profile',
+            error: 'Failed to save enhanced target profile',
             details: error.message
         });
     }
@@ -2133,7 +2440,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// 🎯 FIXED: Smart OAuth callback - redirects based on user status
+// 🎯 ENHANCED: Smart OAuth callback with enhanced status check
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
     async (req, res) => {
@@ -2147,13 +2454,13 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // 🎯 SMART REDIRECT LOGIC:
+            // 🎯 ENHANCED: Smart redirect logic with enhanced status
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.linkedin_url || 
                                    !req.user.profile_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`🔍 Enhanced OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
@@ -2162,16 +2469,16 @@ app.get('/auth/google/callback',
             
             if (needsOnboarding) {
                 // New users or incomplete profiles → sign-up for onboarding
-                console.log(`➡️ Redirecting to sign-up for onboarding`);
+                console.log(`➡️ Redirecting to sign-up for enhanced onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
                 // Existing users with complete profiles → dashboard
-                console.log(`➡️ Redirecting to dashboard`);
+                console.log(`➡️ Redirecting to enhanced dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
         } catch (error) {
-            console.error('OAuth callback error:', error);
+            console.error('Enhanced OAuth callback error:', error);
             res.redirect(`/login?error=callback_error`);
         }
     }
@@ -2183,7 +2490,7 @@ app.get('/auth/failed', (req, res) => {
 
 // User Registration
 app.post('/register', async (req, res) => {
-    console.log('👤 Registration request:', req.body);
+    console.log('👤 Enhanced registration request:', req.body);
     
     try {
         const { email, password, packageType, billingModel } = req.body;
@@ -2228,7 +2535,7 @@ app.post('/register', async (req, res) => {
         
         res.status(201).json({
             success: true,
-            message: 'User registered successfully',
+            message: 'Enhanced user registered successfully',
             data: {
                 user: {
                     id: newUser.id,
@@ -2242,13 +2549,13 @@ app.post('/register', async (req, res) => {
             }
         });
         
-        console.log(`✅ User registered: ${newUser.email}`);
+        console.log(`✅ Enhanced user registered: ${newUser.email}`);
         
     } catch (error) {
-        console.error('❌ Registration error:', error);
+        console.error('❌ Enhanced registration error:', error);
         res.status(500).json({
             success: false,
-            error: 'Registration failed',
+            error: 'Enhanced registration failed',
             details: error.message
         });
     }
@@ -2256,7 +2563,7 @@ app.post('/register', async (req, res) => {
 
 // User Login
 app.post('/login', async (req, res) => {
-    console.log('🔐 Login request for:', req.body.email);
+    console.log('🔐 Enhanced login request for:', req.body.email);
     
     try {
         const { email, password } = req.body;
@@ -2299,7 +2606,7 @@ app.post('/login', async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Login successful',
+            message: 'Enhanced login successful',
             data: {
                 user: {
                     id: user.id,
@@ -2316,21 +2623,21 @@ app.post('/login', async (req, res) => {
             }
         });
         
-        console.log(`✅ User logged in: ${user.email}`);
+        console.log(`✅ Enhanced user logged in: ${user.email}`);
         
     } catch (error) {
-        console.error('❌ Login error:', error);
+        console.error('❌ Enhanced login error:', error);
         res.status(500).json({
             success: false,
-            error: 'Login failed',
+            error: 'Enhanced login failed',
             details: error.message
         });
     }
 });
 
-// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization
+// ✅ ENHANCED COMPLETE REGISTRATION ENDPOINT - With enhanced status management
 app.post('/complete-registration', authenticateToken, async (req, res) => {
-    console.log('🎯 Complete registration request for user:', req.user.id);
+    console.log('🎯 Enhanced complete registration request for user:', req.user.id);
     
     try {
         const { linkedinUrl, packageType, termsAccepted } = req.body;
@@ -2372,7 +2679,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             );
         }
         
-        // Create profile and start LinkedIn extraction
+        // Create enhanced profile and start LinkedIn extraction
         const profile = await createOrUpdateUserProfile(
             req.user.id, 
             linkedinUrl, 
@@ -2383,7 +2690,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started.',
+            message: 'Enhanced registration completed successfully! LinkedIn profile analysis started.',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2401,26 +2708,26 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                     enabled: true,
                     status: 'started',
                     expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background'
+                    message: 'Your LinkedIn profile is being analyzed with enhanced status tracking'
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction started!`);
+        console.log(`✅ Enhanced registration completed for user ${updatedUser.email} - LinkedIn extraction started!`);
         
     } catch (error) {
-        console.error('❌ Complete registration error:', error);
+        console.error('❌ Enhanced complete registration error:', error);
         res.status(500).json({
             success: false,
-            error: 'Registration completion failed',
+            error: 'Enhanced registration completion failed',
             details: error.message
         });
     }
 });
 
-// ✅ FIXED: Update user profile with LinkedIn URL normalization
+// ✅ ENHANCED: Update user profile with enhanced status management
 app.post('/update-profile', authenticateToken, async (req, res) => {
-    console.log('📝 Profile update request for user:', req.user.id);
+    console.log('📝 Enhanced profile update request for user:', req.user.id);
     
     try {
         const { linkedinUrl, packageType } = req.body;
@@ -2463,7 +2770,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with data validation!',
+            message: 'Enhanced profile updated - LinkedIn data extraction started!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2480,13 +2787,13 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Data validation applied!`);
+        console.log(`✅ Enhanced profile updated for user ${updatedUser.email}!`);
         
     } catch (error) {
-        console.error('❌ Profile update error:', error);
+        console.error('❌ Enhanced profile update error:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to update profile',
+            error: 'Failed to update enhanced profile',
             details: error.message
         });
     }
@@ -2511,7 +2818,9 @@ app.get('/profile', authenticateToken, async (req, res) => {
             isIncomplete: false,
             missingFields: [],
             extractionStatus: 'unknown',
-            initialScrapingDone: false
+            initialScrapingStarted: false,
+            extractingDataSuccessful: false,
+            setupStatus: 'not_started'
         };
 
         if (!profile || !profile.user_id) {
@@ -2519,13 +2828,17 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 isIncomplete: true,
                 missingFields: ['complete_profile'],
                 extractionStatus: 'not_started',
-                initialScrapingDone: false,
+                initialScrapingStarted: false,
+                extractingDataSuccessful: false,
+                setupStatus: 'not_started',
                 reason: 'No profile data found'
             };
         } else {
             const extractionStatus = profile.data_extraction_status || 'not_started';
             const isProfileAnalyzed = profile.profile_analyzed || false;
-            const initialScrapingDone = profile.initial_scraping_done || false;
+            const initialScrapingStarted = profile.initial_scraping_started || false;
+            const extractingDataSuccessful = profile.extracting_data_successful || false;
+            const setupStatus = profile.setup_status || 'not_started';
             
             const missingFields = [];
             if (!profile.full_name) missingFields.push('full_name');
@@ -2534,8 +2847,8 @@ app.get('/profile', authenticateToken, async (req, res) => {
             if (!profile.location) missingFields.push('location');
             
             const isIncomplete = (
-                !initialScrapingDone ||
-                extractionStatus !== 'completed' ||
+                !extractingDataSuccessful ||
+                setupStatus !== 'completed' ||
                 !isProfileAnalyzed ||
                 missingFields.length > 0 ||
                 processingQueue.has(req.user.id)
@@ -2546,10 +2859,12 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 missingFields: missingFields,
                 extractionStatus: extractionStatus,
                 profileAnalyzed: isProfileAnalyzed,
-                initialScrapingDone: initialScrapingDone,
+                initialScrapingStarted: initialScrapingStarted,
+                extractingDataSuccessful: extractingDataSuccessful,
+                setupStatus: setupStatus,
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 reason: isIncomplete ? 
-                    `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
+                    `Setup status: ${setupStatus}, Extracting successful: ${extractingDataSuccessful}, Missing: ${missingFields.join(', ')}` : 
                     'Profile complete and ready for target scraping'
             };
         }
@@ -2631,16 +2946,18 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     extractionError: profile.extraction_error,
                     extractionRetryCount: profile.extraction_retry_count,
                     profileAnalyzed: profile.profile_analyzed,
-                    initialScrapingDone: profile.initial_scraping_done
+                    initialScrapingStarted: profile.initial_scraping_started,
+                    extractingDataSuccessful: profile.extracting_data_successful,
+                    setupStatus: profile.setup_status
                 } : null,
                 syncStatus: syncStatus
             }
         });
     } catch (error) {
-        console.error('❌ Profile fetch error:', error);
+        console.error('❌ Enhanced profile fetch error:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to fetch profile'
+            error: 'Failed to fetch enhanced profile'
         });
     }
 });
@@ -2658,7 +2975,9 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
                 up.extraction_completed_at,
                 up.extraction_retry_count,
                 up.extraction_error,
-                up.initial_scraping_done
+                up.initial_scraping_started,
+                up.extracting_data_successful,
+                up.setup_status
             FROM users u
             LEFT JOIN user_profiles up ON u.id = up.user_id
             WHERE u.id = $1
@@ -2681,32 +3000,34 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             extraction_completed_at: status.extraction_completed_at,
             extraction_retry_count: status.extraction_retry_count,
             extraction_error: status.extraction_error,
-            initial_scraping_done: status.initial_scraping_done || false,
+            initial_scraping_started: status.initial_scraping_started || false,
+            extracting_data_successful: status.extracting_data_successful || false,
+            setup_status: status.setup_status || 'not_started',
             is_currently_processing: processingQueue.has(req.user.id),
-            message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
+            message: getEnhancedStatusMessage(status.setup_status, status.extracting_data_successful)
         });
         
     } catch (error) {
-        console.error('Status check error:', error);
-        res.status(500).json({ error: 'Status check failed' });
+        console.error('Enhanced status check error:', error);
+        res.status(500).json({ error: 'Enhanced status check failed' });
     }
 });
 
-// Helper function for status messages
-const getStatusMessage = (status, initialScrapingDone = false) => {
-    switch (status) {
+// Enhanced helper function for status messages
+const getEnhancedStatusMessage = (setupStatus, extractingDataSuccessful = false) => {
+    switch (setupStatus) {
         case 'not_started':
             return 'LinkedIn extraction not started - please complete initial profile setup';
-        case 'processing':
-            return 'LinkedIn profile extraction in progress with data validation...';
+        case 'in_progress':
+            return 'Getting your data, few minutes and you are set up...';
         case 'completed':
-            return initialScrapingDone ? 
-                'LinkedIn profile extraction completed! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with data validation!';
+            return extractingDataSuccessful ? 
+                'Setup complete! All features unlocked - you can now scrape target profiles.' :
+                'LinkedIn profile extraction completed successfully!';
         case 'failed':
-            return 'LinkedIn profile extraction failed';
+            return 'LinkedIn profile extraction failed - please try again';
         default:
-            return 'Unknown status';
+            return 'Unknown enhanced status';
     }
 };
 
@@ -2732,13 +3053,13 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with data validation!',
+            message: 'Enhanced LinkedIn extraction retry initiated!',
             status: 'processing'
         });
         
     } catch (error) {
-        console.error('Retry extraction error:', error);
-        res.status(500).json({ error: 'Retry failed' });
+        console.error('Enhanced retry extraction error:', error);
+        res.status(500).json({ error: 'Enhanced retry failed' });
     }
 });
 
@@ -2851,12 +3172,12 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// ✅ FIXED: Generate message endpoint with proper credit deduction and transaction management
+// ✅ ENHANCED: Generate message endpoint with enhanced credit management
 app.post('/generate-message', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
     try {
-        console.log(`🤖 Message generation request from user ${req.user.id}`);
+        console.log(`🤖 Enhanced message generation request from user ${req.user.id}`);
         
         const { targetProfile, context, messageType } = req.body;
         
@@ -2874,7 +3195,7 @@ app.post('/generate-message', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Start transaction for credit check and deduction
+        // ✅ ENHANCED: Start transaction for credit check and deduction
         await client.query('BEGIN');
         
         // Check user credits within transaction
@@ -2914,13 +3235,13 @@ app.post('/generate-message', authenticateToken, async (req, res) => {
             [req.user.id, 'message_generation', -1, `Generated message for ${targetProfile.fullName || 'Unknown'}`]
         );
         
-        // ✅ FIXED: Commit credit deduction before potentially long API call
+        // ✅ ENHANCED: Commit credit deduction before potentially long API call
         await client.query('COMMIT');
         
-        console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
+        console.log(`💳 Enhanced credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
         
         // Generate message using AI (simulate for now)
-        console.log('🤖 Generating AI message...');
+        console.log('🤖 Generating enhanced AI message...');
         
         // TODO: Replace with actual AI API call
         const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
@@ -2933,17 +3254,17 @@ Best regards`;
         
         const score = Math.floor(Math.random() * 20) + 80; // Random score between 80-100
         
-        // ✅ FIXED: Log message generation
+        // ✅ ENHANCED: Log message generation
         await pool.query(
             'INSERT INTO message_logs (user_id, target_name, target_url, generated_message, message_context, credits_used) VALUES ($1, $2, $3, $4, $5, $6)',
             [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, simulatedMessage, context, 1]
         );
         
-        console.log(`✅ Message generated successfully for user ${req.user.id}`);
+        console.log(`✅ Enhanced message generated successfully for user ${req.user.id}`);
         
         res.json({
             success: true,
-            message: 'Message generated successfully',
+            message: 'Enhanced message generated successfully',
             data: {
                 message: simulatedMessage,
                 score: score,
@@ -2958,17 +3279,17 @@ Best regards`;
         });
         
     } catch (error) {
-        // ✅ FIXED: Rollback if transaction is still active
+        // ✅ ENHANCED: Rollback if transaction is still active
         try {
             await client.query('ROLLBACK');
         } catch (rollbackError) {
-            console.error('❌ Rollback error:', rollbackError);
+            console.error('❌ Enhanced rollback error:', rollbackError);
         }
         
-        console.error('❌ Message generation error:', error);
+        console.error('❌ Enhanced message generation error:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to generate message',
+            error: 'Failed to generate enhanced message',
             details: error.message
         });
     } finally {
@@ -2996,6 +3317,10 @@ app.use((req, res, next) => {
             'POST /complete-registration',
             'GET /profile-status',
             'GET /user/initial-scraping-status',
+            'GET /user/setup-status',
+            'POST /user/retry-setup',
+            'GET /admin/users-status',
+            'POST /admin/update-successful-extractions',
             'POST /retry-extraction',
             'POST /generate-message',
             'GET /packages', 
@@ -3005,10 +3330,10 @@ app.use((req, res, next) => {
 });
 
 app.use((error, req, res, next) => {
-    console.error('❌ Error:', error);
+    console.error('❌ Enhanced Error:', error);
     res.status(500).json({
         success: false,
-        error: 'Server error'
+        error: 'Enhanced server error'
     });
 });
 
@@ -3027,17 +3352,17 @@ const validateEnvironment = () => {
         console.warn('⚠️ Warning: BRIGHT_DATA_API_KEY not set - profile extraction will fail');
     }
     
-    console.log('✅ Environment validated');
+    console.log('✅ Enhanced environment validated');
 };
 
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ Database connected:', result.rows[0].now);
+        console.log('✅ Enhanced database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
-        console.error('❌ Database connection failed:', error.message);
+        console.error('❌ Enhanced database connection failed:', error.message);
         return false;
     }
 };
@@ -3048,60 +3373,70 @@ const startServer = async () => {
         
         const dbOk = await testDatabase();
         if (!dbOk) {
-            console.error('❌ Cannot start server without database');
+            console.error('❌ Cannot start enhanced server without database');
             process.exit(1);
         }
         
+        // ✅ ENHANCED: Start background jobs
+        startBackgroundJobs();
+        
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - DATA VALIDATION ISSUE FIXED!');
+            console.log('🚀 Msgly.AI Server - ENHANCED STATUS SYSTEM COMPLETE!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Connected with data validation`);
+            console.log(`🗃️ Database: Connected with enhanced status tracking`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
-            console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🔧 CRITICAL FIX COMPLETE - DATA VALIDATION:`);
-            console.log(`   ✅ Issue FIXED: Only marks initial_scraping_done=true when arrays contain real data`);
-            console.log(`   ✅ Requirements IMPLEMENTED: Uses exact SQL from paste.txt requirements`);
-            console.log(`   ✅ Status checks: experience OR education OR skills arrays must have data`);
-            console.log(`   ✅ Transaction rollback: If no meaningful data found, rollback and show error`);
-            console.log(`   ✅ Database integrity: No more false positives where status=true but arrays=empty`);
-            console.log(`   ✅ Data validation: Validates array lengths before marking complete`);
-            console.log(`🎯 EXACT FIXES FROM REQUIREMENTS:`);
-            console.log(`   ✅ Backend uses: "AND (jsonb_array_length(experience) > 0 OR jsonb_array_length(education) > 0 OR jsonb_array_length(skills) > 0)"`);
-            console.log(`   ✅ Rollback mechanism: "await client.query('ROLLBACK')" if no meaningful data`);
-            console.log(`   ✅ Error message: "Incomplete profile data - missing arrays" when arrays are empty`);
-            console.log(`📋 ALL ENDPOINTS WITH DATA VALIDATION:`);
-            console.log(`   ✅ /user/initial-scraping-status - Always returns linkedin_url`);
-            console.log(`   ✅ /profile/user - FIXED: Only marks complete when arrays have data`);
-            console.log(`   ✅ /profile/target - Validates data before saving`);
-            console.log(`   ✅ /generate-message - Transactional credit deduction`);
-            console.log(`   ✅ /auth/chrome-extension - ALWAYS returns credits`);
+            console.log(`🤖 Background Processing: ENHANCED ✅`);
+            console.log(`🎯 ENHANCED STATUS SYSTEM FEATURES:`);
+            console.log(`   ✅ 3-Stage Status Flow: not_started → in_progress → completed`);
+            console.log(`   ✅ Smart Data Validation: Only marks successful when meaningful data exists`);
+            console.log(`   ✅ Auto-Status Updates: Background job promotes successful extractions`);
+            console.log(`   ✅ Enhanced User Experience: Clear messaging at each stage`);
+            console.log(`   ✅ Admin Tools: /admin/users-status for monitoring`);
+            console.log(`   ✅ Manual Controls: /user/retry-setup for reset functionality`);
+            console.log(`🔧 STATUS TRACKING LOGIC:`);
+            console.log(`   📊 not_started: initial_scraping_started = false`);
+            console.log(`   ⏳ in_progress: initial_scraping_started = true, extracting_data_successful = false`);
+            console.log(`   🎉 completed: extracting_data_successful = true (meaningful data detected)`);
+            console.log(`📋 ENHANCED API ENDPOINTS:`);
+            console.log(`   ✅ GET /user/setup-status - Enhanced granular status check`);
+            console.log(`   ✅ POST /user/retry-setup - Reset status for retry`);
+            console.log(`   ✅ GET /admin/users-status - Admin monitoring dashboard`);
+            console.log(`   ✅ POST /admin/update-successful-extractions - Manual status sync`);
+            console.log(`   ✅ All existing endpoints enhanced with new status logic`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
+            console.log(`🔄 Background Jobs: Auto-status updates every 5 minutes`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: DATA VALIDATION FIXED - No more false positives ✓ Arrays must contain data ✓ Transaction rollback on empty data ✓`);
+            console.log(`🎯 Status: ENHANCED STATUS SYSTEM FULLY IMPLEMENTED ✓`);
         });
         
     } catch (error) {
-        console.error('❌ Startup failed:', error);
+        console.error('❌ Enhanced startup failed:', error);
         process.exit(1);
     }
 };
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('🛑 Gracefully shutting down...');
+    console.log('🛑 Gracefully shutting down enhanced server...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('🛑 Gracefully shutting down...');
+    console.log('🛑 Gracefully shutting down enhanced server...');
     await pool.end();
     process.exit(0);
 });
 
-// Start the server
+// Start the enhanced server
 startServer();
 
-module.exports = app;
+// ✅ Enhanced export functions for testing
+module.exports = {
+    app,
+    checkIfDataExtractionSuccessful,
+    updateSuccessfulExtractions,
+    startBackgroundJobs
+};
