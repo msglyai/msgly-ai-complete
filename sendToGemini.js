@@ -1,281 +1,380 @@
+// Enhanced sendToGemini.js - OpenAI GPT-3.5 Turbo Version
 const axios = require('axios');
 
+// ✅ Rate limiting configuration (OpenAI is more generous)
+const RATE_LIMIT = {
+    DELAY_BETWEEN_REQUESTS: 1000,    // 1 second between requests (OpenAI allows more)
+    MAX_RETRIES: 3,                  // Maximum retry attempts
+    RETRY_DELAY_BASE: 3000,          // Base delay for exponential backoff (3 seconds)
+    MAX_RETRY_DELAY: 20000          // Maximum retry delay (20 seconds)
+};
+
+// ✅ OpenAI token limits
+const OPENAI_LIMITS = {
+    MAX_TOKENS_INPUT: 14000,         // Leave room for response (16K total - 2K response)
+    MAX_TOKENS_OUTPUT: 2048,         // Maximum response tokens
+    MAX_SIZE_KB: 1000               // Maximum HTML size to process
+};
+
+// ✅ Last request timestamp for rate limiting
+let lastRequestTime = 0;
+
+// ✅ Rate limiting delay function
+async function enforceRateLimit() {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    
+    if (timeSinceLastRequest < RATE_LIMIT.DELAY_BETWEEN_REQUESTS) {
+        const waitTime = RATE_LIMIT.DELAY_BETWEEN_REQUESTS - timeSinceLastRequest;
+        console.log(`⏰ Rate limiting: waiting ${waitTime}ms before next request`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    lastRequestTime = Date.now();
+}
+
+// ✅ Enhanced retry logic with exponential backoff
+async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            
+            // Don't retry on non-retryable errors
+            if (error.response?.status === 400 || error.response?.status === 401) {
+                throw error;
+            }
+            
+            if (attempt === maxRetries) {
+                console.error(`❌ All ${maxRetries} retry attempts failed`);
+                break;
+            }
+            
+            // Calculate exponential backoff delay
+            const baseDelay = RATE_LIMIT.RETRY_DELAY_BASE;
+            const exponentialDelay = baseDelay * Math.pow(2, attempt - 1);
+            const jitteredDelay = exponentialDelay + (Math.random() * 1000); // Add jitter
+            const finalDelay = Math.min(jitteredDelay, RATE_LIMIT.MAX_RETRY_DELAY);
+            
+            console.log(`⏳ Attempt ${attempt} failed, retrying in ${Math.round(finalDelay)}ms...`);
+            console.log(`   Error: ${error.message}`);
+            
+            await new Promise(resolve => setTimeout(resolve, finalDelay));
+        }
+    }
+    
+    throw lastError;
+}
+
+// ✅ HTML preprocessing for OpenAI (similar but optimized for GPT-3.5)
+function preprocessHTMLForOpenAI(html) {
+    try {
+        console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
+        
+        let processedHtml = html;
+        
+        // OpenAI-optimized cleaning
+        processedHtml = processedHtml
+            // Remove scripts and styles
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+            // Remove SVGs (large and not needed)
+            .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
+            // Remove forms and interactive elements
+            .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
+            .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
+            .replace(/<input[^>]*\/?>/gi, '')
+            // Remove media elements
+            .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
+            .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
+            .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+            // Clean attributes
+            .replace(/\s+data-(?!section|experience|skills|education)[^=]*="[^"]*"/gi, '')
+            .replace(/\s+class="[^"]{100,}"/gi, ' class=""')
+            .replace(/\s+style="[^"]*"/gi, '')
+            .replace(/\s+on\w+="[^"]*"/gi, '')
+            // Remove empty elements
+            .replace(/<div[^>]*>\s*<\/div>/gi, '')
+            .replace(/<p[^>]*>\s*<\/p>/gi, '')
+            .replace(/<span[^>]*>\s*<\/span>/gi, '')
+            // Compress whitespace
+            .replace(/\s+/g, ' ')
+            .replace(/>\s+</g, '><')
+            .trim();
+        
+        const finalSize = processedHtml.length / 1024;
+        console.log(`✅ HTML preprocessed for OpenAI (final size: ${finalSize.toFixed(2)} KB)`);
+        
+        return processedHtml;
+        
+    } catch (error) {
+        console.error('❌ HTML preprocessing failed:', error);
+        return html; // Return original if preprocessing fails
+    }
+}
+
+// ✅ Estimate token count (rough approximation for OpenAI)
+function estimateTokenCount(text) {
+    // Rough estimation: 1 token ≈ 4 characters for English text
+    // More conservative for HTML (more special characters)
+    return Math.ceil(text.length / 3);
+}
+
+// ✅ Main function to send data to OpenAI
 async function sendToGemini(inputData) {
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.OPENAI_API_KEY;
         
         if (!apiKey) {
-            throw new Error('GEMINI_API_KEY environment variable is not set');
+            throw new Error('OPENAI_API_KEY environment variable is not set');
         }
         
-        console.log('🤖 Sending LinkedIn data to Gemini for processing...');
+        console.log('🤖 === ENHANCED OPENAI PROCESSING START ===');
         
-        // ✅ NEW: Detect input type (HTML from Chrome extension vs JSON from Bright Data)
-        const isHtmlInput = inputData && typeof inputData === 'object' && inputData.html && typeof inputData.html === 'string';
-        const isJsonInput = !isHtmlInput;
-        
-        console.log(`📊 Input type: ${isHtmlInput ? 'HTML from Chrome Extension' : 'JSON from Bright Data'}`);
-        
-        let prompt, content;
-        
-        if (isHtmlInput) {
-            // ✅ NEW: HTML Processing for Chrome Extension
-            console.log(`📄 Processing HTML content (${inputData.html.length} characters)...`);
-            
-            content = inputData.html;
-            prompt = `You will receive LinkedIn profile HTML from a Chrome extension. Extract ALL available profile information and return ONLY a clean JSON with these fields:
-
-{
-  "linkedinId": "string or null",
-  "linkedinNumId": "number or null", 
-  "inputUrl": "string or null",
-  "url": "string or null",
-  "fullName": "string or null",
-  "firstName": "string or null",
-  "lastName": "string or null", 
-  "headline": "string or null",
-  "about": "string or null",
-  "summary": "string or null",
-  "location": "string or null",
-  "city": "string or null",
-  "state": "string or null",
-  "country": "string or null",
-  "countryCode": "string or null",
-  "industry": "string or null",
-  "currentCompany": "string or null",
-  "currentCompanyName": "string or null",
-  "currentCompanyId": "string or null",
-  "currentCompanyCompanyId": "string or null",
-  "currentPosition": "string or null",
-  "connectionsCount": "number or null",
-  "followersCount": "number or null", 
-  "connections": "number or null",
-  "followers": "number or null",
-  "recommendationsCount": "number or null",
-  "profileImageUrl": "string or null",
-  "avatar": "string or null",
-  "bannerImage": "string or null",
-  "backgroundImageUrl": "string or null",
-  "publicIdentifier": "string or null",
-  "experience": [],
-  "education": [], 
-  "educationsDetails": [],
-  "skills": [],
-  "skillsWithEndorsements": [],
-  "languages": [],
-  "certifications": [],
-  "courses": [],
-  "projects": [], 
-  "publications": [],
-  "patents": [],
-  "volunteerExperience": [],
-  "volunteering": [],
-  "honorsAndAwards": [],
-  "organizations": [],
-  "recommendations": [],
-  "recommendationsGiven": [],
-  "recommendationsReceived": [], 
-  "posts": [],
-  "activity": [],
-  "articles": [],
-  "peopleAlsoViewed": [],
-  "timestamp": "current timestamp",
-  "dataSource": "html_scraping"
-}
-
-CRITICAL INSTRUCTIONS:
-1. Extract REAL data from the HTML - don't make up information
-2. Pay special attention to the Experience section - this is CRITICAL for feature unlock
-3. For experience array, include objects like: {"title": "Job Title", "company": "Company Name", "location": "Location", "duration": "Duration", "description": "Description", "current": true/false}
-4. For education array, include: {"school": "School Name", "degree": "Degree", "field": "Field of Study", "startYear": "Year", "endYear": "Year"}
-5. For skills array, include: {"name": "Skill Name", "endorsements": number}
-6. Convert follower/connection counts: "500+" → 500, "1K" → 1000, "2.5M" → 2500000
-7. If a field is not found in HTML, use null (not empty string)
-8. Return ONLY the JSON object, no explanations or markdown formatting
-
-HTML CONTENT TO PROCESS:`;
-
-        } else {
-            // ✅ EXISTING: JSON Processing for Bright Data (your original code)
-            console.log('📄 Processing Bright Data JSON response...');
-            
-            content = JSON.stringify(inputData);
-            prompt = `You will receive a LinkedIn profile JSON from Bright Data. Return a clean JSON with the following fields only:
-
-{
-  "linkedinId": "string or null",
-  "linkedinNumId": "number or null", 
-  "inputUrl": "string or null",
-  "url": "string or null",
-  "fullName": "string or null",
-  "firstName": "string or null",
-  "lastName": "string or null", 
-  "headline": "string or null",
-  "about": "string or null",
-  "summary": "string or null",
-  "location": "string or null",
-  "city": "string or null",
-  "state": "string or null",
-  "country": "string or null",
-  "countryCode": "string or null",
-  "industry": "string or null",
-  "currentCompany": "string or null",
-  "currentCompanyName": "string or null",
-  "currentCompanyId": "string or null",
-  "currentCompanyCompanyId": "string or null",
-  "currentPosition": "string or null",
-  "connectionsCount": "number or null",
-  "followersCount": "number or null", 
-  "connections": "number or null",
-  "followers": "number or null",
-  "recommendationsCount": "number or null",
-  "profileImageUrl": "string or null",
-  "avatar": "string or null",
-  "bannerImage": "string or null",
-  "backgroundImageUrl": "string or null",
-  "publicIdentifier": "string or null",
-  "experience": "array of objects with job history",
-  "education": "array of objects with education history", 
-  "educationsDetails": "array of objects with detailed education",
-  "skills": "array of objects with skills",
-  "skillsWithEndorsements": "array of objects with endorsed skills",
-  "languages": "array of objects with languages",
-  "certifications": "array of objects with certifications",
-  "courses": "array of objects with courses",
-  "projects": "array of objects with projects", 
-  "publications": "array of objects with publications",
-  "patents": "array of objects with patents",
-  "volunteerExperience": "array of objects with volunteer work",
-  "volunteering": "array of objects with volunteering",
-  "honorsAndAwards": "array of objects with honors and awards",
-  "organizations": "array of objects with organizations",
-  "recommendations": "array of objects with recommendations",
-  "recommendationsGiven": "array of objects with given recommendations",
-  "recommendationsReceived": "array of objects with received recommendations", 
-  "posts": "array of objects with posts",
-  "activity": "array of objects with activity",
-  "articles": "array of objects with articles",
-  "peopleAlsoViewed": "array of objects with people also viewed",
-  "timestamp": "current timestamp",
-  "dataSource": "bright_data"
-}
-
-Map the input data to these fields as accurately as possible. For arrays, ensure they are properly formatted JSON arrays. For numbers, parse strings like "1,234" to 1234, "1.2K" to 1200, "2.5M" to 2500000. No explanation, just return the clean JSON.`;
-        }
-
-        // ✅ ENHANCED: Prepare request with content handling
-        const parts = [{ text: prompt }];
-        
-        // Add content based on type
-        if (isHtmlInput) {
-            // For HTML, truncate if too large (Gemini has limits)
-            const truncatedHtml = content.length > 100000 ? content.substring(0, 100000) + '...[TRUNCATED]' : content;
-            parts.push({ text: truncatedHtml });
-        } else {
-            // For JSON, use as-is
-            parts.push({ text: content });
-        }
-
-        // ✅ FIXED: Updated to use Gemini 2.0 Flash (your existing model)
-        console.log('🚀 Sending request to Gemini 2.0 Flash...');
-        
-        const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-            {
-                contents: [{ parts: parts }]
-            },
-            {
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                timeout: 120000 // ✅ KEPT: Your 2-minute timeout
-            }
-        );
-
-        if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            throw new Error('Invalid response structure from Gemini API');
-        }
-
-        const geminiText = response.data.candidates[0].content.parts[0].text;
-        console.log('🤖 Received response from Gemini');
-        
-        // ✅ ENHANCED: Better text cleaning for both HTML and JSON responses
-        let cleanedText = geminiText.trim();
-        
-        // Remove markdown code blocks if present
-        cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-        
-        // Remove any leading/trailing text that isn't JSON
-        const jsonStart = cleanedText.indexOf('{');
-        const jsonEnd = cleanedText.lastIndexOf('}');
-        
-        if (jsonStart !== -1 && jsonEnd !== -1) {
-            cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1);
-        }
-        
+        // Determine input type and prepare data
         let processedData;
-        try {
-            processedData = JSON.parse(cleanedText);
-        } catch (parseError) {
-            console.error('❌ Failed to parse Gemini JSON response:', parseError);
-            console.error('Raw response (first 500 chars):', cleanedText.substring(0, 500));
-            throw new Error('Failed to parse Gemini response as JSON');
-        }
-
-        // ✅ ENHANCED: Add metadata based on input type
-        processedData.timestamp = new Date();
-        processedData.dataSource = isHtmlInput ? 'html_scraping_via_gemini' : 'bright_data_via_gemini';
-
-        // ✅ CRITICAL: Ensure arrays are properly formatted
-        const arrayFields = [
-            'experience', 'education', 'educationsDetails', 'skills', 'skillsWithEndorsements',
-            'languages', 'certifications', 'courses', 'projects', 'publications', 'patents',
-            'volunteerExperience', 'volunteering', 'honorsAndAwards', 'organizations',
-            'recommendations', 'recommendationsGiven', 'recommendationsReceived',
-            'posts', 'activity', 'articles', 'peopleAlsoViewed'
-        ];
-
-        arrayFields.forEach(field => {
-            if (!Array.isArray(processedData[field])) {
-                processedData[field] = [];
+        let inputType;
+        let systemPrompt;
+        let userPrompt;
+        
+        if (inputData.html) {
+            // HTML input from Chrome extension
+            inputType = 'HTML from Chrome Extension';
+            console.log(`📄 Input type: ${inputType}`);
+            console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
+            
+            // Check HTML size limits
+            const htmlSizeKB = inputData.html.length / 1024;
+            if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
+                throw new Error(`HTML too large: ${htmlSizeKB.toFixed(2)} KB (max: ${OPENAI_LIMITS.MAX_SIZE_KB} KB)`);
             }
+            
+            // Preprocess HTML for OpenAI
+            const preprocessedHtml = preprocessHTMLForOpenAI(inputData.html);
+            
+            // Estimate token count
+            const estimatedTokens = estimateTokenCount(preprocessedHtml);
+            console.log(`🔢 Estimated tokens: ${estimatedTokens}`);
+            
+            if (estimatedTokens > OPENAI_LIMITS.MAX_TOKENS_INPUT) {
+                throw new Error(`Content too large: ~${estimatedTokens} tokens (max: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
+            }
+            
+            processedData = {
+                html: preprocessedHtml,
+                url: inputData.url || inputData.profileUrl,
+                isUserProfile: inputData.isUserProfile || false,
+                optimization: inputData.optimization || {}
+            };
+            
+            // System prompt for OpenAI
+            systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract structured profile information into valid JSON format.
+
+CRITICAL REQUIREMENTS:
+1. EXPERIENCE data is HIGHEST PRIORITY (needed for feature unlock)
+2. Return ONLY valid JSON - no markdown, no explanations, no comments
+3. Use the exact JSON structure provided
+4. Extract all text content, ignore styling and layout elements
+5. If a section is empty, use empty array [] or empty string ""`;
+
+            // User prompt with HTML content
+            userPrompt = `Extract LinkedIn profile data from this HTML and return as JSON with this exact structure:
+
+{
+  "profile": {
+    "name": "Full Name",
+    "headline": "Professional Headline", 
+    "location": "City, Country",
+    "about": "About section text"
+  },
+  "experience": [
+    {
+      "title": "Job Title",
+      "company": "Company Name", 
+      "duration": "Start Date - End Date",
+      "description": "Job description and achievements",
+      "location": "Job location"
+    }
+  ],
+  "education": [
+    {
+      "school": "University/School Name",
+      "degree": "Degree Type",
+      "field": "Field of Study", 
+      "duration": "Start Year - End Year"
+    }
+  ],
+  "skills": ["Skill 1", "Skill 2", "Skill 3"],
+  "certifications": [
+    {
+      "name": "Certification Name",
+      "issuer": "Issuing Organization",
+      "date": "Issue Date"
+    }
+  ]
+}
+
+HTML Content:
+${preprocessedHtml}`;
+            
+        } else if (inputData.data || inputData.results) {
+            // JSON input from Bright Data or other sources
+            inputType = 'JSON Data';
+            console.log(`📊 Input type: ${inputType}`);
+            
+            const jsonData = inputData.data || inputData.results || inputData;
+            processedData = jsonData;
+            
+            systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure profile information from the provided JSON data.
+
+CRITICAL REQUIREMENTS:
+1. EXPERIENCE data is HIGHEST PRIORITY (needed for feature unlock)  
+2. Return ONLY valid JSON - no markdown, no explanations
+3. Use the exact structure provided`;
+
+            userPrompt = `Extract LinkedIn profile data from this JSON and return as structured JSON:
+
+${JSON.stringify(jsonData, null, 2)}`;
+            
+        } else {
+            throw new Error('Invalid input data: must contain either "html" or "data" property');
+        }
+        
+        console.log(`🎯 Processing ${inputType}...`);
+        console.log(`📝 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        
+        // Enforce rate limiting
+        await enforceRateLimit();
+        
+        // Make request to OpenAI with retry logic
+        const openaiResponse = await retryWithBackoff(async () => {
+            console.log('📤 Sending request to OpenAI API...');
+            
+            const response = await axios.post(
+                'https://api.openai.com/v1/chat/completions',
+                {
+                    model: "gpt-3.5-turbo-16k", // Use 16K context version for large HTML
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemPrompt
+                        },
+                        {
+                            role: "user", 
+                            content: userPrompt
+                        }
+                    ],
+                    temperature: 0.1,           // Low temperature for consistent extraction
+                    max_tokens: OPENAI_LIMITS.MAX_TOKENS_OUTPUT,
+                    top_p: 0.95,
+                    frequency_penalty: 0,
+                    presence_penalty: 0,
+                    response_format: { "type": "json_object" } // Force JSON response (GPT-3.5 Turbo feature)
+                },
+                {
+                    timeout: 60000, // 60 second timeout
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    }
+                }
+            );
+            
+            return response;
         });
-
-        console.log('✅ Gemini processing completed successfully');
-        console.log(`📊 Processed data summary:`);
-        console.log(`   - Input Type: ${isHtmlInput ? 'HTML' : 'JSON'}`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Headline: ${processedData.headline || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - Experience entries: ${processedData.experience?.length || 0}`);
-        console.log(`   - Education entries: ${processedData.education?.length || 0}`);
-        console.log(`   - Skills: ${processedData.skills?.length || 0}`);
         
-        // ✅ CRITICAL: Log if experience is missing (needed for feature unlock)
-        if (!processedData.experience || processedData.experience.length === 0) {
-            console.warn('⚠️ WARNING: No experience data extracted - this may block feature unlock');
+        console.log('📥 OpenAI API response received');
+        console.log(`📊 Response status: ${openaiResponse.status}`);
+        
+        // Process OpenAI response
+        if (!openaiResponse.data?.choices?.[0]?.message?.content) {
+            throw new Error('Invalid response structure from OpenAI API');
         }
-
-        return processedData;
-
+        
+        const rawResponse = openaiResponse.data.choices[0].message.content;
+        console.log(`📝 Raw response length: ${rawResponse.length} characters`);
+        console.log(`💰 Usage - Prompt tokens: ${openaiResponse.data.usage?.prompt_tokens}, Completion tokens: ${openaiResponse.data.usage?.completion_tokens}`);
+        
+        // Parse JSON response
+        let parsedData;
+        try {
+            parsedData = JSON.parse(rawResponse.trim());
+        } catch (parseError) {
+            console.error('❌ JSON parsing failed:', parseError);
+            console.log('🔍 Raw response preview:', rawResponse.substring(0, 500) + '...');
+            throw new Error('Failed to parse OpenAI response as JSON');
+        }
+        
+        // Validate critical data
+        const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
+        const hasProfile = parsedData.profile && parsedData.profile.name;
+        
+        console.log('✅ === OPENAI PROCESSING COMPLETED ===');
+        console.log(`📊 Processing results:`);
+        console.log(`   - Profile name: ${hasProfile ? 'YES' : 'NO'}`);
+        console.log(`   - Experience entries: ${parsedData.experience?.length || 0}`);
+        console.log(`   - Education entries: ${parsedData.education?.length || 0}`);
+        console.log(`   - Skills count: ${parsedData.skills?.length || 0}`);
+        console.log(`   - Input type: ${inputType}`);
+        console.log(`   - Token usage: ${openaiResponse.data.usage?.total_tokens || 'N/A'}`);
+        
+        if (!hasExperience) {
+            console.warn('⚠️ WARNING: No experience data extracted - this may affect feature unlock');
+        }
+        
+        return {
+            success: true,
+            data: parsedData,
+            metadata: {
+                inputType: inputType,
+                processingTime: Date.now(),
+                hasExperience: hasExperience,
+                hasProfile: hasProfile,
+                dataQuality: hasExperience && hasProfile ? 'high' : 'medium',
+                tokenUsage: openaiResponse.data.usage
+            }
+        };
+        
     } catch (error) {
-        console.error('❌ Gemini processing failed:', error.message);
+        console.error('❌ === OPENAI PROCESSING FAILED ===');
+        console.error('📊 Error details:');
+        console.error(`   - Message: ${error.message}`);
+        console.error(`   - Status: ${error.response?.status || 'N/A'}`);
+        console.error(`   - Type: ${error.name || 'Unknown'}`);
         
-        // ✅ ENHANCED: Better error logging for debugging (your existing code)
-        if (error.response) {
-            console.error('❌ Gemini API response error:', {
-                status: error.response.status,
-                statusText: error.response.statusText,
-                data: error.response.data
-            });
+        // Handle specific OpenAI error types
+        let userFriendlyMessage = 'Failed to process profile data';
+        
+        if (error.response?.status === 429) {
+            userFriendlyMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (error.response?.status === 400) {
+            userFriendlyMessage = 'Invalid request format. Please try again.';
+        } else if (error.response?.status === 401) {
+            userFriendlyMessage = 'API authentication failed. Please check server configuration.';
+        } else if (error.response?.status === 402) {
+            userFriendlyMessage = 'API quota exceeded. Please contact support.';
+        } else if (error.message.includes('timeout')) {
+            userFriendlyMessage = 'Processing timeout. Please try again with a smaller profile.';
+        } else if (error.message.includes('too large')) {
+            userFriendlyMessage = 'Profile too large to process. Please try refreshing the page.';
+        } else if (error.message.includes('JSON')) {
+            userFriendlyMessage = 'Failed to parse AI response. Please try again.';
         }
         
-        // ✅ NEW: Add specific error context
-        if (error.code === 'ECONNABORTED') {
-            throw new Error('Gemini processing timeout - try again');
-        }
-        
-        throw new Error(`Gemini processing failed: ${error.message}`);
+        return {
+            success: false,
+            error: error.message,
+            userMessage: userFriendlyMessage,
+            details: {
+                status: error.response?.status,
+                type: error.name,
+                timestamp: new Date().toISOString()
+            }
+        };
     }
 }
 
