@@ -1,4 +1,4 @@
-// Msgly.AI Server - FIXED: Proper Database Transaction Management
+// Msgly.AI Server - FIXED: Proper Database Transaction Management + Gemini AI Integration
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -10,6 +10,7 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
+const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
 
 const app = express();
@@ -418,6 +419,17 @@ const initDB = async () => {
             );
         `);
 
+        // ✅ NEW TABLE: Raw snapshots for Gemini integration
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS raw_snapshots (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                snapshot_type VARCHAR(50) DEFAULT 'bright_data',
+                raw_json JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
         // Add missing columns if they don't exist
         try {
             await pool.query(`
@@ -465,6 +477,9 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url ON target_profiles(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_scraped_at ON target_profiles(scraped_at);
+                CREATE INDEX IF NOT EXISTS idx_raw_snapshots_user_id ON raw_snapshots(user_id);
+                CREATE INDEX IF NOT EXISTS idx_raw_snapshots_created_at ON raw_snapshots(created_at);
+                CREATE INDEX IF NOT EXISTS idx_raw_snapshots_snapshot_type ON raw_snapshots(snapshot_type);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -479,6 +494,8 @@ const initDB = async () => {
 };
 
 // ==================== LINKEDIN DATA PROCESSING ====================
+
+// ✅ FALLBACK FUNCTIONS - Only used when Gemini processing fails (for Chrome extension compatibility)
 
 // JSON validation and sanitization
 const sanitizeForJSON = (data) => {
@@ -579,148 +596,7 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// COMPLETE LinkedIn data processing 
-const processLinkedInDataComplete = (profileData) => {
-    if (!profileData) {
-        throw new Error('No profile data received from Bright Data API');
-    }
-    
-    console.log('📊 Processing LinkedIn data...');
-    console.log('📋 Raw data keys:', Object.keys(profileData));
-    
-    try {
-        const processedData = {
-            // Handle both field name variations
-            linkedinId: profileData.linkedin_id || profileData.id || null,
-            linkedinNumId: profileData.linkedin_num_id || profileData.numericId || null,
-            inputUrl: profileData.input_url || profileData.inputUrl || null,
-            url: profileData.url || profileData.canonicalUrl || null,
-            
-            // Basic Information - handle both variations
-            fullName: profileData.name || profileData.full_name || profileData.fullName || null,
-            firstName: profileData.first_name || profileData.firstName || 
-                      (profileData.name ? profileData.name.split(' ')[0] : null),
-            lastName: profileData.last_name || profileData.lastName || 
-                     (profileData.name ? profileData.name.split(' ').slice(1).join(' ') : null),
-            headline: profileData.headline || profileData.position || null,
-            about: profileData.about || profileData.summary || profileData.description || null,
-            summary: profileData.summary || profileData.about || profileData.description || null,
-            
-            // Location Information  
-            location: profileData.location || profileData.geo_location || null,
-            city: profileData.city || profileData.geo_city || null,
-            state: profileData.state || profileData.geo_state || null,
-            country: profileData.country || profileData.geo_country || null,
-            countryCode: profileData.country_code || profileData.countryCode || null,
-            
-            // Professional Information
-            industry: profileData.industry || null,
-            currentCompany: profileData.current_company || profileData.company || null,
-            currentCompanyName: profileData.current_company_name || profileData.currentCompanyName || null,
-            currentCompanyId: profileData.current_company_id || profileData.currentCompanyId || null,
-            currentCompanyCompanyId: profileData.current_company_company_id || profileData.currentCompanyCompanyId || null,
-            currentPosition: profileData.current_position || profileData.position || profileData.headline || null,
-            
-            // Metrics
-            connectionsCount: parseLinkedInNumber(profileData.connections_count || profileData.connectionsCount || profileData.connections),
-            followersCount: parseLinkedInNumber(profileData.followers_count || profileData.followersCount || profileData.followers),
-            connections: parseLinkedInNumber(profileData.connections),
-            followers: parseLinkedInNumber(profileData.followers),
-            recommendationsCount: profileData.recommendations_count || profileData.recommendationsCount || null,
-            
-            // Media
-            profileImageUrl: profileData.profile_pic_url || profileData.profile_picture || profileData.profileImageUrl || profileData.avatar || null,
-            avatar: profileData.avatar || profileData.profile_pic_url || profileData.photo || null,
-            bannerImage: profileData.banner_image || profileData.backgroundImage || null,
-            backgroundImageUrl: profileData.background_image || profileData.backgroundImageUrl || null,
-            
-            // Identifiers
-            publicIdentifier: profileData.public_identifier || profileData.publicIdentifier || null,
-            
-            // Professional Information Arrays
-            experience: ensureValidJSONArray(profileData.experience || profileData.work_experience || 
-                       profileData.experiences || profileData.jobs || profileData.positions || []),
-            
-            education: ensureValidJSONArray(profileData.education || profileData.educations || 
-                      profileData.schools || []),
-            
-            educationsDetails: ensureValidJSONArray(profileData.educations_details || 
-                              profileData.educationDetails || []),
-            
-            skills: ensureValidJSONArray(profileData.skills || profileData.skill_list || 
-                   profileData.skillsList || []),
-            
-            skillsWithEndorsements: ensureValidJSONArray(profileData.skills_with_endorsements || 
-                                   profileData.endorsedSkills || []),
-            
-            languages: ensureValidJSONArray(profileData.languages || profileData.language_list || []),
-            
-            certifications: ensureValidJSONArray(profileData.certifications || profileData.certificates || 
-                           profileData.certificationList || []),
-            
-            courses: ensureValidJSONArray(profileData.courses || profileData.course_list || []),
-            
-            projects: ensureValidJSONArray(profileData.projects || profileData.project_list || []),
-            
-            publications: ensureValidJSONArray(profileData.publications || profileData.publication_list || []),
-            
-            patents: ensureValidJSONArray(profileData.patents || profileData.patent_list || []),
-            
-            volunteerExperience: ensureValidJSONArray(profileData.volunteer_experience || 
-                                profileData.volunteerWork || []),
-            
-            volunteering: ensureValidJSONArray(profileData.volunteering || profileData.volunteer_work || []),
-            
-            honorsAndAwards: ensureValidJSONArray(profileData.honors_and_awards || 
-                            profileData.awards || profileData.honors || []),
-            
-            organizations: ensureValidJSONArray(profileData.organizations || 
-                          profileData.organization_list || []),
-            
-            recommendations: ensureValidJSONArray(profileData.recommendations || []),
-            
-            recommendationsGiven: ensureValidJSONArray(profileData.recommendations_given || 
-                                 profileData.given_recommendations || []),
-            
-            recommendationsReceived: ensureValidJSONArray(profileData.recommendations_received || 
-                                    profileData.received_recommendations || []),
-            
-            posts: ensureValidJSONArray(profileData.posts || profileData.recent_posts || []),
-            
-            activity: ensureValidJSONArray(profileData.activity || profileData.recent_activity || []),
-            
-            articles: ensureValidJSONArray(profileData.articles || profileData.article_list || []),
-            
-            peopleAlsoViewed: ensureValidJSONArray(profileData.people_also_viewed || 
-                             profileData.also_viewed || []),
-            
-            // Metadata
-            timestamp: profileData.timestamp ? new Date(profileData.timestamp) : new Date(),
-            dataSource: profileData.db_source || profileData.data_source || 'bright_data',
-            
-            // Store complete raw data
-            rawData: sanitizeForJSON(profileData)
-        };
-        
-        console.log('✅ LinkedIn data processed successfully');
-        console.log(`📊 Data summary:`);
-        console.log(`   - LinkedIn ID: ${processedData.linkedinId || 'Not available'}`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Headline: ${processedData.headline || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - Experience: ${processedData.experience.length} entries`);
-        console.log(`   - Education: ${processedData.education.length} entries`);
-        console.log(`   - Skills: ${processedData.skills.length} entries`);
-        
-        return processedData;
-        
-    } catch (error) {
-        console.error('❌ Error processing LinkedIn data:', error);
-        throw new Error(`LinkedIn data processing failed: ${error.message}`);
-    }
-};
-
-// LinkedIn Profile Extraction - Fixed status field issue
+// LinkedIn Profile Extraction - Returns raw data for Gemini processing
 const extractLinkedInProfileComplete = async (linkedinUrl) => {
     try {
         console.log('🚀 Starting LinkedIn profile extraction...');
@@ -748,7 +624,7 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
                 
                 return {
                     success: true,
-                    data: processLinkedInDataComplete(profileData),
+                    rawData: profileData,
                     method: 'synchronous',
                     message: 'LinkedIn profile extracted successfully (synchronous)'
                 };
@@ -822,7 +698,7 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
                         
                         return {
                             success: true,
-                            data: processLinkedInDataComplete(profileData),
+                            rawData: profileData,
                             method: 'asynchronous',
                             snapshotId: snapshotId,
                             message: 'LinkedIn profile extracted successfully (asynchronous)'
@@ -860,7 +736,7 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
     }
 };
 
-// ✅ FIXED: Background processing with proper transaction management
+// ✅ UPDATED: Background processing with Gemini AI integration
 const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelay = 300000; // 5 minutes
@@ -916,11 +792,43 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             
             console.log(`✅ Extraction succeeded for user ${userId}`);
             
-            const extractedData = result.data;
+            // ✅ STEP 1: Save raw JSON data to database
+            await client.query(
+                'INSERT INTO raw_snapshots (user_id, snapshot_type, raw_json) VALUES ($1, $2, $3)',
+                [userId, 'bright_data', JSON.stringify(result.rawData)]
+            );
+            console.log(`💾 Raw Bright Data JSON saved for user ${userId}`);
+            
+            // ✅ STEP 2: Process data using Gemini instead of manual mapping
+            console.log(`🤖 Processing LinkedIn data with Gemini for user ${userId}...`);
+            let extractedData;
+            try {
+                extractedData = await sendToGemini(result.rawData);
+                console.log(`✅ Gemini processing completed for user ${userId}`);
+            } catch (geminiError) {
+                console.error(`❌ Gemini processing failed for user ${userId}:`, geminiError.message);
+                console.log(`🔄 Falling back to manual processing for user ${userId}`);
+                // Fallback to basic data extraction
+                extractedData = {
+                    fullName: result.rawData.name || result.rawData.full_name || null,
+                    firstName: result.rawData.first_name || (result.rawData.name ? result.rawData.name.split(' ')[0] : null),
+                    lastName: result.rawData.last_name || (result.rawData.name ? result.rawData.name.split(' ').slice(1).join(' ') : null),
+                    headline: result.rawData.headline || result.rawData.position || null,
+                    about: result.rawData.about || result.rawData.summary || null,
+                    summary: result.rawData.summary || result.rawData.about || null,
+                    location: result.rawData.location || null,
+                    currentCompany: result.rawData.current_company || result.rawData.company || null,
+                    profileImageUrl: result.rawData.profile_pic_url || result.rawData.avatar || null,
+                    experience: Array.isArray(result.rawData.experience) ? result.rawData.experience : [],
+                    education: Array.isArray(result.rawData.education) ? result.rawData.education : [],
+                    skills: Array.isArray(result.rawData.skills) ? result.rawData.skills : [],
+                    timestamp: new Date(),
+                    dataSource: 'bright_data_fallback'
+                };
+            }
             
             // ✅ CRITICAL FIX: Validate extracted data BEFORE updating database status
             console.log(`📊 Data validation for user ${userId}:`);
-            console.log(`   - LinkedIn ID: ${extractedData.linkedinId || 'Not available'}`);
             console.log(`   - Full Name: ${extractedData.fullName || 'Not available'}`);
             console.log(`   - Headline: ${extractedData.headline || 'Not available'}`);
             console.log(`   - Current Company: ${extractedData.currentCompany || 'Not available'}`);
@@ -995,59 +903,59 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = $56 
             `, [
-                extractedData.linkedinId,
-                extractedData.linkedinNumId,
-                extractedData.inputUrl,
-                extractedData.url,
+                extractedData.linkedinId || null,
+                extractedData.linkedinNumId || null,
+                extractedData.inputUrl || null,
+                extractedData.url || null,
                 extractedData.fullName,
                 extractedData.firstName,
                 extractedData.lastName,
                 extractedData.headline,
                 extractedData.about,
-                extractedData.location,
-                extractedData.city,
-                extractedData.state,
-                extractedData.country,
-                extractedData.countryCode,
-                extractedData.industry,
+                extractedData.location || null,
+                extractedData.city || null,
+                extractedData.state || null,
+                extractedData.country || null,
+                extractedData.countryCode || null,
+                extractedData.industry || null,
                 extractedData.currentCompany,
-                extractedData.currentCompanyName,
-                extractedData.currentCompanyId,
-                extractedData.currentCompanyCompanyId,
-                extractedData.currentPosition,
-                extractedData.connectionsCount,
-                extractedData.followersCount,
-                extractedData.connections,
-                extractedData.followers,
-                extractedData.recommendationsCount,
+                extractedData.currentCompanyName || null,
+                extractedData.currentCompanyId || null,
+                extractedData.currentCompanyCompanyId || null,
+                extractedData.currentPosition || null,
+                extractedData.connectionsCount || null,
+                extractedData.followersCount || null,
+                extractedData.connections || null,
+                extractedData.followers || null,
+                extractedData.recommendationsCount || null,
                 extractedData.profileImageUrl,
-                extractedData.avatar,
-                extractedData.bannerImage,
-                extractedData.backgroundImageUrl,
-                extractedData.publicIdentifier,
-                JSON.stringify(extractedData.experience),
-                JSON.stringify(extractedData.education),
-                JSON.stringify(extractedData.educationsDetails),
-                JSON.stringify(extractedData.skills),
-                JSON.stringify(extractedData.skillsWithEndorsements),
-                JSON.stringify(extractedData.languages),
-                JSON.stringify(extractedData.certifications),
-                JSON.stringify(extractedData.courses),
-                JSON.stringify(extractedData.projects),
-                JSON.stringify(extractedData.publications),
-                JSON.stringify(extractedData.patents),
-                JSON.stringify(extractedData.volunteerExperience),
-                JSON.stringify(extractedData.volunteering),
-                JSON.stringify(extractedData.honorsAndAwards),
-                JSON.stringify(extractedData.organizations),
-                JSON.stringify(extractedData.recommendations),
-                JSON.stringify(extractedData.recommendationsGiven),
-                JSON.stringify(extractedData.recommendationsReceived),
-                JSON.stringify(extractedData.posts),
-                JSON.stringify(extractedData.activity),
-                JSON.stringify(extractedData.articles),
-                JSON.stringify(extractedData.peopleAlsoViewed),
-                JSON.stringify(extractedData.rawData),
+                extractedData.avatar || null,
+                extractedData.bannerImage || null,
+                extractedData.backgroundImageUrl || null,
+                extractedData.publicIdentifier || null,
+                JSON.stringify(extractedData.experience || []),
+                JSON.stringify(extractedData.education || []),
+                JSON.stringify(extractedData.educationsDetails || []),
+                JSON.stringify(extractedData.skills || []),
+                JSON.stringify(extractedData.skillsWithEndorsements || []),
+                JSON.stringify(extractedData.languages || []),
+                JSON.stringify(extractedData.certifications || []),
+                JSON.stringify(extractedData.courses || []),
+                JSON.stringify(extractedData.projects || []),
+                JSON.stringify(extractedData.publications || []),
+                JSON.stringify(extractedData.patents || []),
+                JSON.stringify(extractedData.volunteerExperience || []),
+                JSON.stringify(extractedData.volunteering || []),
+                JSON.stringify(extractedData.honorsAndAwards || []),
+                JSON.stringify(extractedData.organizations || []),
+                JSON.stringify(extractedData.recommendations || []),
+                JSON.stringify(extractedData.recommendationsGiven || []),
+                JSON.stringify(extractedData.recommendationsReceived || []),
+                JSON.stringify(extractedData.posts || []),
+                JSON.stringify(extractedData.activity || []),
+                JSON.stringify(extractedData.articles || []),
+                JSON.stringify(extractedData.peopleAlsoViewed || []),
+                JSON.stringify(result.rawData),
                 extractedData.timestamp,
                 extractedData.dataSource,
                 userId
@@ -1075,8 +983,9 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             // ✅ FIXED: Commit transaction only after all data is confirmed
             await client.query('COMMIT');
             
-            console.log(`🎉 LinkedIn profile data successfully saved for user ${userId} with transactional integrity!`);
+            console.log(`🎉 LinkedIn profile data successfully saved for user ${userId} with Gemini AI integration!`);
             console.log(`✅ Method: ${result.method}`);
+            console.log(`🤖 Data processing: ${extractedData.dataSource}`);
             console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
             
             processingQueue.delete(userId);
@@ -1118,7 +1027,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
     }, retryCount === 0 ? 10000 : retryDelay);
 };
 
-// ✅ Process scraped data from content script (with URL validation)
+// ✅ Process scraped data from content script (with URL validation) - KEPT for Chrome extension
 const processScrapedProfileData = (scrapedData, isUserProfile = false) => {
     try {
         console.log('📊 Processing scraped profile data from extension...');
@@ -1451,7 +1360,7 @@ app.get('/dashboard', (req, res) => {
 
 // ==================== API ENDPOINTS ====================
 
-// Health Check
+// Health Check - Updated with Gemini status
 app.get('/health', async (req, res) => {
     try {
         const client = await pool.connect();
@@ -1462,27 +1371,37 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '8.0-TRANSACTION-MANAGEMENT-FIXED',
+            version: '9.0-GEMINI-AI-INTEGRATION',
             timestamp: new Date().toISOString(),
             changes: {
-                transactionManagement: 'FIXED - Database status only updated AFTER confirming data receipt',
-                dataValidation: 'ADDED - Validates extracted data before marking as complete',
-                rollbackMechanism: 'IMPLEMENTED - Proper transaction rollback on errors',
-                statusIntegrity: 'FIXED - No more false positives where status=true but data=empty',
-                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries'
+                geminiIntegration: 'NEW - Replaced manual field mapping with Gemini AI processing',
+                rawDataStorage: 'NEW - All Bright Data responses stored in raw_snapshots table',
+                fallbackProcessing: 'ENHANCED - Robust fallback to manual processing if Gemini fails',
+                transactionManagement: 'MAINTAINED - Database status only updated AFTER confirming data receipt',
+                dataValidation: 'MAINTAINED - Validates extracted data before marking as complete',
+                rollbackMechanism: 'MAINTAINED - Proper transaction rollback on errors',
+                statusIntegrity: 'MAINTAINED - No more false positives where status=true but data=empty',
+                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries with AI processing'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
                 datasetId: BRIGHT_DATA_DATASET_ID,
                 endpoints: 'All verified working'
             },
+            geminiAI: {
+                configured: !!process.env.GEMINI_API_KEY,
+                status: process.env.GEMINI_API_KEY ? 'Primary data processor' : 'Not configured - will use fallback',
+                fallbackAvailable: true
+            },
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
-                transactionManagement: 'ACTIVE'
+                transactionManagement: 'ACTIVE',
+                newTables: ['raw_snapshots']
             },
             backgroundProcessing: {
                 enabled: true,
+                aiProcessing: !!process.env.GEMINI_API_KEY,
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys())
             }
@@ -2345,7 +2264,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started.',
+            message: 'Registration completed successfully! LinkedIn profile analysis started with Gemini AI.',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2363,12 +2282,12 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                     enabled: true,
                     status: 'started',
                     expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background'
+                    message: 'Your LinkedIn profile is being analyzed in the background using Gemini AI'
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction started!`);
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction with Gemini started!`);
         
     } catch (error) {
         console.error('❌ Complete registration error:', error);
@@ -2425,7 +2344,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with transaction management!',
+            message: 'Profile updated - LinkedIn data extraction started with Gemini AI integration!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2442,7 +2361,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Transaction management applied!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Gemini AI integration applied!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -2660,11 +2579,11 @@ const getStatusMessage = (status, initialScrapingDone = false) => {
         case 'not_started':
             return 'LinkedIn extraction not started - please complete initial profile setup';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with transaction management...';
+            return 'LinkedIn profile extraction in progress with Gemini AI processing...';
         case 'completed':
             return initialScrapingDone ? 
                 'LinkedIn profile extraction completed! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with transaction management!';
+                'LinkedIn profile extraction completed successfully with Gemini AI!';
         case 'failed':
             return 'LinkedIn profile extraction failed';
         default:
@@ -2694,7 +2613,7 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with transaction management!',
+            message: 'LinkedIn extraction retry initiated with Gemini AI integration!',
             status: 'processing'
         });
         
@@ -3015,11 +2934,12 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - ALL CRITICAL ISSUES FIXED!');
+            console.log('🚀 Msgly.AI Server - GEMINI AI INTEGRATION COMPLETE!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with transaction management`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured ✅ (Primary data processor)' : 'NOT CONFIGURED ⚠️ (Will use fallback processing)'}`);
             console.log(`🤖 Background Processing: ENABLED ✅`);
             console.log(`🔧 CRITICAL FIXES COMPLETE:`);
             console.log(`   ✅ Issue #1: Auto-trigger functionality implemented in content.js`);
@@ -3030,6 +2950,7 @@ const startServer = async () => {
             console.log(`   ✅ Rollback mechanism: Proper transaction boundaries on all database operations`);
             console.log(`   ✅ Token management: Enhanced caching and validation with proper expiration`);
             console.log(`   ✅ Credit system: Transactional deduction with proper rollback on failure`);
+            console.log(`   ✅ NEW: Gemini AI Integration - Intelligent data mapping replaces manual field extraction`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
@@ -3043,7 +2964,10 @@ const startServer = async () => {
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: ALL CRITICAL ISSUES FIXED - Manual setup → Auto-trigger ✓ Token errors → Proper 401 handling ✓ False status updates → Transaction integrity ✓`);
+            console.log(`🎯 Status: ALL CRITICAL ISSUES FIXED + GEMINI AI INTEGRATION COMPLETE`);
+            console.log(`   Manual field mapping → Intelligent Gemini processing ✓`);
+            console.log(`   Raw data storage → Full audit trail ✓`);
+            console.log(`   Fallback processing → Robust error handling ✓`);
         });
         
     } catch (error) {
