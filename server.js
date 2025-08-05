@@ -495,7 +495,7 @@ const initDB = async () => {
 
 // ==================== LINKEDIN DATA PROCESSING ====================
 
-// ✅ FALLBACK FUNCTIONS - Only used when Gemini processing fails (for Chrome extension compatibility)
+// ✅ FALLBACK FUNCTIONS - Only used for Chrome extension compatibility
 
 // JSON validation and sanitization
 const sanitizeForJSON = (data) => {
@@ -736,7 +736,7 @@ const extractLinkedInProfileComplete = async (linkedinUrl) => {
     }
 };
 
-// ✅ UPDATED: Background processing with Gemini AI integration
+// ✅ UPDATED: Background processing with Gemini AI integration - NO MANUAL FALLBACK
 const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelay = 300000; // 5 minutes
@@ -753,11 +753,11 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             
             await client.query(
                 'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, initial_scraping_done = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
-                ['failed', `Max retries (${maxRetries}) exceeded`, false, userId]
+                ['failed', `Max retries (${maxRetries}) exceeded - Gemini processing required`, false, userId]
             );
             await client.query(
                 'UPDATE users SET extraction_status = $1, error_message = $2, profile_completed = $3 WHERE id = $4',
-                ['failed', `Max retries (${maxRetries}) exceeded`, false, userId]
+                ['failed', `Max retries (${maxRetries}) exceeded - Gemini processing required`, false, userId]
             );
             
             await client.query('COMMIT');
@@ -799,33 +799,17 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             );
             console.log(`💾 Raw Bright Data JSON saved for user ${userId}`);
             
-            // ✅ STEP 2: Process data using Gemini instead of manual mapping
+            // ✅ STEP 2: Process data using ONLY Gemini - NO MANUAL FALLBACK
             console.log(`🤖 Processing LinkedIn data with Gemini for user ${userId}...`);
-            let extractedData;
-            try {
-                extractedData = await sendToGemini(result.rawData);
-                console.log(`✅ Gemini processing completed for user ${userId}`);
-            } catch (geminiError) {
-                console.error(`❌ Gemini processing failed for user ${userId}:`, geminiError.message);
-                console.log(`🔄 Falling back to manual processing for user ${userId}`);
-                // Fallback to basic data extraction
-                extractedData = {
-                    fullName: result.rawData.name || result.rawData.full_name || null,
-                    firstName: result.rawData.first_name || (result.rawData.name ? result.rawData.name.split(' ')[0] : null),
-                    lastName: result.rawData.last_name || (result.rawData.name ? result.rawData.name.split(' ').slice(1).join(' ') : null),
-                    headline: result.rawData.headline || result.rawData.position || null,
-                    about: result.rawData.about || result.rawData.summary || null,
-                    summary: result.rawData.summary || result.rawData.about || null,
-                    location: result.rawData.location || null,
-                    currentCompany: result.rawData.current_company || result.rawData.company || null,
-                    profileImageUrl: result.rawData.profile_pic_url || result.rawData.avatar || null,
-                    experience: Array.isArray(result.rawData.experience) ? result.rawData.experience : [],
-                    education: Array.isArray(result.rawData.education) ? result.rawData.education : [],
-                    skills: Array.isArray(result.rawData.skills) ? result.rawData.skills : [],
-                    timestamp: new Date(),
-                    dataSource: 'bright_data_fallback'
-                };
+            
+            // ✅ CRITICAL: Check for Gemini API key first
+            if (!process.env.GEMINI_API_KEY) {
+                throw new Error('GEMINI_API_KEY is required - no manual fallback available');
             }
+            
+            // ✅ CRITICAL: Only Gemini processing - fail if it doesn't work
+            const extractedData = await sendToGemini(result.rawData);
+            console.log(`✅ Gemini processing completed for user ${userId}`);
             
             // ✅ CRITICAL FIX: Validate extracted data BEFORE updating database status
             console.log(`📊 Data validation for user ${userId}:`);
@@ -836,7 +820,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             
             // ✅ FIXED: Only proceed if we have meaningful data
             if (!extractedData.fullName && !extractedData.headline && !extractedData.currentCompany) {
-                throw new Error('Extracted data appears to be incomplete - no name, headline, or company found');
+                throw new Error('Gemini extracted data appears to be incomplete - no name, headline, or company found');
             }
             
             // ✅ FIXED: Database save with transactional integrity - ONLY update status AFTER confirming data
@@ -985,7 +969,7 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
             
             console.log(`🎉 LinkedIn profile data successfully saved for user ${userId} with Gemini AI integration!`);
             console.log(`✅ Method: ${result.method}`);
-            console.log(`🤖 Data processing: ${extractedData.dataSource}`);
+            console.log(`🤖 Data processing: ${extractedData.dataSource} (GEMINI ONLY - NO FALLBACK)`);
             console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
             
             processingQueue.delete(userId);
@@ -1000,18 +984,18 @@ const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0)
                 console.log(`🔄 Retrying extraction for user ${userId}...`);
                 await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
             } else {
-                console.log(`❌ Final failure for user ${userId} - no more retries`);
+                console.log(`❌ Final failure for user ${userId} - no more retries (GEMINI ONLY MODE)`);
                 
                 // Start new transaction for failure updates
                 try {
                     await client.query('BEGIN');
                     await client.query(
                         'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, initial_scraping_done = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
-                        ['failed', `Final failure: ${error.message}`, false, userId]
+                        ['failed', `Final failure: ${error.message} (GEMINI REQUIRED - NO MANUAL FALLBACK)`, false, userId]
                     );
                     await client.query(
                         'UPDATE users SET extraction_status = $1, error_message = $2, profile_completed = $3 WHERE id = $4',
-                        ['failed', `Final failure: ${error.message}`, false, userId]
+                        ['failed', `Final failure: ${error.message} (GEMINI REQUIRED - NO MANUAL FALLBACK)`, false, userId]
                     );
                     await client.query('COMMIT');
                 } catch (updateError) {
@@ -1371,17 +1355,17 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '9.0-GEMINI-AI-INTEGRATION',
+            version: '10.0-GEMINI-ONLY-NO-FALLBACK',
             timestamp: new Date().toISOString(),
             changes: {
-                geminiIntegration: 'NEW - Replaced manual field mapping with Gemini AI processing',
+                geminiIntegration: 'GEMINI ONLY - No manual fallback processing',
                 rawDataStorage: 'NEW - All Bright Data responses stored in raw_snapshots table',
-                fallbackProcessing: 'ENHANCED - Robust fallback to manual processing if Gemini fails',
+                fallbackProcessing: 'REMOVED - Gemini processing required, no manual fallback available',
                 transactionManagement: 'MAINTAINED - Database status only updated AFTER confirming data receipt',
                 dataValidation: 'MAINTAINED - Validates extracted data before marking as complete',
                 rollbackMechanism: 'MAINTAINED - Proper transaction rollback on errors',
                 statusIntegrity: 'MAINTAINED - No more false positives where status=true but data=empty',
-                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries with AI processing'
+                backgroundProcessing: 'ENHANCED - All updates use proper transaction boundaries with GEMINI ONLY processing'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -1390,8 +1374,11 @@ app.get('/health', async (req, res) => {
             },
             geminiAI: {
                 configured: !!process.env.GEMINI_API_KEY,
-                status: process.env.GEMINI_API_KEY ? 'Primary data processor' : 'Not configured - will use fallback',
-                fallbackAvailable: true
+                status: process.env.GEMINI_API_KEY 
+                    ? 'EXCLUSIVE data processor - NO FALLBACK' 
+                    : 'NOT CONFIGURED - System will fail without Gemini',
+                fallbackAvailable: false,
+                mode: 'GEMINI_ONLY'
             },
             database: {
                 connected: true,
@@ -1402,6 +1389,7 @@ app.get('/health', async (req, res) => {
             backgroundProcessing: {
                 enabled: true,
                 aiProcessing: !!process.env.GEMINI_API_KEY,
+                processingMode: 'GEMINI_ONLY',
                 currentlyProcessing: processingCount,
                 processingUsers: Array.from(processingQueue.keys())
             }
@@ -2209,7 +2197,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization
+// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization and GEMINI ONLY
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     console.log('🎯 Complete registration request for user:', req.user.id);
     
@@ -2235,6 +2223,15 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        // Check for Gemini API key
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                error: 'Gemini AI processing is not available. Contact support.',
+                code: 'GEMINI_NOT_CONFIGURED'
             });
         }
         
@@ -2264,7 +2261,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started with Gemini AI.',
+            message: 'Registration completed successfully! LinkedIn profile analysis started with Gemini AI (NO FALLBACK).',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2281,13 +2278,14 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                 automaticProcessing: {
                     enabled: true,
                     status: 'started',
+                    processingMode: 'GEMINI_ONLY',
                     expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background using Gemini AI'
+                    message: 'Your LinkedIn profile is being analyzed in the background using Gemini AI ONLY - no manual fallback'
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction with Gemini started!`);
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction with Gemini ONLY started!`);
         
     } catch (error) {
         console.error('❌ Complete registration error:', error);
@@ -2299,7 +2297,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ FIXED: Update user profile with LinkedIn URL normalization
+// ✅ FIXED: Update user profile with LinkedIn URL normalization and GEMINI ONLY
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
@@ -2317,6 +2315,15 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        // Check for Gemini API key
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                error: 'Gemini AI processing is not available. Contact support.',
+                code: 'GEMINI_NOT_CONFIGURED'
             });
         }
         
@@ -2344,7 +2351,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with Gemini AI integration!',
+            message: 'Profile updated - LinkedIn data extraction started with Gemini AI ONLY (no fallback)!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2361,7 +2368,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Gemini AI integration applied!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Gemini AI ONLY integration applied!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -2564,6 +2571,7 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: processingQueue.has(req.user.id),
+            processing_mode: 'GEMINI_ONLY',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2579,13 +2587,13 @@ const getStatusMessage = (status, initialScrapingDone = false) => {
         case 'not_started':
             return 'LinkedIn extraction not started - please complete initial profile setup';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with Gemini AI processing...';
+            return 'LinkedIn profile extraction in progress with Gemini AI processing (NO FALLBACK)...';
         case 'completed':
             return initialScrapingDone ? 
-                'LinkedIn profile extraction completed! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with Gemini AI!';
+                'LinkedIn profile extraction completed with Gemini AI! You can now scrape target profiles.' :
+                'LinkedIn profile extraction completed successfully with Gemini AI (NO FALLBACK)!';
         case 'failed':
-            return 'LinkedIn profile extraction failed';
+            return 'LinkedIn profile extraction failed - Gemini AI processing required (no manual fallback)';
         default:
             return 'Unknown status';
     }
@@ -2594,6 +2602,15 @@ const getStatusMessage = (status, initialScrapingDone = false) => {
 // Retry extraction
 app.post('/retry-extraction', authenticateToken, async (req, res) => {
     try {
+        // Check for Gemini API key first
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                error: 'Gemini AI processing is not available. Contact support.',
+                code: 'GEMINI_NOT_CONFIGURED'
+            });
+        }
+        
         const userResult = await pool.query(
             'SELECT linkedin_url FROM users WHERE id = $1',
             [req.user.id]
@@ -2613,8 +2630,9 @@ app.post('/retry-extraction', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'LinkedIn extraction retry initiated with Gemini AI integration!',
-            status: 'processing'
+            message: 'LinkedIn extraction retry initiated with Gemini AI ONLY (no fallback)!',
+            status: 'processing',
+            processingMode: 'GEMINI_ONLY'
         });
         
     } catch (error) {
@@ -2635,7 +2653,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             },
             {
@@ -2646,7 +2664,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['75 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['75 Credits', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -2658,7 +2676,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['250 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['250 Credits', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -2670,7 +2688,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,000 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['1,000 Credits', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -2684,7 +2702,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             },
             {
@@ -2695,7 +2713,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['75 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['75 Credits', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -2707,7 +2725,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['250 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['250 Credits', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -2719,7 +2737,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,000 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['1,000 Credits', 'Chrome extension', 'Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -2908,6 +2926,11 @@ const validateEnvironment = () => {
         console.warn('⚠️ Warning: BRIGHT_DATA_API_KEY not set - profile extraction will fail');
     }
     
+    if (!process.env.GEMINI_API_KEY) {
+        console.error('❌ CRITICAL: GEMINI_API_KEY not set - system will fail (NO MANUAL FALLBACK)');
+        process.exit(1);
+    }
+    
     console.log('✅ Environment validated');
 };
 
@@ -2934,40 +2957,36 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - GEMINI AI INTEGRATION COMPLETE!');
+            console.log('🚀 Msgly.AI Server - GEMINI AI ONLY MODE ACTIVE!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Connected with transaction management`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
-            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured ✅ (Primary data processor)' : 'NOT CONFIGURED ⚠️ (Will use fallback processing)'}`);
-            console.log(`🤖 Background Processing: ENABLED ✅`);
-            console.log(`🔧 CRITICAL FIXES COMPLETE:`);
-            console.log(`   ✅ Issue #1: Auto-trigger functionality implemented in content.js`);
-            console.log(`   ✅ Issue #2: Proper 401 token handling in background.js and content.js`);
-            console.log(`   ✅ Issue #3: Transaction management - status only updated AFTER data confirmation`);
-            console.log(`   ✅ Database integrity: No more false positives (status=true but data=empty)`);
-            console.log(`   ✅ Data validation: Checks for meaningful data before marking complete`);
-            console.log(`   ✅ Rollback mechanism: Proper transaction boundaries on all database operations`);
-            console.log(`   ✅ Token management: Enhanced caching and validation with proper expiration`);
-            console.log(`   ✅ Credit system: Transactional deduction with proper rollback on failure`);
-            console.log(`   ✅ NEW: Gemini AI Integration - Intelligent data mapping replaces manual field extraction`);
+            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured ✅ (EXCLUSIVE data processor - NO FALLBACK)' : 'NOT CONFIGURED ❌ - SYSTEM WILL FAIL'}`);
+            console.log(`🤖 Processing Mode: GEMINI ONLY - NO MANUAL FALLBACK`);
+            console.log(`🔧 CRITICAL MODE CHANGE:`);
+            console.log(`   ✅ Gemini Processing: REQUIRED - No fallback available`);
+            console.log(`   ✅ Manual Processing: REMOVED - System fails if Gemini fails`);
+            console.log(`   ✅ Error Handling: Enhanced with Gemini-only error messages`);
+            console.log(`   ✅ Validation: GEMINI_API_KEY required at startup`);
+            console.log(`   ✅ All endpoints: Updated to indicate GEMINI ONLY mode`);
             console.log(`🎨 FRONTEND COMPLETE:`);
             console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
             console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
             console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`📋 ALL ENDPOINTS WITH TRANSACTION SAFETY:`);
-            console.log(`   ✅ /user/initial-scraping-status - Always returns linkedin_url`);
-            console.log(`   ✅ /profile/user - Validates data before marking complete`);
-            console.log(`   ✅ /profile/target - Validates data before saving`);
-            console.log(`   ✅ /generate-message - Transactional credit deduction`);
-            console.log(`   ✅ /auth/chrome-extension - ALWAYS returns credits`);
+            console.log(`📋 ALL ENDPOINTS WITH GEMINI ONLY MODE:`);
+            console.log(`   ✅ /complete-registration - Checks for Gemini API key`);
+            console.log(`   ✅ /update-profile - Requires Gemini for processing`);
+            console.log(`   ✅ /retry-extraction - Validates Gemini availability`);
+            console.log(`   ✅ /profile-status - Shows GEMINI ONLY processing mode`);
+            console.log(`   ✅ /health - Indicates no fallback available`);
             console.log(`💳 Packages: Free (Available), Premium (Coming Soon)`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: ALL CRITICAL ISSUES FIXED + GEMINI AI INTEGRATION COMPLETE`);
-            console.log(`   Manual field mapping → Intelligent Gemini processing ✓`);
-            console.log(`   Raw data storage → Full audit trail ✓`);
-            console.log(`   Fallback processing → Robust error handling ✓`);
+            console.log(`🎯 Status: GEMINI AI ONLY MODE - NO MANUAL FALLBACK`);
+            console.log(`   Pure AI Intelligence → No compromise processing ✓`);
+            console.log(`   Gemini or Fail → Clean error handling ✓`);
+            console.log(`   No Fallback → Consistent quality guaranteed ✓`);
         });
         
     } catch (error) {
