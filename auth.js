@@ -1,4 +1,4 @@
-// auth.js - Google Authentication Module
+// auth.js - Google Authentication Module - UPDATED WITH SMART ROUTING
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
@@ -33,7 +33,7 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// Google OAuth Strategy
+// UPDATED Google OAuth Strategy - Smart user detection
 passport.use(new GoogleStrategy({
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
@@ -44,21 +44,38 @@ passport.use(new GoogleStrategy({
 async (accessToken, refreshToken, profile, done) => {
     try {
         let user = await getUserByEmail(profile.emails[0].value);
+        let isNewUser = false;
         
         if (!user) {
-            // Create temporary user entry - will be finalized in complete-registration
+            // Create new user - needs registration completion
             user = await createGoogleUser(
                 profile.emails[0].value,
                 profile.displayName,
                 profile.id,
-                profile.photos[0]?.value,
-                'temp', // Temporary status
-                'monthly'
+                profile.photos[0]?.value
             );
+            isNewUser = true;
+            console.log(`🆕 Created new user: ${user.email}`);
         } else if (!user.google_id) {
+            // Link Google to existing account
             await linkGoogleAccount(user.id, profile.id);
             user = await getUserById(user.id);
+            console.log(`🔗 Linked Google account for existing user: ${user.email}`);
+        } else {
+            // Returning Google user
+            console.log(`👤 Returning user: ${user.email}`);
         }
+        
+        // UPDATED: Check registration completion status
+        const registrationComplete = user.linkedin_url && 
+                                   user.profile_completed &&
+                                   user.extraction_status !== 'not_started';
+        
+        // Set routing flags
+        user.isNewUser = isNewUser;
+        user.registrationComplete = registrationComplete;
+        
+        console.log(`📊 User status - New: ${isNewUser}, Complete: ${registrationComplete}`);
         
         return done(null, user);
     } catch (error) {
@@ -67,7 +84,7 @@ async (accessToken, refreshToken, profile, done) => {
     }
 }));
 
-// Google Auth Routes
+// UPDATED Google Auth Routes - Smart routing based on completion status
 const setupGoogleAuthRoutes = (app) => {
     app.get('/auth/google', (req, res, next) => {
         if (req.query.package) {
@@ -80,8 +97,9 @@ const setupGoogleAuthRoutes = (app) => {
         })(req, res, next);
     });
 
+    // UPDATED OAuth Callback - Smart routing logic
     app.get('/auth/google/callback',
-        passport.authenticate('google', { failureRedirect: '/auth/failed' }),
+        passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
         async (req, res) => {
             try {
                 const token = jwt.sign(
@@ -90,36 +108,30 @@ const setupGoogleAuthRoutes = (app) => {
                     { expiresIn: '30d' }
                 );
                 
-                if (req.session.selectedPackage && req.session.selectedPackage !== 'free') {
-                    console.log(`Package ${req.session.selectedPackage} requested but only free available for now`);
-                }
-                
+                // Clear session data
                 req.session.selectedPackage = null;
                 req.session.billingModel = null;
                 
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://api.msgly.ai/sign-up' 
-                    : 'http://localhost:3000/sign-up';
-                    
-                res.redirect(`${frontendUrl}?token=${token}`);
+                // UPDATED: Smart routing based on completion status
+                if (req.user.registrationComplete) {
+                    // Complete user → Dashboard
+                    console.log(`✅ Complete user ${req.user.email} → Dashboard`);
+                    res.redirect(`/dashboard?token=${token}`);
+                } else {
+                    // Incomplete user (new or existing) → Sign-up
+                    console.log(`📝 Incomplete user ${req.user.email} → Sign-up`);
+                    res.redirect(`/sign-up?token=${token}`);
+                }
                 
             } catch (error) {
                 console.error('OAuth callback error:', error);
-                const frontendUrl = process.env.NODE_ENV === 'production' 
-                    ? 'https://api.msgly.ai/sign-up' 
-                    : 'http://localhost:3000/sign-up';
-                    
-                res.redirect(`${frontendUrl}?error=callback_error`);
+                res.redirect(`/login?error=callback_error`);
             }
         }
     );
 
     app.get('/auth/failed', (req, res) => {
-        const frontendUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://api.msgly.ai/sign-up' 
-            : 'http://localhost:3000/sign-up';
-            
-        res.redirect(`${frontendUrl}?error=auth_failed`);
+        res.redirect(`/login?error=auth_failed`);
     });
 };
 
