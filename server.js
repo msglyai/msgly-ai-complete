@@ -1426,9 +1426,9 @@ const processScrapedProfileData = (scrapedData, isUserProfile = false) => {
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
         'free': 10,
-        'silver': billingModel === 'payAsYouGo' ? 75 : 75,
-        'gold': billingModel === 'payAsYouGo' ? 250 : 250,
-        'platinum': billingModel === 'payAsYouGo' ? 1000 : 1000
+        'silver': billingModel === 'payAsYouGo' ? 30 : 30,
+        'gold': billingModel === 'payAsYouGo' ? 100 : 100,
+        'platinum': billingModel === 'payAsYouGo' ? 250 : 250
     };
     
     const credits = creditsMap[packageType] || 10;
@@ -1443,9 +1443,9 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
     const creditsMap = {
         'free': 10,
-        'silver': billingModel === 'payAsYouGo' ? 75 : 75,
-        'gold': billingModel === 'payAsYouGo' ? 250 : 250,
-        'platinum': billingModel === 'payAsYouGo' ? 1000 : 1000
+        'silver': billingModel === 'payAsYouGo' ? 30 : 30,
+        'gold': billingModel === 'payAsYouGo' ? 100 : 100,
+        'platinum': billingModel === 'payAsYouGo' ? 250 : 250
     };
     
     const credits = creditsMap[packageType] || 10;
@@ -2860,36 +2860,36 @@ app.get('/packages', (req, res) => {
             {
                 id: 'silver',
                 name: 'Silver',
-                credits: 75,
-                price: 12,
+                credits: 30,
+                price: 17,
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['75 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['30 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'gold',
                 name: 'Gold',
-                credits: 250,
-                price: 35,
+                credits: 100,
+                price: 39,
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'platinum',
                 name: 'Platinum',
-                credits: 1000,
-                price: 70,
+                credits: 250,
+                price: 78,
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['1,000 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -2909,36 +2909,36 @@ app.get('/packages', (req, res) => {
             {
                 id: 'silver',
                 name: 'Silver',
-                credits: 75,
-                price: 8.60,
+                credits: 30,
+                price: 13.90,
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['75 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['30 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'gold',
                 name: 'Gold',
-                credits: 250,
-                price: 25.20,
+                credits: 100,
+                price: 32,
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
             {
                 id: 'platinum',
                 name: 'Platinum',
-                credits: 1000,
-                price: 50.40,
+                credits: 250,
+                price: 63.87,
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['1,000 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
