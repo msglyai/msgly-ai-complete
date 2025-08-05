@@ -2191,8 +2191,765 @@ const getSetupStatusMessage = (status) => {
     }
 };
 
-// Remaining endpoints continue as before...
-// [The rest of the endpoints remain unchanged from your original file]
+// Google OAuth Routes
+app.get('/auth/google', (req, res, next) => {
+    if (req.query.package) {
+        req.session.selectedPackage = req.query.package;
+        req.session.billingModel = req.query.billing || 'monthly';
+    }
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'] 
+    })(req, res, next);
+});
+
+// 🎯 FIXED: Smart OAuth callback - redirects based on user status
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
+    async (req, res) => {
+        try {
+            const token = jwt.sign(
+                { userId: req.user.id, email: req.user.email },
+                JWT_SECRET,
+                { expiresIn: '30d' }
+            );
+            
+            req.session.selectedPackage = null;
+            req.session.billingModel = null;
+            
+            // 🎯 SMART REDIRECT LOGIC:
+            const needsOnboarding = req.user.isNewUser || 
+                                   !req.user.linkedin_url || 
+                                   !req.user.profile_completed ||
+                                   req.user.extraction_status === 'not_started';
+            
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+            console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
+            console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
+            console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
+            console.log(`   - Needs onboarding: ${needsOnboarding}`);
+            
+            if (needsOnboarding) {
+                // New users or incomplete profiles → sign-up for onboarding
+                console.log(`➡️ Redirecting to sign-up for onboarding`);
+                res.redirect(`/sign-up?token=${token}`);
+            } else {
+                // Existing users with complete profiles → dashboard
+                console.log(`➡️ Redirecting to dashboard`);
+                res.redirect(`/dashboard?token=${token}`);
+            }
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            res.redirect(`/login?error=callback_error`);
+        }
+    }
+);
+
+app.get('/auth/failed', (req, res) => {
+    res.redirect(`/login?error=auth_failed`);
+});
+
+// User Registration
+app.post('/register', async (req, res) => {
+    console.log('👤 Registration request:', req.body);
+    
+    try {
+        const { email, password, packageType, billingModel } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+        
+        if (!packageType) {
+            return res.status(400).json({
+                success: false,
+                error: 'Package selection is required'
+            });
+        }
+        
+        if (packageType !== 'free') {
+            return res.status(400).json({
+                success: false,
+                error: 'Only free package is available during beta'
+            });
+        }
+        
+        const existingUser = await getUserByEmail(email);
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                error: 'User already exists with this email'
+            });
+        }
+        
+        const passwordHash = await bcrypt.hash(password, 10);
+        const newUser = await createUser(email, passwordHash, packageType, billingModel || 'monthly');
+        
+        const token = jwt.sign(
+            { userId: newUser.id, email: newUser.email },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.status(201).json({
+            success: true,
+            message: 'User registered successfully',
+            data: {
+                user: {
+                    id: newUser.id,
+                    email: newUser.email,
+                    packageType: newUser.package_type,
+                    billingModel: newUser.billing_model,
+                    credits: newUser.credits_remaining,
+                    createdAt: newUser.created_at
+                },
+                token: token
+            }
+        });
+        
+        console.log(`✅ User registered: ${newUser.email}`);
+        
+    } catch (error) {
+        console.error('❌ Registration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Registration failed',
+            details: error.message
+        });
+    }
+});
+
+// User Login
+app.post('/login', async (req, res) => {
+    console.log('🔐 Login request for:', req.body.email);
+    
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+        
+        const user = await getUserByEmail(email);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password'
+            });
+        }
+        
+        if (!user.password_hash) {
+            return res.status(401).json({
+                success: false,
+                error: 'Please sign in with Google'
+            });
+        }
+        
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password'
+            });
+        }
+        
+        const token = jwt.sign(
+            { userId: user.id, email: user.email },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.json({
+            success: true,
+            message: 'Login successful',
+            data: {
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    displayName: user.display_name,
+                    profilePicture: user.profile_picture,
+                    packageType: user.package_type,
+                    billingModel: user.billing_model,
+                    credits: user.credits_remaining,
+                    subscriptionStatus: user.subscription_status,
+                    hasGoogleAccount: !!user.google_id
+                },
+                token: token
+            }
+        });
+        
+        console.log(`✅ User logged in: ${user.email}`);
+        
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Login failed',
+            details: error.message
+        });
+    }
+});
+
+// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization and DCA GEMINI
+app.post('/complete-registration', authenticateToken, async (req, res) => {
+    console.log('🎯 Complete registration request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType, termsAccepted } = req.body;
+        
+        // Validation
+        if (!termsAccepted) {
+            return res.status(400).json({
+                success: false,
+                error: 'You must accept the Terms of Service and Privacy Policy'
+            });
+        }
+        
+        if (!linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required'
+            });
+        }
+        
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        // Check for Gemini API key
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                error: 'Gemini AI processing is not available. Contact support.',
+                code: 'GEMINI_NOT_CONFIGURED'
+            });
+        }
+        
+        if (packageType && packageType !== req.user.package_type) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Profile updated - LinkedIn data extraction started with DCA + Gemini AI processing!',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: profile.data_extraction_status
+                }
+            }
+        });
+        
+        console.log(`✅ Profile updated for user ${updatedUser.email} - DCA + Gemini AI integration applied!`);
+        
+    } catch (error) {
+        console.error('❌ Profile update error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update profile',
+            details: error.message
+        });
+    }
+});
+
+// ✅ FIXED: Update user profile with LinkedIn URL normalization and DCA GEMINI
+app.post('/update-profile', authenticateToken, async (req, res) => {
+    console.log('📝 Profile update request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType } = req.body;
+        
+        if (!linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required'
+            });
+        }
+        
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        // Check for Gemini API key
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                error: 'Gemini AI processing is not available. Contact support.',
+                code: 'GEMINI_NOT_CONFIGURED'
+            });
+        }
+        
+        // Update package type if needed
+        if (packageType && packageType !== req.user.package_type) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        // Create profile and start LinkedIn DCA extraction
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Registration completed successfully! LinkedIn profile analysis started with DCA + Gemini AI processing.',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: profile.data_extraction_status
+                },
+                automaticProcessing: {
+                    enabled: true,
+                    status: 'started',
+                    processingMode: 'DCA_GEMINI_HTML_ENHANCED',
+                    expectedCompletionTime: '5-10 minutes',
+                    message: 'Your LinkedIn profile is being analyzed in the background using DCA API + Gemini AI'
+                }
+            }
+        });
+        
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn DCA extraction with Gemini started!`);
+        
+    } catch (error) {
+        console.error('❌ Complete registration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Registration completion failed',
+            details: error.message
+        });
+    }
+});
+
+// Get User Profile
+app.get('/profile', authenticateToken, async (req, res) => {
+    try {
+        const profileResult = await pool.query(`
+            SELECT 
+                up.*,
+                u.extraction_status as user_extraction_status,
+                u.profile_completed as user_profile_completed
+            FROM user_profiles up 
+            RIGHT JOIN users u ON u.id = up.user_id 
+            WHERE u.id = $1
+        `, [req.user.id]);
+        
+        const profile = profileResult.rows[0];
+
+        let syncStatus = {
+            isIncomplete: false,
+            missingFields: [],
+            extractionStatus: 'unknown',
+            initialScrapingDone: false
+        };
+
+        if (!profile || !profile.user_id) {
+            syncStatus = {
+                isIncomplete: true,
+                missingFields: ['complete_profile'],
+                extractionStatus: 'not_started',
+                initialScrapingDone: false,
+                reason: 'No profile data found'
+            };
+        } else {
+            const extractionStatus = profile.data_extraction_status || 'not_started';
+            const isProfileAnalyzed = profile.profile_analyzed || false;
+            const initialScrapingDone = profile.initial_scraping_done || false;
+            
+            const missingFields = [];
+            if (!profile.full_name) missingFields.push('full_name');
+            if (!profile.headline) missingFields.push('headline');  
+            if (!profile.current_company && !profile.current_position) missingFields.push('company_info');
+            if (!profile.location) missingFields.push('location');
+            
+            const isIncomplete = (
+                !initialScrapingDone ||
+                extractionStatus !== 'completed' ||
+                !isProfileAnalyzed ||
+                missingFields.length > 0 ||
+                processingQueue.has(req.user.id)
+            );
+            
+            syncStatus = {
+                isIncomplete: isIncomplete,
+                missingFields: missingFields,
+                extractionStatus: extractionStatus,
+                profileAnalyzed: isProfileAnalyzed,
+                initialScrapingDone: initialScrapingDone,
+                isCurrentlyProcessing: processingQueue.has(req.user.id),
+                reason: isIncomplete ? 
+                    `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
+                    'Profile complete and ready for target scraping'
+            };
+        }
+
+        res.json({
+            success: true,
+            data: {
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    displayName: req.user.display_name,
+                    profilePicture: req.user.profile_picture,
+                    packageType: req.user.package_type,
+                    billingModel: req.user.billing_model,
+                    credits: req.user.credits_remaining,
+                    subscriptionStatus: req.user.subscription_status,
+                    hasGoogleAccount: !!req.user.google_id,
+                    createdAt: req.user.created_at
+                },
+                profile: profile && profile.user_id ? {
+                    linkedinUrl: profile.linkedin_url,
+                    linkedinId: profile.linkedin_id,
+                    linkedinNumId: profile.linkedin_num_id,
+                    inputUrl: profile.input_url,
+                    url: profile.url,
+                    fullName: profile.full_name,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    headline: profile.headline,
+                    summary: profile.summary,
+                    about: profile.about,
+                    location: profile.location,
+                    city: profile.city,
+                    state: profile.state,
+                    country: profile.country,
+                    countryCode: profile.country_code,
+                    industry: profile.industry,
+                    currentCompany: profile.current_company,
+                    currentCompanyName: profile.current_company_name,
+                    currentCompanyId: profile.current_company_id,
+                    currentPosition: profile.current_position,
+                    connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
+                    connections: profile.connections,
+                    followers: profile.followers,
+                    recommendationsCount: profile.recommendations_count,
+                    profileImageUrl: profile.profile_image_url,
+                    avatar: profile.avatar,
+                    bannerImage: profile.banner_image,
+                    backgroundImageUrl: profile.background_image_url,
+                    publicIdentifier: profile.public_identifier,
+                    experience: profile.experience,
+                    education: profile.education,
+                    educationsDetails: profile.educations_details,
+                    skills: profile.skills,
+                    skillsWithEndorsements: profile.skills_with_endorsements,
+                    languages: profile.languages,
+                    certifications: profile.certifications,
+                    courses: profile.courses,
+                    projects: profile.projects,
+                    publications: profile.publications,
+                    patents: profile.patents,
+                    volunteerExperience: profile.volunteer_experience,
+                    volunteering: profile.volunteering,
+                    honorsAndAwards: profile.honors_and_awards,
+                    organizations: profile.organizations,
+                    recommendations: profile.recommendations,
+                    recommendationsGiven: profile.recommendations_given,
+                    recommendationsReceived: profile.recommendations_received,
+                    posts: profile.posts,
+                    activity: profile.activity,
+                    articles: profile.articles,
+                    peopleAlsoViewed: profile.people_also_viewed,
+                    timestamp: profile.timestamp,
+                    dataSource: profile.data_source,
+                    extractionStatus: profile.data_extraction_status,
+                    extractionAttempted: profile.extraction_attempted_at,
+                    extractionCompleted: profile.extraction_completed_at,
+                    extractionError: profile.extraction_error,
+                    extractionRetryCount: profile.extraction_retry_count,
+                    profileAnalyzed: profile.profile_analyzed,
+                    initialScrapingDone: profile.initial_scraping_done
+                } : null,
+                syncStatus: syncStatus
+            }
+        });
+    } catch (error) {
+        console.error('❌ Profile fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch profile'
+        });
+    }
+});
+
+// Check profile extraction status
+app.get('/profile-status', authenticateToken, async (req, res) => {
+    try {
+        const userQuery = `
+            SELECT 
+                u.extraction_status,
+                u.error_message,
+                u.profile_completed,
+                u.linkedin_url,
+                up.data_extraction_status,
+                up.extraction_completed_at,
+                up.extraction_retry_count,
+                up.extraction_error,
+                up.initial_scraping_done
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.id = $1
+        `;
+        
+        const result = await pool.query(userQuery, [req.user.id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const status = result.rows[0];
+        
+        res.json({
+            extraction_status: status.extraction_status,
+            profile_completed: status.profile_completed,
+            linkedin_url: status.linkedin_url,
+            error_message: status.error_message,
+            data_extraction_status: status.data_extraction_status,
+            extraction_completed_at: status.extraction_completed_at,
+            extraction_retry_count: status.extraction_retry_count,
+            extraction_error: status.extraction_error,
+            initial_scraping_done: status.initial_scraping_done || false,
+            is_currently_processing: processingQueue.has(req.user.id),
+            processing_mode: 'DCA_GEMINI_HTML_ENHANCED',
+            message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
+        });
+        
+    } catch (error) {
+        console.error('Status check error:', error);
+        res.status(500).json({ error: 'Status check failed' });
+    }
+});
+
+// Helper function for status messages
+const getStatusMessage = (status, initialScrapingDone = false) => {
+    switch (status) {
+        case 'not_started':
+            return 'LinkedIn extraction not started - please complete initial profile setup';
+        case 'processing':
+            return 'LinkedIn profile extraction in progress with DCA + Gemini AI processing...';
+        case 'completed':
+            return initialScrapingDone ? 
+                'LinkedIn profile extraction completed with DCA + Gemini AI! You can now scrape target profiles.' :
+                'LinkedIn profile extraction completed successfully with DCA + Gemini AI!';
+        case 'failed':
+            return 'LinkedIn profile extraction failed - Gemini AI processing required (no manual fallback)';
+        default:
+            return 'Unknown status';
+    }
+};
+
+// Retry extraction
+app.post('/retry-extraction', authenticateToken, async (req, res) => {
+    try {
+        // Check for Gemini API key first
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                error: 'Gemini AI processing is not available. Contact support.',
+                code: 'GEMINI_NOT_CONFIGURED'
+            });
+        }
+        
+        const userResult = await pool.query(
+            'SELECT linkedin_url FROM users WHERE id = $1',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0 || !userResult.rows[0].linkedin_url) {
+            return res.status(400).json({ error: 'No LinkedIn URL found for retry' });
+        }
+        
+        const linkedinUrl = userResult.rows[0].linkedin_url;
+        
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        res.json({
+            success: true,
+            message: 'LinkedIn extraction retry initiated with DCA + Gemini AI processing!',
+            status: 'processing',
+            processingMode: 'DCA_GEMINI_HTML_ENHANCED'
+        });
+        
+    } catch (error) {
+        console.error('Retry extraction error:', error);
+        res.status(500).json({ error: 'Retry failed' });
+    }
+});
+
+// Get Available Packages
+app.get('/packages', (req, res) => {
+    const packages = {
+        payAsYouGo: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 10,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '10 free profiles forever',
+                features: ['10 Credits per month', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                available: true
+            },
+            {
+                id: 'silver',
+                name: 'Silver',
+                credits: 75,
+                price: 12,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['75 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'gold',
+                name: 'Gold',
+                credits: 250,
+                price: 35,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'platinum',
+                name: 'Platinum',
+                credits: 1000,
+                price: 70,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['1,000 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            }
+        ],
+        monthly: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 10,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '10 free profiles forever',
+                features: ['10 Credits per month', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                available: true
+            },
+            {
+                id: 'silver',
+                name: 'Silver',
+                credits: 75,
+                price: 8.60,
+                period: '/month',
+                billing: 'monthly',
+                validity: '7-day free trial included',
+                features: ['75 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'gold',
+                name: 'Gold',
+                credits: 250,
+                price: 25.20,
+                period: '/month',
+                billing: 'monthly',
+                validity: '7-day free trial included',
+                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'platinum',
+                name: 'Platinum',
+                credits: 1000,
+                price: 50.40,
+                period: '/month',
+                billing: 'monthly',
+                validity: '7-day free trial included',
+                features: ['1,000 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                available: false,
+                comingSoon: true
+            }
+        ]
+    };
+    
+    res.json({
+        success: true,
+        data: { packages }
+    });
+});
 
 // ✅ FIXED: User profile scraping with transaction management
 app.post('/profile/user', authenticateToken, async (req, res) => {
@@ -2716,674 +3473,6 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
     }
 });
 
-// Google OAuth Routes
-app.get('/auth/google', (req, res, next) => {
-    if (req.query.package) {
-        req.session.selectedPackage = req.query.package;
-        req.session.billingModel = req.query.billing || 'monthly';
-    }
-    
-    passport.authenticate('google', { 
-        scope: ['profile', 'email'] 
-    })(req, res, next);
-});
-
-// 🎯 FIXED: Smart OAuth callback - redirects based on user status
-app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
-    async (req, res) => {
-        try {
-            const token = jwt.sign(
-                { userId: req.user.id, email: req.user.email },
-                JWT_SECRET,
-                { expiresIn: '30d' }
-            );
-            
-            req.session.selectedPackage = null;
-            req.session.billingModel = null;
-            
-            // 🎯 SMART REDIRECT LOGIC:
-            const needsOnboarding = req.user.isNewUser || 
-                                   !req.user.linkedin_url || 
-                                   !req.user.profile_completed ||
-                                   req.user.extraction_status === 'not_started';
-            
-            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
-            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
-            console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-            console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
-            console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
-            console.log(`   - Needs onboarding: ${needsOnboarding}`);
-            
-            if (needsOnboarding) {
-                // New users or incomplete profiles → sign-up for onboarding
-                console.log(`➡️ Redirecting to sign-up for onboarding`);
-                res.redirect(`/sign-up?token=${token}`);
-            } else {
-                // Existing users with complete profiles → dashboard
-                console.log(`➡️ Redirecting to dashboard`);
-                res.redirect(`/dashboard?token=${token}`);
-            }
-            
-        } catch (error) {
-            console.error('OAuth callback error:', error);
-            res.redirect(`/login?error=callback_error`);
-        }
-    }
-);
-
-app.get('/auth/failed', (req, res) => {
-    res.redirect(`/login?error=auth_failed`);
-});
-
-// User Registration
-app.post('/register', async (req, res) => {
-    console.log('👤 Registration request:', req.body);
-    
-    try {
-        const { email, password, packageType, billingModel } = req.body;
-        
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email and password are required'
-            });
-        }
-        
-        if (!packageType) {
-            return res.status(400).json({
-                success: false,
-                error: 'Package selection is required'
-            });
-        }
-        
-        if (packageType !== 'free') {
-            return res.status(400).json({
-                success: false,
-                error: 'Only free package is available during beta'
-            });
-        }
-        
-        const existingUser = await getUserByEmail(email);
-        if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                error: 'User already exists with this email'
-            });
-        }
-        
-        const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = await createUser(email, passwordHash, packageType, billingModel || 'monthly');
-        
-        const token = jwt.sign(
-            { userId: newUser.id, email: newUser.email },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-        );
-        
-        res.status(201).json({
-            success: true,
-            message: 'User registered successfully',
-            data: {
-                user: {
-                    id: newUser.id,
-                    email: newUser.email,
-                    packageType: newUser.package_type,
-                    billingModel: newUser.billing_model,
-                    credits: newUser.credits_remaining,
-                    createdAt: newUser.created_at
-                },
-                token: token
-            }
-        });
-        
-        console.log(`✅ User registered: ${newUser.email}`);
-        
-    } catch (error) {
-        console.error('❌ Registration error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Registration failed',
-            details: error.message
-        });
-    }
-});
-
-// User Login
-app.post('/login', async (req, res) => {
-    console.log('🔐 Login request for:', req.body.email);
-    
-    try {
-        const { email, password } = req.body;
-        
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email and password are required'
-            });
-        }
-        
-        const user = await getUserByEmail(email);
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid email or password'
-            });
-        }
-        
-        if (!user.password_hash) {
-            return res.status(401).json({
-                success: false,
-                error: 'Please sign in with Google'
-            });
-        }
-        
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
-        if (!passwordMatch) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid email or password'
-            });
-        }
-        
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-        );
-        
-        res.json({
-            success: true,
-            message: 'Login successful',
-            data: {
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    displayName: user.display_name,
-                    profilePicture: user.profile_picture,
-                    packageType: user.package_type,
-                    billingModel: user.billing_model,
-                    credits: user.credits_remaining,
-                    subscriptionStatus: user.subscription_status,
-                    hasGoogleAccount: !!user.google_id
-                },
-                token: token
-            }
-        });
-        
-        console.log(`✅ User logged in: ${user.email}`);
-        
-    } catch (error) {
-        console.error('❌ Login error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Login failed',
-            details: error.message
-        });
-    }
-});
-
-// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization and DCA GEMINI
-app.post('/complete-registration', authenticateToken, async (req, res) => {
-    console.log('🎯 Complete registration request for user:', req.user.id);
-    
-    try {
-        const { linkedinUrl, packageType, termsAccepted } = req.body;
-        
-        // Validation
-        if (!termsAccepted) {
-            return res.status(400).json({
-                success: false,
-                error: 'You must accept the Terms of Service and Privacy Policy'
-            });
-        }
-        
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
-            });
-        }
-        
-        // Check for Gemini API key
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'Gemini AI processing is not available. Contact support.',
-                code: 'GEMINI_NOT_CONFIGURED'
-            });
-        }
-        
-        if (packageType && packageType !== req.user.package_type) {
-            if (packageType !== 'free') {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Only free package is available during beta'
-                });
-            }
-            
-            await pool.query(
-                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-                [packageType, req.user.id]
-            );
-        }
-        
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        const updatedUser = await getUserById(req.user.id);
-        
-        res.json({
-            success: true,
-            message: 'Profile updated - LinkedIn data extraction started with DCA + Gemini AI processing!',
-            data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
-                },
-                profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status
-                }
-            }
-        });
-        
-        console.log(`✅ Profile updated for user ${updatedUser.email} - DCA + Gemini AI integration applied!`);
-        
-    } catch (error) {
-        console.error('❌ Profile update error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to update profile',
-            details: error.message
-        });
-    }
-});
-
-// Get User Profile
-app.get('/profile', authenticateToken, async (req, res) => {
-    try {
-        const profileResult = await pool.query(`
-            SELECT 
-                up.*,
-                u.extraction_status as user_extraction_status,
-                u.profile_completed as user_profile_completed
-            FROM user_profiles up 
-            RIGHT JOIN users u ON u.id = up.user_id 
-            WHERE u.id = $1
-        `, [req.user.id]);
-        
-        const profile = profileResult.rows[0];
-
-        let syncStatus = {
-            isIncomplete: false,
-            missingFields: [],
-            extractionStatus: 'unknown',
-            initialScrapingDone: false
-        };
-
-        if (!profile || !profile.user_id) {
-            syncStatus = {
-                isIncomplete: true,
-                missingFields: ['complete_profile'],
-                extractionStatus: 'not_started',
-                initialScrapingDone: false,
-                reason: 'No profile data found'
-            };
-        } else {
-            const extractionStatus = profile.data_extraction_status || 'not_started';
-            const isProfileAnalyzed = profile.profile_analyzed || false;
-            const initialScrapingDone = profile.initial_scraping_done || false;
-            
-            const missingFields = [];
-            if (!profile.full_name) missingFields.push('full_name');
-            if (!profile.headline) missingFields.push('headline');  
-            if (!profile.current_company && !profile.current_position) missingFields.push('company_info');
-            if (!profile.location) missingFields.push('location');
-            
-            const isIncomplete = (
-                !initialScrapingDone ||
-                extractionStatus !== 'completed' ||
-                !isProfileAnalyzed ||
-                missingFields.length > 0 ||
-                processingQueue.has(req.user.id)
-            );
-            
-            syncStatus = {
-                isIncomplete: isIncomplete,
-                missingFields: missingFields,
-                extractionStatus: extractionStatus,
-                profileAnalyzed: isProfileAnalyzed,
-                initialScrapingDone: initialScrapingDone,
-                isCurrentlyProcessing: processingQueue.has(req.user.id),
-                reason: isIncomplete ? 
-                    `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready for target scraping'
-            };
-        }
-
-        res.json({
-            success: true,
-            data: {
-                user: {
-                    id: req.user.id,
-                    email: req.user.email,
-                    displayName: req.user.display_name,
-                    profilePicture: req.user.profile_picture,
-                    packageType: req.user.package_type,
-                    billingModel: req.user.billing_model,
-                    credits: req.user.credits_remaining,
-                    subscriptionStatus: req.user.subscription_status,
-                    hasGoogleAccount: !!req.user.google_id,
-                    createdAt: req.user.created_at
-                },
-                profile: profile && profile.user_id ? {
-                    linkedinUrl: profile.linkedin_url,
-                    linkedinId: profile.linkedin_id,
-                    linkedinNumId: profile.linkedin_num_id,
-                    inputUrl: profile.input_url,
-                    url: profile.url,
-                    fullName: profile.full_name,
-                    firstName: profile.first_name,
-                    lastName: profile.last_name,
-                    headline: profile.headline,
-                    summary: profile.summary,
-                    about: profile.about,
-                    location: profile.location,
-                    city: profile.city,
-                    state: profile.state,
-                    country: profile.country,
-                    countryCode: profile.country_code,
-                    industry: profile.industry,
-                    currentCompany: profile.current_company,
-                    currentCompanyName: profile.current_company_name,
-                    currentCompanyId: profile.current_company_id,
-                    currentPosition: profile.current_position,
-                    connectionsCount: profile.connections_count,
-                    followersCount: profile.followers_count,
-                    connections: profile.connections,
-                    followers: profile.followers,
-                    recommendationsCount: profile.recommendations_count,
-                    profileImageUrl: profile.profile_image_url,
-                    avatar: profile.avatar,
-                    bannerImage: profile.banner_image,
-                    backgroundImageUrl: profile.background_image_url,
-                    publicIdentifier: profile.public_identifier,
-                    experience: profile.experience,
-                    education: profile.education,
-                    educationsDetails: profile.educations_details,
-                    skills: profile.skills,
-                    skillsWithEndorsements: profile.skills_with_endorsements,
-                    languages: profile.languages,
-                    certifications: profile.certifications,
-                    courses: profile.courses,
-                    projects: profile.projects,
-                    publications: profile.publications,
-                    patents: profile.patents,
-                    volunteerExperience: profile.volunteer_experience,
-                    volunteering: profile.volunteering,
-                    honorsAndAwards: profile.honors_and_awards,
-                    organizations: profile.organizations,
-                    recommendations: profile.recommendations,
-                    recommendationsGiven: profile.recommendations_given,
-                    recommendationsReceived: profile.recommendations_received,
-                    posts: profile.posts,
-                    activity: profile.activity,
-                    articles: profile.articles,
-                    peopleAlsoViewed: profile.people_also_viewed,
-                    timestamp: profile.timestamp,
-                    dataSource: profile.data_source,
-                    extractionStatus: profile.data_extraction_status,
-                    extractionAttempted: profile.extraction_attempted_at,
-                    extractionCompleted: profile.extraction_completed_at,
-                    extractionError: profile.extraction_error,
-                    extractionRetryCount: profile.extraction_retry_count,
-                    profileAnalyzed: profile.profile_analyzed,
-                    initialScrapingDone: profile.initial_scraping_done
-                } : null,
-                syncStatus: syncStatus
-            }
-        });
-    } catch (error) {
-        console.error('❌ Profile fetch error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch profile'
-        });
-    }
-});
-
-// Check profile extraction status
-app.get('/profile-status', authenticateToken, async (req, res) => {
-    try {
-        const userQuery = `
-            SELECT 
-                u.extraction_status,
-                u.error_message,
-                u.profile_completed,
-                u.linkedin_url,
-                up.data_extraction_status,
-                up.extraction_completed_at,
-                up.extraction_retry_count,
-                up.extraction_error,
-                up.initial_scraping_done
-            FROM users u
-            LEFT JOIN user_profiles up ON u.id = up.user_id
-            WHERE u.id = $1
-        `;
-        
-        const result = await pool.query(userQuery, [req.user.id]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-        const status = result.rows[0];
-        
-        res.json({
-            extraction_status: status.extraction_status,
-            profile_completed: status.profile_completed,
-            linkedin_url: status.linkedin_url,
-            error_message: status.error_message,
-            data_extraction_status: status.data_extraction_status,
-            extraction_completed_at: status.extraction_completed_at,
-            extraction_retry_count: status.extraction_retry_count,
-            extraction_error: status.extraction_error,
-            initial_scraping_done: status.initial_scraping_done || false,
-            is_currently_processing: processingQueue.has(req.user.id),
-            processing_mode: 'DCA_GEMINI_HTML_ENHANCED',
-            message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
-        });
-        
-    } catch (error) {
-        console.error('Status check error:', error);
-        res.status(500).json({ error: 'Status check failed' });
-    }
-});
-
-// Helper function for status messages
-const getStatusMessage = (status, initialScrapingDone = false) => {
-    switch (status) {
-        case 'not_started':
-            return 'LinkedIn extraction not started - please complete initial profile setup';
-        case 'processing':
-            return 'LinkedIn profile extraction in progress with DCA + Gemini AI processing...';
-        case 'completed':
-            return initialScrapingDone ? 
-                'LinkedIn profile extraction completed with DCA + Gemini AI! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with DCA + Gemini AI!';
-        case 'failed':
-            return 'LinkedIn profile extraction failed - Gemini AI processing required (no manual fallback)';
-        default:
-            return 'Unknown status';
-    }
-};
-
-// Retry extraction
-app.post('/retry-extraction', authenticateToken, async (req, res) => {
-    try {
-        // Check for Gemini API key first
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'Gemini AI processing is not available. Contact support.',
-                code: 'GEMINI_NOT_CONFIGURED'
-            });
-        }
-        
-        const userResult = await pool.query(
-            'SELECT linkedin_url FROM users WHERE id = $1',
-            [req.user.id]
-        );
-        
-        if (userResult.rows.length === 0 || !userResult.rows[0].linkedin_url) {
-            return res.status(400).json({ error: 'No LinkedIn URL found for retry' });
-        }
-        
-        const linkedinUrl = userResult.rows[0].linkedin_url;
-        
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        res.json({
-            success: true,
-            message: 'LinkedIn extraction retry initiated with DCA + Gemini AI processing!',
-            status: 'processing',
-            processingMode: 'DCA_GEMINI_HTML_ENHANCED'
-        });
-        
-    } catch (error) {
-        console.error('Retry extraction error:', error);
-        res.status(500).json({ error: 'Retry failed' });
-    }
-});
-
-// Get Available Packages
-app.get('/packages', (req, res) => {
-    const packages = {
-        payAsYouGo: [
-            {
-                id: 'free',
-                name: 'Free',
-                credits: 10,
-                price: 0,
-                period: '/forever',
-                billing: 'monthly',
-                validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
-                available: true
-            },
-            {
-                id: 'silver',
-                name: 'Silver',
-                credits: 75,
-                price: 12,
-                period: '/one-time',
-                billing: 'payAsYouGo',
-                validity: 'Credits never expire',
-                features: ['75 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'gold',
-                name: 'Gold',
-                credits: 250,
-                price: 35,
-                period: '/one-time',
-                billing: 'payAsYouGo',
-                validity: 'Credits never expire',
-                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'platinum',
-                name: 'Platinum',
-                credits: 1000,
-                price: 70,
-                period: '/one-time',
-                billing: 'payAsYouGo',
-                validity: 'Credits never expire',
-                features: ['1,000 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
-                available: false,
-                comingSoon: true
-            }
-        ],
-        monthly: [
-            {
-                id: 'free',
-                name: 'Free',
-                credits: 10,
-                price: 0,
-                period: '/forever',
-                billing: 'monthly',
-                validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
-                available: true
-            },
-            {
-                id: 'silver',
-                name: 'Silver',
-                credits: 75,
-                price: 8.60,
-                period: '/month',
-                billing: 'monthly',
-                validity: '7-day free trial included',
-                features: ['75 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'gold',
-                name: 'Gold',
-                credits: 250,
-                price: 25.20,
-                period: '/month',
-                billing: 'monthly',
-                validity: '7-day free trial included',
-                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'platinum',
-                name: 'Platinum',
-                credits: 1000,
-                price: 50.40,
-                period: '/month',
-                billing: 'monthly',
-                validity: '7-day free trial included',
-                features: ['1,000 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
-                available: false,
-                comingSoon: true
-            }
-        ]
-    };
-    
-    res.json({
-        success: true,
-        data: { packages }
-    });
-});
-
 // ✅ FIXED: Generate message endpoint with proper credit deduction and transaction management
 app.post('/generate-message', authenticateToken, async (req, res) => {
     const client = await pool.connect();
@@ -3674,90 +3763,3 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
-        
-        // Update package type if needed
-        if (packageType && packageType !== req.user.package_type) {
-            if (packageType !== 'free') {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Only free package is available during beta'
-                });
-            }
-            
-            await pool.query(
-                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-                [packageType, req.user.id]
-            );
-        }
-        
-        // Create profile and start LinkedIn DCA extraction
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        const updatedUser = await getUserById(req.user.id);
-        
-        res.json({
-            success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started with DCA + Gemini AI processing.',
-            data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
-                },
-                profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status
-                },
-                automaticProcessing: {
-                    enabled: true,
-                    status: 'started',
-                    processingMode: 'DCA_GEMINI_HTML_ENHANCED',
-                    expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background using DCA API + Gemini AI'
-                }
-            }
-        });
-        
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn DCA extraction with Gemini started!`);
-        
-    } catch (error) {
-        console.error('❌ Complete registration error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Registration completion failed',
-            details: error.message
-        });
-    }
-});
-
-// ✅ FIXED: Update user profile with LinkedIn URL normalization and DCA GEMINI
-app.post('/update-profile', authenticateToken, async (req, res) => {
-    console.log('📝 Profile update request for user:', req.user.id);
-    
-    try {
-        const { linkedinUrl, packageType } = req.body;
-        
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
-            });
-        }
-        
-        // Check for Gemini API key
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json
