@@ -89,7 +89,7 @@ Map the input data to these fields as accurately as possible. For arrays, ensure
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                timeout: 30000
+                timeout: 120000 // ✅ FIXED: Increased from 30000 to 120000 (2 minutes)
             }
         );
 
