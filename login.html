@@ -267,6 +267,40 @@
             font-weight: 500;
         }
 
+        /* Auto-redirect message */
+        .auto-redirect {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .redirect-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--success-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 24px;
+            color: var(--white);
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.3);
+        }
+
+        .redirect-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--black);
+        }
+
+        .redirect-message {
+            color: var(--gray);
+            font-size: 16px;
+            font-weight: 500;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .container {
@@ -356,13 +390,76 @@
                 <div class="spinner"></div>
                 <div class="loading-message">Logging you in...</div>
             </div>
+
+            <!-- Auto-Redirect State -->
+            <div class="auto-redirect" id="autoRedirectState">
+                <div class="redirect-icon">
+                    <i class="fas fa-check"></i>
+                </div>
+                <h3 class="redirect-title">You're Already Logged In!</h3>
+                <div class="redirect-message">Redirecting you to your dashboard...</div>
+            </div>
         </div>
     </div>
 
     <script>
+        // FIXED: Check authentication on page load
+        window.addEventListener('load', () => {
+            console.log('🔍 Login page loaded - checking authentication status');
+            
+            // Check for URL token first (from OAuth callback)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = urlParams.get('token');
+            
+            if (urlToken) {
+                console.log('✅ Token found in URL - storing and redirecting');
+                // Store token and redirect to dashboard
+                localStorage.setItem('authToken', urlToken);
+                
+                // Show loading state
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('loadingState').style.display = 'block';
+                
+                // Redirect after brief delay
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 1500);
+                return;
+            }
+            
+            // Check localStorage for existing token
+            const existingToken = localStorage.getItem('authToken');
+            
+            if (existingToken) {
+                console.log('✅ Existing token found in localStorage - auto-redirecting to dashboard');
+                
+                // Show auto-redirect message
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('autoRedirectState').style.display = 'block';
+                
+                // Redirect after showing message
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 2000);
+                return;
+            }
+            
+            // Check for errors
+            const error = urlParams.get('error');
+            if (error) {
+                console.error('❌ Login error:', error);
+                alert('Login failed. Please try again.');
+                // Form stays visible for retry
+            }
+            
+            console.log('ℹ️ No existing authentication found - showing login form');
+        });
+
         // Handle Google Sign In
         function handleGoogleSignIn(e) {
             e.preventDefault();
+            
+            console.log('🔐 Initiating Google Sign In');
             
             // Show loading state
             document.getElementById('loginForm').style.display = 'none';
@@ -371,25 +468,6 @@
             // Redirect to Google OAuth
             window.location.href = 'https://api.msgly.ai/auth/google';
         }
-
-        // Check if returning from Google OAuth with success
-        window.addEventListener('load', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const token = urlParams.get('token');
-            
-            if (token) {
-                // Store token and redirect to dashboard
-                localStorage.setItem('authToken', token);
-                window.location.href = '/dashboard';
-            }
-            
-            const error = urlParams.get('error');
-            if (error) {
-                alert('Login failed. Please try again.');
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('loginForm').style.display = 'block';
-            }
-        });
     </script>
 </body>
 </html>
