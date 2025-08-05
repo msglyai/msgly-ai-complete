@@ -72,8 +72,9 @@ async function sendToGemini(rawJson) {
 
 Map the input data to these fields as accurately as possible. For arrays, ensure they are properly formatted JSON arrays. For numbers, parse strings like "1,234" to 1234, "1.2K" to 1200, "2.5M" to 2500000. No explanation, just return the clean JSON.`;
 
+        // ✅ FIXED: Updated to use Gemini 2.5 (latest model)
         const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
             {
                 contents: [
                     {
@@ -128,6 +129,16 @@ Map the input data to these fields as accurately as possible. For arrays, ensure
 
     } catch (error) {
         console.error('❌ Gemini processing failed:', error.message);
+        
+        // ✅ ENHANCED: Better error logging for debugging
+        if (error.response) {
+            console.error('❌ Gemini API response error:', {
+                status: error.response.status,
+                statusText: error.response.statusText,
+                data: error.response.data
+            });
+        }
+        
         throw new Error(`Gemini processing failed: ${error.message}`);
     }
 }
