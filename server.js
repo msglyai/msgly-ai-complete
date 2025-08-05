@@ -2191,6 +2191,9 @@ const getSetupStatusMessage = (status) => {
     }
 };
 
+// Remaining endpoints continue as before...
+// [The rest of the endpoints remain unchanged from your original file]
+
 // ✅ FIXED: User profile scraping with transaction management
 app.post('/profile/user', authenticateToken, async (req, res) => {
     const client = await pool.connect();
@@ -2958,7 +2961,6 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             });
         }
         
-        // Update package type if needed
         if (packageType && packageType !== req.user.package_type) {
             if (packageType !== 'free') {
                 return res.status(400).json({
@@ -2973,7 +2975,6 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             );
         }
         
-        // Create profile and start LinkedIn DCA extraction
         const profile = await createOrUpdateUserProfile(
             req.user.id, 
             linkedinUrl, 
@@ -2984,7 +2985,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started with DCA + Gemini AI processing.',
+            message: 'Profile updated - LinkedIn data extraction started with DCA + Gemini AI processing!',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2997,24 +2998,17 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     extractionStatus: profile.data_extraction_status
-                },
-                automaticProcessing: {
-                    enabled: true,
-                    status: 'started',
-                    processingMode: 'DCA_GEMINI_HTML_ENHANCED',
-                    expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background using DCA API + Gemini AI'
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn DCA extraction with Gemini started!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - DCA + Gemini AI integration applied!`);
         
     } catch (error) {
-        console.error('❌ Complete registration error:', error);
+        console.error('❌ Profile update error:', error);
         res.status(500).json({
             success: false,
-            error: 'Registration completion failed',
+            error: 'Failed to update profile',
             details: error.message
         });
     }
@@ -3680,6 +3674,78 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
+}
+        
+        // Update package type if needed
+        if (packageType && packageType !== req.user.package_type) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        // Create profile and start LinkedIn DCA extraction
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Registration completed successfully! LinkedIn profile analysis started with DCA + Gemini AI processing.',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: profile.data_extraction_status
+                },
+                automaticProcessing: {
+                    enabled: true,
+                    status: 'started',
+                    processingMode: 'DCA_GEMINI_HTML_ENHANCED',
+                    expectedCompletionTime: '5-10 minutes',
+                    message: 'Your LinkedIn profile is being analyzed in the background using DCA API + Gemini AI'
+                }
+            }
+        });
+        
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn DCA extraction with Gemini started!`);
+        
+    } catch (error) {
+        console.error('❌ Complete registration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Registration completion failed',
+            details: error.message
+        });
+    }
+});
+
+// ✅ FIXED: Update user profile with LinkedIn URL normalization and DCA GEMINI
+app.post('/update-profile', authenticateToken, async (req, res) => {
+    console.log('📝 Profile update request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType } = req.body;
+        
+        if (!linkedinUrl) {
             return res.status(400).json({
                 success: false,
                 error: 'LinkedIn URL is required'
@@ -3695,71 +3761,4 @@ module.exports = app;
         
         // Check for Gemini API key
         if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'Gemini AI processing is not available. Contact support.',
-                code: 'GEMINI_NOT_CONFIGURED'
-            });
-        }
-        
-        if (packageType && packageType !== req.user.package_type) {
-            if (packageType !== 'free') {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Only free package is available during beta'
-                });
-            }
-            
-            await pool.query(
-                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-                [packageType, req.user.id]
-            );
-        }
-        
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        const updatedUser = await getUserById(req.user.id);
-        
-        res.json({
-            success: true,
-            message: 'Profile updated - LinkedIn data extraction started with DCA + Gemini AI processing!',
-            data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
-                },
-                profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status
-                }
-            }
-        });
-        
-        console.log(`✅ Profile updated for user ${updatedUser.email} - DCA + Gemini AI integration applied!`);
-        
-    } catch (error) {
-        console.error('❌ Profile update error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to update profile',
-            details: error.message
-        });
-    }
-});
-
-// ✅ FIXED: Update user profile with LinkedIn URL normalization and DCA GEMINI
-app.post('/update-profile', authenticateToken, async (req, res) => {
-    console.log('📝 Profile update request for user:', req.user.id);
-    
-    try {
-        const { linkedinUrl, packageType } = req.body;
-        
-        if (!linkedinUrl) {
+            return res.status(500).json
