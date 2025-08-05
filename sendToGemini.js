@@ -69,86 +69,71 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// ✅ CONSERVATIVE HTML preprocessing for OpenAI (TARGET: ~12,000 tokens)
+// ✅ SMALL FIXES to original preprocessing (17K → 12K tokens)
 function preprocessHTMLForOpenAI(html) {
     try {
         console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         
-        // CONSERVATIVE STEP 1: Remove obvious bloat but keep structure
+        // ORIGINAL working preprocessing + small additions
         processedHtml = processedHtml
-            // Remove scripts and styles (safe)
+            // Remove scripts and styles (ORIGINAL)
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
             
-            // Remove media (safe)
-            .replace(/<img[^>]*>/gi, '')
+            // Remove SVGs (ORIGINAL)
             .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
-            .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
-            .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
-            .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
             
-            // Remove forms (safe - not needed for profile data)
+            // Remove forms and interactive elements (ORIGINAL)
             .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
             .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
             .replace(/<input[^>]*\/?>/gi, '')
             
-            // Remove comments (safe)
-            .replace(/<!--[\s\S]*?-->/g, '');
-        
-        // CONSERVATIVE STEP 2: Clean attributes selectively
-        processedHtml = processedHtml
-            // Remove style attributes (safe)
-            .replace(/\s+style="[^"]*"/gi, '')
+            // Remove media elements (ORIGINAL)
+            .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
+            .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
+            .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
             
-            // Remove tracking attributes (safe)
+            // ✅ SMALL ADDITION: Remove img tags more thoroughly
+            .replace(/<img[^>]*>/gi, '')
+            
+            // ✅ SMALL ADDITION: Remove comments
+            .replace(/<!--[\s\S]*?-->/g, '')
+            
+            // Clean attributes (ORIGINAL + small additions)
+            .replace(/\s+data-(?!section|experience|skills|education)[^=]*="[^"]*"/gi, '')
+            .replace(/\s+class="[^"]{100,}"/gi, ' class=""')
+            .replace(/\s+style="[^"]*"/gi, '')
+            .replace(/\s+on\w+="[^"]*"/gi, '')
+            
+            // ✅ SMALL ADDITION: Remove accessibility attributes (not needed for data extraction)
+            .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
+            .replace(/\s+role="[^"]*"/gi, '')
+            
+            // ✅ SMALL ADDITION: Remove more tracking/analytics attributes
             .replace(/\s+data-tracking[^=]*="[^"]*"/gi, '')
             .replace(/\s+data-analytics[^=]*="[^"]*"/gi, '')
             .replace(/\s+ga-[^=]*="[^"]*"/gi, '')
             
-            // Remove interaction attributes (safe)
-            .replace(/\s+on\w+="[^"]*"/gi, '')
+            // ✅ SMALL ADDITION: Be more aggressive with class removal (50+ chars instead of 100+)
+            .replace(/\s+class="[^"]{50,}"/gi, ' class=""')
             
-            // Remove very long class attributes (conservative)
-            .replace(/\s+class="[^"]{200,}"/gi, ' class=""')
+            // Remove empty elements (ORIGINAL + additions)
+            .replace(/<div[^>]*>\s*<\/div>/gi, '')
+            .replace(/<p[^>]*>\s*<\/p>/gi, '')
+            .replace(/<span[^>]*>\s*<\/span>/gi, '')
             
-            // Remove very long href values (conservative)
-            .replace(/\s+href="[^"]{150,}"/gi, ' href="#"');
-        
-        // CONSERVATIVE STEP 3: Gentle whitespace cleanup
-        processedHtml = processedHtml
-            // Basic whitespace cleanup
+            // ✅ SMALL ADDITION: Remove more empty elements
+            .replace(/<section[^>]*>\s*<\/section>/gi, '')
+            .replace(/<article[^>]*>\s*<\/article>/gi, '')
+            .replace(/<li[^>]*>\s*<\/li>/gi, '')
+            
+            // Compress whitespace (ORIGINAL)
             .replace(/\s+/g, ' ')
             .replace(/>\s+</g, '><')
-            .replace(/\n\s*\n/g, '\n')
             .trim();
-        
-        // CONSERVATIVE STEP 4: Only if still too large, do targeted removal
-        const estimatedTokens = Math.ceil(processedHtml.length / 3);
-        console.log(`🔍 After conservative cleanup: ${estimatedTokens} estimated tokens`);
-        
-        if (estimatedTokens > 13000) {
-            console.log(`⚠️ Still large (~${estimatedTokens} tokens), doing targeted cleanup...`);
-            
-            // Target removal of repetitive LinkedIn elements
-            processedHtml = processedHtml
-                // Remove navigation elements
-                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-                .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
-                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-                
-                // Remove very long class attributes more aggressively
-                .replace(/\s+class="[^"]{100,}"/gi, ' class=""')
-                
-                // Remove data attributes except essential LinkedIn ones
-                .replace(/\s+data-(?!section|experience|skills|education|about)[^=]*="[^"]*"/gi, '')
-                
-                // Remove aria attributes (not needed for content extraction)
-                .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
-                .replace(/\s+role="[^"]*"/gi, '');
-        }
         
         const finalSize = processedHtml.length / 1024;
         const finalTokens = Math.ceil(processedHtml.length / 3);
