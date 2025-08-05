@@ -69,20 +69,22 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// ✅ LinkedIn-optimized HTML preprocessing for OpenAI
+// ✅ FIXED: Aggressive HTML preprocessing for OpenAI
 function preprocessHTMLForOpenAI(html) {
     try {
         console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         
-        // STEP 1: Remove only truly unnecessary elements
+        // STEP 1: Aggressive HTML reduction for large LinkedIn pages
         processedHtml = processedHtml
-            // Remove scripts, styles, and non-content elements
+            // Remove all non-content elements
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-            // Remove all images and media (only need text data)
+            .replace(/<link[^>]*\/?>/gi, '')
+            .replace(/<meta[^>]*\/?>/gi, '')
+            // Remove ALL images and media (only need text data)
             .replace(/<img[^>]*\/?>/gi, '')
             .replace(/<picture[^>]*>[\s\S]*?<\/picture>/gi, '')
             .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
@@ -90,32 +92,62 @@ function preprocessHTMLForOpenAI(html) {
             .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
             .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
             .replace(/<canvas[^>]*>[\s\S]*?<\/canvas>/gi, '')
-            // Remove only excessive attributes, keep LinkedIn-specific ones
+            // Remove navigation and layout elements
+            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+            .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+            // Remove forms and interactive elements
+            .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
+            .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
+            .replace(/<input[^>]*\/?>/gi, '')
+            .replace(/<select[^>]*>[\s\S]*?<\/select>/gi, '')
+            .replace(/<textarea[^>]*>[\s\S]*?<\/textarea>/gi, '')
+            // Remove excessive attributes
             .replace(/\s+on\w+="[^"]*"/gi, '') // Remove event handlers
-            .replace(/\s+style="[^"]{100,}"/gi, '') // Remove only very long styles
-            .replace(/\s+class="[^"]{150,}"/gi, ' class=""') // Remove only extremely long classes
-            // PRESERVE LinkedIn data attributes that might contain profile info
-            // .replace(/\s+data-(?!section|experience|skills|education)[^=]*="[^"]*"/gi, '') // REMOVED - too aggressive
-            
-        // STEP 2: Light compression only
+            .replace(/\s+style="[^"]*"/gi, '') // Remove all inline styles
+            .replace(/\s+class="[^"]{50,}"/gi, ' class=""') // Remove long classes
+            .replace(/\s+id="[^"]{30,}"/gi, '') // Remove long IDs
+            // Keep only essential data attributes for LinkedIn
+            .replace(/\s+data-(?!experience|education|skills|section|profile)[^=]*="[^"]*"/gi, '')
+            // Remove empty elements
+            .replace(/<div[^>]*>\s*<\/div>/gi, '')
+            .replace(/<p[^>]*>\s*<\/p>/gi, '')
+            .replace(/<span[^>]*>\s*<\/span>/gi, '')
+            .replace(/<li[^>]*>\s*<\/li>/gi, '');
+        
+        // STEP 2: Aggressive compression
         processedHtml = processedHtml
-            .replace(/\s{3,}/g, ' ') // Replace 3+ spaces with 1
-            .replace(/\n\s*\n\s*\n/g, '\n\n') // Replace 3+ newlines with 2
+            .replace(/\s+/g, ' ') // Replace all multiple whitespace with single space
+            .replace(/>\s+</g, '><') // Remove all whitespace between tags
+            .replace(/\n+/g, '') // Remove all newlines
             .trim();
         
-        // STEP 3: Check if still too large for OpenAI
+        // STEP 3: If STILL too large, extract main content only
         const sizeKB = processedHtml.length / 1024;
-        if (sizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
-            console.log(`⚠️ Still too large (${sizeKB.toFixed(2)} KB), applying additional optimization...`);
+        if (sizeKB > OPENAI_LIMITS.MAX_SIZE_KB * 0.8) { // 80% threshold
+            console.log(`⚠️ Still large (${sizeKB.toFixed(2)} KB), extracting main content only...`);
             
-            // Only if absolutely necessary, do more aggressive cleaning
-            processedHtml = processedHtml
-                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // Remove navigation
-                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // Remove footer
-                .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '') // Remove sidebars
-                // Keep main content areas that likely contain profile data
-                .replace(/\s+/g, ' ') // Final whitespace compression
-                .replace(/>\s+</g, '><'); // Remove whitespace between tags
+            // Try to find and extract just the main profile content
+            const mainContentPatterns = [
+                /<main[^>]*>[\s\S]*?<\/main>/gi,
+                /<div[^>]*class="[^"]*profile[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+                /<section[^>]*>[\s\S]*?<\/section>/gi
+            ];
+            
+            let extractedContent = '';
+            for (const pattern of mainContentPatterns) {
+                const matches = processedHtml.match(pattern);
+                if (matches) {
+                    extractedContent += matches.join(' ');
+                    break; // Use first successful pattern
+                }
+            }
+            
+            if (extractedContent && extractedContent.length < processedHtml.length * 0.8) {
+                processedHtml = extractedContent;
+                console.log(`✂️ Extracted main content: ${(extractedContent.length / 1024).toFixed(2)} KB`);
+            }
         }
         
         const finalSize = processedHtml.length / 1024;
