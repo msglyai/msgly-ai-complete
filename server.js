@@ -3674,7 +3674,6 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
-}
         
         // Update package type if needed
         if (packageType && packageType !== req.user.package_type) {
