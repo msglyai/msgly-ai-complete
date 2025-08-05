@@ -69,92 +69,131 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// ✅ FIXED: Aggressive HTML preprocessing for OpenAI
+// ✅ ULTRA-AGGRESSIVE HTML preprocessing for OpenAI (TARGET: <12,000 tokens)
 function preprocessHTMLForOpenAI(html) {
     try {
         console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         
-        // STEP 1: Aggressive HTML reduction for large LinkedIn pages
+        // STAGE 1: Remove large/unnecessary elements
         processedHtml = processedHtml
-            // Remove all non-content elements
+            // Remove scripts, styles, and metadata
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-            .replace(/<link[^>]*\/?>/gi, '')
             .replace(/<meta[^>]*\/?>/gi, '')
-            // Remove ALL images and media (only need text data)
-            .replace(/<img[^>]*\/?>/gi, '')
-            .replace(/<picture[^>]*>[\s\S]*?<\/picture>/gi, '')
+            .replace(/<link[^>]*\/?>/gi, '')
+            // Remove SVGs and media (very token-heavy)
             .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
+            .replace(/<img[^>]*\/?>/gi, '')
             .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
             .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
             .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-            .replace(/<canvas[^>]*>[\s\S]*?<\/canvas>/gi, '')
-            // Remove navigation and layout elements
-            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
-            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-            .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
             // Remove forms and interactive elements
             .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
             .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
             .replace(/<input[^>]*\/?>/gi, '')
             .replace(/<select[^>]*>[\s\S]*?<\/select>/gi, '')
-            .replace(/<textarea[^>]*>[\s\S]*?<\/textarea>/gi, '')
-            // Remove excessive attributes
-            .replace(/\s+on\w+="[^"]*"/gi, '') // Remove event handlers
-            .replace(/\s+style="[^"]*"/gi, '') // Remove all inline styles
-            .replace(/\s+class="[^"]{50,}"/gi, ' class=""') // Remove long classes
-            .replace(/\s+id="[^"]{30,}"/gi, '') // Remove long IDs
-            // Keep only essential data attributes for LinkedIn
-            .replace(/\s+data-(?!experience|education|skills|section|profile)[^=]*="[^"]*"/gi, '')
-            // Remove empty elements
+            .replace(/<textarea[^>]*>[\s\S]*?<\/textarea>/gi, '');
+        
+        // STAGE 2: ULTRA-AGGRESSIVE attribute removal (this saves massive tokens)
+        processedHtml = processedHtml
+            // Remove ALL attributes except essential ones for LinkedIn content
+            .replace(/\s+class="[^"]*"/gi, '')
+            .replace(/\s+id="[^"]*"/gi, '')
+            .replace(/\s+style="[^"]*"/gi, '')
+            .replace(/\s+data-[^=]*="[^"]*"/gi, '')
+            .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
+            .replace(/\s+role="[^"]*"/gi, '')
+            .replace(/\s+tabindex="[^"]*"/gi, '')
+            .replace(/\s+on\w+="[^"]*"/gi, '')
+            .replace(/\s+src="[^"]*"/gi, '')
+            .replace(/\s+href="#[^"]*"/gi, '')
+            .replace(/\s+target="[^"]*"/gi, '')
+            .replace(/\s+rel="[^"]*"/gi, '')
+            .replace(/\s+title="[^"]*"/gi, '')
+            .replace(/\s+alt="[^"]*"/gi, '');
+        
+        // STAGE 3: Simplify HTML structure (convert complex tags to simple ones)
+        processedHtml = processedHtml
+            // Convert semantic tags to simple divs (saves tokens)
+            .replace(/<(header|footer|nav|aside|article|section|main|figure|figcaption)[^>]*>/gi, '<div>')
+            .replace(/<\/(header|footer|nav|aside|article|section|main|figure|figcaption)>/gi, '</div>')
+            // Convert heading tags to simple structure
+            .replace(/<h[1-6][^>]*>/gi, '<h>')
+            .replace(/<\/h[1-6]>/gi, '</h>')
+            // Simplify list structures
+            .replace(/<(ul|ol)[^>]*>/gi, '<ul>')
+            .replace(/<\/(ul|ol)>/gi, '</ul>')
+            .replace(/<li[^>]*>/gi, '<li>')
+            // Remove empty elements (saves significant tokens)
             .replace(/<div[^>]*>\s*<\/div>/gi, '')
-            .replace(/<p[^>]*>\s*<\/p>/gi, '')
             .replace(/<span[^>]*>\s*<\/span>/gi, '')
+            .replace(/<p[^>]*>\s*<\/p>/gi, '')
+            .replace(/<h[^>]*>\s*<\/h>/gi, '')
             .replace(/<li[^>]*>\s*<\/li>/gi, '');
         
-        // STEP 2: Aggressive compression
+        // STAGE 4: EXTREME whitespace and formatting cleanup
         processedHtml = processedHtml
-            .replace(/\s+/g, ' ') // Replace all multiple whitespace with single space
-            .replace(/>\s+</g, '><') // Remove all whitespace between tags
-            .replace(/\n+/g, '') // Remove all newlines
+            // Remove ALL extra whitespace (massive token saver)
+            .replace(/\s+/g, ' ')
+            .replace(/>\s+</g, '><')
+            .replace(/\s+>/g, '>')
+            .replace(/<\s+/g, '<')
+            // Remove empty lines and excessive spacing
+            .replace(/\n\s*\n/g, '\n')
+            .replace(/^\s+|\s+$/gm, '')
             .trim();
         
-        // STEP 3: If STILL too large, extract main content only
-        const sizeKB = processedHtml.length / 1024;
-        if (sizeKB > OPENAI_LIMITS.MAX_SIZE_KB * 0.8) { // 80% threshold
-            console.log(`⚠️ Still large (${sizeKB.toFixed(2)} KB), extracting main content only...`);
+        // STAGE 5: If still too large, extract only essential content
+        const estimatedTokens = Math.ceil(processedHtml.length / 3);
+        if (estimatedTokens > 12000) {
+            console.log(`⚠️ Still large (~${estimatedTokens} tokens), extracting essential content only...`);
             
-            // Try to find and extract just the main profile content
-            const mainContentPatterns = [
-                /<main[^>]*>[\s\S]*?<\/main>/gi,
-                /<div[^>]*class="[^"]*profile[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-                /<section[^>]*>[\s\S]*?<\/section>/gi
-            ];
+            // Extract only the most important parts
+            const mainContentRegex = /<main[^>]*>([\s\S]*?)<\/main>/i;
+            const bodyContentRegex = /<body[^>]*>([\s\S]*?)<\/body>/i;
             
-            let extractedContent = '';
-            for (const pattern of mainContentPatterns) {
-                const matches = processedHtml.match(pattern);
-                if (matches) {
-                    extractedContent += matches.join(' ');
-                    break; // Use first successful pattern
+            let essentialContent = processedHtml;
+            
+            // Try to find main content first
+            const mainMatch = processedHtml.match(mainContentRegex);
+            if (mainMatch) {
+                essentialContent = mainMatch[1];
+            } else {
+                // Fallback to body content
+                const bodyMatch = processedHtml.match(bodyContentRegex);
+                if (bodyMatch) {
+                    essentialContent = bodyMatch[1];
                 }
             }
             
-            if (extractedContent && extractedContent.length < processedHtml.length * 0.8) {
-                processedHtml = extractedContent;
-                console.log(`✂️ Extracted main content: ${(extractedContent.length / 1024).toFixed(2)} KB`);
+            // If still too large, extract just text content with minimal markup
+            const finalEstimate = Math.ceil(essentialContent.length / 3);
+            if (finalEstimate > 12000) {
+                console.log(`⚠️ Extracting text content with minimal markup...`);
+                
+                // Keep only essential tags that help AI understand structure
+                essentialContent = essentialContent
+                    .replace(/<\/?(div|span|img|svg|path|g)[^>]*>/gi, '')
+                    .replace(/<[^>]*>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                // Wrap in minimal structure for AI
+                processedHtml = `<div>${essentialContent}</div>`;
+            } else {
+                processedHtml = essentialContent;
             }
         }
         
         const finalSize = processedHtml.length / 1024;
-        console.log(`✅ HTML preprocessed for OpenAI (final size: ${finalSize.toFixed(2)} KB)`);
+        const finalTokens = Math.ceil(processedHtml.length / 3);
         
-        // Log a preview of what's being sent
-        console.log(`🔍 Content preview (first 300 chars): ${processedHtml.substring(0, 300)}...`);
+        console.log(`✅ HTML preprocessed for OpenAI (final size: ${finalSize.toFixed(2)} KB)`);
+        console.log(`🔢 Estimated tokens: ${finalTokens}`);
+        console.log(`🎯 Content preview (first 300 chars): ${processedHtml.substring(0, 300)}...`);
         
         return processedHtml;
         
