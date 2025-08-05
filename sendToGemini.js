@@ -69,123 +69,85 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// ✅ ULTRA-AGGRESSIVE HTML preprocessing for OpenAI (TARGET: <12,000 tokens)
+// ✅ CONSERVATIVE HTML preprocessing for OpenAI (TARGET: ~12,000 tokens)
 function preprocessHTMLForOpenAI(html) {
     try {
         console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         
-        // STAGE 1: Remove large/unnecessary elements
+        // CONSERVATIVE STEP 1: Remove obvious bloat but keep structure
         processedHtml = processedHtml
-            // Remove scripts, styles, and metadata
+            // Remove scripts and styles (safe)
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-            .replace(/<meta[^>]*\/?>/gi, '')
-            .replace(/<link[^>]*\/?>/gi, '')
-            // Remove SVGs and media (very token-heavy)
+            
+            // Remove media (safe)
+            .replace(/<img[^>]*>/gi, '')
             .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
-            .replace(/<img[^>]*\/?>/gi, '')
             .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
             .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
             .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-            // Remove forms and interactive elements
+            
+            // Remove forms (safe - not needed for profile data)
             .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
             .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
             .replace(/<input[^>]*\/?>/gi, '')
-            .replace(/<select[^>]*>[\s\S]*?<\/select>/gi, '')
-            .replace(/<textarea[^>]*>[\s\S]*?<\/textarea>/gi, '');
+            
+            // Remove comments (safe)
+            .replace(/<!--[\s\S]*?-->/g, '');
         
-        // STAGE 2: ULTRA-AGGRESSIVE attribute removal (this saves massive tokens)
+        // CONSERVATIVE STEP 2: Clean attributes selectively
         processedHtml = processedHtml
-            // Remove ALL attributes except essential ones for LinkedIn content
-            .replace(/\s+class="[^"]*"/gi, '')
-            .replace(/\s+id="[^"]*"/gi, '')
+            // Remove style attributes (safe)
             .replace(/\s+style="[^"]*"/gi, '')
-            .replace(/\s+data-[^=]*="[^"]*"/gi, '')
-            .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
-            .replace(/\s+role="[^"]*"/gi, '')
-            .replace(/\s+tabindex="[^"]*"/gi, '')
+            
+            // Remove tracking attributes (safe)
+            .replace(/\s+data-tracking[^=]*="[^"]*"/gi, '')
+            .replace(/\s+data-analytics[^=]*="[^"]*"/gi, '')
+            .replace(/\s+ga-[^=]*="[^"]*"/gi, '')
+            
+            // Remove interaction attributes (safe)
             .replace(/\s+on\w+="[^"]*"/gi, '')
-            .replace(/\s+src="[^"]*"/gi, '')
-            .replace(/\s+href="#[^"]*"/gi, '')
-            .replace(/\s+target="[^"]*"/gi, '')
-            .replace(/\s+rel="[^"]*"/gi, '')
-            .replace(/\s+title="[^"]*"/gi, '')
-            .replace(/\s+alt="[^"]*"/gi, '');
+            
+            // Remove very long class attributes (conservative)
+            .replace(/\s+class="[^"]{200,}"/gi, ' class=""')
+            
+            // Remove very long href values (conservative)
+            .replace(/\s+href="[^"]{150,}"/gi, ' href="#"');
         
-        // STAGE 3: Simplify HTML structure (convert complex tags to simple ones)
+        // CONSERVATIVE STEP 3: Gentle whitespace cleanup
         processedHtml = processedHtml
-            // Convert semantic tags to simple divs (saves tokens)
-            .replace(/<(header|footer|nav|aside|article|section|main|figure|figcaption)[^>]*>/gi, '<div>')
-            .replace(/<\/(header|footer|nav|aside|article|section|main|figure|figcaption)>/gi, '</div>')
-            // Convert heading tags to simple structure
-            .replace(/<h[1-6][^>]*>/gi, '<h>')
-            .replace(/<\/h[1-6]>/gi, '</h>')
-            // Simplify list structures
-            .replace(/<(ul|ol)[^>]*>/gi, '<ul>')
-            .replace(/<\/(ul|ol)>/gi, '</ul>')
-            .replace(/<li[^>]*>/gi, '<li>')
-            // Remove empty elements (saves significant tokens)
-            .replace(/<div[^>]*>\s*<\/div>/gi, '')
-            .replace(/<span[^>]*>\s*<\/span>/gi, '')
-            .replace(/<p[^>]*>\s*<\/p>/gi, '')
-            .replace(/<h[^>]*>\s*<\/h>/gi, '')
-            .replace(/<li[^>]*>\s*<\/li>/gi, '');
-        
-        // STAGE 4: EXTREME whitespace and formatting cleanup
-        processedHtml = processedHtml
-            // Remove ALL extra whitespace (massive token saver)
+            // Basic whitespace cleanup
             .replace(/\s+/g, ' ')
             .replace(/>\s+</g, '><')
-            .replace(/\s+>/g, '>')
-            .replace(/<\s+/g, '<')
-            // Remove empty lines and excessive spacing
             .replace(/\n\s*\n/g, '\n')
-            .replace(/^\s+|\s+$/gm, '')
             .trim();
         
-        // STAGE 5: If still too large, extract only essential content
+        // CONSERVATIVE STEP 4: Only if still too large, do targeted removal
         const estimatedTokens = Math.ceil(processedHtml.length / 3);
-        if (estimatedTokens > 12000) {
-            console.log(`⚠️ Still large (~${estimatedTokens} tokens), extracting essential content only...`);
+        console.log(`🔍 After conservative cleanup: ${estimatedTokens} estimated tokens`);
+        
+        if (estimatedTokens > 13000) {
+            console.log(`⚠️ Still large (~${estimatedTokens} tokens), doing targeted cleanup...`);
             
-            // Extract only the most important parts
-            const mainContentRegex = /<main[^>]*>([\s\S]*?)<\/main>/i;
-            const bodyContentRegex = /<body[^>]*>([\s\S]*?)<\/body>/i;
-            
-            let essentialContent = processedHtml;
-            
-            // Try to find main content first
-            const mainMatch = processedHtml.match(mainContentRegex);
-            if (mainMatch) {
-                essentialContent = mainMatch[1];
-            } else {
-                // Fallback to body content
-                const bodyMatch = processedHtml.match(bodyContentRegex);
-                if (bodyMatch) {
-                    essentialContent = bodyMatch[1];
-                }
-            }
-            
-            // If still too large, extract just text content with minimal markup
-            const finalEstimate = Math.ceil(essentialContent.length / 3);
-            if (finalEstimate > 12000) {
-                console.log(`⚠️ Extracting text content with minimal markup...`);
+            // Target removal of repetitive LinkedIn elements
+            processedHtml = processedHtml
+                // Remove navigation elements
+                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+                .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
                 
-                // Keep only essential tags that help AI understand structure
-                essentialContent = essentialContent
-                    .replace(/<\/?(div|span|img|svg|path|g)[^>]*>/gi, '')
-                    .replace(/<[^>]*>/g, ' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
+                // Remove very long class attributes more aggressively
+                .replace(/\s+class="[^"]{100,}"/gi, ' class=""')
                 
-                // Wrap in minimal structure for AI
-                processedHtml = `<div>${essentialContent}</div>`;
-            } else {
-                processedHtml = essentialContent;
-            }
+                // Remove data attributes except essential LinkedIn ones
+                .replace(/\s+data-(?!section|experience|skills|education|about)[^=]*="[^"]*"/gi, '')
+                
+                // Remove aria attributes (not needed for content extraction)
+                .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
+                .replace(/\s+role="[^"]*"/gi, '');
         }
         
         const finalSize = processedHtml.length / 1024;
