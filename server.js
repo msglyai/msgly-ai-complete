@@ -1,4 +1,4 @@
-// Msgly.AI Server - Refactored Modular Structure
+// Msgly.AI Server - Refactored Modular Structure - COMPLETE VERSION
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -137,9 +137,7 @@ async (accessToken, refreshToken, profile, done) => {
             user = await getUserById(user.id);
         }
         
-        // Add isNewUser flag to user object
         user.isNewUser = isNewUser;
-        
         return done(null, user);
     } catch (error) {
         console.error('Google OAuth error:', error);
@@ -182,7 +180,6 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
-// ✅ CRITICAL FIX: Chrome Extension Authentication - ALWAYS returns credits
 app.post('/auth/chrome-extension', async (req, res) => {
     console.log('🔐 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
@@ -207,7 +204,6 @@ app.post('/auth/chrome-extension', async (req, res) => {
             });
         }
         
-        // Verify Google token and get user info
         console.log('🔍 Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
@@ -227,7 +223,6 @@ app.post('/auth/chrome-extension', async (req, res) => {
             verified: googleUser.verified_email
         });
         
-        // Find or create user
         let user = await getUserByEmail(googleUser.email);
         let isNewUser = false;
         
@@ -246,10 +241,8 @@ app.post('/auth/chrome-extension', async (req, res) => {
             user = await getUserById(user.id);
         }
         
-        // Add isNewUser flag to user object
         user.isNewUser = isNewUser;
         
-        // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             JWT_SECRET,
@@ -258,7 +251,6 @@ app.post('/auth/chrome-extension', async (req, res) => {
         
         console.log('✅ Chrome extension authentication successful');
         
-        // ✅ CRITICAL FIX: ALWAYS return credits and complete user data
         res.json({
             success: true,
             message: 'Authentication successful',
@@ -270,7 +262,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     displayName: user.display_name,
                     profilePicture: user.profile_picture,
                     packageType: user.package_type,
-                    credits: user.credits_remaining || 10, // ✅ ALWAYS INCLUDE CREDITS
+                    credits: user.credits_remaining || 10,
                     linkedinUrl: user.linkedin_url,
                     profileCompleted: user.profile_completed
                 },
@@ -298,12 +290,10 @@ app.post('/auth/chrome-extension', async (req, res) => {
 
 // ==================== FRONTEND ROUTES ====================
 
-// ✅ Home route - serves your sign-up page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'sign-up.html'));
 });
 
-// ✅ Specific HTML page routes
 app.get('/sign-up', (req, res) => {
     res.sendFile(path.join(__dirname, 'sign-up.html'));
 });
@@ -329,7 +319,7 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '8.0-MODULAR-REFACTOR-COMPLETE',
+            version: '8.0-MODULAR-REFACTOR-COMPLETE-FIXED',
             timestamp: new Date().toISOString(),
             architecture: 'modular',
             modules: {
@@ -337,7 +327,7 @@ app.get('/health', async (req, res) => {
                 utilities: 'utils/helpers.js',
                 linkedinService: 'services/linkedinService.js',
                 openaiService: 'services/openaiService.js',
-                server: 'server.js (slim entry point)'
+                server: 'server.js (complete with all routes)'
             },
             brightData: {
                 configured: !!BRIGHT_DATA_API_KEY,
@@ -364,7 +354,6 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ✅ CRITICAL FIX: Check initial scraping status - ALWAYS returns linkedin_url
 app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 Checking initial scraping status for user ${req.user.id}`);
@@ -388,27 +377,15 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
         if (result.rows.length > 0) {
             const data = result.rows[0];
             initialScrapingDone = data.initial_scraping_done || false;
-            // ✅ CRITICAL FIX: ALWAYS return a LinkedIn URL (from either table)
             userLinkedInUrl = data.linkedin_url || data.user_linkedin_url || data.profile_linkedin_url;
             extractionStatus = data.data_extraction_status || 'not_started';
-            
-            console.log(`📊 Initial scraping data for user ${req.user.id}:`);
-            console.log(`   - Profile linkedin_url: ${data.profile_linkedin_url || 'null'}`);
-            console.log(`   - User linkedin_url: ${data.user_linkedin_url || 'null'}`);
-            console.log(`   - Final linkedin_url: ${userLinkedInUrl || 'null'}`);
         }
         
-        console.log(`📊 Initial scraping status for user ${req.user.id}:`);
-        console.log(`   - Initial scraping done: ${initialScrapingDone}`);
-        console.log(`   - User LinkedIn URL: ${userLinkedInUrl || 'Not set'}`);
-        console.log(`   - Extraction status: ${extractionStatus}`);
-        
-        // ✅ CRITICAL FIX: ALWAYS include userLinkedInUrl even if null
         res.json({
             success: true,
             data: {
                 initialScrapingDone: initialScrapingDone,
-                userLinkedInUrl: userLinkedInUrl, // ✅ ALWAYS INCLUDED (won't trigger emergency)
+                userLinkedInUrl: userLinkedInUrl,
                 extractionStatus: extractionStatus,
                 isCurrentlyProcessing: processingQueue.has(req.user.id),
                 user: {
@@ -429,17 +406,11 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
     }
 });
 
-// ✅ FIXED: User profile scraping with transaction management  
 app.post('/profile/user', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
     try {
         console.log(`🔒 User profile scraping request from user ${req.user.id}`);
-        console.log('📊 Request data:', {
-            hasProfileData: !!req.body.profileData,
-            profileUrl: req.body.profileData?.url || req.body.profileData?.linkedinUrl,
-            dataSource: req.body.profileData?.extractedFrom || 'unknown'
-        });
         
         const { profileData } = req.body;
         
@@ -457,7 +428,6 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Clean and validate URL using backend normalization
         const profileUrl = profileData.url || profileData.linkedinUrl;
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
@@ -468,17 +438,9 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Validate this is the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
-            
-            console.log(`🔍 URL Comparison for user ${req.user.id}:`);
-            console.log(`   - Profile URL: ${profileUrl}`);
-            console.log(`   - Clean Profile: ${cleanProfileUrl}`);
-            console.log(`   - User URL: ${userLinkedInUrl}`);
-            console.log(`   - Clean User: ${cleanUserUrl}`);
-            console.log(`   - Match: ${cleanUserUrl === cleanProfileUrl}`);
             
             if (cleanUserUrl !== cleanProfileUrl) {
                 return res.status(403).json({
@@ -488,14 +450,10 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             }
         }
         
-        // Process the scraped data
         const processedData = processScrapedProfileData(profileData, true);
-        
-        // ✅ FIXED: Normalize the LinkedIn URL in processed data
         processedData.linkedinUrl = cleanProfileUrl;
         processedData.url = cleanProfileUrl;
         
-        // ✅ CRITICAL FIX: Validate data completeness BEFORE database transaction
         if (!processedData.fullName && !processedData.headline && !processedData.currentCompany) {
             return res.status(400).json({
                 success: false,
@@ -503,12 +461,8 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        console.log('💾 Saving user profile data with transaction management...');
-        
-        // ✅ Continue with full transaction logic...
         await client.query('BEGIN');
         
-        // Check if profile exists
         const existingProfile = await client.query(
             'SELECT * FROM user_profiles WHERE user_id = $1',
             [req.user.id]
@@ -516,30 +470,39 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         
         let profile;
         if (existingProfile.rows.length > 0) {
-            // Update existing profile - abbreviated for space
             const result = await client.query(`
                 UPDATE user_profiles SET 
                     linkedin_url = $1, full_name = $2, headline = $3, current_company = $4,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $5 RETURNING *
+                    about = $5, location = $6, profile_image_url = $7,
+                    experience = $8, education = $9, skills = $10,
+                    timestamp = $11, data_source = $12, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = $13 RETURNING *
             `, [
                 processedData.linkedinUrl, processedData.fullName, 
-                processedData.headline, processedData.currentCompany, req.user.id
+                processedData.headline, processedData.currentCompany,
+                processedData.about, processedData.location, processedData.profileImageUrl,
+                JSON.stringify(processedData.experience), JSON.stringify(processedData.education),
+                JSON.stringify(processedData.skills), processedData.timestamp, processedData.dataSource,
+                req.user.id
             ]);
             profile = result.rows[0];
         } else {
-            // Create new profile - abbreviated for space
             const result = await client.query(`
-                INSERT INTO user_profiles (user_id, linkedin_url, full_name, headline, current_company) 
-                VALUES ($1, $2, $3, $4, $5) RETURNING *
+                INSERT INTO user_profiles (
+                    user_id, linkedin_url, full_name, headline, current_company,
+                    about, location, profile_image_url, experience, education, skills,
+                    timestamp, data_source
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *
             `, [
                 req.user.id, processedData.linkedinUrl, processedData.fullName,
-                processedData.headline, processedData.currentCompany
+                processedData.headline, processedData.currentCompany, processedData.about,
+                processedData.location, processedData.profileImageUrl,
+                JSON.stringify(processedData.experience), JSON.stringify(processedData.education),
+                JSON.stringify(processedData.skills), processedData.timestamp, processedData.dataSource
             ]);
             profile = result.rows[0];
         }
         
-        // ✅ CRITICAL FIX: Only update status fields AFTER confirming data was saved
         if (profile && profile.full_name) {
             await client.query(`
                 UPDATE user_profiles SET 
@@ -556,7 +519,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             
             await client.query('COMMIT');
             
-            console.log(`🎉 User profile successfully saved for user ${req.user.id}!`);
+            processingQueue.delete(req.user.id);
             
             res.json({
                 success: true,
@@ -568,7 +531,13 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                         fullName: profile.full_name,
                         headline: profile.headline,
                         currentCompany: profile.current_company,
+                        location: profile.location,
+                        profileImageUrl: profile.profile_image_url,
                         initialScrapingDone: true,
+                        extractionStatus: 'completed'
+                    },
+                    user: {
+                        profileCompleted: true,
                         extractionStatus: 'completed'
                     }
                 }
@@ -594,14 +563,995 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
     }
 });
 
-// Add other essential endpoints here (abbreviated for space)
-// Google OAuth, registration, login, packages, etc. would follow the same pattern
+app.post('/profile/target', authenticateToken, async (req, res) => {
+    try {
+        console.log(`🎯 Target profile scraping request from user ${req.user.id}`);
+        
+        const initialStatus = await pool.query(`
+            SELECT initial_scraping_done, data_extraction_status
+            FROM user_profiles 
+            WHERE user_id = $1
+        `, [req.user.id]);
+        
+        if (initialStatus.rows.length === 0 || !initialStatus.rows[0].initial_scraping_done) {
+            console.log(`🚫 User ${req.user.id} has not completed initial scraping`);
+            return res.status(403).json({
+                success: false,
+                error: 'Please complete your own profile scraping first before scraping target profiles',
+                code: 'INITIAL_SCRAPING_REQUIRED'
+            });
+        }
+        
+        const { profileData } = req.body;
+        
+        if (!profileData) {
+            return res.status(400).json({
+                success: false,
+                error: 'Profile data is required'
+            });
+        }
+        
+        if (!profileData.url && !profileData.linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required in profile data'
+            });
+        }
+        
+        const profileUrl = profileData.url || profileData.linkedinUrl;
+        const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
+        
+        if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid LinkedIn profile URL'
+            });
+        }
+        
+        const userLinkedInUrl = req.user.linkedin_url;
+        if (userLinkedInUrl) {
+            const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
+            
+            if (cleanUserUrl === cleanProfileUrl) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'This appears to be your own profile. Use /profile/user endpoint for your own profile.'
+                });
+            }
+        }
+        
+        const processedData = processScrapedProfileData(profileData, false);
+        processedData.linkedinUrl = cleanProfileUrl;
+        processedData.url = cleanProfileUrl;
+        
+        const existingTarget = await pool.query(
+            'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
+            [req.user.id, processedData.linkedinUrl]
+        );
+        
+        let targetProfile;
+        if (existingTarget.rows.length > 0) {
+            const result = await pool.query(`
+                UPDATE target_profiles SET 
+                    full_name = $1, headline = $2, current_company = $3, location = $4,
+                    profile_image_url = $5, experience = $6, education = $7, skills = $8,
+                    timestamp = $9, data_source = $10, scraped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = $11 AND linkedin_url = $12 RETURNING *
+            `, [
+                processedData.fullName, processedData.headline, processedData.currentCompany,
+                processedData.location, processedData.profileImageUrl,
+                JSON.stringify(processedData.experience), JSON.stringify(processedData.education),
+                JSON.stringify(processedData.skills), processedData.timestamp, processedData.dataSource,
+                req.user.id, processedData.linkedinUrl
+            ]);
+            targetProfile = result.rows[0];
+        } else {
+            const result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id, linkedin_url, full_name, headline, current_company,
+                    location, profile_image_url, experience, education, skills,
+                    timestamp, data_source
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+            `, [
+                req.user.id, processedData.linkedinUrl, processedData.fullName,
+                processedData.headline, processedData.currentCompany, processedData.location,
+                processedData.profileImageUrl, JSON.stringify(processedData.experience),
+                JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
+                processedData.timestamp, processedData.dataSource
+            ]);
+            targetProfile = result.rows[0];
+        }
+        
+        res.json({
+            success: true,
+            message: 'Target profile saved successfully!',
+            data: {
+                targetProfile: {
+                    id: targetProfile.id,
+                    linkedinUrl: targetProfile.linkedin_url,
+                    fullName: targetProfile.full_name,
+                    headline: targetProfile.headline,
+                    currentCompany: targetProfile.current_company,
+                    location: targetProfile.location,
+                    profileImageUrl: targetProfile.profile_image_url,
+                    scrapedAt: targetProfile.scraped_at
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Target profile scraping error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to save target profile',
+            details: error.message
+        });
+    }
+});
+
+// ==================== GOOGLE OAUTH ROUTES ====================
+
+app.get('/auth/google', (req, res, next) => {
+    if (req.query.package) {
+        req.session.selectedPackage = req.query.package;
+        req.session.billingModel = req.query.billing || 'monthly';
+    }
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'] 
+    })(req, res, next);
+});
+
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
+    async (req, res) => {
+        try {
+            const token = jwt.sign(
+                { userId: req.user.id, email: req.user.email },
+                JWT_SECRET,
+                { expiresIn: '30d' }
+            );
+            
+            req.session.selectedPackage = null;
+            req.session.billingModel = null;
+            
+            const needsOnboarding = req.user.isNewUser || 
+                                   !req.user.linkedin_url || 
+                                   !req.user.profile_completed ||
+                                   req.user.extraction_status === 'not_started';
+            
+            if (needsOnboarding) {
+                res.redirect(`/sign-up?token=${token}`);
+            } else {
+                res.redirect(`/dashboard?token=${token}`);
+            }
+            
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            res.redirect(`/login?error=callback_error`);
+        }
+    }
+);
+
+app.get('/auth/failed', (req, res) => {
+    res.redirect(`/login?error=auth_failed`);
+});
+
+// ==================== USER REGISTRATION & LOGIN ====================
+
+app.post('/register', async (req, res) => {
+    console.log('👤 Registration request:', req.body);
+    
+    try {
+        const { email, password, packageType, billingModel } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+        
+        if (!packageType) {
+            return res.status(400).json({
+                success: false,
+                error: 'Package selection is required'
+            });
+        }
+        
+        if (packageType !== 'free') {
+            return res.status(400).json({
+                success: false,
+                error: 'Only free package is available during beta'
+            });
+        }
+        
+        const existingUser = await getUserByEmail(email);
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                error: 'User already exists with this email'
+            });
+        }
+        
+        const passwordHash = await bcrypt.hash(password, 10);
+        const newUser = await createUser(email, passwordHash, packageType, billingModel || 'monthly');
+        
+        const token = jwt.sign(
+            { userId: newUser.id, email: newUser.email },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.status(201).json({
+            success: true,
+            message: 'User registered successfully',
+            data: {
+                user: {
+                    id: newUser.id,
+                    email: newUser.email,
+                    packageType: newUser.package_type,
+                    billingModel: newUser.billing_model,
+                    credits: newUser.credits_remaining,
+                    createdAt: newUser.created_at
+                },
+                token: token
+            }
+        });
+        
+        console.log(`✅ User registered: ${newUser.email}`);
+        
+    } catch (error) {
+        console.error('❌ Registration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Registration failed',
+            details: error.message
+        });
+    }
+});
+
+app.post('/login', async (req, res) => {
+    console.log('🔐 Login request for:', req.body.email);
+    
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+        
+        const user = await getUserByEmail(email);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password'
+            });
+        }
+        
+        if (!user.password_hash) {
+            return res.status(401).json({
+                success: false,
+                error: 'Please sign in with Google'
+            });
+        }
+        
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password'
+            });
+        }
+        
+        const token = jwt.sign(
+            { userId: user.id, email: user.email },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.json({
+            success: true,
+            message: 'Login successful',
+            data: {
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    displayName: user.display_name,
+                    profilePicture: user.profile_picture,
+                    packageType: user.package_type,
+                    billingModel: user.billing_model,
+                    credits: user.credits_remaining,
+                    subscriptionStatus: user.subscription_status,
+                    hasGoogleAccount: !!user.google_id
+                },
+                token: token
+            }
+        });
+        
+        console.log(`✅ User logged in: ${user.email}`);
+        
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Login failed',
+            details: error.message
+        });
+    }
+});
+
+app.post('/complete-registration', authenticateToken, async (req, res) => {
+    console.log('🎯 Complete registration request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType, termsAccepted } = req.body;
+        
+        if (!termsAccepted) {
+            return res.status(400).json({
+                success: false,
+                error: 'You must accept the Terms of Service and Privacy Policy'
+            });
+        }
+        
+        if (!linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required'
+            });
+        }
+        
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        if (packageType && packageType !== req.user.package_type) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Registration completed successfully! LinkedIn profile analysis started.',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: profile.data_extraction_status
+                },
+                automaticProcessing: {
+                    enabled: true,
+                    status: 'started',
+                    expectedCompletionTime: '5-10 minutes',
+                    message: 'Your LinkedIn profile is being analyzed in the background'
+                }
+            }
+        });
+        
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn extraction started!`);
+        
+    } catch (error) {
+        console.error('❌ Complete registration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Registration completion failed',
+            details: error.message
+        });
+    }
+});
+
+app.post('/update-profile', authenticateToken, async (req, res) => {
+    console.log('📝 Profile update request for user:', req.user.id);
+    
+    try {
+        const { linkedinUrl, packageType } = req.body;
+        
+        if (!linkedinUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required'
+            });
+        }
+        
+        if (!linkedinUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide a valid LinkedIn profile URL'
+            });
+        }
+        
+        if (packageType && packageType !== req.user.package_type) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            
+            await pool.query(
+                'UPDATE users SET package_type = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [packageType, req.user.id]
+            );
+        }
+        
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        const updatedUser = await getUserById(req.user.id);
+        
+        res.json({
+            success: true,
+            message: 'Profile updated - LinkedIn data extraction started with transaction management!',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining
+                },
+                profile: {
+                    linkedinUrl: profile.linkedin_url,
+                    fullName: profile.full_name,
+                    extractionStatus: profile.data_extraction_status
+                }
+            }
+        });
+        
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Transaction management applied!`);
+        
+    } catch (error) {
+        console.error('❌ Profile update error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update profile',
+            details: error.message
+        });
+    }
+});
+
+// ==================== OTHER ENDPOINTS ====================
+
+app.get('/profile', authenticateToken, async (req, res) => {
+    try {
+        const profileResult = await pool.query(`
+            SELECT 
+                up.*,
+                u.extraction_status as user_extraction_status,
+                u.profile_completed as user_profile_completed
+            FROM user_profiles up 
+            RIGHT JOIN users u ON u.id = up.user_id 
+            WHERE u.id = $1
+        `, [req.user.id]);
+        
+        const profile = profileResult.rows[0];
+
+        let syncStatus = {
+            isIncomplete: false,
+            missingFields: [],
+            extractionStatus: 'unknown',
+            initialScrapingDone: false
+        };
+
+        if (!profile || !profile.user_id) {
+            syncStatus = {
+                isIncomplete: true,
+                missingFields: ['complete_profile'],
+                extractionStatus: 'not_started',
+                initialScrapingDone: false,
+                reason: 'No profile data found'
+            };
+        } else {
+            const extractionStatus = profile.data_extraction_status || 'not_started';
+            const isProfileAnalyzed = profile.profile_analyzed || false;
+            const initialScrapingDone = profile.initial_scraping_done || false;
+            
+            const missingFields = [];
+            if (!profile.full_name) missingFields.push('full_name');
+            if (!profile.headline) missingFields.push('headline');  
+            if (!profile.current_company && !profile.current_position) missingFields.push('company_info');
+            if (!profile.location) missingFields.push('location');
+            
+            const isIncomplete = (
+                !initialScrapingDone ||
+                extractionStatus !== 'completed' ||
+                !isProfileAnalyzed ||
+                missingFields.length > 0 ||
+                processingQueue.has(req.user.id)
+            );
+            
+            syncStatus = {
+                isIncomplete: isIncomplete,
+                missingFields: missingFields,
+                extractionStatus: extractionStatus,
+                profileAnalyzed: isProfileAnalyzed,
+                initialScrapingDone: initialScrapingDone,
+                isCurrentlyProcessing: processingQueue.has(req.user.id),
+                reason: isIncomplete ? 
+                    `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
+                    'Profile complete and ready for target scraping'
+            };
+        }
+
+        res.json({
+            success: true,
+            data: {
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    displayName: req.user.display_name,
+                    profilePicture: req.user.profile_picture,
+                    packageType: req.user.package_type,
+                    billingModel: req.user.billing_model,
+                    credits: req.user.credits_remaining,
+                    subscriptionStatus: req.user.subscription_status,
+                    hasGoogleAccount: !!req.user.google_id,
+                    createdAt: req.user.created_at
+                },
+                profile: profile && profile.user_id ? {
+                    linkedinUrl: profile.linkedin_url,
+                    linkedinId: profile.linkedin_id,
+                    linkedinNumId: profile.linkedin_num_id,
+                    inputUrl: profile.input_url,
+                    url: profile.url,
+                    fullName: profile.full_name,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    headline: profile.headline,
+                    summary: profile.summary,
+                    about: profile.about,
+                    location: profile.location,
+                    city: profile.city,
+                    state: profile.state,
+                    country: profile.country,
+                    countryCode: profile.country_code,
+                    industry: profile.industry,
+                    currentCompany: profile.current_company,
+                    currentCompanyName: profile.current_company_name,
+                    currentCompanyId: profile.current_company_id,
+                    currentPosition: profile.current_position,
+                    connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
+                    connections: profile.connections,
+                    followers: profile.followers,
+                    recommendationsCount: profile.recommendations_count,
+                    profileImageUrl: profile.profile_image_url,
+                    avatar: profile.avatar,
+                    bannerImage: profile.banner_image,
+                    backgroundImageUrl: profile.background_image_url,
+                    publicIdentifier: profile.public_identifier,
+                    experience: profile.experience,
+                    education: profile.education,
+                    educationsDetails: profile.educations_details,
+                    skills: profile.skills,
+                    skillsWithEndorsements: profile.skills_with_endorsements,
+                    languages: profile.languages,
+                    certifications: profile.certifications,
+                    courses: profile.courses,
+                    projects: profile.projects,
+                    publications: profile.publications,
+                    patents: profile.patents,
+                    volunteerExperience: profile.volunteer_experience,
+                    volunteering: profile.volunteering,
+                    honorsAndAwards: profile.honors_and_awards,
+                    organizations: profile.organizations,
+                    recommendations: profile.recommendations,
+                    recommendationsGiven: profile.recommendations_given,
+                    recommendationsReceived: profile.recommendations_received,
+                    posts: profile.posts,
+                    activity: profile.activity,
+                    articles: profile.articles,
+                    peopleAlsoViewed: profile.people_also_viewed,
+                    timestamp: profile.timestamp,
+                    dataSource: profile.data_source,
+                    extractionStatus: profile.data_extraction_status,
+                    extractionAttempted: profile.extraction_attempted_at,
+                    extractionCompleted: profile.extraction_completed_at,
+                    extractionError: profile.extraction_error,
+                    extractionRetryCount: profile.extraction_retry_count,
+                    profileAnalyzed: profile.profile_analyzed,
+                    initialScrapingDone: profile.initial_scraping_done
+                } : null,
+                syncStatus: syncStatus
+            }
+        });
+    } catch (error) {
+        console.error('❌ Profile fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch profile'
+        });
+    }
+});
+
+app.get('/profile-status', authenticateToken, async (req, res) => {
+    try {
+        const userQuery = `
+            SELECT 
+                u.extraction_status,
+                u.error_message,
+                u.profile_completed,
+                u.linkedin_url,
+                up.data_extraction_status,
+                up.extraction_completed_at,
+                up.extraction_retry_count,
+                up.extraction_error,
+                up.initial_scraping_done
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.id = $1
+        `;
+        
+        const result = await pool.query(userQuery, [req.user.id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const status = result.rows[0];
+        
+        res.json({
+            extraction_status: status.extraction_status,
+            profile_completed: status.profile_completed,
+            linkedin_url: status.linkedin_url,
+            error_message: status.error_message,
+            data_extraction_status: status.data_extraction_status,
+            extraction_completed_at: status.extraction_completed_at,
+            extraction_retry_count: status.extraction_retry_count,
+            extraction_error: status.extraction_error,
+            initial_scraping_done: status.initial_scraping_done || false,
+            is_currently_processing: processingQueue.has(req.user.id),
+            message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
+        });
+        
+    } catch (error) {
+        console.error('Status check error:', error);
+        res.status(500).json({ error: 'Status check failed' });
+    }
+});
+
+const getStatusMessage = (status, initialScrapingDone = false) => {
+    switch (status) {
+        case 'not_started':
+            return 'LinkedIn extraction not started - please complete initial profile setup';
+        case 'processing':
+            return 'LinkedIn profile extraction in progress with transaction management...';
+        case 'completed':
+            return initialScrapingDone ? 
+                'LinkedIn profile extraction completed! You can now scrape target profiles.' :
+                'LinkedIn profile extraction completed successfully with transaction management!';
+        case 'failed':
+            return 'LinkedIn profile extraction failed';
+        default:
+            return 'Unknown status';
+    }
+};
+
+app.post('/retry-extraction', authenticateToken, async (req, res) => {
+    try {
+        const userResult = await pool.query(
+            'SELECT linkedin_url FROM users WHERE id = $1',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0 || !userResult.rows[0].linkedin_url) {
+            return res.status(400).json({ error: 'No LinkedIn URL found for retry' });
+        }
+        
+        const linkedinUrl = userResult.rows[0].linkedin_url;
+        
+        const profile = await createOrUpdateUserProfile(
+            req.user.id, 
+            linkedinUrl, 
+            req.user.display_name
+        );
+        
+        res.json({
+            success: true,
+            message: 'LinkedIn extraction retry initiated with transaction management!',
+            status: 'processing'
+        });
+        
+    } catch (error) {
+        console.error('Retry extraction error:', error);
+        res.status(500).json({ error: 'Retry failed' });
+    }
+});
+
+app.get('/packages', (req, res) => {
+    const packages = {
+        payAsYouGo: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 10,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '10 free profiles forever',
+                features: ['10 Credits per month', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                available: true
+            },
+            {
+                id: 'silver',
+                name: 'Silver',
+                credits: 75,
+                price: 12,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['75 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'gold',
+                name: 'Gold',
+                credits: 250,
+                price: 35,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['250 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'platinum',
+                name: 'Platinum',
+                credits: 1000,
+                price: 70,
+                period: '/one-time',
+                billing: 'payAsYouGo',
+                validity: 'Credits never expire',
+                features: ['1,000 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                available: false,
+                comingSoon: true
+            }
+        ],
+        monthly: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 10,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '10 free profiles forever',
+                features: ['10 Credits per month', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                available: true
+            },
+            {
+                id: 'silver',
+                name: 'Silver',
+                credits: 75,
+                price: 8.60,
+                period: '/month',
+                billing: 'monthly',
+                validity: '7-day free trial included',
+                features: ['75 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'gold',
+                name: 'Gold',
+                credits: 250,
+                price: 25.20,
+                period: '/month',
+                billing: 'monthly',
+                validity: '7-day free trial included',
+                features: ['250 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                available: false,
+                comingSoon: true
+            },
+            {
+                id: 'platinum',
+                name: 'Platinum',
+                credits: 1000,
+                price: 50.40,
+                period: '/month',
+                billing: 'monthly',
+                validity: '7-day free trial included',
+                features: ['1,000 Credits', 'Chrome extension', 'AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                available: false,
+                comingSoon: true
+            }
+        ]
+    };
+    
+    res.json({
+        success: true,
+        data: { packages }
+    });
+});
+
+app.post('/generate-message', authenticateToken, async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        console.log(`🤖 Message generation request from user ${req.user.id}`);
+        
+        const { targetProfile, context, messageType } = req.body;
+        
+        if (!targetProfile) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile is required'
+            });
+        }
+        
+        if (!context) {
+            return res.status(400).json({
+                success: false,
+                error: 'Message context is required'
+            });
+        }
+        
+        await client.query('BEGIN');
+        
+        const userResult = await client.query(
+            'SELECT credits_remaining FROM users WHERE id = $1 FOR UPDATE',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const currentCredits = userResult.rows[0].credits_remaining;
+        
+        if (currentCredits <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+                success: false,
+                error: 'Insufficient credits. Please upgrade your plan.'
+            });
+        }
+        
+        const newCredits = currentCredits - 1;
+        await client.query(
+            'UPDATE users SET credits_remaining = $1 WHERE id = $2',
+            [newCredits, req.user.id]
+        );
+        
+        await client.query(
+            'INSERT INTO credits_transactions (user_id, transaction_type, credits_change, description) VALUES ($1, $2, $3, $4)',
+            [req.user.id, 'message_generation', -1, `Generated message for ${targetProfile.fullName || 'Unknown'}`]
+        );
+        
+        await client.query('COMMIT');
+        
+        console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
+        
+        const userProfileResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        const userProfile = userProfileResult.rows[0] || {};
+        
+        const messageResult = await generateMessage({
+            userProfile,
+            targetProfile,
+            context,
+            messageType
+        });
+        
+        await pool.query(
+            'INSERT INTO message_logs (user_id, target_name, target_url, generated_message, message_context, credits_used) VALUES ($1, $2, $3, $4, $5, $6)',
+            [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, messageResult.message, context, 1]
+        );
+        
+        console.log(`✅ Message generated successfully for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            message: 'Message generated successfully',
+            data: {
+                message: messageResult.message,
+                score: messageResult.score,
+                user: {
+                    credits: newCredits
+                },
+                usage: {
+                    creditsUsed: 1,
+                    remainingCredits: newCredits
+                },
+                metadata: messageResult.metadata
+            }
+        });
+        
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('❌ Rollback error:', rollbackError);
+        }
+        
+        console.error('❌ Message generation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to generate message',
+            details: error.message
+        });
+    } finally {
+        client.release();
+    }
+});
 
 // Error handling
 app.use((req, res, next) => {
     res.status(404).json({
         error: 'Route not found',
-        version: 'MODULAR_REFACTOR_COMPLETE'
+        version: 'MODULAR_REFACTOR_COMPLETE_FIXED',
+        availableRoutes: [
+            'GET /',
+            'GET /sign-up', 
+            'GET /login',
+            'GET /dashboard',
+            'POST /register',
+            'POST /login',
+            'GET /auth/google',
+            'GET /auth/google/callback',
+            'POST /auth/chrome-extension',
+            'GET /profile',
+            'POST /profile/user',
+            'POST /profile/target',
+            'POST /update-profile',
+            'POST /complete-registration',
+            'GET /profile-status',
+            'GET /user/initial-scraping-status',
+            'POST /retry-extraction',
+            'POST /generate-message',
+            'GET /packages',
+            'GET /health'
+        ]
+    });
+});
+
+app.use((error, req, res, next) => {
+    console.error('❌ Error:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Server error'
     });
 });
 
@@ -614,6 +1564,10 @@ const validateEnvironment = () => {
     if (missing.length > 0) {
         console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
         process.exit(1);
+    }
+    
+    if (!BRIGHT_DATA_API_KEY) {
+        console.warn('⚠️ Warning: BRIGHT_DATA_API_KEY not set - profile extraction will fail');
     }
     
     console.log('✅ Environment validated');
@@ -642,15 +1596,19 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - MODULAR REFACTOR COMPLETE!');
+            console.log('🚀 Msgly.AI Server - MODULAR REFACTOR COMPLETE & FIXED!');
             console.log(`📍 Port: ${PORT}`);
+            console.log(`🗃️ Database: Connected with transaction management`);
+            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
+            console.log(`🔍 Bright Data: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ⚠️'}`);
+            console.log(`🤖 Background Processing: ENABLED ✅`);
             console.log(`🧩 MODULAR STRUCTURE ACTIVE:`);
             console.log(`   ✅ db.js - Database functions and connection`);
             console.log(`   ✅ utils/helpers.js - Utility functions`);
             console.log(`   ✅ services/linkedinService.js - LinkedIn scraping logic`);
             console.log(`   ✅ services/openaiService.js - AI message generation`);
-            console.log(`   ✅ server.js - Slim Express entry point`);
-            console.log(`🎯 Status: MODULAR REFACTOR COMPLETE ✓`);
+            console.log(`   ✅ server.js - COMPLETE with ALL routes`);
+            console.log(`🎯 Status: MODULAR REFACTOR COMPLETE & GOOGLE AUTH FIXED ✓`);
         });
         
     } catch (error) {
