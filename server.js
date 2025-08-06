@@ -1,4 +1,4 @@
-// Msgly.AI Server - UPDATED: DCA API Integration for Complete LinkedIn Profile Extraction
+// Msgly.AI Server - FULLY CLEANED: All Bright Data Integration Removed
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -22,19 +22,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
-// ✅ UPDATED: Bright Data Configuration - DCA API Integration
-const BRIGHT_DATA_API_KEY = process.env.BRIGHT_DATA_API_KEY || process.env.BRIGHT_DATA_API_TOKEN || 'brd-t6dqfwj2p8p-ac38c-b1l9-1f98-79e9-d8ceb4fd3c70_b59b8c39-8e9f-4db5-9bea-92e8b9e8b8b0';
-const BRIGHT_DATA_COLLECTOR_ID = process.env.BRIGHT_DATA_COLLECTOR_ID; // ✅ NEW: DCA Collector ID
-const BRIGHT_DATA_DATASET_ID = process.env.BRIGHT_DATA_DATASET_ID || 'gd_l1viktl72bvl7bjuj0'; // ✅ KEPT: For fallback if needed
-
 // Database connection
 const pool = new Pool({
     connectionString: DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
-
-// Background processing tracking
-const processingQueue = new Map();
 
 // ✅ CRITICAL FIX: LinkedIn URL Normalization Utility (matches frontend logic exactly)
 const cleanLinkedInUrl = (url) => {
@@ -222,7 +214,7 @@ const initDB = async () => {
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
                 
-                -- ✅ NEW FIELD: Initial scraping completion flag
+                -- ✅ Initial scraping completion flag
                 initial_scraping_done BOOLEAN DEFAULT false,
                 
                 -- Basic Profile Information
@@ -295,7 +287,6 @@ const initDB = async () => {
                 people_also_viewed JSONB DEFAULT '[]'::JSONB,
                 
                 -- Metadata
-                brightdata_data JSONB,
                 timestamp TIMESTAMP,
                 data_source VARCHAR(100),
                 data_extraction_status VARCHAR(50) DEFAULT 'pending',
@@ -311,7 +302,6 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ NEW TABLE: Target profiles (scraped after initial setup)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS target_profiles (
                 id SERIAL PRIMARY KEY,
@@ -387,7 +377,6 @@ const initDB = async () => {
                 people_also_viewed JSONB DEFAULT '[]'::JSONB,
                 
                 -- Metadata
-                brightdata_data JSONB,
                 timestamp TIMESTAMP DEFAULT NOW(),
                 data_source VARCHAR(100) DEFAULT 'chrome_extension',
                 scraped_at TIMESTAMP DEFAULT NOW(),
@@ -420,17 +409,6 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ NEW TABLE: Raw snapshots for Gemini integration
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS raw_snapshots (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                snapshot_type VARCHAR(50) DEFAULT 'bright_data',
-                raw_json JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
         // Add missing columns if they don't exist
         try {
             await pool.query(`
@@ -451,7 +429,6 @@ const initDB = async () => {
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
 
-            // ✅ Add initial_scraping_done to existing user_profiles if it doesn't exist
             await pool.query(`
                 ALTER TABLE user_profiles 
                 ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false;
@@ -478,9 +455,6 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url ON target_profiles(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_scraped_at ON target_profiles(scraped_at);
-                CREATE INDEX IF NOT EXISTS idx_raw_snapshots_user_id ON raw_snapshots(user_id);
-                CREATE INDEX IF NOT EXISTS idx_raw_snapshots_created_at ON raw_snapshots(created_at);
-                CREATE INDEX IF NOT EXISTS idx_raw_snapshots_snapshot_type ON raw_snapshots(snapshot_type);
             `);
             console.log('✅ Created database indexes');
         } catch (err) {
@@ -494,464 +468,7 @@ const initDB = async () => {
     }
 };
 
-// ==================== LINKEDIN DATA PROCESSING ====================
-
-// ✅ NEW: DCA API Data Quality Validation Functions
-const validateLinkedInProfileCompleteness = (profileData) => {
-    try {
-        if (!profileData) {
-            return {
-                isComplete: false,
-                completenessScore: 0,
-                missingFields: ['no_data'],
-                extractedFields: 0,
-                totalFields: 30
-            };
-        }
-
-        const requiredFields = [
-            'fullName', 'headline', 'about', 'location', 'industry',
-            'currentCompany', 'currentPosition', 'profileImageUrl',
-            'experience', 'education', 'skills'
-        ];
-
-        const optionalFields = [
-            'connectionsCount', 'followersCount', 'certifications',
-            'courses', 'projects', 'languages', 'volunteerExperience',
-            'publications', 'patents', 'honorsAndAwards', 'organizations',
-            'recommendations', 'posts', 'activity', 'articles',
-            'peopleAlsoViewed', 'linkedinId', 'publicIdentifier'
-        ];
-
-        const allFields = [...requiredFields, ...optionalFields];
-        let extractedFields = 0;
-        const missingFields = [];
-
-        // Check required fields
-        for (const field of requiredFields) {
-            if (profileData[field] && 
-                (typeof profileData[field] === 'string' ? profileData[field].trim() : true) &&
-                (Array.isArray(profileData[field]) ? profileData[field].length > 0 : true)) {
-                extractedFields++;
-            } else {
-                missingFields.push(field);
-            }
-        }
-
-        // Check optional fields
-        for (const field of optionalFields) {
-            if (profileData[field] && 
-                (typeof profileData[field] === 'string' ? profileData[field].trim() : true) &&
-                (Array.isArray(profileData[field]) ? profileData[field].length > 0 : true)) {
-                extractedFields++;
-            }
-        }
-
-        const completenessScore = Math.round((extractedFields / allFields.length) * 100);
-        const isComplete = extractedFields >= 8 && // At least 8 fields including key ones
-                          profileData.fullName && 
-                          profileData.headline && 
-                          (profileData.currentCompany || profileData.currentPosition);
-
-        return {
-            isComplete,
-            completenessScore,
-            missingFields,
-            extractedFields,
-            totalFields: allFields.length
-        };
-
-    } catch (error) {
-        console.error('❌ Error validating profile completeness:', error);
-        return {
-            isComplete: false,
-            completenessScore: 0,
-            missingFields: ['validation_error'],
-            extractedFields: 0,
-            totalFields: 30
-        };
-    }
-};
-
-const processCompleteLinkedInProfile = (rawData) => {
-    try {
-        if (!rawData) {
-            throw new Error('No raw data provided for processing');
-        }
-
-        console.log('📊 Processing complete LinkedIn profile data...');
-
-        // Handle different data structures from Bright Data
-        let data = rawData;
-        if (Array.isArray(rawData)) {
-            data = rawData[0] || {};
-        }
-        if (rawData.data && Array.isArray(rawData.data)) {
-            data = rawData.data[0] || {};
-        }
-
-        // Extract all possible LinkedIn profile fields
-        const processedProfile = {
-            // Basic Information
-            linkedinId: data.linkedin_id || data.linkedinId || data.id || null,
-            linkedinNumId: data.linkedin_num_id || data.linkedinNumId || data.numId || null,
-            inputUrl: data.input_url || data.inputUrl || data.url || null,
-            url: data.url || data.linkedinUrl || null,
-            fullName: data.full_name || data.fullName || data.name || null,
-            firstName: data.first_name || data.firstName || null,
-            lastName: data.last_name || data.lastName || null,
-            headline: data.headline || null,
-            about: data.about || data.summary || null,
-
-            // Location Information
-            location: data.location || null,
-            city: data.city || null,
-            state: data.state || null,
-            country: data.country || null,
-            countryCode: data.country_code || data.countryCode || null,
-
-            // Professional Information
-            industry: data.industry || null,
-            currentCompany: data.current_company || data.currentCompany || data.company || null,
-            currentCompanyName: data.current_company_name || data.currentCompanyName || null,
-            currentCompanyId: data.current_company_id || data.currentCompanyId || null,
-            currentCompanyCompanyId: data.current_company_company_id || data.currentCompanyCompanyId || null,
-            currentPosition: data.current_position || data.currentPosition || data.position || null,
-
-            // Metrics
-            connectionsCount: data.connections_count || data.connectionsCount || data.connections || null,
-            followersCount: data.followers_count || data.followersCount || data.followers || null,
-            connections: data.connections || data.connections_count || null,
-            followers: data.followers || data.followers_count || null,
-            recommendationsCount: data.recommendations_count || data.recommendationsCount || null,
-
-            // Media
-            profileImageUrl: data.profile_image_url || data.profileImageUrl || data.avatar || data.profile_picture || null,
-            avatar: data.avatar || data.profile_image_url || null,
-            bannerImage: data.banner_image || data.bannerImage || data.background_image || null,
-            backgroundImageUrl: data.background_image_url || data.backgroundImageUrl || null,
-
-            // Identifiers
-            publicIdentifier: data.public_identifier || data.publicIdentifier || null,
-
-            // Complex Data Arrays - Ensure they're arrays
-            experience: Array.isArray(data.experience) ? data.experience : 
-                       (data.experience ? [data.experience] : []),
-            education: Array.isArray(data.education) ? data.education : 
-                      (data.education ? [data.education] : []),
-            educationsDetails: Array.isArray(data.educations_details) ? data.educations_details : 
-                              (data.educations_details ? [data.educations_details] : []),
-            skills: Array.isArray(data.skills) ? data.skills : 
-                   (data.skills ? [data.skills] : []),
-            skillsWithEndorsements: Array.isArray(data.skills_with_endorsements) ? data.skills_with_endorsements : 
-                                   (data.skills_with_endorsements ? [data.skills_with_endorsements] : []),
-            languages: Array.isArray(data.languages) ? data.languages : 
-                      (data.languages ? [data.languages] : []),
-            certifications: Array.isArray(data.certifications) ? data.certifications : 
-                           (data.certifications ? [data.certifications] : []),
-            courses: Array.isArray(data.courses) ? data.courses : 
-                    (data.courses ? [data.courses] : []),
-            projects: Array.isArray(data.projects) ? data.projects : 
-                     (data.projects ? [data.projects] : []),
-            publications: Array.isArray(data.publications) ? data.publications : 
-                         (data.publications ? [data.publications] : []),
-            patents: Array.isArray(data.patents) ? data.patents : 
-                    (data.patents ? [data.patents] : []),
-            volunteerExperience: Array.isArray(data.volunteer_experience) ? data.volunteer_experience : 
-                                (data.volunteer_experience ? [data.volunteer_experience] : []),
-            volunteering: Array.isArray(data.volunteering) ? data.volunteering : 
-                         (data.volunteering ? [data.volunteering] : []),
-            honorsAndAwards: Array.isArray(data.honors_and_awards) ? data.honors_and_awards : 
-                            (data.honors_and_awards ? [data.honors_and_awards] : []),
-            organizations: Array.isArray(data.organizations) ? data.organizations : 
-                          (data.organizations ? [data.organizations] : []),
-            recommendations: Array.isArray(data.recommendations) ? data.recommendations : 
-                            (data.recommendations ? [data.recommendations] : []),
-            recommendationsGiven: Array.isArray(data.recommendations_given) ? data.recommendations_given : 
-                                 (data.recommendations_given ? [data.recommendations_given] : []),
-            recommendationsReceived: Array.isArray(data.recommendations_received) ? data.recommendations_received : 
-                                    (data.recommendations_received ? [data.recommendations_received] : []),
-            posts: Array.isArray(data.posts) ? data.posts : 
-                  (data.posts ? [data.posts] : []),
-            activity: Array.isArray(data.activity) ? data.activity : 
-                     (data.activity ? [data.activity] : []),
-            articles: Array.isArray(data.articles) ? data.articles : 
-                     (data.articles ? [data.articles] : []),
-            peopleAlsoViewed: Array.isArray(data.people_also_viewed) ? data.people_also_viewed : 
-                             (data.people_also_viewed ? [data.people_also_viewed] : []),
-
-            // Metadata
-            timestamp: new Date(),
-            dataSource: 'bright_data_dca'
-        };
-
-        console.log('✅ Complete LinkedIn profile processed successfully');
-        console.log(`📊 Profile summary: ${processedProfile.fullName} at ${processedProfile.currentCompany}`);
-        console.log(`📊 Experience entries: ${processedProfile.experience.length}`);
-        console.log(`📊 Education entries: ${processedProfile.education.length}`);
-        console.log(`📊 Skills: ${processedProfile.skills.length}`);
-
-        return processedProfile;
-
-    } catch (error) {
-        console.error('❌ Error processing complete profile:', error);
-        throw new Error(`Profile processing failed: ${error.message}`);
-    }
-};
-
-// ✅ UPDATED: LinkedIn Profile Extraction - DCA API Implementation
-const extractLinkedInProfileComplete = async (linkedinUrl) => {
-    try {
-        console.log('🚀 Starting DCA LinkedIn profile extraction...');
-        console.log('🔗 LinkedIn URL:', linkedinUrl);
-        console.log('🆔 Collector ID:', BRIGHT_DATA_COLLECTOR_ID);
-
-        // Check if collector ID is configured
-        if (!BRIGHT_DATA_COLLECTOR_ID) {
-            console.log('⚠️ DCA Collector ID not found, falling back to Dataset API...');
-            return await extractLinkedInProfileDatasetFallback(linkedinUrl);
-        }
-
-        // ✅ STEP 1: Trigger DCA Collection
-        console.log('📡 Triggering DCA LinkedIn collector...');
-        
-        const triggerUrl = `https://api.brightdata.com/dca/trigger?collector=${BRIGHT_DATA_COLLECTOR_ID}`;
-        const triggerPayload = {
-            url: linkedinUrl,
-            geo: "us",
-            premium_proxy: true,
-            parse: true,
-            custom_headers: {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-            }
-        };
-
-        const triggerResponse = await axios.post(triggerUrl, triggerPayload, {
-            headers: {
-                'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000
-        });
-
-        if (!triggerResponse.data || !triggerResponse.data.request_id) {
-            throw new Error('No request_id returned from DCA trigger API');
-        }
-
-        const requestId = triggerResponse.data.request_id;
-        console.log('🆔 Request ID:', requestId);
-
-        // ✅ STEP 2: Poll for Results
-        const maxAttempts = 40;
-        let attempt = 0;
-        
-        while (attempt < maxAttempts) {
-            attempt++;
-            console.log(`🔄 DCA polling attempt ${attempt}/${maxAttempts}...`);
-            
-            try {
-                const resultsUrl = `https://api.brightdata.com/dca/results?collector=${BRIGHT_DATA_COLLECTOR_ID}&request_id=${requestId}`;
-                
-                const pollResponse = await axios.get(resultsUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 15000
-                });
-
-                console.log(`📊 DCA polling response status:`, pollResponse.status);
-                
-                // Check if we have results
-                if (pollResponse.status === 200 && pollResponse.data) {
-                    if (Array.isArray(pollResponse.data) && pollResponse.data.length > 0) {
-                        console.log('✅ DCA LinkedIn data is ready!');
-                        const profileData = pollResponse.data[0];
-                        
-                        return {
-                            success: true,
-                            rawData: profileData,
-                            method: 'dca_api',
-                            requestId: requestId,
-                            message: 'LinkedIn profile extracted successfully via DCA API'
-                        };
-                    } else if (pollResponse.data && typeof pollResponse.data === 'object' && !Array.isArray(pollResponse.data)) {
-                        console.log('✅ DCA LinkedIn data is ready!');
-                        
-                        return {
-                            success: true,
-                            rawData: pollResponse.data,
-                            method: 'dca_api',
-                            requestId: requestId,
-                            message: 'LinkedIn profile extracted successfully via DCA API'
-                        };
-                    }
-                }
-                
-                console.log(`⏳ DCA still processing... (Attempt ${attempt})`);
-                const waitTime = attempt > 20 ? 12000 : 8000;
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-                
-            } catch (pollError) {
-                console.error(`❌ DCA polling attempt ${attempt} failed:`, pollError.message);
-                
-                if (pollError.code === 'ECONNABORTED' || pollError.code === 'ENOTFOUND') {
-                    console.log('⏳ Network issue, retrying...');
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    continue;
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 8000));
-            }
-        }
-        
-        throw new Error(`DCA polling timeout - LinkedIn extraction took longer than ${maxAttempts * 8} seconds`);
-        
-    } catch (error) {
-        console.error('❌ DCA LinkedIn extraction failed:', error);
-        console.log('🔄 Falling back to Dataset API...');
-        
-        // Fallback to original dataset API if DCA fails
-        return await extractLinkedInProfileDatasetFallback(linkedinUrl);
-    }
-};
-
-// ✅ KEPT: Original Dataset API as Fallback
-const extractLinkedInProfileDatasetFallback = async (linkedinUrl) => {
-    try {
-        console.log('🔄 Using Dataset API fallback...');
-        
-        // OPTION 1: Try synchronous scrape first
-        console.log('🔄 Attempting synchronous extraction...');
-        try {
-            const syncResponse = await axios.post(
-                `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`,
-                [{ "url": linkedinUrl }],
-                {
-                    headers: {
-                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 120000
-                }
-            );
-            
-            if (syncResponse.status === 200 && syncResponse.data && syncResponse.data.length > 0) {
-                console.log('✅ Synchronous extraction successful!');
-                const profileData = Array.isArray(syncResponse.data) ? syncResponse.data[0] : syncResponse.data;
-                
-                return {
-                    success: true,
-                    rawData: profileData,
-                    method: 'dataset_synchronous',
-                    message: 'LinkedIn profile extracted successfully (synchronous fallback)'
-                };
-            }
-        } catch (syncError) {
-            console.log('⏩ Synchronous method not available, falling back to async...');
-        }
-        
-        // OPTION 2: Async method
-        const triggerUrl = `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json`;
-        const triggerPayload = [{ "url": linkedinUrl }];
-        
-        console.log('📡 Triggering LinkedIn scraper...');
-        const triggerResponse = await axios.post(triggerUrl, triggerPayload, {
-            headers: {
-                'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000
-        });
-        
-        if (!triggerResponse.data || !triggerResponse.data.snapshot_id) {
-            throw new Error('No snapshot ID returned from Bright Data API');
-        }
-        
-        const snapshotId = triggerResponse.data.snapshot_id;
-        console.log('🆔 Snapshot ID:', snapshotId);
-        
-        // Polling for results
-        const maxAttempts = 40;
-        let attempt = 0;
-        
-        while (attempt < maxAttempts) {
-            attempt++;
-            console.log(`🔄 Polling attempt ${attempt}/${maxAttempts}...`);
-            
-            try {
-                const statusUrl = `https://api.brightdata.com/datasets/v3/log/${snapshotId}`;
-                
-                const pollResponse = await axios.get(statusUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 15000
-                });
-                
-                const status = pollResponse.data?.Status || pollResponse.data?.status;
-                console.log(`📈 Snapshot status: ${status}`);
-                
-                if (status === 'ready') {
-                    console.log('✅ LinkedIn data is ready! Downloading...');
-                    
-                    const dataUrl = `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`;
-                    
-                    const dataResponse = await axios.get(dataUrl, {
-                        headers: {
-                            'Authorization': `Bearer ${BRIGHT_DATA_API_KEY}`,
-                            'Content-Type': 'application/json'
-                        },
-                        timeout: 30000
-                    });
-                    
-                    console.log('📥 Downloaded LinkedIn profile data successfully');
-                    
-                    if (dataResponse.data) {
-                        const profileData = Array.isArray(dataResponse.data) ? dataResponse.data[0] : dataResponse.data;
-                        
-                        return {
-                            success: true,
-                            rawData: profileData,
-                            method: 'dataset_asynchronous',
-                            snapshotId: snapshotId,
-                            message: 'LinkedIn profile extracted successfully (asynchronous fallback)'
-                        };
-                    } else {
-                        throw new Error('No data returned from snapshot');
-                    }
-                    
-                } else if (status === 'error' || status === 'failed') {
-                    throw new Error(`LinkedIn extraction failed with status: ${status}`);
-                } else {
-                    console.log(`⏳ Still processing... (Status: ${status || 'unknown'})`);
-                    const waitTime = attempt > 20 ? 12000 : 8000;
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                }
-                
-            } catch (pollError) {
-                console.error(`❌ Polling attempt ${attempt} failed:`, pollError.message);
-                
-                if (pollError.code === 'ECONNABORTED' || pollError.code === 'ENOTFOUND') {
-                    console.log('⏳ Network issue, retrying...');
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    continue;
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 8000));
-            }
-        }
-        
-        throw new Error(`Polling timeout - LinkedIn extraction took longer than ${maxAttempts * 8} seconds`);
-        
-    } catch (error) {
-        console.error('❌ Dataset fallback extraction failed:', error);
-        throw new Error(`LinkedIn extraction failed: ${error.message}`);
-    }
-};
-
-// ✅ FALLBACK FUNCTIONS - Only used for Chrome extension compatibility
+// ==================== HELPER FUNCTIONS ====================
 
 // JSON validation and sanitization
 const sanitizeForJSON = (data) => {
@@ -1050,310 +567,6 @@ const parseLinkedInNumber = (str) => {
         console.error('Error parsing LinkedIn number:', str, error);
         return null;
     }
-};
-
-// ✅ UPDATED: Background processing with DCA API and improved Gemini debugging
-const scheduleBackgroundExtraction = async (userId, linkedinUrl, retryCount = 0) => {
-    const maxRetries = 3;
-    const retryDelay = 300000; // 5 minutes
-    
-    console.log(`🔄 Scheduling DCA background extraction for user ${userId}, retry ${retryCount}`);
-    
-    if (retryCount >= maxRetries) {
-        console.log(`❌ Max retries (${maxRetries}) reached for user ${userId}`);
-        
-        // ✅ FIXED: Use transaction for failure updates
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            
-            await client.query(
-                'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, initial_scraping_done = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
-                ['failed', `Max retries (${maxRetries}) exceeded - Gemini processing required`, false, userId]
-            );
-            await client.query(
-                'UPDATE users SET extraction_status = $1, error_message = $2, profile_completed = $3 WHERE id = $4',
-                ['failed', `Max retries (${maxRetries}) exceeded - Gemini processing required`, false, userId]
-            );
-            
-            await client.query('COMMIT');
-            console.log(`✅ Failure status committed to database for user ${userId}`);
-            
-        } catch (error) {
-            await client.query('ROLLBACK');
-            console.error(`❌ Failed to update failure status for user ${userId}:`, error);
-        } finally {
-            client.release();
-        }
-        
-        processingQueue.delete(userId);
-        return;
-    }
-
-    setTimeout(async () => {
-        const client = await pool.connect();
-        
-        try {
-            console.log(`🚀 Starting DCA background extraction for user ${userId} (Retry ${retryCount})`);
-            
-            // ✅ STEP 1: Extract raw data from Bright Data DCA API first
-            const result = await extractLinkedInProfileComplete(linkedinUrl);
-            console.log(`✅ Bright Data DCA extraction succeeded for user ${userId}`);
-            console.log(`📊 Method used: ${result.method}`);
-            
-            // ✅ CRITICAL FIX: Save raw snapshot first (always preserve data) - OUTSIDE transaction
-            await pool.query(
-                'INSERT INTO raw_snapshots (user_id, snapshot_type, raw_json) VALUES ($1, $2, $3)',
-                [userId, result.method || 'bright_data_dca', JSON.stringify(result.rawData)]
-            );
-            console.log(`💾 Raw DCA data saved for user ${userId}`);
-            
-            // ✅ DEBUG: Read back from DB to confirm
-            const { rows } = await pool.query(
-                'SELECT raw_json FROM raw_snapshots WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
-                [userId]
-            );
-            
-            if (!rows || !rows[0] || !rows[0].raw_json) {
-                console.error(`❌ Could not retrieve raw snapshot for user ${userId}`);
-                throw new Error('Raw Bright Data DCA snapshot missing from DB');
-            }
-            
-            const rawJson = rows[0].raw_json;
-            
-            // ✅ GEMINI DEBUG START
-            console.log(`🧠 Sending raw DCA snapshot to Gemini for user ${userId}`);
-            console.log('📦 DCA snapshot preview (first 500 chars):', JSON.stringify(rawJson).slice(0, 500));
-            
-            let extractedData;
-            try {
-                extractedData = await sendToGemini(rawJson);
-                console.log(`✅ Gemini processing successful for user ${userId}`);
-                
-                // ✅ NEW: Validate data quality from Gemini
-                const dataQuality = validateLinkedInProfileCompleteness(extractedData);
-                console.log(`📊 Data quality analysis for user ${userId}:`, dataQuality);
-                
-                if (!dataQuality.isComplete) {
-                    console.log(`⚠️ Data quality warning for user ${userId}: Completeness score ${dataQuality.completenessScore}%`);
-                }
-                
-            } catch (geminiError) {
-                console.error(`❌ Gemini processing failed for user ${userId}:`, geminiError.message);
-                throw new Error(`Gemini processing error: ${geminiError.message}`);
-            }
-            // ✅ GEMINI DEBUG END
-            
-            // ✅ STEP 2: Now start transaction for processing
-            await client.query('BEGIN');
-            
-            await client.query(
-                'UPDATE user_profiles SET extraction_retry_count = $1, extraction_attempted_at = CURRENT_TIMESTAMP WHERE user_id = $2',
-                [retryCount, userId]
-            );
-            
-            // ✅ CRITICAL FIX: Validate extracted data BEFORE updating database status
-            console.log(`📊 Data validation for user ${userId}:`);
-            console.log(`   - Full Name: ${extractedData.fullName || 'Not available'}`);
-            console.log(`   - Headline: ${extractedData.headline || 'Not available'}`);
-            console.log(`   - Current Company: ${extractedData.currentCompany || 'Not available'}`);
-            console.log(`   - Experience: ${extractedData.experience?.length || 0} entries`);
-            console.log(`   - Education: ${extractedData.education?.length || 0} entries`);
-            console.log(`   - Skills: ${extractedData.skills?.length || 0} entries`);
-            
-            // ✅ FIXED: Only proceed if we have meaningful data
-            if (!extractedData.fullName && !extractedData.headline && !extractedData.currentCompany) {
-                throw new Error('Gemini extracted data appears to be incomplete - no name, headline, or company found');
-            }
-            
-            // ✅ FIXED: Database save with transactional integrity - ONLY update status AFTER confirming data
-            console.log('💾 Saving LinkedIn DCA data to database with transactional integrity...');
-            
-            await client.query(`
-                UPDATE user_profiles SET 
-                    linkedin_id = $1,
-                    linkedin_num_id = $2,
-                    input_url = $3,
-                    url = $4,
-                    full_name = COALESCE($5, full_name),
-                    first_name = $6,
-                    last_name = $7,
-                    headline = $8,
-                    about = $9,
-                    summary = $9,
-                    location = $10,
-                    city = $11,
-                    state = $12,
-                    country = $13,
-                    country_code = $14,
-                    industry = $15,
-                    current_company = $16,
-                    current_company_name = $17,
-                    current_company_id = $18,
-                    current_company_company_id = $19,
-                    current_position = $20,
-                    connections_count = $21,
-                    followers_count = $22,
-                    connections = $23,
-                    followers = $24,
-                    recommendations_count = $25,
-                    profile_image_url = $26,
-                    avatar = $27,
-                    banner_image = $28,
-                    background_image_url = $29,
-                    public_identifier = $30,
-                    experience = $31,
-                    education = $32,
-                    educations_details = $33,
-                    skills = $34,
-                    skills_with_endorsements = $35,
-                    languages = $36,
-                    certifications = $37,
-                    courses = $38,
-                    projects = $39,
-                    publications = $40,
-                    patents = $41,
-                    volunteer_experience = $42,
-                    volunteering = $43,
-                    honors_and_awards = $44,
-                    organizations = $45,
-                    recommendations = $46,
-                    recommendations_given = $47,
-                    recommendations_received = $48,
-                    posts = $49,
-                    activity = $50,
-                    articles = $51,
-                    people_also_viewed = $52,
-                    brightdata_data = $53,
-                    timestamp = $54,
-                    data_source = $55,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $56 
-            `, [
-                extractedData.linkedinId || null,
-                extractedData.linkedinNumId || null,
-                extractedData.inputUrl || null,
-                extractedData.url || null,
-                extractedData.fullName,
-                extractedData.firstName,
-                extractedData.lastName,
-                extractedData.headline,
-                extractedData.about,
-                extractedData.location || null,
-                extractedData.city || null,
-                extractedData.state || null,
-                extractedData.country || null,
-                extractedData.countryCode || null,
-                extractedData.industry || null,
-                extractedData.currentCompany,
-                extractedData.currentCompanyName || null,
-                extractedData.currentCompanyId || null,
-                extractedData.currentCompanyCompanyId || null,
-                extractedData.currentPosition || null,
-                extractedData.connectionsCount || null,
-                extractedData.followersCount || null,
-                extractedData.connections || null,
-                extractedData.followers || null,
-                extractedData.recommendationsCount || null,
-                extractedData.profileImageUrl,
-                extractedData.avatar || null,
-                extractedData.bannerImage || null,
-                extractedData.backgroundImageUrl || null,
-                extractedData.publicIdentifier || null,
-                JSON.stringify(extractedData.experience || []),
-                JSON.stringify(extractedData.education || []),
-                JSON.stringify(extractedData.educationsDetails || []),
-                JSON.stringify(extractedData.skills || []),
-                JSON.stringify(extractedData.skillsWithEndorsements || []),
-                JSON.stringify(extractedData.languages || []),
-                JSON.stringify(extractedData.certifications || []),
-                JSON.stringify(extractedData.courses || []),
-                JSON.stringify(extractedData.projects || []),
-                JSON.stringify(extractedData.publications || []),
-                JSON.stringify(extractedData.patents || []),
-                JSON.stringify(extractedData.volunteerExperience || []),
-                JSON.stringify(extractedData.volunteering || []),
-                JSON.stringify(extractedData.honorsAndAwards || []),
-                JSON.stringify(extractedData.organizations || []),
-                JSON.stringify(extractedData.recommendations || []),
-                JSON.stringify(extractedData.recommendationsGiven || []),
-                JSON.stringify(extractedData.recommendationsReceived || []),
-                JSON.stringify(extractedData.posts || []),
-                JSON.stringify(extractedData.activity || []),
-                JSON.stringify(extractedData.articles || []),
-                JSON.stringify(extractedData.peopleAlsoViewed || []),
-                JSON.stringify(result.rawData),
-                extractedData.timestamp,
-                extractedData.dataSource || result.method,
-                userId
-            ]);
-
-            // ✅ CRITICAL FIX: Only update status fields AFTER confirming data was saved successfully
-            await client.query(`
-                UPDATE user_profiles SET 
-                    data_extraction_status = 'completed',
-                    extraction_completed_at = CURRENT_TIMESTAMP,
-                    extraction_error = NULL,
-                    profile_analyzed = true,
-                    initial_scraping_done = true
-                WHERE user_id = $1 AND full_name IS NOT NULL
-            `, [userId]);
-
-            await client.query(`
-                UPDATE users SET 
-                    extraction_status = 'completed', 
-                    profile_completed = true, 
-                    error_message = NULL 
-                WHERE id = $1
-            `, [userId]);
-
-            // ✅ FIXED: Commit transaction only after all data is confirmed
-            await client.query('COMMIT');
-            
-            console.log(`🎉 LinkedIn DCA profile data successfully saved for user ${userId} with Gemini AI integration!`);
-            console.log(`✅ Method: ${result.method}`);
-            console.log(`🤖 Data processing: ${extractedData.dataSource} (GEMINI ONLY - NO FALLBACK)`);
-            console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
-            console.log(`💾 Raw DCA data PRESERVED in raw_snapshots table regardless of processing success`);
-            
-            processingQueue.delete(userId);
-                
-        } catch (error) {
-            // ✅ FIXED: Rollback transaction on any error
-            await client.query('ROLLBACK');
-            
-            console.error(`❌ DCA extraction failed for user ${userId} (Retry ${retryCount}):`, error.message);
-            console.log(`💾 NOTE: Raw DCA data was PRESERVED in raw_snapshots table despite processing failure`);
-            
-            if (retryCount < maxRetries - 1) {
-                console.log(`🔄 Retrying DCA extraction for user ${userId}...`);
-                await scheduleBackgroundExtraction(userId, linkedinUrl, retryCount + 1);
-            } else {
-                console.log(`❌ Final DCA failure for user ${userId} - no more retries (GEMINI ONLY MODE)`);
-                
-                // Start new transaction for failure updates
-                try {
-                    await client.query('BEGIN');
-                    await client.query(
-                        'UPDATE user_profiles SET data_extraction_status = $1, extraction_error = $2, initial_scraping_done = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4',
-                        ['failed', `Final DCA failure: ${error.message} (GEMINI REQUIRED - NO MANUAL FALLBACK)`, false, userId]
-                    );
-                    await client.query(
-                        'UPDATE users SET extraction_status = $1, error_message = $2, profile_completed = $3 WHERE id = $4',
-                        ['failed', `Final DCA failure: ${error.message} (GEMINI REQUIRED - NO MANUAL FALLBACK)`, false, userId]
-                    );
-                    await client.query('COMMIT');
-                } catch (updateError) {
-                    await client.query('ROLLBACK');
-                    console.error(`❌ Failed to update failure status: ${updateError.message}`);
-                }
-                
-                processingQueue.delete(userId);
-            }
-        } finally {
-            client.release();
-        }
-    }, retryCount === 0 ? 10000 : retryDelay);
 };
 
 // ✅ Process scraped data from content script (with URL validation) - KEPT for Chrome extension
@@ -1476,7 +689,7 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ CRITICAL FIX: Create or update user profile with URL normalization
+// ✅ SIMPLIFIED: Create user profile - No background extraction
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
         // ✅ CRITICAL: Normalize LinkedIn URL before saving
@@ -1489,7 +702,7 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
         // ✅ Save normalized URL to users table
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
-            [cleanUrl, 'processing', userId]
+            [cleanUrl, 'not_started', userId]
         );
         
         const existingProfile = await pool.query(
@@ -1501,28 +714,22 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
         if (existingProfile.rows.length > 0) {
             const result = await pool.query(
                 'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
-                [cleanUrl, displayName, 'processing', userId]
+                [cleanUrl, displayName, 'pending', userId]
             );
             profile = result.rows[0];
         } else {
             const result = await pool.query(
                 'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_done) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-                [userId, cleanUrl, displayName, 'processing', 0, false]
+                [userId, cleanUrl, displayName, 'pending', 0, false]
             );
             profile = result.rows[0];
         }
         
-        console.log(`🔄 Starting DCA background extraction for user ${userId}`);
-        processingQueue.set(userId, { status: 'processing', startTime: Date.now() });
-        
-        // ✅ Use original URL for Bright Data API (they need full URL)
-        scheduleBackgroundExtraction(userId, linkedinUrl, 0);
-        
-        console.log(`✅ Profile created and DCA extraction started for user ${userId}`);
+        console.log(`✅ Profile created for user ${userId} (Chrome extension required for completion)`);
         return profile;
         
     } catch (error) {
-        console.error('Error in profile creation/extraction:', error);
+        console.error('Error in profile creation:', error);
         throw error;
     }
 };
@@ -1553,7 +760,6 @@ const authenticateToken = async (req, res, next) => {
 
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
-// ✅ CRITICAL FIX: Chrome Extension Authentication - ALWAYS returns credits
 app.post('/auth/chrome-extension', async (req, res) => {
     console.log('🔐 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
@@ -1629,7 +835,6 @@ app.post('/auth/chrome-extension', async (req, res) => {
         
         console.log('✅ Chrome extension authentication successful');
         
-        // ✅ CRITICAL FIX: ALWAYS return credits and complete user data
         res.json({
             success: true,
             message: 'Authentication successful',
@@ -1641,7 +846,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     displayName: user.display_name,
                     profilePicture: user.profile_picture,
                     packageType: user.package_type,
-                    credits: user.credits_remaining || 10, // ✅ ALWAYS INCLUDE CREDITS
+                    credits: user.credits_remaining || 10,
                     linkedinUrl: user.linkedin_url,
                     profileCompleted: user.profile_completed
                 },
@@ -1689,72 +894,60 @@ app.get('/dashboard', (req, res) => {
 
 // ==================== API ENDPOINTS ====================
 
-// Health Check - Updated with DCA and Gemini status
+// Health Check - Updated without Bright Data references
 app.get('/health', async (req, res) => {
     try {
         const client = await pool.connect();
         await client.query('SELECT 1');
         client.release();
         
-        const processingCount = processingQueue.size;
-        
         res.status(200).json({
             status: 'healthy',
-            version: '11.0-DCA-GEMINI-HTML-SCRAPING-ENHANCED',
+            version: '12.0-FULLY-CLEANED-GEMINI-HTML-SCRAPING',
             timestamp: new Date().toISOString(),
             changes: {
-                htmlScraping: 'NEW - Direct HTML scraping from Chrome extension with feature lock',
-                featureLock: 'NEW - Users blocked until experience.length > 0',
-                urlNormalization: 'CRITICAL - Bi-directional LinkedIn URL matching fixed',
-                dcaIntegration: 'ENHANCED - DCA API for complete LinkedIn profile extraction with fallback',
-                geminiIntegration: 'ENHANCED - Gemini processing with improved data quality validation',
-                dataQualityValidation: 'ENHANCED - Complete profile validation with scoring system',
-                rawDataStorage: 'ENHANCED - Raw data preserved with extraction method tracking',
-                fallbackProcessing: 'SMART - DCA API with Dataset API fallback for reliability',
-                transactionManagement: 'MAINTAINED - Database status only updated AFTER confirming data receipt',
-                profileCompleteness: 'ENHANCED - Full LinkedIn profile fields extraction and validation',
-                backgroundProcessing: 'ENHANCED - DCA extraction with improved error handling and retry logic'
+                brightDataRemoval: 'COMPLETED - All Bright Data integration removed from entire codebase',
+                htmlScraping: 'ACTIVE - Direct HTML scraping from Chrome extension with Gemini processing',
+                featureLock: 'ACTIVE - Users blocked until experience.length > 0',
+                urlNormalization: 'ACTIVE - Bi-directional LinkedIn URL matching fixed',
+                geminiIntegration: 'SELECTIVE - Only used for HTML processing and message generation',
+                cleanSignUp: 'ACTIVE - Simple registration flow with Chrome extension requirement',
+                retryExtraction: 'DISABLED - Replaced with Chrome extension workflow'
             },
             brightData: {
-                dcaConfigured: !!BRIGHT_DATA_COLLECTOR_ID,
-                collectorId: BRIGHT_DATA_COLLECTOR_ID ? 'configured' : 'not_configured',
-                datasetConfigured: !!BRIGHT_DATA_DATASET_ID,
-                datasetId: BRIGHT_DATA_DATASET_ID,
-                fallbackAvailable: true,
-                endpoints: 'DCA API + Dataset API fallback verified working'
+                status: 'COMPLETELY REMOVED',
+                dcaIntegration: 'REMOVED',
+                datasetIntegration: 'REMOVED',
+                backgroundProcessing: 'REMOVED',
+                retryExtraction: 'DISABLED'
             },
             geminiAI: {
                 configured: !!process.env.GEMINI_API_KEY,
                 status: process.env.GEMINI_API_KEY 
-                    ? 'EXCLUSIVE data processor with enhanced validation + HTML processing' 
-                    : 'NOT CONFIGURED - System will fail without Gemini',
-                fallbackAvailable: false,
-                mode: 'GEMINI_ONLY_DCA_HTML_ENHANCED',
+                    ? 'HTML scraping + message generation only' 
+                    : 'NOT CONFIGURED - HTML scraping and message generation will fail',
+                mode: 'SELECTIVE_USE_ONLY',
                 timeout: '120 seconds',
-                dataFlow: 'Chrome Extension HTML → Gemini OR Bright Data DCA → DB → Gemini (with quality validation)'
+                dataFlow: 'Chrome Extension HTML → Gemini → Database'
             },
             htmlScraping: {
                 enabled: true,
                 endpoints: ['POST /scrape-html', 'GET /user/setup-status'],
                 featureLock: 'experience.length > 0 required',
                 urlNormalization: 'Bi-directional LinkedIn URL matching',
-                domWaiting: '10 seconds with scroll prompt fallback',
                 userVsTarget: 'Smart detection and routing'
             },
             database: {
                 connected: true,
                 ssl: process.env.NODE_ENV === 'production',
-                transactionManagement: 'ACTIVE',
-                tables: ['users', 'user_profiles', 'target_profiles', 'raw_snapshots', 'message_logs', 'credits_transactions'],
-                rawDataPreservation: 'ENABLED - Always saves raw data with extraction method tracking',
+                tables: ['users', 'user_profiles', 'target_profiles', 'message_logs', 'credits_transactions'],
                 featureLockFields: 'initial_scraping_done, experience JSONB array'
             },
-            backgroundProcessing: {
-                enabled: true,
-                aiProcessing: !!process.env.GEMINI_API_KEY,
-                processingMode: 'DCA_GEMINI_HTML_ENHANCED',
-                currentlyProcessing: processingCount,
-                processingUsers: Array.from(processingQueue.keys())
+            processing: {
+                backgroundProcessing: 'DISABLED',
+                retryExtraction: 'DISABLED',
+                htmlScraping: 'ACTIVE',
+                messageGeneration: 'ACTIVE'
             }
         });
     } catch (error) {
@@ -1766,7 +959,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ✅ CRITICAL FIX: Check initial scraping status - ALWAYS returns linkedin_url
+// ✅ Check initial scraping status - No background processing references
 app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 Checking initial scraping status for user ${req.user.id}`);
@@ -1790,7 +983,6 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
         if (result.rows.length > 0) {
             const data = result.rows[0];
             initialScrapingDone = data.initial_scraping_done || false;
-            // ✅ CRITICAL FIX: ALWAYS return a LinkedIn URL (from either table)
             userLinkedInUrl = data.linkedin_url || data.user_linkedin_url || data.profile_linkedin_url;
             extractionStatus = data.data_extraction_status || 'not_started';
             
@@ -1805,14 +997,13 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
         console.log(`   - User LinkedIn URL: ${userLinkedInUrl || 'Not set'}`);
         console.log(`   - Extraction status: ${extractionStatus}`);
         
-        // ✅ CRITICAL FIX: ALWAYS include userLinkedInUrl even if null
         res.json({
             success: true,
             data: {
                 initialScrapingDone: initialScrapingDone,
-                userLinkedInUrl: userLinkedInUrl, // ✅ ALWAYS INCLUDED (won't trigger emergency)
+                userLinkedInUrl: userLinkedInUrl,
                 extractionStatus: extractionStatus,
-                isCurrentlyProcessing: processingQueue.has(req.user.id),
+                isCurrentlyProcessing: false, // No background processing
                 user: {
                     id: req.user.id,
                     email: req.user.email,
@@ -1831,7 +1022,7 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
     }
 });
 
-// ✅ NEW: HTML Scraping endpoint for Chrome extension
+// ✅ HTML Scraping endpoint for Chrome extension
 app.post('/scrape-html', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 HTML scraping request from user ${req.user.id}`);
@@ -2101,7 +1292,7 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ NEW: Enhanced user setup status endpoint for feature lock
+// ✅ Enhanced user setup status endpoint for feature lock
 app.get('/user/setup-status', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 Checking setup status for user ${req.user.id}`);
@@ -2203,7 +1394,6 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// 🎯 FIXED: Smart OAuth callback - redirects based on user status
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
     async (req, res) => {
@@ -2217,7 +1407,7 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // 🎯 SMART REDIRECT LOGIC:
+            // Smart redirect logic
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.linkedin_url || 
                                    !req.user.profile_completed ||
@@ -2231,11 +1421,9 @@ app.get('/auth/google/callback',
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
             if (needsOnboarding) {
-                // New users or incomplete profiles → sign-up for onboarding
                 console.log(`➡️ Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                // Existing users with complete profiles → dashboard
                 console.log(`➡️ Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
@@ -2398,7 +1586,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// ✅ COMPLETE REGISTRATION ENDPOINT - With URL normalization and DCA GEMINI
+// ✅ Complete registration endpoint - Cleaned
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     console.log('🎯 Complete registration request for user:', req.user.id);
     
@@ -2427,15 +1615,6 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             });
         }
         
-        // Check for Gemini API key
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'Gemini AI processing is not available. Contact support.',
-                code: 'GEMINI_NOT_CONFIGURED'
-            });
-        }
-        
         if (packageType && packageType !== req.user.package_type) {
             if (packageType !== 'free') {
                 return res.status(400).json({
@@ -2450,6 +1629,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             );
         }
         
+        // Create profile without background extraction
         const profile = await createOrUpdateUserProfile(
             req.user.id, 
             linkedinUrl, 
@@ -2460,7 +1640,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Profile updated - LinkedIn data extraction started with DCA + Gemini AI processing!',
+            message: 'Registration completed successfully! Please use the Chrome extension to complete your profile setup.',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2473,23 +1653,27 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                     linkedinUrl: profile.linkedin_url,
                     fullName: profile.full_name,
                     extractionStatus: profile.data_extraction_status
+                },
+                nextSteps: {
+                    message: 'Install the Chrome extension and visit your LinkedIn profile to complete setup',
+                    requiresExtension: true
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - DCA + Gemini AI integration applied!`);
+        console.log(`✅ Registration completed for user ${updatedUser.email} - Chrome extension required!`);
         
     } catch (error) {
-        console.error('❌ Profile update error:', error);
+        console.error('❌ Complete registration error:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to update profile',
+            error: 'Registration completion failed',
             details: error.message
         });
     }
 });
 
-// ✅ FIXED: Update user profile with LinkedIn URL normalization and DCA GEMINI
+// ✅ Update profile endpoint - Cleaned
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
@@ -2510,15 +1694,6 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             });
         }
         
-        // Check for Gemini API key
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'Gemini AI processing is not available. Contact support.',
-                code: 'GEMINI_NOT_CONFIGURED'
-            });
-        }
-        
         // Update package type if needed
         if (packageType && packageType !== req.user.package_type) {
             if (packageType !== 'free') {
@@ -2534,7 +1709,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             );
         }
         
-        // Create profile and start LinkedIn DCA extraction
+        // Create profile without background extraction
         const profile = await createOrUpdateUserProfile(
             req.user.id, 
             linkedinUrl, 
@@ -2545,7 +1720,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Registration completed successfully! LinkedIn profile analysis started with DCA + Gemini AI processing.',
+            message: 'Profile updated successfully! Please use the Chrome extension to complete your profile setup.',
             data: {
                 user: {
                     id: updatedUser.id,
@@ -2559,23 +1734,20 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                     fullName: profile.full_name,
                     extractionStatus: profile.data_extraction_status
                 },
-                automaticProcessing: {
-                    enabled: true,
-                    status: 'started',
-                    processingMode: 'DCA_GEMINI_HTML_ENHANCED',
-                    expectedCompletionTime: '5-10 minutes',
-                    message: 'Your LinkedIn profile is being analyzed in the background using DCA API + Gemini AI'
+                nextSteps: {
+                    message: 'Install the Chrome extension and visit your LinkedIn profile to complete setup',
+                    requiresExtension: true
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn DCA extraction with Gemini started!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - Chrome extension required!`);
         
     } catch (error) {
-        console.error('❌ Complete registration error:', error);
+        console.error('❌ Profile update error:', error);
         res.status(500).json({
             success: false,
-            error: 'Registration completion failed',
+            error: 'Failed to update profile',
             details: error.message
         });
     }
@@ -2626,8 +1798,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 !initialScrapingDone ||
                 extractionStatus !== 'completed' ||
                 !isProfileAnalyzed ||
-                missingFields.length > 0 ||
-                processingQueue.has(req.user.id)
+                missingFields.length > 0
             );
             
             syncStatus = {
@@ -2636,7 +1807,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                 extractionStatus: extractionStatus,
                 profileAnalyzed: isProfileAnalyzed,
                 initialScrapingDone: initialScrapingDone,
-                isCurrentlyProcessing: processingQueue.has(req.user.id),
+                isCurrentlyProcessing: false, // No background processing
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
                     'Profile complete and ready for target scraping'
@@ -2771,8 +1942,8 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
             extraction_retry_count: status.extraction_retry_count,
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
-            is_currently_processing: processingQueue.has(req.user.id),
-            processing_mode: 'DCA_GEMINI_HTML_ENHANCED',
+            is_currently_processing: false, // No background processing
+            processing_mode: 'HTML_SCRAPING_ONLY',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2786,60 +1957,32 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
 const getStatusMessage = (status, initialScrapingDone = false) => {
     switch (status) {
         case 'not_started':
-            return 'LinkedIn extraction not started - please complete initial profile setup';
+            return 'Profile setup not started - please use the Chrome extension to complete profile setup';
         case 'processing':
-            return 'LinkedIn profile extraction in progress with DCA + Gemini AI processing...';
+            return 'Profile being processed...';
         case 'completed':
             return initialScrapingDone ? 
-                'LinkedIn profile extraction completed with DCA + Gemini AI! You can now scrape target profiles.' :
-                'LinkedIn profile extraction completed successfully with DCA + Gemini AI!';
+                'Profile setup completed! You can now scrape target profiles.' :
+                'Profile setup completed successfully!';
         case 'failed':
-            return 'LinkedIn profile extraction failed - Gemini AI processing required (no manual fallback)';
+            return 'Profile setup incomplete - please try again using the Chrome extension';
         default:
             return 'Unknown status';
     }
 };
 
-// Retry extraction
+// ✅ DISABLED: Retry extraction endpoint
 app.post('/retry-extraction', authenticateToken, async (req, res) => {
-    try {
-        // Check for Gemini API key first
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'Gemini AI processing is not available. Contact support.',
-                code: 'GEMINI_NOT_CONFIGURED'
-            });
-        }
-        
-        const userResult = await pool.query(
-            'SELECT linkedin_url FROM users WHERE id = $1',
-            [req.user.id]
-        );
-        
-        if (userResult.rows.length === 0 || !userResult.rows[0].linkedin_url) {
-            return res.status(400).json({ error: 'No LinkedIn URL found for retry' });
-        }
-        
-        const linkedinUrl = userResult.rows[0].linkedin_url;
-        
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        res.json({
-            success: true,
-            message: 'LinkedIn extraction retry initiated with DCA + Gemini AI processing!',
-            status: 'processing',
-            processingMode: 'DCA_GEMINI_HTML_ENHANCED'
-        });
-        
-    } catch (error) {
-        console.error('Retry extraction error:', error);
-        res.status(500).json({ error: 'Retry failed' });
-    }
+    res.status(410).json({
+        success: false,
+        error: 'Retry extraction is no longer available',
+        message: 'Please use the Chrome extension to complete your profile setup by visiting your LinkedIn profile.',
+        alternatives: {
+            chromeExtension: 'Install the Msgly.AI Chrome extension and visit your LinkedIn profile',
+            htmlScraping: 'The extension will automatically extract your profile data'
+        },
+        code: 'FEATURE_DISABLED'
+    });
 });
 
 // Get Available Packages
@@ -2854,7 +1997,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             },
             {
@@ -2865,7 +2008,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['30 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['30 Credits', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -2877,7 +2020,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['100 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['100 Credits', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             },
@@ -2889,7 +2032,7 @@ app.get('/packages', (req, res) => {
                 period: '/one-time',
                 billing: 'payAsYouGo',
                 validity: 'Credits never expire',
-                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
+                features: ['250 Credits', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'Credits never expire'],
                 available: false,
                 comingSoon: true
             }
@@ -2903,7 +2046,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             },
             {
@@ -2914,7 +2057,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['30 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['30 Credits', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -2926,7 +2069,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['100 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['100 Credits', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             },
@@ -2938,7 +2081,7 @@ app.get('/packages', (req, res) => {
                 period: '/month',
                 billing: 'monthly',
                 validity: '7-day free trial included',
-                features: ['250 Credits', 'Chrome extension', 'DCA + Gemini AI profile analysis', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
+                features: ['250 Credits', 'Chrome extension', 'HTML scraping', 'Enhanced LinkedIn extraction', 'Beautiful dashboard', '7-day free trial included'],
                 available: false,
                 comingSoon: true
             }
@@ -2951,7 +2094,7 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// ✅ FIXED: User profile scraping with transaction management
+// ✅ User profile scraping with transaction management
 app.post('/profile/user', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
@@ -2979,7 +2122,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Clean and validate URL using backend normalization
+        // Clean and validate URL using backend normalization
         const profileUrl = profileData.url || profileData.linkedinUrl;
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
@@ -2990,7 +2133,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Validate this is the user's own profile using normalized URLs
+        // Validate this is the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
@@ -3013,11 +2156,11 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         // Process the scraped data
         const processedData = processScrapedProfileData(profileData, true);
         
-        // ✅ FIXED: Normalize the LinkedIn URL in processed data
+        // Normalize the LinkedIn URL in processed data
         processedData.linkedinUrl = cleanProfileUrl;
         processedData.url = cleanProfileUrl;
         
-        // ✅ CRITICAL FIX: Validate data completeness BEFORE database transaction
+        // Validate data completeness BEFORE database transaction
         if (!processedData.fullName && !processedData.headline && !processedData.currentCompany) {
             return res.status(400).json({
                 success: false,
@@ -3027,7 +2170,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         
         console.log('💾 Saving user profile data with transaction management...');
         
-        // ✅ FIXED: Start transaction
+        // Start transaction
         await client.query('BEGIN');
         
         // Check if profile exists
@@ -3164,7 +2307,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             profile = result.rows[0];
         }
         
-        // ✅ CRITICAL FIX: Only update status fields AFTER confirming data was saved AND contains meaningful information
+        // Only update status fields AFTER confirming data was saved AND contains meaningful information
         if (profile && profile.full_name) {
             await client.query(`
                 UPDATE user_profiles SET 
@@ -3176,20 +2319,16 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                 WHERE user_id = $1 AND full_name IS NOT NULL
             `, [req.user.id]);
             
-            // ✅ FIXED: Update user table with normalized LinkedIn URL
+            // Update user table with normalized LinkedIn URL
             await client.query(
                 'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
                 [processedData.linkedinUrl, 'completed', true, req.user.id]
             );
             
-            // ✅ FIXED: Commit transaction only after all validations pass
+            // Commit transaction only after all validations pass
             await client.query('COMMIT');
             
-            // Remove from processing queue if present
-            processingQueue.delete(req.user.id);
-            
             console.log(`🎉 User profile successfully saved for user ${req.user.id} with transaction integrity!`);
-            console.log(`🔒 Initial scraping marked as complete ONLY after data confirmation`);
             
             res.json({
                 success: true,
@@ -3203,7 +2342,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                         currentCompany: profile.current_company,
                         location: profile.location,
                         profileImageUrl: profile.profile_image_url,
-                        initialScrapingDone: true, // ✅ Only true when data is confirmed
+                        initialScrapingDone: true,
                         extractionStatus: 'completed',
                         extractionCompleted: profile.extraction_completed_at
                     },
@@ -3214,7 +2353,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                 }
             });
         } else {
-            // ✅ FIXED: Rollback if no meaningful data was saved
+            // Rollback if no meaningful data was saved
             await client.query('ROLLBACK');
             
             res.status(400).json({
@@ -3224,7 +2363,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         }
         
     } catch (error) {
-        // ✅ FIXED: Always rollback on error
+        // Always rollback on error
         await client.query('ROLLBACK');
         
         console.error('❌ User profile scraping error:', error);
@@ -3238,12 +2377,12 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ FIXED: Target profile scraping with URL normalization
+// ✅ Target profile scraping with URL normalization
 app.post('/profile/target', authenticateToken, async (req, res) => {
     try {
         console.log(`🎯 Target profile scraping request from user ${req.user.id}`);
         
-        // ✅ First, check if initial scraping is done
+        // First, check if initial scraping is done
         const initialStatus = await pool.query(`
             SELECT initial_scraping_done, data_extraction_status
             FROM user_profiles 
@@ -3275,7 +2414,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Clean and validate URL using backend normalization
+        // Clean and validate URL using backend normalization
         const profileUrl = profileData.url || profileData.linkedinUrl;
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
@@ -3286,7 +2425,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Validate this is NOT the user's own profile using normalized URLs
+        // Validate this is NOT the user's own profile using normalized URLs
         const userLinkedInUrl = req.user.linkedin_url;
         if (userLinkedInUrl) {
             const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
@@ -3302,7 +2441,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
         // Process the scraped data
         const processedData = processScrapedProfileData(profileData, false);
         
-        // ✅ FIXED: Normalize the LinkedIn URL in processed data
+        // Normalize the LinkedIn URL in processed data
         processedData.linkedinUrl = cleanProfileUrl;
         processedData.url = cleanProfileUrl;
         
@@ -3473,7 +2612,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ FIXED: Generate message endpoint with proper credit deduction and transaction management
+// ✅ Generate message endpoint with proper credit deduction and transaction management
 app.post('/generate-message', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
@@ -3496,7 +2635,7 @@ app.post('/generate-message', authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ FIXED: Start transaction for credit check and deduction
+        // Start transaction for credit check and deduction
         await client.query('BEGIN');
         
         // Check user credits within transaction
@@ -3536,7 +2675,7 @@ app.post('/generate-message', authenticateToken, async (req, res) => {
             [req.user.id, 'message_generation', -1, `Generated message for ${targetProfile.fullName || 'Unknown'}`]
         );
         
-        // ✅ FIXED: Commit credit deduction before potentially long API call
+        // Commit credit deduction before potentially long API call
         await client.query('COMMIT');
         
         console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
@@ -3555,7 +2694,7 @@ Best regards`;
         
         const score = Math.floor(Math.random() * 20) + 80; // Random score between 80-100
         
-        // ✅ FIXED: Log message generation
+        // Log message generation
         await pool.query(
             'INSERT INTO message_logs (user_id, target_name, target_url, generated_message, message_context, credits_used) VALUES ($1, $2, $3, $4, $5, $6)',
             [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, simulatedMessage, context, 1]
@@ -3580,7 +2719,7 @@ Best regards`;
         });
         
     } catch (error) {
-        // ✅ FIXED: Rollback if transaction is still active
+        // Rollback if transaction is still active
         try {
             await client.query('ROLLBACK');
         } catch (rollbackError) {
@@ -3620,7 +2759,6 @@ app.use((req, res, next) => {
             'POST /complete-registration',
             'GET /profile-status',
             'GET /user/initial-scraping-status',
-            'POST /retry-extraction',
             'POST /generate-message',
             'GET /packages', 
             'GET /health'
@@ -3647,17 +2785,8 @@ const validateEnvironment = () => {
         process.exit(1);
     }
     
-    if (!BRIGHT_DATA_API_KEY) {
-        console.warn('⚠️ Warning: BRIGHT_DATA_API_KEY not set - profile extraction will fail');
-    }
-    
-    if (!BRIGHT_DATA_COLLECTOR_ID) {
-        console.warn('⚠️ Warning: BRIGHT_DATA_COLLECTOR_ID not set - DCA API will fallback to Dataset API');
-    }
-    
     if (!process.env.GEMINI_API_KEY) {
-        console.error('❌ CRITICAL: GEMINI_API_KEY not set - system will fail (NO MANUAL FALLBACK)');
-        process.exit(1);
+        console.warn('⚠️ Warning: GEMINI_API_KEY not set - HTML scraping and message generation will fail');
     }
     
     console.log('✅ Environment validated');
@@ -3686,58 +2815,57 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - DCA + GEMINI AI ENHANCED MODE + HTML SCRAPING ACTIVE!');
+            console.log('🚀 Msgly.AI Server - FULLY CLEANED: All Bright Data Removed + Chrome Extension Mode!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Connected with transaction management`);
+            console.log(`🗃️ Database: Connected`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
-            console.log(`🔍 Bright Data DCA: ${BRIGHT_DATA_COLLECTOR_ID ? 'Configured ✅' : 'NOT CONFIGURED ⚠️ - Using Dataset API fallback'}`);
-            console.log(`🔍 Bright Data Dataset: ${BRIGHT_DATA_API_KEY ? 'Configured ✅' : 'NOT CONFIGURED ❌'}`);
-            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured ✅ (EXCLUSIVE data processor with DCA integration)' : 'NOT CONFIGURED ❌ - SYSTEM WILL FAIL'}`);
-            console.log(`🤖 Processing Mode: DCA_GEMINI_HTML_ENHANCED - Complete LinkedIn profile extraction`);
-            console.log(`🔧 KEY FEATURES:`);
-            console.log(`   ✅ HTML Scraping: NEW - Direct HTML scraping from Chrome extension`);
-            console.log(`   ✅ Feature Lock: NEW - Users blocked until experience.length > 0`);
-            console.log(`   ✅ URL Normalization: CRITICAL - Bi-directional LinkedIn URL matching`);
-            console.log(`   ✅ DCA API Integration: Primary extraction method for complete profiles`);
-            console.log(`   ✅ Dataset API Fallback: Automatic fallback if DCA fails`);
-            console.log(`   ✅ Complete Profile Fields: Experience, education, skills, certifications, projects, etc.`);
-            console.log(`   ✅ Data Quality Validation: Profile completeness scoring and validation`);
-            console.log(`   ✅ Gemini Processing: REQUIRED - Enhanced data processing with quality checks`);
-            console.log(`   ✅ Smart Extraction: DCA for complete data, fallback for reliability`);
-            console.log(`   💾 Raw Data Preservation: ENHANCED - Always saved with extraction method tracking`);
-            console.log(`   🔍 Profile Validation: NEW - Complete profile validation with scoring system`);
-            console.log(`   ⏱️ Gemini Timeout: Increased to 120 seconds for reliable processing`);
-            console.log(`🎯 NEW HTML SCRAPING WORKFLOW:`);
-            console.log(`   1️⃣ User visits LinkedIn profile → Extension detects profile page`);
-            console.log(`   2️⃣ DOM Loading → Wait 10 seconds for key elements (#experience)`);
-            console.log(`   3️⃣ Scroll Prompt → If still loading, show scroll prompt to user`);
-            console.log(`   4️⃣ HTML Extraction → Extract full document.documentElement.outerHTML`);
-            console.log(`   5️⃣ Server Processing → POST /scrape-html → Gemini processes HTML`);
-            console.log(`   6️⃣ Feature Lock → Check experience.length > 0 for user profiles`);
-            console.log(`   7️⃣ Status Management → Update initial_scraping_done flag`);
-            console.log(`📋 NEW ENDPOINTS:`);
-            console.log(`   ✅ POST /scrape-html - Process HTML from Chrome extension`);
-            console.log(`   ✅ GET /user/setup-status - Check feature lock status`);
-            console.log(`   ✅ Enhanced URL normalization in all profile endpoints`);
-            console.log(`🎨 FRONTEND COMPLETE:`);
-            console.log(`   ✅ Beautiful sign-up page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
-            console.log(`   ✅ Beautiful login page: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
-            console.log(`   ✅ Beautiful dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`💳 Packages: Free (Available), Premium (Coming Soon) - Updated with HTML scraping features`);
+            console.log(`🧹 FULLY CLEANED CODEBASE:`);
+            console.log(`   ❌ REMOVED: All Bright Data integration (~627 lines removed)`);
+            console.log(`   ❌ REMOVED: All background processing`);
+            console.log(`   ❌ REMOVED: All retry extraction functionality`);
+            console.log(`   ❌ REMOVED: All DCA/Dataset API calls`);
+            console.log(`   ❌ REMOVED: All raw data snapshots`);
+            console.log(`   ❌ REMOVED: All processing queue functionality`);
+            console.log(`   ✅ KEPT: Chrome extension HTML scraping with Gemini`);
+            console.log(`   ✅ KEPT: Message generation with Gemini`);
+            console.log(`   ✅ KEPT: All Google authentication`);
+            console.log(`   ✅ KEPT: All user management`);
+            console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Available for HTML scraping and message generation ✅' : 'NOT CONFIGURED - limited functionality ❌'}`);
+            console.log(`🔧 CORE FEATURES:`);
+            console.log(`   ✅ Clean Sign-Up: Simple registration with LinkedIn URL storage only`);
+            console.log(`   ✅ Chrome Extension Required: Users must use extension for profile completion`);
+            console.log(`   ✅ HTML Scraping: Direct HTML processing with Gemini AI`);
+            console.log(`   ✅ Feature Lock: Users blocked until experience.length > 0`);
+            console.log(`   ✅ URL Normalization: Bi-directional LinkedIn URL matching`);
+            console.log(`   ✅ Message Generation: AI-powered personalized messages`);
+            console.log(`   ✅ Target Profiles: Chrome extension scraping and storage`);
+            console.log(`🎯 SIMPLIFIED WORKFLOW:`);
+            console.log(`   1️⃣ User Registration → Simple account creation + LinkedIn URL`);
+            console.log(`   2️⃣ Chrome Extension → Required for all profile data extraction`);
+            console.log(`   3️⃣ HTML Scraping → Extension captures HTML → Gemini processes`);
+            console.log(`   4️⃣ Feature Unlock → Check experience data for full access`);
+            console.log(`   5️⃣ Target Scraping → Extension scrapes targets → Database storage`);
+            console.log(`   6️⃣ Message Generation → Gemini AI creates personalized messages`);
+            console.log(`📋 ACTIVE ENDPOINTS:`);
+            console.log(`   ✅ POST /complete-registration - Simple profile creation`);
+            console.log(`   ✅ POST /scrape-html - HTML processing with Gemini`);
+            console.log(`   ✅ POST /generate-message - AI message generation`);
+            console.log(`   ✅ GET /user/setup-status - Feature lock status`);
+            console.log(`   ❌ POST /retry-extraction - DISABLED (returns 410 error)`);
+            console.log(`🎨 FRONTEND:`);
+            console.log(`   ✅ Sign-up: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
+            console.log(`   ✅ Login: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
+            console.log(`   ✅ Dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
             console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
             console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: DCA + GEMINI AI + HTML SCRAPING ENHANCED MODE - COMPLETE LINKEDIN PROFILES WITH FEATURE LOCK`);
-            console.log(`   🔥 HTML Scraping → Direct scraping from Chrome extension ✓`);
-            console.log(`   🔥 Feature Lock → Users blocked until experience data exists ✓`);
-            console.log(`   🔥 URL Normalization → Bi-directional LinkedIn URL matching ✓`);
-            console.log(`   🔥 Complete Profile Extraction → All LinkedIn fields captured ✓`);
-            console.log(`   🔥 DCA API Primary → Best data quality and completeness ✓`);
-            console.log(`   🔥 Dataset API Fallback → Reliability and error handling ✓`);
-            console.log(`   🔥 Gemini AI Processing → Structured data transformation ✓`);
-            console.log(`   🔥 Quality Validation → Profile completeness scoring ✓`);
-            console.log(`   🔥 Chrome Extension → HTML scraping + target profiles ✓`);
-            console.log(`   🔥 Transaction Safety → Database integrity maintained ✓`);
-            console.log(`   🔥 Raw Data Preservation → Complete audit trail ✓`);
+            console.log(`🎯 Status: FULLY CLEANED CODEBASE - CHROME EXTENSION ONLY MODE`);
+            console.log(`   🧹 Bright Data Removed → All ~627 lines of integration code deleted ✓`);
+            console.log(`   🔥 Chrome Extension → Required for all profile data extraction ✓`);
+            console.log(`   🔥 HTML Scraping → Gemini AI processes scraped HTML ✓`);
+            console.log(`   🔥 Feature Lock → Experience data required for full access ✓`);
+            console.log(`   🔥 Simple Sign-Up → No background processing, just URL storage ✓`);
+            console.log(`   🔥 Message Generation → AI-powered personalization ✓`);
+            console.log(`   🔥 Clean Architecture → Simplified, maintainable codebase ✓`);
         });
         
     } catch (error) {
