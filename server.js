@@ -3030,4 +3030,7 @@ app.use((req, res, next) => {
     });
 });
 
-app.
+// Start the server
+startServer();
+
+module.exports = app;
