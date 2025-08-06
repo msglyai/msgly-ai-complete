@@ -450,489 +450,7 @@ const initDB = async () => {
                     await pool.query(columnQuery);
                 } catch (err) {
                     // Column might already exist, continue
-                    console.log(`✅ Found ${messages.length} messages for user ${req.user.id}`);
-        
-        res.json({
-            success: true,
-            data: {
-                messages: messages,
-                pagination: {
-                    total: parseInt(countResult.rows[0].count),
-                    limit: parseInt(limit),
-                    offset: parseInt(offset),
-                    hasMore: (parseInt(offset) + messages.length) < parseInt(countResult.rows[0].count)
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching message history:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch message history',
-            details: error.message
-        });
-    }
-});
-
-// ✅ Get credits transactions for user
-app.get('/credits-history', authenticateToken, async (req, res) => {
-    try {
-        const { limit = 50, offset = 0 } = req.query;
-        
-        console.log(`💳 Fetching credits history for user ${req.user.id}`);
-        
-        const result = await pool.query(`
-            SELECT 
-                id,
-                transaction_type,
-                credits_change,
-                description,
-                created_at
-            FROM credits_transactions 
-            WHERE user_id = $1 
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-        `, [req.user.id, parseInt(limit), parseInt(offset)]);
-        
-        const countResult = await pool.query(
-            'SELECT COUNT(*) FROM credits_transactions WHERE user_id = $1',
-            [req.user.id]
-        );
-        
-        const transactions = result.rows.map(tx => ({
-            id: tx.id,
-            transactionType: tx.transaction_type,
-            creditsChange: tx.credits_change,
-            description: tx.description,
-            createdAt: tx.created_at
-        }));
-        
-        console.log(`✅ Found ${transactions.length} credit transactions for user ${req.user.id}`);
-        
-        res.json({
-            success: true,
-            data: {
-                transactions: transactions,
-                pagination: {
-                    total: parseInt(countResult.rows[0].count),
-                    limit: parseInt(limit),
-                    offset: parseInt(offset),
-                    hasMore: (parseInt(offset) + transactions.length) < parseInt(countResult.rows[0].count)
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching credits history:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch credits history',
-            details: error.message
-        });
-    }
-});
-
-// ✅ Delete target profile
-app.delete('/target-profiles/:id', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        console.log(`🗑️ Deleting target profile ${id} for user ${req.user.id}`);
-        
-        // Verify the profile belongs to the user
-        const checkResult = await pool.query(
-            'SELECT id FROM target_profiles WHERE id = $1 AND user_id = $2',
-            [id, req.user.id]
-        );
-        
-        if (checkResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'Target profile not found or unauthorized'
-            });
-        }
-        
-        // Delete the profile
-        await pool.query(
-            'DELETE FROM target_profiles WHERE id = $1 AND user_id = $2',
-            [id, req.user.id]
-        );
-        
-        console.log(`✅ Deleted target profile ${id} for user ${req.user.id}`);
-        
-        res.json({
-            success: true,
-            message: 'Target profile deleted successfully'
-        });
-        
-    } catch (error) {
-        console.error('❌ Error deleting target profile:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to delete target profile',
-            details: error.message
-        });
-    }
-});
-
-// ✅ Get user statistics
-app.get('/user/stats', authenticateToken, async (req, res) => {
-    try {
-        console.log(`📊 Fetching statistics for user ${req.user.id}`);
-        
-        // Get profile completion status
-        const profileResult = await pool.query(`
-            SELECT 
-                initial_scraping_done,
-                data_extraction_status,
-                experience,
-                certifications,
-                awards,
-                activity
-            FROM user_profiles 
-            WHERE user_id = $1
-        `, [req.user.id]);
-        
-        // Get target profiles count
-        const targetCountResult = await pool.query(
-            'SELECT COUNT(*) FROM target_profiles WHERE user_id = $1',
-            [req.user.id]
-        );
-        
-        // Get messages count
-        const messageCountResult = await pool.query(
-            'SELECT COUNT(*) FROM message_logs WHERE user_id = $1',
-            [req.user.id]
-        );
-        
-        // Get recent activity
-        const recentActivityResult = await pool.query(`
-            SELECT 'message' as type, target_name as name, created_at
-            FROM message_logs 
-            WHERE user_id = $1 
-            UNION ALL
-            SELECT 'target_profile' as type, full_name as name, scraped_at as created_at
-            FROM target_profiles 
-            WHERE user_id = $1 
-            ORDER BY created_at DESC 
-            LIMIT 10
-        `, [req.user.id]);
-        
-        const profile = profileResult.rows[0];
-        const stats = {
-            profileComplete: profile ? profile.initial_scraping_done : false,
-            extractionStatus: profile ? profile.data_extraction_status : 'not_started',
-            experienceCount: profile && profile.experience ? profile.experience.length : 0,
-            certificationsCount: profile && profile.certifications ? profile.certifications.length : 0,
-            awardsCount: profile && profile.awards ? profile.awards.length : 0,
-            activityCount: profile && profile.activity ? profile.activity.length : 0,
-            targetProfilesCount: parseInt(targetCountResult.rows[0].count),
-            messagesGenerated: parseInt(messageCountResult.rows[0].count),
-            creditsRemaining: req.user.credits_remaining,
-            packageType: req.user.package_type,
-            recentActivity: recentActivityResult.rows.map(activity => ({
-                type: activity.type,
-                name: activity.name,
-                createdAt: activity.created_at
-            }))
-        };
-        
-        console.log(`✅ Statistics compiled for user ${req.user.id}`);
-        
-        res.json({
-            success: true,
-            data: { stats }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching user statistics:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch user statistics',
-            details: error.message
-        });
-    }
-});
-
-// ✅ Search target profiles
-app.get('/target-profiles/search', authenticateToken, async (req, res) => {
-    try {
-        const { q, limit = 20 } = req.query;
-        
-        if (!q || q.length < 2) {
-            return res.status(400).json({
-                success: false,
-                error: 'Search query must be at least 2 characters'
-            });
-        }
-        
-        console.log(`🔍 Searching target profiles for user ${req.user.id} with query: "${q}"`);
-        
-        const result = await pool.query(`
-            SELECT 
-                id,
-                linkedin_url,
-                full_name,
-                headline,
-                "current_role",  -- ✅ FIXED: Escaped reserved word
-                current_company,
-                location,
-                profile_image_url,
-                scraped_at
-            FROM target_profiles 
-            WHERE user_id = $1 
-            AND (
-                LOWER(full_name) LIKE LOWER($2) OR
-                LOWER(headline) LIKE LOWER($2) OR
-                LOWER("current_role") LIKE LOWER($2) OR  -- ✅ FIXED: Escaped reserved word
-                LOWER(current_company) LIKE LOWER($2) OR
-                LOWER(location) LIKE LOWER($2)
-            )
-            ORDER BY scraped_at DESC
-            LIMIT $3
-        `, [req.user.id, `%${q}%`, parseInt(limit)]);
-        
-        const profiles = result.rows.map(profile => ({
-            id: profile.id,
-            linkedinUrl: profile.linkedin_url,
-            fullName: profile.full_name,
-            headline: profile.headline,
-            currentRole: profile.current_role,
-            currentCompany: profile.current_company,
-            location: profile.location,
-            profileImageUrl: profile.profile_image_url,
-            scrapedAt: profile.scraped_at
-        }));
-        
-        console.log(`✅ Found ${profiles.length} matching target profiles`);
-        
-        res.json({
-            success: true,
-            data: {
-                profiles: profiles,
-                query: q,
-                count: profiles.length
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error searching target profiles:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to search target profiles',
-            details: error.message
-        });
-    }
-});
-
-// ✅ Update user settings
-app.put('/user/settings', authenticateToken, async (req, res) => {
-    try {
-        const { displayName, packageType } = req.body;
-        
-        console.log(`⚙️ Updating settings for user ${req.user.id}`);
-        
-        const updates = [];
-        const values = [];
-        let paramIndex = 1;
-        
-        if (displayName !== undefined) {
-            updates.push(`display_name = ${paramIndex++}`);
-            values.push(displayName);
-        }
-        
-        if (packageType !== undefined) {
-            if (packageType !== 'free') {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Only free package is available during beta'
-                });
-            }
-            updates.push(`package_type = ${paramIndex++}`);
-            values.push(packageType);
-        }
-        
-        if (updates.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'No valid updates provided'
-            });
-        }
-        
-        updates.push(`updated_at = CURRENT_TIMESTAMP`);
-        values.push(req.user.id);
-        
-        const query = `
-            UPDATE users 
-            SET ${updates.join(', ')}
-            WHERE id = ${paramIndex}
-            RETURNING *
-        `;
-        
-        const result = await pool.query(query, values);
-        const updatedUser = result.rows[0];
-        
-        console.log(`✅ Settings updated for user ${req.user.id}`);
-        
-        res.json({
-            success: true,
-            message: 'Settings updated successfully',
-            data: {
-                user: {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    displayName: updatedUser.display_name,
-                    packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining,
-                    updatedAt: updatedUser.updated_at
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error updating user settings:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to update settings',
-            details: error.message
-        });
-    }
-});
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-    console.error('❌ Unhandled Error:', error);
-    res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-});
-
-// 404 handler
-app.use((req, res, next) => {
-    res.status(404).json({
-        success: false,
-        error: 'Route not found',
-        path: req.path,
-        method: req.method,
-        availableRoutes: [
-            'GET /',
-            'GET /sign-up',
-            'GET /login', 
-            'GET /dashboard',
-            'GET /health',
-            'POST /register',
-            'POST /login',
-            'GET /auth/google',
-            'GET /auth/google/callback',
-            'POST /auth/chrome-extension',
-            'POST /complete-registration',
-            'POST /update-profile',
-            'GET /profile',
-            'GET /profile-status',
-            'POST /profile/user',
-            'POST /profile/target',
-            'GET /target-profiles',
-            'GET /target-profiles/search',
-            'DELETE /target-profiles/:id',
-            'POST /scrape-html',
-            'GET /user/setup-status',
-            'GET /user/initial-scraping-status',
-            'GET /user/stats',
-            'PUT /user/settings',
-            'POST /generate-message',
-            'GET /message-history',
-            'GET /credits-history',
-            'POST /retry-extraction',
-            'GET /packages'
-        ]
-    });
-});
-
-// ==================== SERVER STARTUP ====================
-
-const validateEnvironment = () => {
-    const required = ['DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
-    const missing = required.filter(key => !process.env[key]);
-    
-    if (missing.length > 0) {
-        console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
-        process.exit(1);
-    }
-    
-    if (!process.env.OPENAI_API_KEY) {
-        console.warn('⚠️ Warning: OPENAI_API_KEY not set - HTML scraping and message generation will fail');
-    }
-    
-    console.log('✅ Environment validated');
-};
-
-const testDatabase = async () => {
-    try {
-        const result = await pool.query('SELECT NOW()');
-        console.log('✅ Enhanced database connected:', result.rows[0].now);
-        await initDB();
-        return true;
-    } catch (error) {
-        console.error('❌ Database connection failed:', error.message);
-        return false;
-    }
-};
-
-const startServer = async () => {
-    try {
-        validateEnvironment();
-        
-        const dbOk = await testDatabase();
-        if (!dbOk) {
-            console.error('❌ Cannot start server without database');
-            process.exit(1);
-        }
-        
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - MODULARIZED VERSION: Health Routes Extracted!');
-            console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced with comprehensive fields - PostgreSQL reserved word FIXED`);
-            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
-            console.log(`🔧 MODULARIZATION STEP 1 COMPLETED:`);
-            console.log(`   ✅ EXTRACTED: Health routes moved to routes/health.js`);
-            console.log(`   ✅ REDUCED: server.js size decreased significantly`);
-            console.log(`   ✅ WORKING: Health endpoint available at /health`);
-            console.log(`   ✅ READY: For Step 2 - Authentication middleware extraction`);
-            console.log(`🎯 CURRENT SERVER SIZE: ~2600 lines (reduced from 3000+)`);
-            console.log(`📋 NEXT STEPS:`);
-            console.log(`   Step 2: Extract Authentication Middleware → middleware/auth.js`);
-            console.log(`   Step 3: Extract User Routes → routes/users.js`);
-            console.log(`   Step 4: Extract Auth Routes → routes/auth.js`);
-            console.log(`   Step 5: Extract Profile Scraping Routes → routes/profiles.js`);
-            console.log(`🚀 Health Routes: Successfully modularized and working!`);
-        });
-        
-    } catch (error) {
-        console.error('❌ Startup failed:', error);
-        process.exit(1);
-    }
-};
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('🛑 Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-    console.log('🛑 Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-// Start the server
-startServer();
-
-module.exports = app;Column might already exist: ${err.message}`);
+                    console.log(`Column might already exist: ${err.message}`);
                 }
             }
             
@@ -3405,4 +2923,482 @@ app.get('/message-history', authenticateToken, async (req, res) => {
             createdAt: msg.created_at
         }));
         
-        console.log(`
+        console.log(`✅ Found ${messages.length} messages for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            data: {
+                messages: messages,
+                pagination: {
+                    total: parseInt(countResult.rows[0].count),
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    hasMore: (parseInt(offset) + messages.length) < parseInt(countResult.rows[0].count)
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching message history:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch message history',
+            details: error.message
+        });
+    }
+});
+
+// ✅ Get credits transactions for user
+app.get('/credits-history', authenticateToken, async (req, res) => {
+    try {
+        const { limit = 50, offset = 0 } = req.query;
+        
+        console.log(`💳 Fetching credits history for user ${req.user.id}`);
+        
+        const result = await pool.query(`
+            SELECT 
+                id,
+                transaction_type,
+                credits_change,
+                description,
+                created_at
+            FROM credits_transactions 
+            WHERE user_id = $1 
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+        `, [req.user.id, parseInt(limit), parseInt(offset)]);
+        
+        const countResult = await pool.query(
+            'SELECT COUNT(*) FROM credits_transactions WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        const transactions = result.rows.map(tx => ({
+            id: tx.id,
+            transactionType: tx.transaction_type,
+            creditsChange: tx.credits_change,
+            description: tx.description,
+            createdAt: tx.created_at
+        }));
+        
+        console.log(`✅ Found ${transactions.length} credit transactions for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            data: {
+                transactions: transactions,
+                pagination: {
+                    total: parseInt(countResult.rows[0].count),
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    hasMore: (parseInt(offset) + transactions.length) < parseInt(countResult.rows[0].count)
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching credits history:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch credits history',
+            details: error.message
+        });
+    }
+});
+
+// ✅ Delete target profile
+app.delete('/target-profiles/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        console.log(`🗑️ Deleting target profile ${id} for user ${req.user.id}`);
+        
+        // Verify the profile belongs to the user
+        const checkResult = await pool.query(
+            'SELECT id FROM target_profiles WHERE id = $1 AND user_id = $2',
+            [id, req.user.id]
+        );
+        
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Target profile not found or unauthorized'
+            });
+        }
+        
+        // Delete the profile
+        await pool.query(
+            'DELETE FROM target_profiles WHERE id = $1 AND user_id = $2',
+            [id, req.user.id]
+        );
+        
+        console.log(`✅ Deleted target profile ${id} for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            message: 'Target profile deleted successfully'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error deleting target profile:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete target profile',
+            details: error.message
+        });
+    }
+});
+
+// ✅ Get user statistics
+app.get('/user/stats', authenticateToken, async (req, res) => {
+    try {
+        console.log(`📊 Fetching statistics for user ${req.user.id}`);
+        
+        // Get profile completion status
+        const profileResult = await pool.query(`
+            SELECT 
+                initial_scraping_done,
+                data_extraction_status,
+                experience,
+                certifications,
+                awards,
+                activity
+            FROM user_profiles 
+            WHERE user_id = $1
+        `, [req.user.id]);
+        
+        // Get target profiles count
+        const targetCountResult = await pool.query(
+            'SELECT COUNT(*) FROM target_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        // Get messages count
+        const messageCountResult = await pool.query(
+            'SELECT COUNT(*) FROM message_logs WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        // Get recent activity
+        const recentActivityResult = await pool.query(`
+            SELECT 'message' as type, target_name as name, created_at
+            FROM message_logs 
+            WHERE user_id = $1 
+            UNION ALL
+            SELECT 'target_profile' as type, full_name as name, scraped_at as created_at
+            FROM target_profiles 
+            WHERE user_id = $1 
+            ORDER BY created_at DESC 
+            LIMIT 10
+        `, [req.user.id]);
+        
+        const profile = profileResult.rows[0];
+        const stats = {
+            profileComplete: profile ? profile.initial_scraping_done : false,
+            extractionStatus: profile ? profile.data_extraction_status : 'not_started',
+            experienceCount: profile && profile.experience ? profile.experience.length : 0,
+            certificationsCount: profile && profile.certifications ? profile.certifications.length : 0,
+            awardsCount: profile && profile.awards ? profile.awards.length : 0,
+            activityCount: profile && profile.activity ? profile.activity.length : 0,
+            targetProfilesCount: parseInt(targetCountResult.rows[0].count),
+            messagesGenerated: parseInt(messageCountResult.rows[0].count),
+            creditsRemaining: req.user.credits_remaining,
+            packageType: req.user.package_type,
+            recentActivity: recentActivityResult.rows.map(activity => ({
+                type: activity.type,
+                name: activity.name,
+                createdAt: activity.created_at
+            }))
+        };
+        
+        console.log(`✅ Statistics compiled for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            data: { stats }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching user statistics:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch user statistics',
+            details: error.message
+        });
+    }
+});
+
+// ✅ Search target profiles
+app.get('/target-profiles/search', authenticateToken, async (req, res) => {
+    try {
+        const { q, limit = 20 } = req.query;
+        
+        if (!q || q.length < 2) {
+            return res.status(400).json({
+                success: false,
+                error: 'Search query must be at least 2 characters'
+            });
+        }
+        
+        console.log(`🔍 Searching target profiles for user ${req.user.id} with query: "${q}"`);
+        
+        const result = await pool.query(`
+            SELECT 
+                id,
+                linkedin_url,
+                full_name,
+                headline,
+                "current_role",  -- ✅ FIXED: Escaped reserved word
+                current_company,
+                location,
+                profile_image_url,
+                scraped_at
+            FROM target_profiles 
+            WHERE user_id = $1 
+            AND (
+                LOWER(full_name) LIKE LOWER($2) OR
+                LOWER(headline) LIKE LOWER($2) OR
+                LOWER("current_role") LIKE LOWER($2) OR  -- ✅ FIXED: Escaped reserved word
+                LOWER(current_company) LIKE LOWER($2) OR
+                LOWER(location) LIKE LOWER($2)
+            )
+            ORDER BY scraped_at DESC
+            LIMIT $3
+        `, [req.user.id, `%${q}%`, parseInt(limit)]);
+        
+        const profiles = result.rows.map(profile => ({
+            id: profile.id,
+            linkedinUrl: profile.linkedin_url,
+            fullName: profile.full_name,
+            headline: profile.headline,
+            currentRole: profile.current_role,
+            currentCompany: profile.current_company,
+            location: profile.location,
+            profileImageUrl: profile.profile_image_url,
+            scrapedAt: profile.scraped_at
+        }));
+        
+        console.log(`✅ Found ${profiles.length} matching target profiles`);
+        
+        res.json({
+            success: true,
+            data: {
+                profiles: profiles,
+                query: q,
+                count: profiles.length
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error searching target profiles:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to search target profiles',
+            details: error.message
+        });
+    }
+});
+
+// ✅ Update user settings
+app.put('/user/settings', authenticateToken, async (req, res) => {
+    try {
+        const { displayName, packageType } = req.body;
+        
+        console.log(`⚙️ Updating settings for user ${req.user.id}`);
+        
+        const updates = [];
+        const values = [];
+        let paramIndex = 1;
+        
+        if (displayName !== undefined) {
+            updates.push(`display_name = ${paramIndex++}`);
+            values.push(displayName);
+        }
+        
+        if (packageType !== undefined) {
+            if (packageType !== 'free') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Only free package is available during beta'
+                });
+            }
+            updates.push(`package_type = ${paramIndex++}`);
+            values.push(packageType);
+        }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'No valid updates provided'
+            });
+        }
+        
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        values.push(req.user.id);
+        
+        const query = `
+            UPDATE users 
+            SET ${updates.join(', ')}
+            WHERE id = ${paramIndex}
+            RETURNING *
+        `;
+        
+        const result = await pool.query(query, values);
+        const updatedUser = result.rows[0];
+        
+        console.log(`✅ Settings updated for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            message: 'Settings updated successfully',
+            data: {
+                user: {
+                    id: updatedUser.id,
+                    email: updatedUser.email,
+                    displayName: updatedUser.display_name,
+                    packageType: updatedUser.package_type,
+                    credits: updatedUser.credits_remaining,
+                    updatedAt: updatedUser.updated_at
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error updating user settings:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update settings',
+            details: error.message
+        });
+    }
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error('❌ Unhandled Error:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+});
+
+// 404 handler
+app.use((req, res, next) => {
+    res.status(404).json({
+        success: false,
+        error: 'Route not found',
+        path: req.path,
+        method: req.method,
+        availableRoutes: [
+            'GET /',
+            'GET /sign-up',
+            'GET /login', 
+            'GET /dashboard',
+            'GET /health',
+            'POST /register',
+            'POST /login',
+            'GET /auth/google',
+            'GET /auth/google/callback',
+            'POST /auth/chrome-extension',
+            'POST /complete-registration',
+            'POST /update-profile',
+            'GET /profile',
+            'GET /profile-status',
+            'POST /profile/user',
+            'POST /profile/target',
+            'GET /target-profiles',
+            'GET /target-profiles/search',
+            'DELETE /target-profiles/:id',
+            'POST /scrape-html',
+            'GET /user/setup-status',
+            'GET /user/initial-scraping-status',
+            'GET /user/stats',
+            'PUT /user/settings',
+            'POST /generate-message',
+            'GET /message-history',
+            'GET /credits-history',
+            'POST /retry-extraction',
+            'GET /packages'
+        ]
+    });
+});
+
+// ==================== SERVER STARTUP ====================
+
+const validateEnvironment = () => {
+    const required = ['DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+    const missing = required.filter(key => !process.env[key]);
+    
+    if (missing.length > 0) {
+        console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+        process.exit(1);
+    }
+    
+    if (!process.env.OPENAI_API_KEY) {
+        console.warn('⚠️ Warning: OPENAI_API_KEY not set - HTML scraping and message generation will fail');
+    }
+    
+    console.log('✅ Environment validated');
+};
+
+const testDatabase = async () => {
+    try {
+        const result = await pool.query('SELECT NOW()');
+        console.log('✅ Enhanced database connected:', result.rows[0].now);
+        await initDB();
+        return true;
+    } catch (error) {
+        console.error('❌ Database connection failed:', error.message);
+        return false;
+    }
+};
+
+const startServer = async () => {
+    try {
+        validateEnvironment();
+        
+        const dbOk = await testDatabase();
+        if (!dbOk) {
+            console.error('❌ Cannot start server without database');
+            process.exit(1);
+        }
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log('🚀 Msgly.AI Server - SYNTAX ERRORS FIXED!');
+            console.log(`📍 Port: ${PORT}`);
+            console.log(`🗃️ Database: Enhanced with comprehensive fields - PostgreSQL reserved word FIXED`);
+            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
+            console.log(`🔧 CRITICAL FIXES APPLIED:`);
+            console.log(`   ✅ FIXED: Malformed try/catch block at line 468`);
+            console.log(`   ✅ FIXED: Missing closing brackets and parentheses`);
+            console.log(`   ✅ FIXED: Truncated file now complete`);
+            console.log(`   ✅ FIXED: PostgreSQL reserved word "current_role" properly escaped`);
+            console.log(`🎯 SERVER STATUS: FULLY WORKING - No more syntax errors!`);
+            console.log(`📋 READY FOR STEP 2A: Database functions extraction`);
+            console.log(`🚀 Syntax errors resolved - server starting successfully!`);
+        });
+        
+    } catch (error) {
+        console.error('❌ Startup failed:', error);
+        process.exit(1);
+    }
+};
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('🛑 Gracefully shutting down...');
+    await pool.end();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('🛑 Gracefully shutting down...');
+    await pool.end();
+    process.exit(0);
+});
+
+// Start the server
+startServer();
+
+module.exports = app;
