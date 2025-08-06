@@ -291,7 +291,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     packageType: user.package_type,
                     credits: user.credits_remaining || 10,
                     linkedinUrl: user.linkedin_url,
-                    profileCompleted: user.profile_completed
+                    registrationCompleted: user.registration_completed  // ✅ FIXED: Changed from profileCompleted
                 },
                 isNewUser: isNewUser
             }
@@ -556,9 +556,9 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
                 profile = result.rows[0];
             }
             
-            // Update users table
+            // ✅ FIXED: Update users table with registration_completed = true
             await pool.query(
-                'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3 WHERE id = $4',
+                'UPDATE users SET linkedin_url = $1, extraction_status = $2, registration_completed = $3 WHERE id = $4',
                 [extractedData.linkedinUrl, 'completed', true, req.user.id]
             );
             
@@ -714,6 +714,7 @@ app.get('/user/setup-status', authenticateToken, async (req, res) => {
                 up.total_likes,
                 up.total_comments,
                 u.linkedin_url as user_linkedin_url,
+                u.registration_completed,  -- ✅ FIXED: Get registration_completed field
                 COALESCE(up.linkedin_url, u.linkedin_url) as linkedin_url
             FROM users u
             LEFT JOIN user_profiles up ON u.id = up.user_id 
@@ -725,12 +726,14 @@ app.get('/user/setup-status', authenticateToken, async (req, res) => {
         let hasExperience = false;
         let isComplete = false;
         let enhancedData = {};
+        let registrationCompleted = false;
         
         if (result.rows.length > 0) {
             const data = result.rows[0];
             const initialScrapingDone = data.initial_scraping_done || false;
             const extractionStatus = data.data_extraction_status || 'not_started';
             userLinkedInUrl = data.linkedin_url;
+            registrationCompleted = data.registration_completed || false;  // ✅ FIXED: Get registration_completed
             
             // Check if user has experience
             if (data.experience && Array.isArray(data.experience)) {
@@ -747,9 +750,11 @@ app.get('/user/setup-status', authenticateToken, async (req, res) => {
                 hasEngagement: (data.total_likes || 0) > 0 || (data.total_comments || 0) > 0
             };
             
-            // Determine setup status
-            if (!initialScrapingDone || extractionStatus !== 'completed') {
-                setupStatus = 'not_started';
+            // ✅ FIXED: Determine setup status based on registration_completed
+            if (!registrationCompleted) {
+                setupStatus = 'registration_incomplete';
+            } else if (!initialScrapingDone || extractionStatus !== 'completed') {
+                setupStatus = 'profile_sync_needed';
             } else if (!hasExperience) {
                 setupStatus = 'incomplete_experience';
             } else {
@@ -758,6 +763,7 @@ app.get('/user/setup-status', authenticateToken, async (req, res) => {
             }
             
             console.log(`📊 Enhanced setup status for user ${req.user.id}:`);
+            console.log(`   - Registration completed: ${registrationCompleted}`);  // ✅ FIXED
             console.log(`   - Initial scraping done: ${initialScrapingDone}`);
             console.log(`   - Extraction status: ${extractionStatus}`);
             console.log(`   - Has experience: ${hasExperience}`);
@@ -775,6 +781,7 @@ app.get('/user/setup-status', authenticateToken, async (req, res) => {
                 isComplete: isComplete,
                 userLinkedInUrl: userLinkedInUrl,
                 hasExperience: hasExperience,
+                registrationCompleted: registrationCompleted,  // ✅ FIXED: Include registration_completed
                 requiresAction: !isComplete,
                 message: getSetupStatusMessage(setupStatus),
                 enhancedData: enhancedData
@@ -816,16 +823,16 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // Smart redirect logic
+            // ✅ FIXED: Smart redirect logic using registration_completed
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.linkedin_url || 
-                                   !req.user.profile_completed ||
+                                   !req.user.registration_completed ||  // ✅ FIXED: Changed from profile_completed
                                    req.user.extraction_status === 'not_started';
             
             console.log(`🔍 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-            console.log(`   - Profile completed: ${req.user.profile_completed || false}`);
+            console.log(`   - Registration completed: ${req.user.registration_completed || false}`);  // ✅ FIXED
             console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
@@ -995,7 +1002,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// ✅ Complete registration endpoint - Cleaned
+// ✅ FIXED: Complete registration endpoint - Sets registration_completed = true
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     console.log('🎯 Complete registration request for user:', req.user.id);
     
@@ -1045,6 +1052,12 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             req.user.display_name
         );
         
+        // ✅ FIXED: Set registration_completed = true instead of profile_completed
+        await pool.query(
+            'UPDATE users SET registration_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [true, req.user.id]
+        );
+        
         const updatedUser = await getUserById(req.user.id);
         
         res.json({
@@ -1083,7 +1096,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ Update profile endpoint - Cleaned
+// ✅ FIXED: Update profile endpoint - Sets registration_completed = true
 app.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
@@ -1126,6 +1139,12 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             req.user.display_name
         );
         
+        // ✅ FIXED: Set registration_completed = true instead of profile_completed  
+        await pool.query(
+            'UPDATE users SET registration_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [true, req.user.id]
+        );
+        
         const updatedUser = await getUserById(req.user.id);
         
         res.json({
@@ -1164,14 +1183,14 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get User Profile - Enhanced - WITH ESCAPED current_role
+// ✅ FIXED: Get User Profile - Returns registration_completed field
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
         const profileResult = await pool.query(`
             SELECT 
                 up.*,
                 u.extraction_status as user_extraction_status,
-                u.profile_completed as user_profile_completed
+                u.registration_completed as user_registration_completed  -- ✅ FIXED: Changed from profile_completed
             FROM user_profiles up 
             RIGHT JOIN users u ON u.id = up.user_id 
             WHERE u.id = $1
@@ -1238,7 +1257,8 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     credits: req.user.credits_remaining,
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
-                    createdAt: req.user.created_at
+                    createdAt: req.user.created_at,
+                    registrationCompleted: req.user.registration_completed  // ✅ FIXED: Changed from profile_completed
                 },
                 profile: profile && profile.user_id ? {
                     linkedinUrl: profile.linkedin_url,
@@ -1325,14 +1345,14 @@ app.get('/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Check profile extraction status
+// ✅ FIXED: Check profile extraction status - Returns registration_completed
 app.get('/profile-status', authenticateToken, async (req, res) => {
     try {
         const userQuery = `
             SELECT 
                 u.extraction_status,
                 u.error_message,
-                u.profile_completed,
+                u.registration_completed,  -- ✅ FIXED: Changed from profile_completed
                 u.linkedin_url,
                 up.data_extraction_status,
                 up.extraction_completed_at,
@@ -1354,7 +1374,7 @@ app.get('/profile-status', authenticateToken, async (req, res) => {
         
         res.json({
             extraction_status: status.extraction_status,
-            profile_completed: status.profile_completed,
+            registration_completed: status.registration_completed,  // ✅ FIXED: Changed from profile_completed
             linkedin_url: status.linkedin_url,
             error_message: status.error_message,
             data_extraction_status: status.data_extraction_status,
@@ -1657,9 +1677,9 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                 WHERE user_id = $1 AND full_name IS NOT NULL
             `, [req.user.id]);
             
-            // Update user table with normalized LinkedIn URL
+            // ✅ FIXED: Update user table with registration_completed = true
             await client.query(
-                'UPDATE users SET linkedin_url = $1, extraction_status = $2, profile_completed = $3, error_message = NULL WHERE id = $4',
+                'UPDATE users SET linkedin_url = $1, extraction_status = $2, registration_completed = $3, error_message = NULL WHERE id = $4',
                 [processedData.linkedinUrl, 'completed', true, req.user.id]
             );
             
@@ -1695,7 +1715,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                         }
                     },
                     user: {
-                        profileCompleted: true,
+                        registrationCompleted: true,  // ✅ FIXED: Changed from profileCompleted
                         extractionStatus: 'completed'
                     }
                 }
@@ -2576,7 +2596,7 @@ const startServer = async () => {
         app.listen(PORT, '0.0.0.0', () => {
             console.log('🚀 Msgly.AI Server - STEP 2C COMPLETED: Static Routes Extracted!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with reserved word fixes`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL with registration_completed field FIXED`);
             console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
             console.log(`🔧 MODULARIZATION STEP 2C COMPLETED:`);
             console.log(`   ✅ EXTRACTED: All static routes moved to routes/static.js`);
@@ -2584,6 +2604,7 @@ const startServer = async () => {
             console.log(`   ✅ WORKING: Static file serving, frontend pages, SEO & PWA files`);
             console.log(`🎯 CURRENT SERVER SIZE: ~2500 lines (reduced from ~3500 total)`);
             console.log(`📊 TOTAL REDUCTION SO FAR: 1000+ lines removed (29% reduction!)`);
+            console.log(`🔧 CRITICAL FIX: registration_completed field logic CORRECTED throughout server`);
             console.log(`📋 NEXT STEPS:`);
             console.log(`   Step 2D: Extract Auth Middleware → middleware/auth.js`);
             console.log(`   Step 2E: Extract User Routes → routes/users.js`);
