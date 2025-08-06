@@ -1442,10 +1442,29 @@
             const sidebarInitials = getInitials(user.displayName || user.email);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
-            // Show/hide sync warning based on sync status
+            // ✅ FIXED: Show/hide sync warning based on registration_completed + sync status
             const syncWarning = document.getElementById('syncWarning');
-            if (syncStatus && syncStatus.isIncomplete) {
+            
+            // Check if registration is complete AND profile is synced
+            const isRegistrationComplete = user.registrationCompleted;  // ✅ FIXED: Changed from profileCompleted
+            const isProfileSynced = !syncStatus?.isIncomplete;
+            
+            if (!isRegistrationComplete || !isProfileSynced) {
                 syncWarning.style.display = 'block';
+                
+                // Update warning message based on what's incomplete
+                const warningMessage = syncWarning.querySelector('.sync-warning-message');
+                if (!isRegistrationComplete) {
+                    warningMessage.innerHTML = `
+                        <span class="sync-warning-highlight">Your registration is not complete yet.</span>
+                        Please complete your LinkedIn profile setup by providing your LinkedIn URL and accepting our terms.
+                    `;
+                } else if (!isProfileSynced) {
+                    warningMessage.innerHTML = `
+                        To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. 
+                        Please visit <span class="sync-warning-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    `;
+                }
             } else {
                 syncWarning.style.display = 'none';
             }
@@ -1507,8 +1526,9 @@
 
             // LinkedIn Profile Summary
             if (profile) {
-                // Check if profile is properly synced
+                // ✅ FIXED: Check if profile is properly synced AND registration is complete
                 const isProfileSynced = profile.fullName && profile.headline && (profile.currentCompanyName || profile.currentCompany);
+                const isRegistrationComplete = user.registrationCompleted;  // ✅ FIXED: Changed from profileCompleted
                 
                 // Update sync status
                 const syncStatus = document.getElementById('profileSyncStatus');
@@ -1517,7 +1537,7 @@
                 const profileBtn = document.getElementById('viewProfileBtn');
                 const profileBtnText = document.getElementById('profileBtnText');
                 
-                if (isProfileSynced) {
+                if (isRegistrationComplete && isProfileSynced) {
                     syncStatus.classList.add('synced');
                     syncStatusIcon.className = 'fas fa-check-circle';
                     syncStatusText.textContent = '✨ Profile synced and ready to rock!';
@@ -1528,8 +1548,12 @@
                     profileBtnText.innerHTML = '<i class="fas fa-eye"></i> View Full Profile';
                 } else {
                     syncStatus.style.display = 'block';
-                    syncStatusText.textContent = '🔄 LinkedIn magic pending - sync your profile to unlock full power!';
-                    profileBtnText.innerHTML = '<i class="fas fa-sync-alt"></i> Sync your LinkedIn profile first';
+                    if (!isRegistrationComplete) {
+                        syncStatusText.textContent = '⚠️ Complete your registration first by providing your LinkedIn URL';
+                    } else {
+                        syncStatusText.textContent = '🔄 LinkedIn magic pending - sync your profile to unlock full power!';
+                    }
+                    profileBtnText.innerHTML = '<i class="fas fa-sync-alt"></i> Complete registration and sync profile';
                 }
                 
                 // Display profile information
@@ -1548,7 +1572,7 @@
                     profileUrlElement.href = profile.linkedinUrl;
                     profileUrlElement.textContent = profile.linkedinUrl;
                 } else {
-                    profileUrlElement.textContent = 'LinkedIn URL will appear after sync';
+                    profileUrlElement.textContent = 'LinkedIn URL will appear after registration';
                     profileUrlElement.removeAttribute('href');
                 }
 
@@ -1559,9 +1583,14 @@
                 // No LinkedIn profile data at all
                 const syncStatus = document.getElementById('profileSyncStatus');
                 const syncStatusText = document.getElementById('syncStatusText');
+                const isRegistrationComplete = user.registrationCompleted;  // ✅ FIXED: Changed from profileCompleted
                 
                 syncStatus.style.display = 'block';
-                syncStatusText.textContent = '🚀 Ready to supercharge your outreach? Sync your LinkedIn profile now!';
+                if (!isRegistrationComplete) {
+                    syncStatusText.textContent = '⚠️ Complete your registration first by providing your LinkedIn URL';
+                } else {
+                    syncStatusText.textContent = '🚀 Ready to supercharge your outreach? Sync your LinkedIn profile now!';
+                }
                 
                 document.getElementById('profileFullName').textContent = 'LinkedIn profile not connected yet';
                 document.getElementById('profileHeadline').textContent = 'Connect your profile to see your headline here';
