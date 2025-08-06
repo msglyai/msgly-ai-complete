@@ -1,4 +1,4 @@
-// auth.js - Google Authentication Module - UPDATED WITH SMART ROUTING
+// auth.js - Google Authentication Module - FIXED registration_completed field
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
@@ -9,7 +9,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 // Database functions (imported from server.js)
-let getUserByEmail, getUserById, createGoogleUser, linkGoogleAccount;
+let getUserByEmail, getUserById, createGoogleUser, linkGoogleAccount, pool;
 
 // Initialize with database functions
 const initAuth = (dbFunctions) => {
@@ -17,6 +17,7 @@ const initAuth = (dbFunctions) => {
     getUserById = dbFunctions.getUserById;
     createGoogleUser = dbFunctions.createGoogleUser;
     linkGoogleAccount = dbFunctions.linkGoogleAccount;
+    pool = dbFunctions.pool;
 };
 
 // Passport serialization
@@ -33,7 +34,7 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// UPDATED Google OAuth Strategy - Smart user detection
+// ✅ FIXED Google OAuth Strategy - Correct registration_completed field
 passport.use(new GoogleStrategy({
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
@@ -66,16 +67,21 @@ async (accessToken, refreshToken, profile, done) => {
             console.log(`👤 Returning user: ${user.email}`);
         }
         
-        // UPDATED: Check registration completion status
+        // ✅ FIXED: Check registration completion status using correct field
         const registrationComplete = user.linkedin_url && 
-                                   user.profile_completed &&
+                                   user.registration_completed &&  // ✅ FIXED: Changed from profile_completed
                                    user.extraction_status !== 'not_started';
         
         // Set routing flags
         user.isNewUser = isNewUser;
         user.registrationComplete = registrationComplete;
         
-        console.log(`📊 User status - New: ${isNewUser}, Complete: ${registrationComplete}`);
+        console.log(`📊 User status for ${user.email}:`);
+        console.log(`   - Is new user: ${isNewUser}`);
+        console.log(`   - Has LinkedIn URL: ${!!user.linkedin_url}`);
+        console.log(`   - Registration completed: ${!!user.registration_completed}`); // ✅ FIXED
+        console.log(`   - Extraction status: ${user.extraction_status || 'not_started'}`);
+        console.log(`   - Registration complete: ${registrationComplete}`);
         
         return done(null, user);
     } catch (error) {
@@ -84,7 +90,7 @@ async (accessToken, refreshToken, profile, done) => {
     }
 }));
 
-// UPDATED Google Auth Routes - Smart routing based on completion status
+// ✅ FIXED Google Auth Routes - Smart routing with fresh data check
 const setupGoogleAuthRoutes = (app) => {
     app.get('/auth/google', (req, res, next) => {
         if (req.query.package) {
@@ -97,7 +103,7 @@ const setupGoogleAuthRoutes = (app) => {
         })(req, res, next);
     });
 
-    // UPDATED OAuth Callback - Smart routing logic
+    // ✅ FIXED OAuth Callback - Get fresh data from database for routing
     app.get('/auth/google/callback',
         passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
         async (req, res) => {
@@ -112,19 +118,48 @@ const setupGoogleAuthRoutes = (app) => {
                 req.session.selectedPackage = null;
                 req.session.billingModel = null;
                 
-                // UPDATED: Smart routing based on completion status
-                if (req.user.registrationComplete) {
-                    // Complete user → Dashboard
-                    console.log(`✅ Complete user ${req.user.email} → Dashboard`);
-                    res.redirect(`/dashboard?token=${token}`);
-                } else {
-                    // Incomplete user (new or existing) → Sign-up
-                    console.log(`📝 Incomplete user ${req.user.email} → Sign-up`);
+                // ✅ FIXED: Get fresh user data from database for accurate routing decision
+                console.log(`🔍 OAuth callback - Getting fresh user data for: ${req.user.email}`);
+                
+                const freshUserResult = await pool.query(`
+                    SELECT 
+                        id, email, linkedin_url, registration_completed, 
+                        extraction_status, display_name
+                    FROM users 
+                    WHERE id = $1
+                `, [req.user.id]);
+                
+                if (freshUserResult.rows.length === 0) {
+                    console.error('❌ User not found after OAuth');
+                    return res.redirect(`/login?error=user_not_found`);
+                }
+                
+                const freshUser = freshUserResult.rows[0];
+                
+                // ✅ FIXED: Smart routing based on fresh registration_completed data
+                const needsOnboarding = req.user.isNewUser || 
+                                       !freshUser.linkedin_url || 
+                                       !freshUser.registration_completed ||  // ✅ FIXED: Use correct field
+                                       freshUser.extraction_status === 'not_started' ||
+                                       freshUser.extraction_status === null;
+                
+                console.log(`🔍 OAuth callback routing decision for: ${freshUser.email}`);
+                console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+                console.log(`   - Has LinkedIn URL: ${!!freshUser.linkedin_url}`);
+                console.log(`   - Registration completed: ${!!freshUser.registration_completed}`); // ✅ FIXED
+                console.log(`   - Extraction status: ${freshUser.extraction_status || 'null'}`);
+                console.log(`   - Needs onboarding: ${needsOnboarding}`);
+                
+                if (needsOnboarding) {
+                    console.log(`➡️ Redirecting to sign-up for onboarding`);
                     res.redirect(`/sign-up?token=${token}`);
+                } else {
+                    console.log(`➡️ Redirecting to dashboard`);
+                    res.redirect(`/dashboard?token=${token}`);
                 }
                 
             } catch (error) {
-                console.error('OAuth callback error:', error);
+                console.error('❌ OAuth callback error:', error);
                 res.redirect(`/login?error=callback_error`);
             }
         }
