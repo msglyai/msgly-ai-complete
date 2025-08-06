@@ -1,4 +1,4 @@
-// Enhanced sendToGemini.js - OpenAI GPT-3.5 Turbo Version
+// Enhanced sendToGemini.js - OpenAI GPT-3.5 Turbo Version - FIXED DATA EXTRACTION
 const axios = require('axios');
 
 // ✅ Rate limiting configuration (OpenAI is more generous)
@@ -322,25 +322,31 @@ async function sendToGemini(inputData) {
                 optimization: inputData.optimization || {}
             };
             
-            // System prompt for OpenAI
-            systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract structured profile information into valid JSON format.
+            // ✅ ENHANCED System prompt for OpenAI with more data fields
+            systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract comprehensive LinkedIn profile information into valid JSON format.
 
 CRITICAL REQUIREMENTS:
 1. EXPERIENCE data is HIGHEST PRIORITY (needed for feature unlock)
 2. Return ONLY valid JSON - no markdown, no explanations, no comments
-3. Use the exact JSON structure provided
-4. Extract all text content, ignore styling and layout elements
-5. If a section is empty, use empty array [] or empty string ""`;
+3. Use the exact JSON structure provided below
+4. Extract all available text content, ignore styling and layout elements
+5. If a section is empty, use empty array [] or empty string ""
+6. Look for ALL social engagement metrics (likes, comments, followers)
+7. Extract activity posts, awards, and certifications if available`;
 
-            // User prompt with HTML content
-            userPrompt = `Extract LinkedIn profile data from this HTML and return as JSON with this exact structure:
+            // ✅ ENHANCED User prompt with comprehensive data structure
+            userPrompt = `Extract comprehensive LinkedIn profile data from this HTML and return as JSON with this EXACT structure:
 
 {
   "profile": {
     "name": "Full Name",
-    "headline": "Professional Headline", 
+    "headline": "Professional Headline",
+    "currentRole": "Current Job Title", 
+    "currentCompany": "Current Company Name",
     "location": "City, Country",
-    "about": "About section text"
+    "about": "About section text",
+    "followersCount": "Number of followers",
+    "connectionsCount": "Number of connections"
   },
   "experience": [
     {
@@ -359,35 +365,63 @@ CRITICAL REQUIREMENTS:
       "duration": "Start Year - End Year"
     }
   ],
-  "skills": ["Skill 1", "Skill 2", "Skill 3"],
   "certifications": [
     {
       "name": "Certification Name",
       "issuer": "Issuing Organization",
-      "date": "Issue Date"
+      "date": "Issue Date",
+      "url": "Certificate URL if available"
     }
-  ]
+  ],
+  "awards": [
+    {
+      "title": "Award Title",
+      "issuer": "Organization",
+      "date": "Award Date",
+      "description": "Award description"
+    }
+  ],
+  "activity": [
+    {
+      "type": "post|article|share",
+      "content": "Activity content preview",
+      "date": "Activity date",
+      "likes": "Number of likes",
+      "comments": "Number of comments",
+      "shares": "Number of shares"
+    }
+  ],
+  "engagement": {
+    "totalLikes": "Sum of all likes across posts",
+    "totalComments": "Sum of all comments across posts",
+    "totalShares": "Sum of all shares across posts",
+    "averageLikes": "Average likes per post"
+  },
+  "skills": ["Skill 1", "Skill 2", "Skill 3"]
 }
+
+IMPORTANT: Look for numbers, engagement metrics, follower counts, and activity data throughout the HTML. Extract as much detail as possible.
 
 HTML Content:
 ${preprocessedHtml}`;
             
         } else if (inputData.data || inputData.results) {
-            // JSON input from Bright Data or other sources
+            // JSON input from other sources
             inputType = 'JSON Data';
             console.log(`📊 Input type: ${inputType}`);
             
             const jsonData = inputData.data || inputData.results || inputData;
             processedData = jsonData;
             
-            systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure profile information from the provided JSON data.
+            systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure comprehensive profile information from the provided JSON data.
 
 CRITICAL REQUIREMENTS:
 1. EXPERIENCE data is HIGHEST PRIORITY (needed for feature unlock)  
 2. Return ONLY valid JSON - no markdown, no explanations
-3. Use the exact structure provided`;
+3. Use the exact structure provided
+4. Extract engagement metrics and activity data`;
 
-            userPrompt = `Extract LinkedIn profile data from this JSON and return as structured JSON:
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON and return as structured JSON with the same format as specified above:
 
 ${JSON.stringify(jsonData, null, 2)}`;
             
@@ -470,6 +504,9 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.log(`   - Experience entries: ${parsedData.experience?.length || 0}`);
         console.log(`   - Education entries: ${parsedData.education?.length || 0}`);
         console.log(`   - Skills count: ${parsedData.skills?.length || 0}`);
+        console.log(`   - Certifications: ${parsedData.certifications?.length || 0}`);
+        console.log(`   - Awards: ${parsedData.awards?.length || 0}`);
+        console.log(`   - Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`   - Input type: ${inputType}`);
         console.log(`   - Token usage: ${openaiResponse.data.usage?.total_tokens || 'N/A'}`);
         
