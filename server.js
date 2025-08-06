@@ -1,4 +1,4 @@
-// Msgly.AI Server - FULLY FIXED: Data Structure & Enhanced Extraction
+// Msgly.AI Server - FULLY FIXED: PostgreSQL Reserved Word Fix
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -100,7 +100,139 @@ const corsOptions = {
     credentials: true
 };
 
-app.use(cors(corsOptions));
+app.use((error, req, res, next) => {
+    console.error('❌ Error:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Server error'
+    });
+});
+
+// ==================== SERVER STARTUP ====================
+
+const validateEnvironment = () => {
+    const required = ['DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+    const missing = required.filter(key => !process.env[key]);
+    
+    if (missing.length > 0) {
+        console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+        process.exit(1);
+    }
+    
+    if (!process.env.OPENAI_API_KEY) {
+        console.warn('⚠️ Warning: OPENAI_API_KEY not set - HTML scraping and message generation will fail');
+    }
+    
+    console.log('✅ Environment validated');
+};
+
+const testDatabase = async () => {
+    try {
+        const result = await pool.query('SELECT NOW()');
+        console.log('✅ Enhanced database connected:', result.rows[0].now);
+        await initDB();
+        return true;
+    } catch (error) {
+        console.error('❌ Database connection failed:', error.message);
+        return false;
+    }
+};
+
+const startServer = async () => {
+    try {
+        validateEnvironment();
+        
+        const dbOk = await testDatabase();
+        if (!dbOk) {
+            console.error('❌ Cannot start server without database');
+            process.exit(1);
+        }
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log('🚀 Msgly.AI Server - POSTGRESQL RESERVED WORD FIXED!');
+            console.log(`📍 Port: ${PORT}`);
+            console.log(`🗃️ Database: Enhanced with comprehensive fields - PostgreSQL reserved word FIXED`);
+            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
+            console.log(`🔧 CRITICAL FIXES APPLIED:`);
+            console.log(`   ✅ FIXED: PostgreSQL reserved word "current_role" escaped with double quotes`);
+            console.log(`   ✅ FIXED: All SQL queries updated with escaped "current_role"`);
+            console.log(`   ✅ FIXED: Database initialization with proper error handling`);
+            console.log(`   ✅ FIXED: PostgreSQL ALTER TABLE syntax errors - columns added individually`);
+            console.log(`   ✅ FIXED: OpenAI response data structure handling`);
+            console.log(`   ✅ ENHANCED: Added certifications, awards, activity, engagement metrics`);
+            console.log(`   ✅ ENHANCED: Social metrics (likes, comments, shares, followers)`);
+            console.log(`   ✅ ENHANCED: Database schema with new JSONB fields`);
+            console.log(`   ✅ ENHANCED: Message generation with comprehensive data`);
+            console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Available for comprehensive HTML extraction ✅' : 'NOT CONFIGURED - limited functionality ❌'}`);
+            console.log(`🎯 DATA EXTRACTION FIELDS:`);
+            console.log(`   ✅ Basic: name, headline, "current_role", current_company, location, about`);
+            console.log(`   ✅ Professional: experience[], education[], skills[]`);
+            console.log(`   ✅ Enhanced: certifications[], awards[], activity[], engagement{}`);
+            console.log(`   ✅ Social: followers, connections, totalLikes, totalComments, totalShares`);
+            console.log(`🔧 CORE FEATURES:`);
+            console.log(`   ✅ Clean Sign-Up: Simple registration with LinkedIn URL storage only`);
+            console.log(`   ✅ Chrome Extension Required: Users must use extension for profile completion`);
+            console.log(`   ✅ Enhanced HTML Scraping: Comprehensive data extraction with OpenAI`);
+            console.log(`   ✅ Feature Lock: Users blocked until experience.length > 0`);
+            console.log(`   ✅ URL Normalization: Bi-directional LinkedIn URL matching`);
+            console.log(`   ✅ Message Generation: AI-powered personalized messages with enhanced context`);
+            console.log(`   ✅ Target Profiles: Chrome extension scraping with comprehensive data storage`);
+            console.log(`🎯 ENHANCED WORKFLOW:`);
+            console.log(`   1️⃣ User Registration → Simple account creation + LinkedIn URL`);
+            console.log(`   2️⃣ Chrome Extension → Required for comprehensive profile data extraction`);
+            console.log(`   3️⃣ HTML Scraping → Extension captures HTML → OpenAI processes comprehensively`);
+            console.log(`   4️⃣ Enhanced Storage → Database stores certifications, awards, activity, engagement`);
+            console.log(`   5️⃣ Feature Unlock → Check experience data for full access`);
+            console.log(`   6️⃣ Target Scraping → Extension scrapes comprehensive target data`);
+            console.log(`   7️⃣ Message Generation → OpenAI creates personalized messages with enhanced context`);
+            console.log(`📋 ACTIVE ENDPOINTS:`);
+            console.log(`   ✅ POST /complete-registration - Simple profile creation`);
+            console.log(`   ✅ POST /scrape-html - FIXED comprehensive HTML processing with escaped current_role`);
+            console.log(`   ✅ POST /generate-message - Enhanced AI message generation`);
+            console.log(`   ✅ GET /user/setup-status - Feature lock status with enhanced data`);
+            console.log(`   ❌ POST /retry-extraction - DISABLED (returns 410 error)`);
+            console.log(`🎨 FRONTEND:`);
+            console.log(`   ✅ Sign-up: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
+            console.log(`   ✅ Login: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
+            console.log(`   ✅ Dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
+            console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
+            console.log(`⏰ Started: ${new Date().toISOString()}`);
+            console.log(`🎯 Status: POSTGRESQL RESERVED WORD FIXED + COMPREHENSIVE EXTRACTION READY`);
+            console.log(`   🔥 PostgreSQL Fix → Reserved word "current_role" escaped with double quotes ✓`);
+            console.log(`   🔥 Database Fix → ALTER TABLE syntax errors resolved ✓`);
+            console.log(`   🔥 Data Flow Fixed → OpenAI response properly parsed and mapped ✓`);
+            console.log(`   🔥 Enhanced Extraction → Comprehensive LinkedIn data collection ✓`);
+            console.log(`   🔥 Database Enhanced → New fields for certifications, awards, activity ✓`);
+            console.log(`   🔥 Chrome Extension → Required for all comprehensive data extraction ✓`);
+            console.log(`   🔥 Feature Lock → Experience data required for full access ✓`);
+            console.log(`   🔥 Message Generation → Enhanced with comprehensive profile context ✓`);
+            console.log(`   🔥 Clean Architecture → Optimized, maintainable, comprehensive codebase ✓`);
+            console.log(`   🔥 PostgreSQL Reserved Words → Properly escaped and handled ✓`);
+        });
+        
+    } catch (error) {
+        console.error('❌ Startup failed:', error);
+        process.exit(1);
+    }
+};
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('🛑 Gracefully shutting down...');
+    await pool.end();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('🛑 Gracefully shutting down...');
+    await pool.end();
+    process.exit(0);
+});
+
+// Start the server
+startServer();
+
+module.exports = app;use(cors(corsOptions));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -180,7 +312,7 @@ app.use((req, res, next) => {
 // ✅ FRONTEND SERVING - Serve static files from root directory
 app.use(express.static(__dirname));
 
-// ==================== ENHANCED DATABASE SETUP - FIXED ====================
+// ==================== FIXED DATABASE SETUP - PostgreSQL Reserved Word Fix ====================
 const initDB = async () => {
     try {
         console.log('🗃️ Creating enhanced database tables...');
@@ -209,6 +341,7 @@ const initDB = async () => {
             );
         `);
 
+        // ✅ FIXED: Escape PostgreSQL reserved word "current_role" with double quotes
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -227,7 +360,7 @@ const initDB = async () => {
                 first_name TEXT,
                 last_name TEXT,
                 headline TEXT,
-                current_role TEXT,
+                "current_role" TEXT,  -- ✅ FIXED: Escaped PostgreSQL reserved word
                 about TEXT,
                 summary TEXT,
                 
@@ -309,6 +442,7 @@ const initDB = async () => {
             );
         `);
 
+        // ✅ FIXED: Escape PostgreSQL reserved word "current_role" in target_profiles too
         await pool.query(`
             CREATE TABLE IF NOT EXISTS target_profiles (
                 id SERIAL PRIMARY KEY,
@@ -324,7 +458,7 @@ const initDB = async () => {
                 first_name TEXT,
                 last_name TEXT,
                 headline TEXT,
-                current_role TEXT,
+                "current_role" TEXT,  -- ✅ FIXED: Escaped PostgreSQL reserved word
                 about TEXT,
                 summary TEXT,
                 
@@ -423,7 +557,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ FIXED: Add missing columns one by one to avoid PostgreSQL syntax errors
+        // ✅ FIXED: Add missing columns one by one to avoid PostgreSQL syntax errors - WITH ESCAPED current_role
         try {
             // Fix users table columns
             const userColumns = [
@@ -452,10 +586,10 @@ const initDB = async () => {
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
 
-            // ✅ FIXED: Add enhanced fields to user_profiles one by one
+            // ✅ FIXED: Add enhanced fields to user_profiles one by one - WITH ESCAPED current_role
             const userProfileColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS current_role TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',  // ✅ FIXED: Escaped
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_comments INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
@@ -473,9 +607,9 @@ const initDB = async () => {
                 }
             }
 
-            // ✅ FIXED: Add enhanced fields to target_profiles one by one
+            // ✅ FIXED: Add enhanced fields to target_profiles one by one - WITH ESCAPED current_role
             const targetProfileColumns = [
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS current_role TEXT',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',  // ✅ FIXED: Escaped
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_comments INTEGER DEFAULT 0',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
@@ -520,7 +654,7 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ Enhanced database tables created successfully');
+        console.log('✅ Enhanced database tables created successfully - PostgreSQL reserved word fixed!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -1048,9 +1182,10 @@ app.get('/health', async (req, res) => {
         
         res.status(200).json({
             status: 'healthy',
-            version: '13.0-FULLY-FIXED-DATA-FLOW-ENHANCED-DATABASE-FIXED',
+            version: '14.0-POSTGRESQL-RESERVED-WORD-FIXED',
             timestamp: new Date().toISOString(),
             changes: {
+                postgresqlFix: 'COMPLETED - Fixed PostgreSQL reserved word "current_role" with double quotes',
                 databaseFix: 'COMPLETED - Fixed PostgreSQL ALTER TABLE syntax errors',
                 dataFlowFix: 'COMPLETED - Fixed OpenAI response structure handling',
                 enhancedExtraction: 'ACTIVE - Added certifications, awards, activity, engagement metrics',
@@ -1062,7 +1197,7 @@ app.get('/health', async (req, res) => {
                 retryExtraction: 'DISABLED - Replaced with Chrome extension workflow'
             },
             dataExtraction: {
-                basicFields: 'name, headline, currentRole, currentCompany, location, about',
+                basicFields: 'name, headline, "current_role", current_company, location, about',
                 experienceEducation: 'experience[], education[]',
                 enhancedFields: 'certifications[], awards[], activity[], engagement{}',
                 socialMetrics: 'followers, connections, totalLikes, totalComments, totalShares',
@@ -1082,6 +1217,7 @@ app.get('/health', async (req, res) => {
                 ssl: process.env.NODE_ENV === 'production',
                 tables: ['users', 'user_profiles', 'target_profiles', 'message_logs', 'credits_transactions'],
                 enhancedFields: 'certifications, awards, activity, engagement_data, social_metrics',
+                postgresqlFix: 'Reserved word "current_role" escaped with double quotes',
                 fixApplied: 'ALTER TABLE syntax issues resolved - columns added individually'
             }
         });
@@ -1157,7 +1293,7 @@ app.get('/user/initial-scraping-status', authenticateToken, async (req, res) => 
     }
 });
 
-// ✅ FULLY FIXED: HTML Scraping endpoint for Chrome extension
+// ✅ FULLY FIXED: HTML Scraping endpoint for Chrome extension - WITH ESCAPED current_role
 app.post('/scrape-html', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 FIXED HTML scraping request from user ${req.user.id}`);
@@ -1246,13 +1382,13 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
             
             let profile;
             if (existingProfile.rows.length > 0) {
-                // ✅ ENHANCED: Update with all new fields
+                // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
                 const result = await pool.query(`
                     UPDATE user_profiles SET 
                         linkedin_url = $1,
                         full_name = $2,
                         headline = $3,
-                        current_role = $4,
+                        "current_role" = $4,  -- ✅ FIXED: Escaped reserved word
                         about = $5,
                         location = $6,
                         current_company = $7,
@@ -1306,10 +1442,10 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
                 
                 profile = result.rows[0];
             } else {
-                // ✅ ENHANCED: Create with all new fields
+                // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
                 const result = await pool.query(`
                     INSERT INTO user_profiles (
-                        user_id, linkedin_url, full_name, headline, current_role, about, location,
+                        user_id, linkedin_url, full_name, headline, "current_role", about, location,
                         current_company, current_company_name, connections_count, followers_count,
                         total_likes, total_comments, total_shares, average_likes,
                         experience, education, skills, certifications, awards, activity, engagement_data,
@@ -1351,7 +1487,7 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
                     profile: {
                         fullName: profile.full_name,
                         headline: profile.headline,
-                        currentRole: profile.current_role,
+                        currentRole: profile.current_role,  // Note: this is returned without quotes from DB
                         currentCompany: profile.current_company,
                         hasExperience: hasExperience,
                         experienceCount: extractedData.experience.length,
@@ -1373,7 +1509,7 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
             });
             
         } else {
-            // ✅ ENHANCED: Save to target_profiles table with new fields
+            // ✅ ENHANCED: Save to target_profiles table with new fields - WITH ESCAPED current_role
             console.log('💾 Saving ENHANCED target profile data...');
             
             // Check if this target profile already exists for this user
@@ -1384,10 +1520,10 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
             
             let targetProfile;
             if (existingTarget.rows.length > 0) {
-                // ✅ ENHANCED: Update with all new fields
+                // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
                 const result = await pool.query(`
                     UPDATE target_profiles SET 
-                        full_name = $1, headline = $2, current_role = $3, about = $4, location = $5,
+                        full_name = $1, headline = $2, "current_role" = $3, about = $4, location = $5,
                         current_company = $6, current_company_name = $7, connections_count = $8, followers_count = $9,
                         total_likes = $10, total_comments = $11, total_shares = $12, average_likes = $13,
                         experience = $14, education = $15, skills = $16, certifications = $17, awards = $18,
@@ -1408,10 +1544,10 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
                 
                 targetProfile = result.rows[0];
             } else {
-                // ✅ ENHANCED: Create with all new fields
+                // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
                 const result = await pool.query(`
                     INSERT INTO target_profiles (
-                        user_id, linkedin_url, full_name, headline, current_role, about, location,
+                        user_id, linkedin_url, full_name, headline, "current_role", about, location,
                         current_company, current_company_name, connections_count, followers_count,
                         total_likes, total_comments, total_shares, average_likes,
                         experience, education, skills, certifications, awards, activity, engagement_data, data_source
@@ -1441,7 +1577,7 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
                     targetProfile: {
                         fullName: targetProfile.full_name,
                         headline: targetProfile.headline,
-                        currentRole: targetProfile.current_role,
+                        currentRole: targetProfile.current_role,  // Note: this is returned without quotes from DB
                         currentCompany: targetProfile.current_company,
                         certificationsCount: extractedData.certifications.length,
                         awardsCount: extractedData.awards.length,
@@ -1470,7 +1606,7 @@ app.post('/scrape-html', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ Enhanced user setup status endpoint for feature lock
+// ✅ Enhanced user setup status endpoint for feature lock - WITH ESCAPED current_role
 app.get('/user/setup-status', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 Checking enhanced setup status for user ${req.user.id}`);
@@ -1483,7 +1619,7 @@ app.get('/user/setup-status', authenticateToken, async (req, res) => {
                 up.experience,
                 up.full_name,
                 up.headline,
-                up.current_role,
+                up."current_role",  -- ✅ FIXED: Escaped reserved word in query
                 up.current_company,
                 up.certifications,
                 up.awards,
@@ -1955,7 +2091,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Get User Profile - Enhanced
+// Get User Profile - Enhanced - WITH ESCAPED current_role
 app.get('/profile', authenticateToken, async (req, res) => {
     try {
         const profileResult = await pool.query(`
@@ -2041,7 +2177,7 @@ app.get('/profile', authenticateToken, async (req, res) => {
                     firstName: profile.first_name,
                     lastName: profile.last_name,
                     headline: profile.headline,
-                    currentRole: profile.current_role,
+                    currentRole: profile.current_role,  // Note: returned from DB without quotes
                     summary: profile.summary,
                     about: profile.about,
                     location: profile.location,
@@ -2305,7 +2441,7 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// ✅ User profile scraping with transaction management - Enhanced
+// ✅ User profile scraping with transaction management - Enhanced - WITH ESCAPED current_role
 app.post('/profile/user', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
@@ -2392,11 +2528,11 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
         
         let profile;
         if (existingProfile.rows.length > 0) {
-            // ✅ ENHANCED: Update with all new fields
+            // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
             const result = await client.query(`
                 UPDATE user_profiles SET 
                     linkedin_url = $1, linkedin_id = $2, linkedin_num_id = $3, input_url = $4, url = $5,
-                    full_name = $6, first_name = $7, last_name = $8, headline = $9, current_role = $10,
+                    full_name = $6, first_name = $7, last_name = $8, headline = $9, "current_role" = $10,
                     about = $11, summary = $12, location = $13, city = $14, state = $15, country = $16, country_code = $17,
                     industry = $18, current_company = $19, current_company_name = $20, current_position = $21,
                     connections_count = $22, followers_count = $23, connections = $24, followers = $25,
@@ -2422,11 +2558,11 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
             
             profile = result.rows[0];
         } else {
-            // ✅ ENHANCED: Create with all new fields
+            // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
             const result = await client.query(`
                 INSERT INTO user_profiles (
                     user_id, linkedin_url, linkedin_id, linkedin_num_id, input_url, url,
-                    full_name, first_name, last_name, headline, current_role, about, summary,
+                    full_name, first_name, last_name, headline, "current_role", about, summary,
                     location, city, state, country, country_code, industry,
                     current_company, current_company_name, current_position,
                     connections_count, followers_count, connections, followers,
@@ -2486,7 +2622,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
                         linkedinUrl: profile.linkedin_url,
                         fullName: profile.full_name,
                         headline: profile.headline,
-                        currentRole: profile.current_role,
+                        currentRole: profile.current_role,  // Note: returned from DB without quotes
                         currentCompany: profile.current_company,
                         location: profile.location,
                         profileImageUrl: profile.profile_image_url,
@@ -2534,7 +2670,7 @@ app.post('/profile/user', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ Target profile scraping with URL normalization - Enhanced
+// ✅ Target profile scraping with URL normalization - Enhanced - WITH ESCAPED current_role
 app.post('/profile/target', authenticateToken, async (req, res) => {
     try {
         console.log(`🎯 Enhanced target profile scraping request from user ${req.user.id}`);
@@ -2612,11 +2748,11 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
         
         let targetProfile;
         if (existingTarget.rows.length > 0) {
-            // ✅ ENHANCED: Update with all new fields
+            // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
             const result = await pool.query(`
                 UPDATE target_profiles SET 
                     linkedin_id = $1, linkedin_num_id = $2, input_url = $3, url = $4,
-                    full_name = $5, first_name = $6, last_name = $7, headline = $8, current_role = $9,
+                    full_name = $5, first_name = $6, last_name = $7, headline = $8, "current_role" = $9,
                     about = $10, summary = $11, location = $12, city = $13, state = $14, country = $15, country_code = $16,
                     industry = $17, current_company = $18, current_company_name = $19, current_position = $20,
                     connections_count = $21, followers_count = $22, connections = $23, followers = $24,
@@ -2643,11 +2779,11 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             
             targetProfile = result.rows[0];
         } else {
-            // ✅ ENHANCED: Create with all new fields
+            // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
             const result = await pool.query(`
                 INSERT INTO target_profiles (
                     user_id, linkedin_url, linkedin_id, linkedin_num_id, input_url, url,
-                    full_name, first_name, last_name, headline, current_role, about, summary,
+                    full_name, first_name, last_name, headline, "current_role", about, summary,
                     location, city, state, country, country_code, industry,
                     current_company, current_company_name, current_position,
                     connections_count, followers_count, connections, followers,
@@ -2691,7 +2827,7 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
                     linkedinUrl: targetProfile.linkedin_url,
                     fullName: targetProfile.full_name,
                     headline: targetProfile.headline,
-                    currentRole: targetProfile.current_role,
+                    currentRole: targetProfile.current_role,  // Note: returned from DB without quotes
                     currentCompany: targetProfile.current_company,
                     location: targetProfile.location,
                     profileImageUrl: targetProfile.profile_image_url,
@@ -2894,132 +3030,4 @@ app.use((req, res, next) => {
     });
 });
 
-app.use((error, req, res, next) => {
-    console.error('❌ Error:', error);
-    res.status(500).json({
-        success: false,
-        error: 'Server error'
-    });
-});
-
-// ==================== SERVER STARTUP ====================
-
-const validateEnvironment = () => {
-    const required = ['DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
-    const missing = required.filter(key => !process.env[key]);
-    
-    if (missing.length > 0) {
-        console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
-        process.exit(1);
-    }
-    
-    if (!process.env.OPENAI_API_KEY) {
-        console.warn('⚠️ Warning: OPENAI_API_KEY not set - HTML scraping and message generation will fail');
-    }
-    
-    console.log('✅ Environment validated');
-};
-
-const testDatabase = async () => {
-    try {
-        const result = await pool.query('SELECT NOW()');
-        console.log('✅ Enhanced database connected:', result.rows[0].now);
-        await initDB();
-        return true;
-    } catch (error) {
-        console.error('❌ Database connection failed:', error.message);
-        return false;
-    }
-};
-
-const startServer = async () => {
-    try {
-        validateEnvironment();
-        
-        const dbOk = await testDatabase();
-        if (!dbOk) {
-            console.error('❌ Cannot start server without database');
-            process.exit(1);
-        }
-        
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - DATABASE FIXED + FULLY WORKING!');
-            console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced with comprehensive fields - ALTER TABLE issues FIXED`);
-            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
-            console.log(`🔧 CRITICAL FIXES APPLIED:`);
-            console.log(`   ✅ FIXED: PostgreSQL ALTER TABLE syntax errors - columns added individually`);
-            console.log(`   ✅ FIXED: OpenAI response data structure handling`);
-            console.log(`   ✅ FIXED: Database initialization with proper error handling`);
-            console.log(`   ✅ ENHANCED: Added certifications, awards, activity, engagement metrics`);
-            console.log(`   ✅ ENHANCED: Social metrics (likes, comments, shares, followers)`);
-            console.log(`   ✅ ENHANCED: Database schema with new JSONB fields`);
-            console.log(`   ✅ ENHANCED: Message generation with comprehensive data`);
-            console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Available for comprehensive HTML extraction ✅' : 'NOT CONFIGURED - limited functionality ❌'}`);
-            console.log(`🎯 DATA EXTRACTION FIELDS:`);
-            console.log(`   ✅ Basic: name, headline, currentRole, currentCompany, location, about`);
-            console.log(`   ✅ Professional: experience[], education[], skills[]`);
-            console.log(`   ✅ Enhanced: certifications[], awards[], activity[], engagement{}`);
-            console.log(`   ✅ Social: followers, connections, totalLikes, totalComments, totalShares`);
-            console.log(`🔧 CORE FEATURES:`);
-            console.log(`   ✅ Clean Sign-Up: Simple registration with LinkedIn URL storage only`);
-            console.log(`   ✅ Chrome Extension Required: Users must use extension for profile completion`);
-            console.log(`   ✅ Enhanced HTML Scraping: Comprehensive data extraction with OpenAI`);
-            console.log(`   ✅ Feature Lock: Users blocked until experience.length > 0`);
-            console.log(`   ✅ URL Normalization: Bi-directional LinkedIn URL matching`);
-            console.log(`   ✅ Message Generation: AI-powered personalized messages with enhanced context`);
-            console.log(`   ✅ Target Profiles: Chrome extension scraping with comprehensive data storage`);
-            console.log(`🎯 ENHANCED WORKFLOW:`);
-            console.log(`   1️⃣ User Registration → Simple account creation + LinkedIn URL`);
-            console.log(`   2️⃣ Chrome Extension → Required for comprehensive profile data extraction`);
-            console.log(`   3️⃣ HTML Scraping → Extension captures HTML → OpenAI processes comprehensively`);
-            console.log(`   4️⃣ Enhanced Storage → Database stores certifications, awards, activity, engagement`);
-            console.log(`   5️⃣ Feature Unlock → Check experience data for full access`);
-            console.log(`   6️⃣ Target Scraping → Extension scrapes comprehensive target data`);
-            console.log(`   7️⃣ Message Generation → OpenAI creates personalized messages with enhanced context`);
-            console.log(`📋 ACTIVE ENDPOINTS:`);
-            console.log(`   ✅ POST /complete-registration - Simple profile creation`);
-            console.log(`   ✅ POST /scrape-html - FIXED comprehensive HTML processing`);
-            console.log(`   ✅ POST /generate-message - Enhanced AI message generation`);
-            console.log(`   ✅ GET /user/setup-status - Feature lock status with enhanced data`);
-            console.log(`   ❌ POST /retry-extraction - DISABLED (returns 410 error)`);
-            console.log(`🎨 FRONTEND:`);
-            console.log(`   ✅ Sign-up: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/sign-up' : 'http://localhost:3000/sign-up'}`);
-            console.log(`   ✅ Login: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/login' : 'http://localhost:3000/login'}`);
-            console.log(`   ✅ Dashboard: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/dashboard' : 'http://localhost:3000/dashboard'}`);
-            console.log(`🌐 Health: ${process.env.NODE_ENV === 'production' ? 'https://api.msgly.ai/health' : 'http://localhost:3000/health'}`);
-            console.log(`⏰ Started: ${new Date().toISOString()}`);
-            console.log(`🎯 Status: DATABASE FIXED + COMPREHENSIVE EXTRACTION READY`);
-            console.log(`   🔥 Database Fix → ALTER TABLE syntax errors resolved ✓`);
-            console.log(`   🔥 Data Flow Fixed → OpenAI response properly parsed and mapped ✓`);
-            console.log(`   🔥 Enhanced Extraction → Comprehensive LinkedIn data collection ✓`);
-            console.log(`   🔥 Database Enhanced → New fields for certifications, awards, activity ✓`);
-            console.log(`   🔥 Chrome Extension → Required for all comprehensive data extraction ✓`);
-            console.log(`   🔥 Feature Lock → Experience data required for full access ✓`);
-            console.log(`   🔥 Message Generation → Enhanced with comprehensive profile context ✓`);
-            console.log(`   🔥 Clean Architecture → Optimized, maintainable, comprehensive codebase ✓`);
-        });
-        
-    } catch (error) {
-        console.error('❌ Startup failed:', error);
-        process.exit(1);
-    }
-};
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('🛑 Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-    console.log('🛑 Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-// Start the server
-startServer();
-
-module.exports = app;
+app.
