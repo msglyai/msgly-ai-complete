@@ -69,78 +69,51 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// ✅ SMALL FIXES to original preprocessing (17K → 12K tokens)
+// ✅ HTML preprocessing for OpenAI - WORKING VERSION + 3 tiny additions
 function preprocessHTMLForOpenAI(html) {
     try {
         console.log(`🔄 Preprocessing HTML for OpenAI (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         
-        // ORIGINAL working preprocessing + small additions
+        // OpenAI-optimized cleaning (ORIGINAL WORKING VERSION)
         processedHtml = processedHtml
-            // Remove scripts and styles (ORIGINAL)
+            // Remove scripts and styles
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-            
-            // Remove SVGs (ORIGINAL)
+            // Remove SVGs (large and not needed)
             .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
-            
-            // Remove forms and interactive elements (ORIGINAL)
+            // Remove forms and interactive elements
             .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
             .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '')
             .replace(/<input[^>]*\/?>/gi, '')
-            
-            // Remove media elements (ORIGINAL)
+            // Remove media elements
             .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
             .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
             .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-            
-            // ✅ SMALL ADDITION: Remove img tags more thoroughly
+            // ✅ TINY ADDITION 1: Remove img tags
             .replace(/<img[^>]*>/gi, '')
-            
-            // ✅ SMALL ADDITION: Remove comments
+            // ✅ TINY ADDITION 2: Remove comments
             .replace(/<!--[\s\S]*?-->/g, '')
-            
-            // Clean attributes (ORIGINAL + small additions)
+            // Clean attributes
             .replace(/\s+data-(?!section|experience|skills|education)[^=]*="[^"]*"/gi, '')
             .replace(/\s+class="[^"]{100,}"/gi, ' class=""')
             .replace(/\s+style="[^"]*"/gi, '')
             .replace(/\s+on\w+="[^"]*"/gi, '')
-            
-            // ✅ SMALL ADDITION: Remove accessibility attributes (not needed for data extraction)
+            // ✅ TINY ADDITION 3: Remove aria attributes (safe - not needed for data extraction)
             .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
-            .replace(/\s+role="[^"]*"/gi, '')
-            
-            // ✅ SMALL ADDITION: Remove more tracking/analytics attributes
-            .replace(/\s+data-tracking[^=]*="[^"]*"/gi, '')
-            .replace(/\s+data-analytics[^=]*="[^"]*"/gi, '')
-            .replace(/\s+ga-[^=]*="[^"]*"/gi, '')
-            
-            // ✅ SMALL ADDITION: Be more aggressive with class removal (50+ chars instead of 100+)
-            .replace(/\s+class="[^"]{50,}"/gi, ' class=""')
-            
-            // Remove empty elements (ORIGINAL + additions)
+            // Remove empty elements
             .replace(/<div[^>]*>\s*<\/div>/gi, '')
             .replace(/<p[^>]*>\s*<\/p>/gi, '')
             .replace(/<span[^>]*>\s*<\/span>/gi, '')
-            
-            // ✅ SMALL ADDITION: Remove more empty elements
-            .replace(/<section[^>]*>\s*<\/section>/gi, '')
-            .replace(/<article[^>]*>\s*<\/article>/gi, '')
-            .replace(/<li[^>]*>\s*<\/li>/gi, '')
-            
-            // Compress whitespace (ORIGINAL)
+            // Compress whitespace
             .replace(/\s+/g, ' ')
             .replace(/>\s+</g, '><')
             .trim();
         
         const finalSize = processedHtml.length / 1024;
-        const finalTokens = Math.ceil(processedHtml.length / 3);
-        
         console.log(`✅ HTML preprocessed for OpenAI (final size: ${finalSize.toFixed(2)} KB)`);
-        console.log(`🔢 Estimated tokens: ${finalTokens}`);
-        console.log(`🎯 Content preview (first 300 chars): ${processedHtml.substring(0, 300)}...`);
         
         return processedHtml;
         
