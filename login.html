@@ -403,8 +403,8 @@
     </div>
 
     <script>
-        // FIXED: Check authentication on page load
-        window.addEventListener('load', () => {
+        // ✅ FIXED: Check authentication on page load with registration_completed logic
+        window.addEventListener('load', async () => {
             console.log('🔍 Login page loaded - checking authentication status');
             
             // Check for URL token first (from OAuth callback)
@@ -412,18 +412,60 @@
             const urlToken = urlParams.get('token');
             
             if (urlToken) {
-                console.log('✅ Token found in URL - storing and redirecting');
-                // Store token and redirect to dashboard
+                console.log('✅ Token found in URL - storing and checking user status');
+                // Store token
                 localStorage.setItem('authToken', urlToken);
                 
                 // Show loading state
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('loadingState').style.display = 'block';
                 
-                // Redirect after brief delay
-                setTimeout(() => {
-                    window.location.href = '/dashboard';
-                }, 1500);
+                // ✅ FIXED: Check user registration status before redirecting
+                try {
+                    const response = await fetch('https://api.msgly.ai/profile', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${urlToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const user = data.data.user;
+                        const syncStatus = data.data.syncStatus;
+
+                        console.log('✅ User profile fetched successfully');
+                        console.log('   - Registration completed:', user.registrationCompleted);  // ✅ FIXED: Changed from profileCompleted
+                        console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
+
+                        // ✅ FIXED: Smart redirect based on registration_completed status
+                        const needsOnboarding = !user.registrationCompleted ||  // ✅ FIXED: Check registration_completed instead of profileCompleted
+                                               !user.linkedinUrl ||
+                                               syncStatus.isIncomplete;
+
+                        if (needsOnboarding) {
+                            console.log('➡️ User needs onboarding - redirecting to sign-up');
+                            setTimeout(() => {
+                                window.location.href = '/sign-up';
+                            }, 1500);
+                        } else {
+                            console.log('➡️ User registration complete - redirecting to dashboard');
+                            setTimeout(() => {
+                                window.location.href = '/dashboard';
+                            }, 1500);
+                        }
+                    } else {
+                        throw new Error('Failed to fetch user profile');
+                    }
+                } catch (error) {
+                    console.error('❌ Error checking user status:', error);
+                    // Default to dashboard redirect on API error
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1500);
+                }
+                
                 return;
             }
             
@@ -431,17 +473,56 @@
             const existingToken = localStorage.getItem('authToken');
             
             if (existingToken) {
-                console.log('✅ Existing token found in localStorage - auto-redirecting to dashboard');
+                console.log('✅ Existing token found in localStorage - checking user status');
                 
-                // Show auto-redirect message
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('autoRedirectState').style.display = 'block';
-                
-                // Redirect after showing message
-                setTimeout(() => {
-                    window.location.href = '/dashboard';
-                }, 2000);
-                return;
+                try {
+                    // ✅ FIXED: Check user registration status for existing token
+                    const response = await fetch('https://api.msgly.ai/profile', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${existingToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const user = data.data.user;
+                        const syncStatus = data.data.syncStatus;
+
+                        console.log('✅ Existing user profile validated');
+                        console.log('   - Registration completed:', user.registrationCompleted);  // ✅ FIXED: Changed from profileCompleted
+                        console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
+
+                        // Show auto-redirect message
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('autoRedirectState').style.display = 'block';
+
+                        // ✅ FIXED: Smart redirect based on registration_completed status
+                        const needsOnboarding = !user.registrationCompleted ||  // ✅ FIXED: Check registration_completed instead of profileCompleted
+                                               !user.linkedinUrl ||
+                                               syncStatus.isIncomplete;
+
+                        setTimeout(() => {
+                            if (needsOnboarding) {
+                                console.log('➡️ Existing user needs onboarding - redirecting to sign-up');
+                                window.location.href = '/sign-up';
+                            } else {
+                                console.log('➡️ Existing user registration complete - redirecting to dashboard');
+                                window.location.href = '/dashboard';
+                            }
+                        }, 2000);
+                        
+                        return;
+                    } else {
+                        // Token invalid, remove it and show login form
+                        localStorage.removeItem('authToken');
+                        console.log('❌ Existing token invalid - removed from storage');
+                    }
+                } catch (error) {
+                    console.error('❌ Error validating existing token:', error);
+                    localStorage.removeItem('authToken');
+                }
             }
             
             // Check for errors
