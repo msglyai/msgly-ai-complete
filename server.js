@@ -29,7 +29,7 @@ const {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processOpenAIData,
+    processGeminiData,        // ✅ UPDATED: processOpenAIData → processGeminiData
     processScrapedProfileData
 } = require('./utils/database');
 
@@ -131,7 +131,7 @@ const profileRoutes = initProfileRoutes({
     pool,
     authenticateToken,
     getUserById,
-    processOpenAIData,
+    processGeminiData,        // ✅ UPDATED: processOpenAIData → processGeminiData
     processScrapedProfileData,
     cleanLinkedInUrl,
     getStatusMessage,
