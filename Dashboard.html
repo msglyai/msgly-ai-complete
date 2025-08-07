@@ -17,6 +17,7 @@
             --accent-pink: #FF2370;
             --success-green: #10B981;
             --warning-orange: #F59E0B;
+            --error-red: #EF4444;
             --black: #111827;
             --charcoal: #1F2937;
             --dark-gray: #374151;
@@ -271,45 +272,114 @@
             font-size: 1.1rem;
         }
 
-        /* Profile Sync Warning */
-        .sync-warning {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
-            border: 2px solid var(--warning-orange);
+        /* 🚦 TRAFFIC LIGHT SYSTEM */
+        .traffic-light-warning {
             border-radius: 16px;
             padding: 1.5rem;
             margin-bottom: 2rem;
             display: none;
+            animation: slideInDown 0.5s ease-out;
         }
 
-        .sync-warning-header {
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .traffic-light-warning.red {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+            border: 2px solid var(--error-red);
+        }
+
+        .traffic-light-warning.orange {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border: 2px solid var(--warning-orange);
+        }
+
+        .traffic-light-header {
             display: flex;
             align-items: center;
             gap: 12px;
             margin-bottom: 12px;
         }
 
-        .sync-warning-icon {
+        .traffic-light-icon {
             width: 24px;
             height: 24px;
-            color: var(--warning-orange);
             font-size: 1.2rem;
         }
 
-        .sync-warning-title {
-            font-size: 1.1rem;
-            font-weight: 600;
+        .traffic-light-warning.red .traffic-light-icon {
+            color: var(--error-red);
+        }
+
+        .traffic-light-warning.orange .traffic-light-icon {
             color: var(--warning-orange);
         }
 
-        .sync-warning-message {
+        .traffic-light-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .traffic-light-warning.red .traffic-light-title {
+            color: var(--error-red);
+        }
+
+        .traffic-light-warning.orange .traffic-light-title {
+            color: var(--warning-orange);
+        }
+
+        .traffic-light-message {
             color: var(--dark-gray);
             line-height: 1.6;
             font-size: 0.95rem;
         }
 
-        .sync-warning-highlight {
+        .traffic-light-highlight {
             font-weight: 600;
             color: var(--black);
+        }
+
+        .orange-progress {
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 8px;
+            background: rgba(245, 158, 11, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--warning-orange) 0%, #D97706 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            color: var(--warning-orange);
+            font-weight: 600;
+            min-width: 120px;
         }
 
         /* Dashboard Grid */
@@ -423,58 +493,6 @@
             font-size: 0.95rem;
         }
 
-        .editable-field {
-            position: relative;
-        }
-
-        .edit-btn {
-            background: none;
-            border: none;
-            color: var(--primary-purple);
-            cursor: pointer;
-            padding: 0.25rem;
-            border-radius: 4px;
-            margin-left: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .edit-btn:hover {
-            background: var(--light-purple);
-        }
-
-        .edit-input {
-            border: 2px solid var(--primary-purple);
-            border-radius: 6px;
-            padding: 0.5rem;
-            font-size: 0.9rem;
-            width: 200px;
-            font-weight: 600;
-        }
-
-        .save-btn, .cancel-btn {
-            background: var(--primary-purple);
-            color: var(--white);
-            border: none;
-            padding: 0.25rem 0.75rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            margin-left: 0.5rem;
-            transition: all 0.3s ease;
-        }
-
-        .cancel-btn {
-            background: var(--gray);
-        }
-
-        .save-btn:hover {
-            background: var(--dark-purple);
-        }
-
-        .cancel-btn:hover {
-            background: var(--dark-gray);
-        }
-
         /* Enhanced Subscription Card */
         .subscription-header {
             display: flex;
@@ -511,16 +529,6 @@
 
         .status-active {
             background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
-            color: var(--white);
-        }
-
-        .status-trial {
-            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
-            color: var(--white);
-        }
-
-        .status-expired {
-            background: linear-gradient(135deg, var(--accent-pink) 0%, #DC2626 100%);
             color: var(--white);
         }
 
@@ -612,37 +620,6 @@
         }
 
         /* LinkedIn Profile Card */
-        .profile-sync-status {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
-            border: 1px solid var(--warning-orange);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            display: none;
-        }
-
-        .profile-sync-status.synced {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-            border-color: var(--success-green);
-        }
-
-        .profile-sync-status.synced .sync-status-indicator i {
-            color: var(--success-green);
-        }
-
-        .sync-status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .sync-status-indicator i {
-            color: var(--warning-orange);
-            font-size: 1.1rem;
-        }
-
         .profile-summary {
             display: flex;
             gap: 1.5rem;
@@ -714,38 +691,219 @@
         .view-profile-btn {
             width: 100%;
             padding: 1rem;
-            background: var(--light-gray);
-            border: 1px solid rgba(128, 57, 223, 0.2);
+            border: none;
             border-radius: 12px;
-            color: var(--gray);
             font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .view-profile-btn.disabled {
+            background: var(--light-gray);
+            color: var(--gray);
             cursor: not-allowed;
             opacity: 0.7;
         }
 
-        /* Analytics Card */
-        .coming-soon {
-            text-align: center;
-            padding: 3rem;
-            color: var(--gray);
+        .view-profile-btn.enabled {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            color: var(--white);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
         }
 
-        .coming-soon i {
-            font-size: 4rem;
-            margin-bottom: 1.5rem;
-            color: var(--primary-purple);
-            opacity: 0.6;
+        .view-profile-btn.enabled:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
         }
 
-        .coming-soon h3 {
+        /* 👤 FULL PROFILE VIEW SECTION */
+        .full-profile-section {
+            display: none;
+            background: var(--white);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-top: 2rem;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .full-profile-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--success-green) 0%, #059669 100%);
+        }
+
+        .full-profile-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-gray);
+        }
+
+        .full-profile-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
             font-size: 1.4rem;
-            margin-bottom: 0.75rem;
-            color: var(--dark-gray);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
         }
 
-        .coming-soon p {
+        .full-profile-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--success-green);
+        }
+
+        .full-profile-close {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--gray);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .full-profile-close:hover {
+            background: var(--light-gray);
+            color: var(--black);
+        }
+
+        .full-profile-content {
+            display: grid;
+            gap: 2rem;
+        }
+
+        .profile-section {
+            background: var(--light-gray);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .profile-section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .profile-section-title i {
+            color: var(--success-green);
+        }
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .profile-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 1rem;
+            background: var(--white);
+            border-radius: 12px;
+            border-left: 4px solid var(--success-green);
+        }
+
+        .profile-item-label {
+            font-size: 0.85rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 120px;
+        }
+
+        .profile-item-value {
+            color: var(--black);
+            font-weight: 500;
+            flex: 1;
+            text-align: right;
+        }
+
+        .experience-item, .education-item, .skill-item, .certification-item, .award-item {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--success-green);
+            transition: all 0.3s ease;
+        }
+
+        .experience-item:hover, .education-item:hover, .skill-item:hover, .certification-item:hover, .award-item:hover {
+            box-shadow: var(--shadow);
+            transform: translateX(4px);
+        }
+
+        .item-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 0.5rem;
+        }
+
+        .item-company {
             font-size: 1rem;
+            color: var(--success-green);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .item-duration {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-bottom: 1rem;
+        }
+
+        .item-description {
+            color: var(--dark-gray);
             line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .skill-item {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .skill-name {
+            font-weight: 600;
+            color: var(--black);
+            margin-bottom: 0.5rem;
+        }
+
+        .skill-endorsements {
+            font-size: 0.85rem;
+            color: var(--success-green);
         }
 
         /* Loading State */
@@ -776,77 +934,12 @@
         .error {
             text-align: center;
             padding: 3rem;
-            color: var(--accent-pink);
+            color: var(--error-red);
         }
 
         .error i {
             font-size: 4rem;
             margin-bottom: 1.5rem;
-        }
-
-        /* Authentication Warning */
-        .auth-warning {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            backdrop-filter: blur(5px);
-        }
-
-        .auth-warning-content {
-            background: var(--white);
-            padding: 2rem;
-            border-radius: 16px;
-            text-align: center;
-            max-width: 400px;
-            box-shadow: var(--shadow-lg);
-        }
-
-        .auth-warning-icon {
-            width: 60px;
-            height: 60px;
-            background: var(--warning-orange);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1rem;
-            font-size: 1.5rem;
-            color: var(--white);
-        }
-
-        .auth-warning-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: var(--black);
-        }
-
-        .auth-warning-message {
-            color: var(--gray);
-            margin-bottom: 1.5rem;
-            line-height: 1.6;
-        }
-
-        .auth-warning-btn {
-            padding: 0.75rem 1.5rem;
-            background: var(--primary-purple);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .auth-warning-btn:hover {
-            background: var(--dark-purple);
         }
 
         /* Mobile Responsive */
@@ -903,10 +996,6 @@
                 font-size: 2rem;
             }
 
-            .sync-warning {
-                padding: 1rem;
-            }
-
             .subscription-details {
                 grid-template-columns: 1fr;
             }
@@ -916,24 +1005,18 @@
                 text-align: center;
                 gap: 1rem;
             }
+
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .skills-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Authentication Warning (shows while checking auth) -->
-    <div class="auth-warning" id="authWarning" style="display: none;">
-        <div class="auth-warning-content">
-            <div class="auth-warning-icon">
-                <i class="fas fa-lock"></i>
-            </div>
-            <h3 class="auth-warning-title">Authentication Required</h3>
-            <p class="auth-warning-message">You need to sign in to access your dashboard.</p>
-            <button class="auth-warning-btn" onclick="redirectToLogin()">
-                Go to Login
-            </button>
-        </div>
-    </div>
-
     <!-- Mobile Sidebar Toggle -->
     <button class="sidebar-toggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
@@ -976,11 +1059,6 @@
                     <span class="nav-item-text">Analytics</span>
                     <span class="coming-soon-badge">Soon</span>
                 </a>
-                <a href="#" class="nav-item" onclick="showSection('target-profile')">
-                    <i class="fas fa-crosshairs"></i>
-                    <span class="nav-item-text">Target Profile</span>
-                    <span class="coming-soon-badge">Soon</span>
-                </a>
                 <a href="#" class="nav-item" onclick="showSection('linkedin-profile')">
                     <i class="fab fa-linkedin"></i>
                     <span class="nav-item-text">LinkedIn Profile</span>
@@ -1009,10 +1087,6 @@
                     <i class="fas fa-question-circle"></i>
                     <span class="nav-item-text">Help Center</span>
                 </a>
-                <a href="#" class="nav-item" onclick="showSection('feedback')">
-                    <i class="fas fa-comment-alt"></i>
-                    <span class="nav-item-text">Feedback</span>
-                </a>
             </div>
         </div>
 
@@ -1033,14 +1107,30 @@
                 <p class="page-subtitle">Welcome to your AI-powered LinkedIn messaging center</p>
             </div>
 
-            <!-- Profile Sync Warning -->
-            <div class="sync-warning" id="syncWarning">
-                <div class="sync-warning-header">
-                    <i class="fas fa-exclamation-triangle sync-warning-icon"></i>
-                    <div class="sync-warning-title">Your profile is not fully synced yet.</div>
+            <!-- 🚦 TRAFFIC LIGHT WARNING SYSTEM -->
+            <div class="traffic-light-warning red" id="redWarning">
+                <div class="traffic-light-header">
+                    <i class="fas fa-exclamation-triangle traffic-light-icon"></i>
+                    <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
-                <div class="sync-warning-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="sync-warning-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                <div class="traffic-light-message">
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                </div>
+            </div>
+
+            <div class="traffic-light-warning orange" id="orangeWarning">
+                <div class="traffic-light-header">
+                    <i class="fas fa-cog fa-spin traffic-light-icon"></i>
+                    <div class="traffic-light-title">Analyzing Profile</div>
+                </div>
+                <div class="traffic-light-message">
+                    We're analyzing your profile data. This usually takes a few minutes. Once completed, you'll unlock the full power of our AI-generated messages.
+                </div>
+                <div class="orange-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="analysisProgress" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Processing...</div>
                 </div>
             </div>
 
@@ -1076,12 +1166,7 @@
                                     <i class="fas fa-user"></i>
                                     Full Name
                                 </div>
-                                <div class="info-value editable-field">
-                                    <span id="accountFullName">Loading...</span>
-                                    <button class="edit-btn" onclick="editField('fullName')">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                </div>
+                                <div class="info-value" id="accountFullName">Loading...</div>
                             </div>
                             
                             <div class="info-item">
@@ -1090,32 +1175,6 @@
                                     Email Address
                                 </div>
                                 <div class="info-value" id="accountEmail">Loading...</div>
-                            </div>
-                            
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="fas fa-phone"></i>
-                                    Phone Number
-                                </div>
-                                <div class="info-value editable-field">
-                                    <span id="accountPhone">Not provided</span>
-                                    <button class="edit-btn" onclick="editField('phone')">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    Address
-                                </div>
-                                <div class="info-value editable-field">
-                                    <span id="accountAddress">Not provided</span>
-                                    <button class="edit-btn" onclick="editField('address')">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                </div>
                             </div>
                             
                             <div class="info-item">
@@ -1136,23 +1195,18 @@
                             
                             <div class="info-item">
                                 <div class="info-label">
-                                    <i class="fas fa-clock"></i>
-                                    Time Zone
+                                    <i class="fas fa-shield-alt"></i>
+                                    Account Status
                                 </div>
-                                <div class="info-value editable-field">
-                                    <span id="accountTimezone">Auto-detected</span>
-                                    <button class="edit-btn" onclick="editField('timezone')">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                </div>
+                                <div class="info-value" id="accountStatus">Active</div>
                             </div>
                             
                             <div class="info-item">
                                 <div class="info-label">
-                                    <i class="fas fa-shield-alt"></i>
-                                    Account Type
+                                    <i class="fas fa-sync-alt"></i>
+                                    Profile Status
                                 </div>
-                                <div class="info-value" id="accountType">Standard User</div>
+                                <div class="info-value" id="profileSyncStatus">Checking...</div>
                             </div>
                         </div>
                     </div>
@@ -1194,16 +1248,8 @@
                                 <div class="detail-value" id="billingModel">Monthly</div>
                             </div>
                             <div class="detail-item">
-                                <div class="detail-label">Next Renewal</div>
-                                <div class="detail-value" id="nextRenewal">N/A</div>
-                            </div>
-                            <div class="detail-item">
                                 <div class="detail-label">Messages Sent</div>
                                 <div class="detail-value" id="messagesSent">0</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Success Rate</div>
-                                <div class="detail-value" id="successRate">N/A</div>
                             </div>
                         </div>
                         
@@ -1214,7 +1260,7 @@
                     </div>
                 </div>
 
-                <!-- Bottom Row: LinkedIn Profile and Analytics -->
+                <!-- Bottom Row: LinkedIn Profile -->
                 <div class="dashboard-row">
                     <!-- LinkedIn Profile Summary -->
                     <div class="card">
@@ -1223,14 +1269,6 @@
                                 <i class="fab fa-linkedin"></i>
                             </div>
                             <h3 class="card-title">LinkedIn Profile Summary</h3>
-                        </div>
-                        
-                        <!-- Profile Sync Status -->
-                        <div class="profile-sync-status" id="profileSyncStatus">
-                            <div class="sync-status-indicator">
-                                <i class="fas fa-exclamation-circle" id="syncStatusIcon"></i>
-                                <span id="syncStatusText">Profile sync pending...</span>
-                            </div>
                         </div>
                         
                         <div class="profile-summary">
@@ -1252,13 +1290,13 @@
                             <a href="#" id="profileUrl" target="_blank">Loading...</a>
                         </div>
                         
-                        <button class="view-profile-btn" id="viewProfileBtn">
+                        <button class="view-profile-btn disabled" id="viewProfileBtn" onclick="showFullProfile()">
                             <i class="fas fa-sync-alt"></i>
-                            <span id="profileBtnText">Sync your LinkedIn profile first</span>
+                            <span id="profileBtnText">Complete profile sync first</span>
                         </button>
                     </div>
 
-                    <!-- Analytics -->
+                    <!-- Analytics Placeholder -->
                     <div class="card">
                         <div class="card-header">
                             <div class="card-icon">
@@ -1267,12 +1305,29 @@
                             <h3 class="card-title">Analytics & Performance</h3>
                         </div>
                         
-                        <div class="coming-soon">
-                            <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard – Coming Soon</h3>
-                            <p>Track your reply rates, message performance, recent recipients, conversion metrics, and comprehensive analytics data coming soon!</p>
+                        <div style="text-align: center; padding: 3rem; color: var(--gray);">
+                            <i class="fas fa-chart-bar" style="font-size: 4rem; margin-bottom: 1.5rem; color: var(--primary-purple); opacity: 0.6;"></i>
+                            <h3 style="font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--dark-gray);">Analytics Dashboard – Coming Soon</h3>
+                            <p style="font-size: 1rem; line-height: 1.6;">Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 👤 FULL PROFILE VIEW SECTION -->
+            <div class="full-profile-section" id="fullProfileSection">
+                <div class="full-profile-header">
+                    <div class="full-profile-icon">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <h2 class="full-profile-title">Complete LinkedIn Profile</h2>
+                    <button class="full-profile-close" onclick="hideFullProfile()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="full-profile-content" id="fullProfileContent">
+                    <!-- Profile content will be populated by JavaScript -->
                 </div>
             </div>
         </main>
@@ -1281,17 +1336,13 @@
     <script>
         // Global variables
         let currentUserData = null;
+        let trafficLightStatus = 'loading';
+        let analysisProgressInterval = null;
 
-        // ✅ SMART AUTHENTICATION: Check auth on page load and redirect to login if needed
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            initializeTimezone();
             checkAuthentication();
         });
-
-        function initializeTimezone() {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            document.getElementById('accountTimezone').textContent = timezone;
-        }
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -1310,45 +1361,25 @@
                 case 'dashboard':
                     // Already on dashboard
                     break;
-                case 'messages':
-                    alert('💬 Messages Center - Coming Soon!\n\nTrack your sent messages, manage conversations, and monitor response rates.');
-                    break;
-                case 'analytics':
-                    alert('📊 Analytics Dashboard - Coming Soon!\n\nView detailed performance metrics, success rates, and engagement insights.');
-                    break;
-                case 'target-profile':
-                    alert('🎯 Target Profile Manager - Coming Soon!\n\nSave and organize profiles you want to reach out to.');
-                    break;
                 case 'linkedin-profile':
-                    alert('👤 LinkedIn Profile Manager - Coming Soon!\n\nManage your LinkedIn profile data and sync settings.');
-                    break;
-                case 'profile':
-                    alert('⚙️ Profile Settings - Coming Soon!\n\nUpdate your account settings and preferences.');
-                    break;
-                case 'billing':
-                    alert('💳 Billing Management - Coming Soon!\n\nManage your subscription, payment methods, and billing history.');
-                    break;
-                case 'settings':
-                    alert('🔧 Account Settings - Coming Soon!\n\nCustomize your experience and manage privacy settings.');
-                    break;
-                case 'help':
-                    alert('❓ Help Center - Coming Soon!\n\nAccess tutorials, FAQs, and support documentation.');
-                    break;
-                case 'feedback':
-                    alert('💭 Feedback Portal - Coming Soon!\n\nShare your thoughts and help us improve Msgly.AI!');
+                    if (trafficLightStatus === 'green') {
+                        showFullProfile();
+                    } else {
+                        alert('👤 Complete your LinkedIn profile sync first to access this section.');
+                    }
                     break;
                 default:
                     alert(`${section.charAt(0).toUpperCase() + section.slice(1)} section coming soon!`);
             }
         }
 
-        // ✅ FIXED: Smart authentication check - redirect to LOGIN if no auth
+        // Authentication check
         async function checkAuthentication() {
             const token = getAuthToken();
             
             if (!token) {
                 console.log('❌ No authentication token found - redirecting to login');
-                redirectToLogin();
+                window.location.href = '/login';
                 return;
             }
 
@@ -1356,10 +1387,8 @@
                 await loadDashboardData(token);
             } catch (error) {
                 console.error('Dashboard load error:', error);
-                
                 if (error.message.includes('401') || error.message.includes('403')) {
-                    console.log('❌ Token invalid - redirecting to login');
-                    redirectToLogin();
+                    window.location.href = '/login';
                 } else {
                     showError('Failed to load dashboard data. Please try logging in again.');
                 }
@@ -1382,24 +1411,6 @@
             return localStorage.getItem('authToken');
         }
 
-        // ✅ FIXED: Redirect to LOGIN page (not sign-up)
-        function redirectToLogin() {
-            console.log('🔒 Redirecting to login page...');
-            
-            // Show auth warning first
-            document.getElementById('authWarning').style.display = 'flex';
-            
-            // Redirect after 2 seconds
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 2000);
-        }
-
-        // ✅ Added explicit redirect function for auth warning button
-        function redirectToLoginNow() {
-            window.location.href = '/login';
-        }
-
         async function loadDashboardData(token) {
             try {
                 const response = await fetch('https://api.msgly.ai/profile', {
@@ -1411,10 +1422,6 @@
                 });
 
                 if (!response.ok) {
-                    if (response.status === 401 || response.status === 403) {
-                        localStorage.removeItem('authToken');
-                        throw new Error(`Authentication failed: ${response.status}`);
-                    }
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
@@ -1429,7 +1436,7 @@
                 
             } catch (error) {
                 console.error('API Error:', error);
-                throw error; // Re-throw for checkAuthentication to handle
+                throw error;
             }
         }
 
@@ -1442,31 +1449,36 @@
             const sidebarInitials = getInitials(user.displayName || user.email);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
-            // ✅ FIXED: Show/hide sync warning based on registration_completed + sync status
-            const syncWarning = document.getElementById('syncWarning');
-            
-            // Check if registration is complete AND profile is synced
-            const isRegistrationComplete = user.registrationCompleted;  // ✅ FIXED: Changed from profileCompleted
-            const isProfileSynced = !syncStatus?.isIncomplete;
-            
-            if (!isRegistrationComplete || !isProfileSynced) {
-                syncWarning.style.display = 'block';
-                
-                // Update warning message based on what's incomplete
-                const warningMessage = syncWarning.querySelector('.sync-warning-message');
-                if (!isRegistrationComplete) {
-                    warningMessage.innerHTML = `
-                        <span class="sync-warning-highlight">Your registration is not complete yet.</span>
-                        Please complete your LinkedIn profile setup by providing your LinkedIn URL and accepting our terms.
-                    `;
-                } else if (!isProfileSynced) {
-                    warningMessage.innerHTML = `
-                        To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. 
-                        Please visit <span class="sync-warning-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
-                    `;
-                }
+            // 🚦 DETERMINE TRAFFIC LIGHT STATUS
+            const isRegistrationComplete = user.registrationCompleted;
+            const isInitialScrapingDone = profile?.initialScrapingDone || false;
+            const extractionStatus = profile?.extractionStatus || 'pending';
+            const hasExperience = profile?.experience && Array.isArray(profile.experience) && profile.experience.length > 0;
+
+            console.log('🚦 Traffic Light Debug:', {
+                registrationCompleted: isRegistrationComplete,
+                initialScrapingDone: isInitialScrapingDone, 
+                extractionStatus: extractionStatus,
+                hasExperience: hasExperience
+            });
+
+            // Determine traffic light state
+            if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
+                trafficLightStatus = 'green';
+                hideAllWarnings();
+                enableViewProfile();
+            } else if (isRegistrationComplete && isInitialScrapingDone) {
+                trafficLightStatus = 'orange';
+                showOrangeWarning();
+                disableViewProfile();
+            } else if (isRegistrationComplete) {
+                trafficLightStatus = 'red';
+                showRedWarning();
+                disableViewProfile();
             } else {
-                syncWarning.style.display = 'none';
+                trafficLightStatus = 'red';
+                showRedWarning();
+                disableViewProfile();
             }
 
             // Enhanced Account Information
@@ -1474,10 +1486,24 @@
             document.getElementById('accountEmail').textContent = user.email;
             document.getElementById('accountSignupDate').textContent = formatDate(user.createdAt);
             document.getElementById('accountUserId').textContent = `#${user.id}`;
+            document.getElementById('accountStatus').textContent = 'Active';
             
-            // These would come from expanded user data - for now showing placeholders
-            document.getElementById('accountPhone').textContent = user.phone || 'Not provided';
-            document.getElementById('accountAddress').textContent = user.address || 'Not provided';
+            // Update profile sync status based on traffic light
+            const profileSyncStatusEl = document.getElementById('profileSyncStatus');
+            switch(trafficLightStatus) {
+                case 'green':
+                    profileSyncStatusEl.textContent = '✅ Fully Synced';
+                    profileSyncStatusEl.style.color = 'var(--success-green)';
+                    break;
+                case 'orange':
+                    profileSyncStatusEl.textContent = '🟠 Processing...';
+                    profileSyncStatusEl.style.color = 'var(--warning-orange)';
+                    break;
+                case 'red':
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
+                    profileSyncStatusEl.style.color = 'var(--error-red)';
+                    break;
+            }
 
             // Enhanced Subscription & Credits
             const planName = (user.packageType || 'free').charAt(0).toUpperCase() + (user.packageType || 'free').slice(1);
@@ -1496,71 +1522,14 @@
                 planBadge.style.background = 'linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%)';
             }
 
-            // Subscription status
-            const status = user.subscriptionStatus || 'active';
-            document.getElementById('subscriptionStatus').textContent = status.charAt(0).toUpperCase() + status.slice(1);
-            
-            const statusBadge = document.getElementById('statusBadge');
-            statusBadge.className = `status-badge status-${status}`;
-
-            // Billing details
+            document.getElementById('subscriptionStatus').textContent = (user.subscriptionStatus || 'active').charAt(0).toUpperCase() + (user.subscriptionStatus || 'active').slice(1);
             document.getElementById('billingModel').textContent = (user.billingModel || 'monthly').charAt(0).toUpperCase() + (user.billingModel || 'monthly').slice(1);
-            
-            // Calculate next renewal (placeholder logic)
-            const nextRenewal = new Date();
-            nextRenewal.setMonth(nextRenewal.getMonth() + 1);
-            document.getElementById('nextRenewal').textContent = user.packageType === 'free' ? 'N/A' : formatDate(nextRenewal.toISOString());
-
-            // Placeholder analytics data
-            document.getElementById('messagesSent').textContent = '0'; // Would come from message logs
-            document.getElementById('successRate').textContent = 'N/A'; // Would be calculated
-            document.getElementById('creditsUsed').textContent = '0'; // Would be calculated
-
-            // Renewal info
-            const renewalInfo = document.getElementById('renewalInfo');
-            if (user.packageType === 'free') {
-                renewalInfo.textContent = 'Refreshes monthly • Forever free';
-            } else {
-                renewalInfo.textContent = `Next renewal: ${formatDate(nextRenewal.toISOString())}`;
-            }
 
             // LinkedIn Profile Summary
             if (profile) {
-                // ✅ FIXED: Check if profile is properly synced AND registration is complete
-                const isProfileSynced = profile.fullName && profile.headline && (profile.currentCompanyName || profile.currentCompany);
-                const isRegistrationComplete = user.registrationCompleted;  // ✅ FIXED: Changed from profileCompleted
-                
-                // Update sync status
-                const syncStatus = document.getElementById('profileSyncStatus');
-                const syncStatusIcon = document.getElementById('syncStatusIcon');
-                const syncStatusText = document.getElementById('syncStatusText');
-                const profileBtn = document.getElementById('viewProfileBtn');
-                const profileBtnText = document.getElementById('profileBtnText');
-                
-                if (isRegistrationComplete && isProfileSynced) {
-                    syncStatus.classList.add('synced');
-                    syncStatusIcon.className = 'fas fa-check-circle';
-                    syncStatusText.textContent = '✨ Profile synced and ready to rock!';
-                    profileBtn.classList.remove('view-profile-btn');
-                    profileBtn.classList.add('upgrade-btn');
-                    profileBtn.style.opacity = '1';
-                    profileBtn.style.cursor = 'pointer';
-                    profileBtnText.innerHTML = '<i class="fas fa-eye"></i> View Full Profile';
-                } else {
-                    syncStatus.style.display = 'block';
-                    if (!isRegistrationComplete) {
-                        syncStatusText.textContent = '⚠️ Complete your registration first by providing your LinkedIn URL';
-                    } else {
-                        syncStatusText.textContent = '🔄 LinkedIn magic pending - sync your profile to unlock full power!';
-                    }
-                    profileBtnText.innerHTML = '<i class="fas fa-sync-alt"></i> Complete registration and sync profile';
-                }
-                
-                // Display profile information
                 document.getElementById('profileFullName').textContent = profile.fullName || 'Profile name not synced yet';
                 document.getElementById('profileHeadline').textContent = profile.headline || 'Professional headline awaiting sync...';
                 
-                // Use current_company_name if available, fallback to current_company
                 const companyName = profile.currentCompanyName || profile.currentCompany || 'Company info pending sync...';
                 document.getElementById('profileCompany').textContent = companyName;
                 
@@ -1572,26 +1541,13 @@
                     profileUrlElement.href = profile.linkedinUrl;
                     profileUrlElement.textContent = profile.linkedinUrl;
                 } else {
-                    profileUrlElement.textContent = 'LinkedIn URL will appear after registration';
+                    profileUrlElement.textContent = 'LinkedIn URL will appear after sync';
                     profileUrlElement.removeAttribute('href');
                 }
 
-                // Set profile initials
                 const initials = getInitials(profile.fullName || user.displayName || user.email);
                 document.getElementById('profileInitials').textContent = initials;
             } else {
-                // No LinkedIn profile data at all
-                const syncStatus = document.getElementById('profileSyncStatus');
-                const syncStatusText = document.getElementById('syncStatusText');
-                const isRegistrationComplete = user.registrationCompleted;  // ✅ FIXED: Changed from profileCompleted
-                
-                syncStatus.style.display = 'block';
-                if (!isRegistrationComplete) {
-                    syncStatusText.textContent = '⚠️ Complete your registration first by providing your LinkedIn URL';
-                } else {
-                    syncStatusText.textContent = '🚀 Ready to supercharge your outreach? Sync your LinkedIn profile now!';
-                }
-                
                 document.getElementById('profileFullName').textContent = 'LinkedIn profile not connected yet';
                 document.getElementById('profileHeadline').textContent = 'Connect your profile to see your headline here';
                 document.getElementById('profileCompany').textContent = 'Your company info will appear after sync';
@@ -1605,6 +1561,261 @@
             // Show dashboard content
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
+        }
+
+        // 🚦 TRAFFIC LIGHT FUNCTIONS
+        function hideAllWarnings() {
+            document.getElementById('redWarning').style.display = 'none';
+            document.getElementById('orangeWarning').style.display = 'none';
+        }
+
+        function showRedWarning() {
+            hideAllWarnings();
+            document.getElementById('redWarning').style.display = 'block';
+        }
+
+        function showOrangeWarning() {
+            hideAllWarnings();
+            document.getElementById('orangeWarning').style.display = 'block';
+            startAnalysisProgress();
+        }
+
+        function enableViewProfile() {
+            const btn = document.getElementById('viewProfileBtn');
+            const btnText = document.getElementById('profileBtnText');
+            
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btnText.innerHTML = '<i class="fas fa-eye"></i> View Full Profile';
+        }
+
+        function disableViewProfile() {
+            const btn = document.getElementById('viewProfileBtn');
+            const btnText = document.getElementById('profileBtnText');
+            
+            btn.classList.add('disabled');
+            btn.classList.remove('enabled');
+            
+            if (trafficLightStatus === 'red') {
+                btnText.innerHTML = '<i class="fas fa-sync-alt"></i> Complete profile sync first';
+            } else if (trafficLightStatus === 'orange') {
+                btnText.innerHTML = '<i class="fas fa-hourglass-half"></i> Analysis in progress...';
+            }
+        }
+
+        function startAnalysisProgress() {
+            let progress = 0;
+            const progressFill = document.getElementById('analysisProgress');
+            const progressText = document.getElementById('progressText');
+            
+            // Clear any existing interval
+            if (analysisProgressInterval) {
+                clearInterval(analysisProgressInterval);
+            }
+            
+            analysisProgressInterval = setInterval(() => {
+                progress += Math.random() * 2; // Random progress increment
+                if (progress > 95) progress = 95; // Cap at 95%
+                
+                progressFill.style.width = `${progress}%`;
+                
+                if (progress < 30) {
+                    progressText.textContent = 'Analyzing profile structure...';
+                } else if (progress < 60) {
+                    progressText.textContent = 'Processing experience data...';
+                } else if (progress < 85) {
+                    progressText.textContent = 'Extracting skills & certifications...';
+                } else {
+                    progressText.textContent = 'Finalizing analysis...';
+                }
+                
+                // Check if analysis actually completed (this would be real API call)
+                if (progress > 90) {
+                    // In real implementation, this would check API for completion
+                    // For demo purposes, we'll continue the animation
+                }
+            }, 1000);
+        }
+
+        // 👤 FULL PROFILE VIEW FUNCTIONS
+        function showFullProfile() {
+            if (trafficLightStatus !== 'green') {
+                alert('Please complete your profile sync first to view your full profile.');
+                return;
+            }
+
+            const fullProfileSection = document.getElementById('fullProfileSection');
+            const fullProfileContent = document.getElementById('fullProfileContent');
+            
+            // Build full profile content
+            const profile = currentUserData.profile;
+            
+            let profileHTML = `
+                <!-- Basic Information -->
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <i class="fas fa-user"></i>
+                        Basic Information
+                    </div>
+                    <div class="profile-grid">
+                        <div class="profile-item">
+                            <div class="profile-item-label">Full Name</div>
+                            <div class="profile-item-value">${profile?.fullName || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Headline</div>
+                            <div class="profile-item-value">${profile?.headline || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Current Role</div>
+                            <div class="profile-item-value">${profile?.currentRole || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Location</div>
+                            <div class="profile-item-value">${profile?.location || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Current Company</div>
+                            <div class="profile-item-value">${profile?.currentCompanyName || profile?.currentCompany || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Connections</div>
+                            <div class="profile-item-value">${profile?.connectionsCount || profile?.connections || 'Not available'}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Experience Section
+            if (profile?.experience && Array.isArray(profile.experience) && profile.experience.length > 0) {
+                profileHTML += `
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-briefcase"></i>
+                            Professional Experience (${profile.experience.length})
+                        </div>
+                `;
+                
+                profile.experience.forEach((exp, index) => {
+                    profileHTML += `
+                        <div class="experience-item">
+                            <div class="item-title">${exp.title || exp.position || 'Position not specified'}</div>
+                            <div class="item-company">${exp.company || exp.companyName || 'Company not specified'}</div>
+                            <div class="item-duration">${exp.duration || exp.dateRange || 'Duration not specified'}</div>
+                            ${exp.description ? `<div class="item-description">${exp.description}</div>` : ''}
+                        </div>
+                    `;
+                });
+                
+                profileHTML += `</div>`;
+            }
+
+            // Education Section
+            if (profile?.education && Array.isArray(profile.education) && profile.education.length > 0) {
+                profileHTML += `
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-graduation-cap"></i>
+                            Education (${profile.education.length})
+                        </div>
+                `;
+                
+                profile.education.forEach((edu, index) => {
+                    profileHTML += `
+                        <div class="education-item">
+                            <div class="item-title">${edu.degree || edu.field || 'Degree not specified'}</div>
+                            <div class="item-company">${edu.school || edu.institution || 'Institution not specified'}</div>
+                            <div class="item-duration">${edu.duration || edu.years || 'Years not specified'}</div>
+                            ${edu.description ? `<div class="item-description">${edu.description}</div>` : ''}
+                        </div>
+                    `;
+                });
+                
+                profileHTML += `</div>`;
+            }
+
+            // Skills Section
+            if (profile?.skills && Array.isArray(profile.skills) && profile.skills.length > 0) {
+                profileHTML += `
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-tools"></i>
+                            Skills & Expertise (${profile.skills.length})
+                        </div>
+                        <div class="skills-grid">
+                `;
+                
+                profile.skills.forEach((skill, index) => {
+                    const skillName = typeof skill === 'string' ? skill : skill.name || skill.skill;
+                    const endorsements = typeof skill === 'object' ? skill.endorsements : '';
+                    
+                    profileHTML += `
+                        <div class="skill-item">
+                            <div class="skill-name">${skillName}</div>
+                            ${endorsements ? `<div class="skill-endorsements">${endorsements} endorsements</div>` : ''}
+                        </div>
+                    `;
+                });
+                
+                profileHTML += `</div></div>`;
+            }
+
+            // Certifications Section
+            if (profile?.certifications && Array.isArray(profile.certifications) && profile.certifications.length > 0) {
+                profileHTML += `
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-certificate"></i>
+                            Certifications (${profile.certifications.length})
+                        </div>
+                `;
+                
+                profile.certifications.forEach((cert, index) => {
+                    profileHTML += `
+                        <div class="certification-item">
+                            <div class="item-title">${cert.name || cert.title || 'Certification not specified'}</div>
+                            <div class="item-company">${cert.issuer || cert.organization || 'Issuer not specified'}</div>
+                            <div class="item-duration">${cert.date || cert.issued || 'Date not specified'}</div>
+                        </div>
+                    `;
+                });
+                
+                profileHTML += `</div>`;
+            }
+
+            // Awards Section
+            if (profile?.awards && Array.isArray(profile.awards) && profile.awards.length > 0) {
+                profileHTML += `
+                    <div class="profile-section">
+                        <div class="profile-section-title">
+                            <i class="fas fa-trophy"></i>
+                            Awards & Honors (${profile.awards.length})
+                        </div>
+                `;
+                
+                profile.awards.forEach((award, index) => {
+                    profileHTML += `
+                        <div class="award-item">
+                            <div class="item-title">${award.name || award.title || 'Award not specified'}</div>
+                            <div class="item-company">${award.issuer || award.organization || 'Issuer not specified'}</div>
+                            <div class="item-duration">${award.date || award.year || 'Date not specified'}</div>
+                            ${award.description ? `<div class="item-description">${award.description}</div>` : ''}
+                        </div>
+                    `;
+                });
+                
+                profileHTML += `</div>`;
+            }
+
+            fullProfileContent.innerHTML = profileHTML;
+            fullProfileSection.style.display = 'block';
+            
+            // Scroll to full profile section
+            fullProfileSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideFullProfile() {
+            document.getElementById('fullProfileSection').style.display = 'none';
         }
 
         function showError(message) {
@@ -1639,86 +1850,6 @@
             }
         }
 
-        // Editable field functionality
-        function editField(fieldName) {
-            const spanElement = document.getElementById(`account${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`);
-            const currentValue = spanElement.textContent;
-            
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = currentValue === 'Not provided' ? '' : currentValue;
-            input.className = 'edit-input';
-            
-            const saveBtn = document.createElement('button');
-            saveBtn.textContent = 'Save';
-            saveBtn.className = 'save-btn';
-            saveBtn.onclick = () => saveField(fieldName, input.value);
-            
-            const cancelBtn = document.createElement('button');
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.className = 'cancel-btn';
-            cancelBtn.onclick = () => cancelEdit(fieldName);
-            
-            spanElement.style.display = 'none';
-            spanElement.parentNode.querySelector('.edit-btn').style.display = 'none';
-            
-            spanElement.parentNode.appendChild(input);
-            spanElement.parentNode.appendChild(saveBtn);
-            spanElement.parentNode.appendChild(cancelBtn);
-            
-            input.focus();
-        }
-
-        async function saveField(fieldName, value) {
-            const token = getAuthToken();
-            
-            try {
-                // This would be a real API call to update user data
-                const response = await fetch('https://api.msgly.ai/update-user-info', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        [fieldName]: value
-                    })
-                });
-
-                if (response.ok) {
-                    // Update the display
-                    const spanElement = document.getElementById(`account${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`);
-                    spanElement.textContent = value || 'Not provided';
-                    cancelEdit(fieldName);
-                    
-                    // Show success message
-                    alert('Information updated successfully!');
-                } else {
-                    throw new Error('Failed to update information');
-                }
-            } catch (error) {
-                console.error('Update error:', error);
-                alert('Failed to update information. Please try again.');
-                cancelEdit(fieldName);
-            }
-        }
-
-        function cancelEdit(fieldName) {
-            const container = document.getElementById(`account${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`).parentNode;
-            const input = container.querySelector('.edit-input');
-            const saveBtn = container.querySelector('.save-btn');
-            const cancelBtn = container.querySelector('.cancel-btn');
-            const spanElement = container.querySelector('span');
-            const editBtn = container.querySelector('.edit-btn');
-            
-            if (input) input.remove();
-            if (saveBtn) saveBtn.remove();
-            if (cancelBtn) cancelBtn.remove();
-            
-            spanElement.style.display = 'inline';
-            editBtn.style.display = 'inline';
-        }
-
         function upgradeAccount() {
             alert('Upgrade functionality coming soon! Premium plans will be available shortly.');
         }
@@ -1738,6 +1869,13 @@
                 !toggle.contains(event.target) && 
                 sidebar.classList.contains('active')) {
                 sidebar.classList.remove('active');
+            }
+        });
+
+        // Cleanup intervals on page unload
+        window.addEventListener('beforeunload', function() {
+            if (analysisProgressInterval) {
+                clearInterval(analysisProgressInterval);
             }
         });
     </script>
