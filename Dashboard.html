@@ -24,11 +24,11 @@
             --gray: #6B7280;
             --light-gray: #F9FAFB;
             --white: #FFFFFF;
-            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
-            --glow-shadow: 0 0 40px rgba(128, 57, 223, 0.3);
-            --intense-glow: 0 0 60px rgba(128, 57, 223, 0.4);
-            --neon-glow: 0 0 80px rgba(128, 57, 223, 0.3);
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
+            --glow-shadow: 0 0 30px rgba(128, 57, 223, 0.25);
+            --intense-glow: 0 0 45px rgba(128, 57, 223, 0.35);
+            --neon-glow: 0 0 60px rgba(128, 57, 223, 0.25);
         }
 
         * {
@@ -251,32 +251,32 @@
         }
 
         .main-content {
-            padding: 2rem;
+            padding: 1.5rem;
             max-width: 1400px;
             margin: 0 auto;
         }
 
         .page-header {
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         .page-title {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 700;
             color: var(--black);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
         }
 
         .page-subtitle {
             color: var(--gray);
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
 
         /* 🚦 TRAFFIC LIGHT SYSTEM */
         .traffic-light-warning {
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
+            border-radius: 14px;
+            padding: 1.2rem;
+            margin-bottom: 1.5rem;
             display: none;
             animation: slideInDown 0.5s ease-out;
         }
@@ -305,14 +305,14 @@
         .traffic-light-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
 
         .traffic-light-icon {
-            width: 24px;
-            height: 24px;
-            font-size: 1.2rem;
+            width: 22px;
+            height: 22px;
+            font-size: 1.1rem;
         }
 
         .traffic-light-warning.red .traffic-light-icon {
@@ -324,7 +324,7 @@
         }
 
         .traffic-light-title {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
         }
 
@@ -338,8 +338,8 @@
 
         .traffic-light-message {
             color: var(--dark-gray);
-            line-height: 1.6;
-            font-size: 0.95rem;
+            line-height: 1.5;
+            font-size: 0.9rem;
         }
 
         .traffic-light-highlight {
@@ -348,24 +348,24 @@
         }
 
         .orange-progress {
-            margin-top: 1rem;
+            margin-top: 0.8rem;
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.8rem;
         }
 
         .progress-bar {
             flex: 1;
-            height: 8px;
+            height: 6px;
             background: rgba(245, 158, 11, 0.2);
-            border-radius: 4px;
+            border-radius: 3px;
             overflow: hidden;
         }
 
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, var(--warning-orange) 0%, #D97706 100%);
-            border-radius: 4px;
+            border-radius: 3px;
             transition: width 0.3s ease;
             animation: pulse 2s infinite;
         }
@@ -376,34 +376,34 @@
         }
 
         .progress-text {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: var(--warning-orange);
             font-weight: 600;
-            min-width: 120px;
+            min-width: 100px;
         }
 
-        /* Dashboard Grid */
+        /* Dashboard Grid - Optimized for smaller cards */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-            gap: 2rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
         }
 
         .dashboard-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin-bottom: 2rem;
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
         }
 
-        /* Card Styles */
+        /* Optimized Card Styles */
         .card {
             background: var(--white);
-            border-radius: 20px;
-            padding: 2rem;
+            border-radius: 16px;
+            padding: 1.2rem;
             box-shadow: var(--shadow);
-            border: 1px solid rgba(128, 57, 223, 0.1);
+            border: 1px solid rgba(128, 57, 223, 0.08);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
@@ -415,114 +415,115 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 4px;
+            height: 3px;
             background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
         }
 
         .card:hover {
             box-shadow: var(--shadow-lg);
-            transform: translateY(-4px);
+            transform: translateY(-2px);
         }
 
         .card-header {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--light-gray);
+            gap: 0.8rem;
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid var(--light-gray);
         }
 
         .card-icon {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            border-radius: 15px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--white);
-            font-size: 1.4rem;
+            font-size: 1.1rem;
             box-shadow: var(--glow-shadow);
         }
 
         .card-title {
-            font-size: 1.4rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: var(--black);
         }
 
-        /* Enhanced Account Info Card */
+        /* Optimized Account Info Card */
         .account-info-grid {
             display: grid;
-            gap: 1.5rem;
+            gap: 0.8rem;
         }
 
         .info-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem;
+            padding: 0.7rem 0.9rem;
             background: var(--light-gray);
-            border-radius: 12px;
+            border-radius: 10px;
             transition: all 0.3s ease;
         }
 
         .info-item:hover {
             background: var(--light-purple);
-            transform: translateX(4px);
+            transform: translateX(2px);
         }
 
         .info-label {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             color: var(--dark-gray);
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: 600;
         }
 
         .info-label i {
             color: var(--primary-purple);
-            width: 16px;
+            width: 14px;
+            font-size: 0.9rem;
         }
 
         .info-value {
             color: var(--black);
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.8rem;
         }
 
-        /* Enhanced Subscription Card */
+        /* Optimized Subscription Card */
         .subscription-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1.2rem;
         }
 
         .plan-badge {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 0.75rem 1.5rem;
+            gap: 6px;
+            padding: 0.5rem 1rem;
             background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
             color: var(--white);
-            border-radius: 25px;
-            font-size: 0.9rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            letter-spacing: 0.3px;
+            box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);
         }
 
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
+            gap: 4px;
+            padding: 0.4rem 0.8rem;
+            border-radius: 16px;
+            font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
         }
@@ -535,19 +536,19 @@
         .credits-display {
             display: flex;
             align-items: center;
-            gap: 2rem;
-            padding: 1.5rem;
-            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.1) 100%);
-            border-radius: 16px;
-            margin: 1.5rem 0;
-            border: 2px solid rgba(128, 57, 223, 0.2);
+            gap: 1.2rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
+            border-radius: 12px;
+            margin: 1rem 0;
+            border: 1px solid rgba(128, 57, 223, 0.15);
         }
 
         .credits-number {
-            font-size: 3rem;
+            font-size: 2.2rem;
             font-weight: 900;
             color: var(--primary-purple);
-            text-shadow: 0 2px 4px rgba(128, 57, 223, 0.2);
+            text-shadow: 0 2px 4px rgba(128, 57, 223, 0.15);
         }
 
         .credits-info {
@@ -556,86 +557,86 @@
 
         .credits-text {
             color: var(--dark-gray);
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.3rem;
         }
 
         .credits-details {
             color: var(--gray);
-            font-size: 0.85rem;
-            line-height: 1.4;
+            font-size: 0.75rem;
+            line-height: 1.3;
         }
 
         .subscription-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin: 1.5rem 0;
+            gap: 0.8rem;
+            margin: 1rem 0;
         }
 
         .detail-item {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
-            padding: 1rem;
+            gap: 0.3rem;
+            padding: 0.7rem;
             background: var(--light-gray);
-            border-radius: 12px;
+            border-radius: 10px;
         }
 
         .detail-label {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--gray);
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
         }
 
         .detail-value {
-            font-size: 1rem;
+            font-size: 0.9rem;
             color: var(--black);
             font-weight: 700;
         }
 
         .upgrade-btn {
             width: 100%;
-            padding: 1rem 1.5rem;
+            padding: 0.8rem 1.2rem;
             background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             color: var(--white);
             border: none;
-            border-radius: 12px;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             box-shadow: var(--glow-shadow);
         }
 
         .upgrade-btn:hover {
             background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-2px);
+            transform: translateY(-1px);
             box-shadow: var(--intense-glow);
         }
 
-        /* LinkedIn Profile Card */
+        /* Optimized LinkedIn Profile Card */
         .profile-summary {
             display: flex;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
         }
 
         .profile-avatar {
-            width: 100px;
-            height: 100px;
+            width: 70px;
+            height: 70px;
             background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--white);
-            font-size: 2.5rem;
+            font-size: 1.8rem;
             font-weight: 700;
             box-shadow: var(--glow-shadow);
         }
@@ -645,62 +646,62 @@
         }
 
         .profile-name {
-            font-size: 1.5rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: var(--black);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.3rem;
         }
 
         .profile-headline {
             color: var(--gray);
-            font-size: 1rem;
-            margin-bottom: 0.75rem;
-            line-height: 1.4;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
         }
 
         .profile-company {
             color: var(--dark-gray);
-            font-size: 0.95rem;
-            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+            margin-bottom: 0.3rem;
             font-weight: 600;
         }
 
         .profile-location {
             color: var(--gray);
-            font-size: 0.9rem;
+            font-size: 0.75rem;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
 
         .profile-url {
             background: var(--light-gray);
-            padding: 1rem;
-            border-radius: 12px;
-            margin: 1.5rem 0;
+            padding: 0.7rem;
+            border-radius: 10px;
+            margin: 1rem 0;
         }
 
         .profile-url a {
             color: var(--primary-purple);
             text-decoration: none;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             word-break: break-all;
             font-weight: 500;
         }
 
         .view-profile-btn {
             width: 100%;
-            padding: 1rem;
+            padding: 0.7rem;
             border: none;
-            border-radius: 12px;
-            font-size: 0.95rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .view-profile-btn.disabled {
@@ -713,12 +714,37 @@
         .view-profile-btn.enabled {
             background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
             color: var(--white);
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);
         }
 
         .view-profile-btn.enabled:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+        }
+
+        /* Optimized Analytics Card */
+        .analytics-placeholder {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--gray);
+        }
+
+        .analytics-placeholder i {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary-purple);
+            opacity: 0.6;
+        }
+
+        .analytics-placeholder h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark-gray);
+        }
+
+        .analytics-placeholder p {
+            font-size: 0.85rem;
+            line-height: 1.4;
         }
 
         /* 👤 FULL PROFILE VIEW SECTION */
@@ -917,10 +943,10 @@
         }
 
         .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid var(--light-gray);
-            border-top: 4px solid var(--primary-purple);
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary-purple);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -977,11 +1003,11 @@
 
             .dashboard-grid {
                 grid-template-columns: 1fr;
-                gap: 1.5rem;
+                gap: 1rem;
             }
 
             .card {
-                padding: 1.5rem;
+                padding: 1rem;
             }
 
             .profile-summary {
@@ -991,9 +1017,9 @@
             }
 
             .profile-avatar {
-                width: 80px;
-                height: 80px;
-                font-size: 2rem;
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
             }
 
             .subscription-details {
@@ -1003,7 +1029,7 @@
             .credits-display {
                 flex-direction: column;
                 text-align: center;
-                gap: 1rem;
+                gap: 0.8rem;
             }
 
             .profile-grid {
@@ -1305,10 +1331,10 @@
                             <h3 class="card-title">Analytics & Performance</h3>
                         </div>
                         
-                        <div style="text-align: center; padding: 3rem; color: var(--gray);">
-                            <i class="fas fa-chart-bar" style="font-size: 4rem; margin-bottom: 1.5rem; color: var(--primary-purple); opacity: 0.6;"></i>
-                            <h3 style="font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--dark-gray);">Analytics Dashboard – Coming Soon</h3>
-                            <p style="font-size: 1rem; line-height: 1.6;">Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
+                        <div class="analytics-placeholder">
+                            <i class="fas fa-chart-bar"></i>
+                            <h3>Analytics Dashboard – Coming Soon</h3>
+                            <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
                 </div>
