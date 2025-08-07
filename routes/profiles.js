@@ -1,34 +1,27 @@
-// ✅ STEP 2F REVISED: JWT-Only Profile Routes (~300-350 lines)
-// routes/profiles.js - Chrome extension profile routes (JWT authentication only)
+// ✅ STEP 2F: Profile & API Routes - JWT-ONLY EXTRACTION (~885+ lines)
+// routes/profiles.js - Chrome extension and API routes (JWT authentication only)
 
 const express = require('express');
-const { sendToGemini } = require('../sendToGemini');
 
-// Dependencies to be injected
-let pool, authenticateToken;
-let getUserById, processOpenAIData, processScrapedProfileData;
-let cleanLinkedInUrl;
-
-/**
- * Initialize profile routes with dependencies (JWT-only routes)
- * @param {Object} dependencies - Required dependencies
- * @returns {express.Router} Configured router
- */
+// ✅ Export initialization function with dependency injection (Step 2E pattern)
 function initProfileRoutes(dependencies) {
-    // Inject dependencies
-    pool = dependencies.pool;
-    authenticateToken = dependencies.authenticateToken;
-    getUserById = dependencies.getUserById;
-    processOpenAIData = dependencies.processOpenAIData;
-    processScrapedProfileData = dependencies.processScrapedProfileData;
-    cleanLinkedInUrl = dependencies.cleanLinkedInUrl;
-
-    // Create router AFTER dependencies are injected
     const router = express.Router();
+    
+    // ✅ Extract dependencies (same pattern as Step 2E)
+    const {
+        pool,
+        authenticateToken,
+        getUserById,
+        processOpenAIData,
+        processScrapedProfileData,
+        cleanLinkedInUrl,
+        getStatusMessage,
+        sendToGemini
+    } = dependencies;
 
-    // ==================== CHROME EXTENSION PROFILE ROUTES ====================
-
-    // ✅ FULLY FIXED: HTML Scraping endpoint for Chrome extension - WITH ESCAPED current_role
+    // ==================== CHROME EXTENSION ROUTES (JWT-ONLY) ====================
+    
+    // ✅ HTML Scraping endpoint for Chrome extension - WITH ESCAPED current_role
     router.post('/scrape-html', authenticateToken, async (req, res) => {
         try {
             console.log(`🔍 FIXED HTML scraping request from user ${req.user.id}`);
@@ -756,6 +749,454 @@ function initProfileRoutes(dependencies) {
         }
     });
 
+    // ==================== API ROUTES (JWT-ONLY) ====================
+
+    // ✅ Generate message endpoint with proper credit deduction and transaction management
+    router.post('/generate-message', authenticateToken, async (req, res) => {
+        const client = await pool.connect();
+        
+        try {
+            console.log(`🤖 Enhanced message generation request from user ${req.user.id}`);
+            
+            const { targetProfile, context, messageType } = req.body;
+            
+            if (!targetProfile) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Target profile is required'
+                });
+            }
+            
+            if (!context) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Message context is required'
+                });
+            }
+            
+            // Start transaction for credit check and deduction
+            await client.query('BEGIN');
+            
+            // Check user credits within transaction
+            const userResult = await client.query(
+                'SELECT credits_remaining FROM users WHERE id = $1 FOR UPDATE',
+                [req.user.id]
+            );
+            
+            if (userResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+            
+            const currentCredits = userResult.rows[0].credits_remaining;
+            
+            if (currentCredits <= 0) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({
+                    success: false,
+                    error: 'Insufficient credits. Please upgrade your plan.'
+                });
+            }
+            
+            // Deduct credit immediately (before API call)
+            const newCredits = currentCredits - 1;
+            await client.query(
+                'UPDATE users SET credits_remaining = $1 WHERE id = $2',
+                [newCredits, req.user.id]
+            );
+            
+            // Log the credit transaction
+            await client.query(
+                'INSERT INTO credits_transactions (user_id, transaction_type, credits_change, description) VALUES ($1, $2, $3, $4)',
+                [req.user.id, 'message_generation', -1, `Generated enhanced message for ${targetProfile.fullName || 'Unknown'}`]
+            );
+            
+            // Commit credit deduction before potentially long API call
+            await client.query('COMMIT');
+            
+            console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
+            
+            // ✅ ENHANCED: Generate message using comprehensive profile data
+            console.log('🤖 Generating enhanced AI message with comprehensive profile data...');
+            
+            // Create enhanced context with available data
+            let enhancedContext = context;
+            if (targetProfile.currentRole && targetProfile.currentRole !== targetProfile.headline) {
+                enhancedContext += ` I see you're currently working as ${targetProfile.currentRole}.`;
+            }
+            
+            if (targetProfile.awards && targetProfile.awards.length > 0) {
+                enhancedContext += ` Congratulations on your recent achievements.`;
+            }
+            
+            if (targetProfile.certifications && targetProfile.certifications.length > 0) {
+                enhancedContext += ` I noticed your professional certifications.`;
+            }
+            
+            // TODO: Replace with actual AI API call using enhanced data
+            const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
+
+I noticed your impressive work at ${targetProfile.currentCompany || 'your company'}${targetProfile.currentRole && targetProfile.currentRole !== targetProfile.headline ? ` as ${targetProfile.currentRole}` : targetProfile.headline ? ` as ${targetProfile.headline}` : ''}. ${enhancedContext}
+
+Would love to connect and learn more about your experience!
+
+Best regards`;
+            
+            const score = Math.floor(Math.random() * 20) + 80; // Random score between 80-100
+            
+            // Log enhanced message generation
+            await pool.query(
+                'INSERT INTO message_logs (user_id, target_name, target_url, generated_message, message_context, credits_used) VALUES ($1, $2, $3, $4, $5, $6)',
+                [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, simulatedMessage, enhancedContext, 1]
+            );
+            
+            console.log(`✅ Enhanced message generated successfully for user ${req.user.id}`);
+            
+            res.json({
+                success: true,
+                message: 'Enhanced message generated successfully using comprehensive profile data',
+                data: {
+                    message: simulatedMessage,
+                    score: score,
+                    user: {
+                        credits: newCredits
+                    },
+                    usage: {
+                        creditsUsed: 1,
+                        remainingCredits: newCredits
+                    },
+                    enhancedData: {
+                        usedCurrentRole: !!targetProfile.currentRole,
+                        usedCertifications: !!(targetProfile.certifications && targetProfile.certifications.length > 0),
+                        usedAwards: !!(targetProfile.awards && targetProfile.awards.length > 0),
+                        contextEnhanced: enhancedContext.length > context.length
+                    }
+                }
+            });
+            
+        } catch (error) {
+            // Rollback if transaction is still active
+            try {
+                await client.query('ROLLBACK');
+            } catch (rollbackError) {
+                console.error('❌ Rollback error:', rollbackError);
+            }
+            
+            console.error('❌ Enhanced message generation error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to generate message',
+                details: error.message
+            });
+        } finally {
+            client.release();
+        }
+    });
+
+    // ✅ Get target profiles for user - Enhanced
+    router.get('/target-profiles', authenticateToken, async (req, res) => {
+        try {
+            console.log(`📋 Fetching target profiles for user ${req.user.id}`);
+            
+            const result = await pool.query(`
+                SELECT 
+                    id,
+                    linkedin_url,
+                    full_name,
+                    headline,
+                    "current_role",  -- ✅ FIXED: Escaped reserved word
+                    current_company,
+                    location,
+                    profile_image_url,
+                    total_likes,
+                    total_comments,
+                    followers_count,
+                    certifications,
+                    awards,
+                    activity,
+                    scraped_at,
+                    updated_at
+                FROM target_profiles 
+                WHERE user_id = $1 
+                ORDER BY scraped_at DESC
+            `, [req.user.id]);
+            
+            const profiles = result.rows.map(profile => ({
+                id: profile.id,
+                linkedinUrl: profile.linkedin_url,
+                fullName: profile.full_name,
+                headline: profile.headline,
+                currentRole: profile.current_role,
+                currentCompany: profile.current_company,
+                location: profile.location,
+                profileImageUrl: profile.profile_image_url,
+                totalLikes: profile.total_likes,
+                totalComments: profile.total_comments,
+                followersCount: profile.followers_count,
+                certificationsCount: profile.certifications ? profile.certifications.length : 0,
+                awardsCount: profile.awards ? profile.awards.length : 0,
+                activityCount: profile.activity ? profile.activity.length : 0,
+                scrapedAt: profile.scraped_at,
+                updatedAt: profile.updated_at
+            }));
+            
+            console.log(`✅ Found ${profiles.length} target profiles for user ${req.user.id}`);
+            
+            res.json({
+                success: true,
+                data: {
+                    profiles: profiles,
+                    count: profiles.length
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Error fetching target profiles:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch target profiles',
+                details: error.message
+            });
+        }
+    });
+
+    // ✅ Get message history for user
+    router.get('/message-history', authenticateToken, async (req, res) => {
+        try {
+            const { limit = 50, offset = 0 } = req.query;
+            
+            console.log(`📜 Fetching message history for user ${req.user.id}`);
+            
+            const result = await pool.query(`
+                SELECT 
+                    id,
+                    target_name,
+                    target_url,
+                    generated_message,
+                    message_context,
+                    credits_used,
+                    created_at
+                FROM message_logs 
+                WHERE user_id = $1 
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+            `, [req.user.id, parseInt(limit), parseInt(offset)]);
+            
+            const countResult = await pool.query(
+                'SELECT COUNT(*) FROM message_logs WHERE user_id = $1',
+                [req.user.id]
+            );
+            
+            const messages = result.rows.map(msg => ({
+                id: msg.id,
+                targetName: msg.target_name,
+                targetUrl: msg.target_url,
+                generatedMessage: msg.generated_message,
+                messageContext: msg.message_context,
+                creditsUsed: msg.credits_used,
+                createdAt: msg.created_at
+            }));
+            
+            console.log(`✅ Found ${messages.length} messages for user ${req.user.id}`);
+            
+            res.json({
+                success: true,
+                data: {
+                    messages: messages,
+                    pagination: {
+                        total: parseInt(countResult.rows[0].count),
+                        limit: parseInt(limit),
+                        offset: parseInt(offset),
+                        hasMore: (parseInt(offset) + messages.length) < parseInt(countResult.rows[0].count)
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Error fetching message history:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch message history',
+                details: error.message
+            });
+        }
+    });
+
+    // ✅ Get credits transactions for user
+    router.get('/credits-history', authenticateToken, async (req, res) => {
+        try {
+            const { limit = 50, offset = 0 } = req.query;
+            
+            console.log(`💳 Fetching credits history for user ${req.user.id}`);
+            
+            const result = await pool.query(`
+                SELECT 
+                    id,
+                    transaction_type,
+                    credits_change,
+                    description,
+                    created_at
+                FROM credits_transactions 
+                WHERE user_id = $1 
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+            `, [req.user.id, parseInt(limit), parseInt(offset)]);
+            
+            const countResult = await pool.query(
+                'SELECT COUNT(*) FROM credits_transactions WHERE user_id = $1',
+                [req.user.id]
+            );
+            
+            const transactions = result.rows.map(tx => ({
+                id: tx.id,
+                transactionType: tx.transaction_type,
+                creditsChange: tx.credits_change,
+                description: tx.description,
+                createdAt: tx.created_at
+            }));
+            
+            console.log(`✅ Found ${transactions.length} credit transactions for user ${req.user.id}`);
+            
+            res.json({
+                success: true,
+                data: {
+                    transactions: transactions,
+                    pagination: {
+                        total: parseInt(countResult.rows[0].count),
+                        limit: parseInt(limit),
+                        offset: parseInt(offset),
+                        hasMore: (parseInt(offset) + transactions.length) < parseInt(countResult.rows[0].count)
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Error fetching credits history:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch credits history',
+                details: error.message
+            });
+        }
+    });
+
+    // ✅ Delete target profile
+    router.delete('/target-profiles/:id', authenticateToken, async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            console.log(`🗑️ Deleting target profile ${id} for user ${req.user.id}`);
+            
+            // Verify the profile belongs to the user
+            const checkResult = await pool.query(
+                'SELECT id FROM target_profiles WHERE id = $1 AND user_id = $2',
+                [id, req.user.id]
+            );
+            
+            if (checkResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Target profile not found or unauthorized'
+                });
+            }
+            
+            // Delete the profile
+            await pool.query(
+                'DELETE FROM target_profiles WHERE id = $1 AND user_id = $2',
+                [id, req.user.id]
+            );
+            
+            console.log(`✅ Deleted target profile ${id} for user ${req.user.id}`);
+            
+            res.json({
+                success: true,
+                message: 'Target profile deleted successfully'
+            });
+            
+        } catch (error) {
+            console.error('❌ Error deleting target profile:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to delete target profile',
+                details: error.message
+            });
+        }
+    });
+
+    // ✅ Search target profiles
+    router.get('/target-profiles/search', authenticateToken, async (req, res) => {
+        try {
+            const { q, limit = 20 } = req.query;
+            
+            if (!q || q.length < 2) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Search query must be at least 2 characters'
+                });
+            }
+            
+            console.log(`🔍 Searching target profiles for user ${req.user.id} with query: "${q}"`);
+            
+            const result = await pool.query(`
+                SELECT 
+                    id,
+                    linkedin_url,
+                    full_name,
+                    headline,
+                    "current_role",  -- ✅ FIXED: Escaped reserved word
+                    current_company,
+                    location,
+                    profile_image_url,
+                    scraped_at
+                FROM target_profiles 
+                WHERE user_id = $1 
+                AND (
+                    LOWER(full_name) LIKE LOWER($2) OR
+                    LOWER(headline) LIKE LOWER($2) OR
+                    LOWER("current_role") LIKE LOWER($2) OR  -- ✅ FIXED: Escaped reserved word
+                    LOWER(current_company) LIKE LOWER($2) OR
+                    LOWER(location) LIKE LOWER($2)
+                )
+                ORDER BY scraped_at DESC
+                LIMIT $3
+            `, [req.user.id, `%${q}%`, parseInt(limit)]);
+            
+            const profiles = result.rows.map(profile => ({
+                id: profile.id,
+                linkedinUrl: profile.linkedin_url,
+                fullName: profile.full_name,
+                headline: profile.headline,
+                currentRole: profile.current_role,
+                currentCompany: profile.current_company,
+                location: profile.location,
+                profileImageUrl: profile.profile_image_url,
+                scrapedAt: profile.scraped_at
+            }));
+            
+            console.log(`✅ Found ${profiles.length} matching target profiles`);
+            
+            res.json({
+                success: true,
+                data: {
+                    profiles: profiles,
+                    query: q,
+                    count: profiles.length
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Error searching target profiles:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to search target profiles',
+                details: error.message
+            });
+        }
+    });
+
     // ✅ DISABLED: Retry extraction endpoint
     router.post('/retry-extraction', authenticateToken, async (req, res) => {
         res.status(410).json({
@@ -770,9 +1211,9 @@ function initProfileRoutes(dependencies) {
         });
     });
 
-    // Return the configured router
+    // ✅ Return the configured router
     return router;
 }
 
-// Export the initialization function
+// ✅ Export the initialization function
 module.exports = { initProfileRoutes };
