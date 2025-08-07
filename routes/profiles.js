@@ -11,6 +11,52 @@ let getUserById, processOpenAIData, processScrapedProfileData;
 let cleanLinkedInUrl, getStatusMessage;
 
 /**
+ * Dual authentication middleware - handles both JWT and session auth
+ */
+function authenticateUser(req, res, next) {
+    // Try JWT authentication first
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        try {
+            const token = req.headers.authorization.substring(7);
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
+            
+            // Get user data for JWT auth
+            getUserById(decoded.userId)
+                .then(user => {
+                    if (user) {
+                        req.user = user;
+                        req.authMethod = 'jwt';
+                        return next();
+                    } else {
+                        return res.status(401).json({ success: false, error: 'User not found' });
+                    }
+                })
+                .catch(err => {
+                    console.error('JWT user lookup error:', err);
+                    return res.status(401).json({ success: false, error: 'Authentication failed' });
+                });
+            return;
+        } catch (error) {
+            console.log('JWT auth failed, trying session auth');
+        }
+    }
+    
+    // Try session authentication
+    if (req.isAuthenticated && req.isAuthenticated()) {
+        req.authMethod = 'session';
+        return next();
+    }
+    
+    // No valid authentication found
+    return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        details: 'Please login via dashboard or provide valid JWT token'
+    });
+}
+
+/**
  * Initialize profile routes with dependencies
  * @param {Object} dependencies - Required dependencies
  * @returns {express.Router} Configured router
@@ -438,17 +484,18 @@ function initProfileRoutes(dependencies) {
                 success: true,
                 data: {
                     user: {
-                        id: user.id,
-                        email: user.email,
-                        displayName: user.display_name,
-                        profilePicture: user.profile_picture,
-                        packageType: user.package_type,
-                        billingModel: user.billing_model,
-                        credits: user.credits_remaining,
-                        subscriptionStatus: user.subscription_status,
-                        hasGoogleAccount: !!user.google_id,
-                        createdAt: user.created_at,
-                        registrationCompleted: user.registration_completed  // ✅ FIXED: Changed from profile_completed
+                        id: req.user.id,
+                        email: req.user.email,
+                        displayName: req.user.display_name,
+                        profilePicture: req.user.profile_picture,
+                        packageType: req.user.package_type,
+                        billingModel: req.user.billing_model,
+                        credits: req.user.credits_remaining,
+                        subscriptionStatus: req.user.subscription_status,
+                        hasGoogleAccount: !!req.user.google_id,
+                        createdAt: req.user.created_at,
+                        registrationCompleted: req.user.registration_completed,  // ✅ FIXED: Changed from profile_completed
+                        authMethod: req.authMethod  // Debug info
                     },
                     profile: profile && profile.user_id ? {
                         linkedinUrl: profile.linkedin_url,
