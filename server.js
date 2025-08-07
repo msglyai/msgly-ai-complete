@@ -1,4 +1,4 @@
-// Msgly.AI Server - STEP 2F COMPLETED: Profile Routes Extracted
+// Msgly.AI Server - STEP 2F REVISED: Smart Profile Routes Split
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -61,7 +61,7 @@ const {
 // ✅ STEP 2E: Import user routes initialization function
 const { initUserRoutes } = require('./routes/users');
 
-// ✅ STEP 2F: Import profile routes initialization function
+// ✅ STEP 2F REVISED: Import JWT-only profile routes initialization function
 const { initProfileRoutes } = require('./routes/profiles');
 
 // ✅ STEP 2C: Import modularized routes
@@ -90,15 +90,14 @@ const userRoutes = initUserRoutes({
     getSetupStatusMessage
 });
 
-// ✅ STEP 2F: Initialize profile routes with dependencies and get router
+// ✅ STEP 2F REVISED: Initialize JWT-only profile routes with dependencies and get router
 const profileRoutes = initProfileRoutes({
     pool,
     authenticateToken,
     getUserById,
     processOpenAIData,
     processScrapedProfileData,
-    cleanLinkedInUrl,
-    getStatusMessage
+    cleanLinkedInUrl
 });
 
 // CORS configuration
@@ -218,7 +217,7 @@ app.use('/', healthRoutes);
 // ✅ STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ✅ STEP 2F: Mount profile routes
+// ✅ STEP 2F REVISED: Mount JWT-only profile routes (Chrome extension)
 app.use('/', profileRoutes);
 
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
@@ -335,10 +334,240 @@ app.post('/auth/chrome-extension', async (req, res) => {
     }
 });
 
-// ==================== API ENDPOINTS ====================
-// ✅ STEP 2D: All endpoints now use imported authenticateToken middleware
+// ==================== WEB DASHBOARD PROFILE ENDPOINTS (Session Auth) ====================
 
-// Google OAuth Routes
+// ✅ KEPT IN SERVER.JS: Get User Profile - Session Authentication for Web Dashboard
+app.get('/profile', async (req, res) => {
+    try {
+        // Check if user is authenticated via session
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+            return res.status(401).json({
+                success: false,
+                error: 'Please log in to access your profile'
+            });
+        }
+        
+        console.log(`📋 Profile request from authenticated user: ${req.user.email}`);
+        
+        const profileResult = await pool.query(`
+            SELECT 
+                up.*,
+                u.extraction_status as user_extraction_status,
+                u.registration_completed as user_registration_completed
+            FROM user_profiles up 
+            RIGHT JOIN users u ON u.id = up.user_id 
+            WHERE u.id = $1
+        `, [req.user.id]);
+        
+        const profile = profileResult.rows[0];
+
+        let syncStatus = {
+            isIncomplete: false,
+            missingFields: [],
+            extractionStatus: 'unknown',
+            initialScrapingDone: false
+        };
+
+        if (!profile || !profile.user_id) {
+            syncStatus = {
+                isIncomplete: true,
+                missingFields: ['complete_profile'],
+                extractionStatus: 'not_started',
+                initialScrapingDone: false,
+                reason: 'No profile data found'
+            };
+        } else {
+            const extractionStatus = profile.data_extraction_status || 'not_started';
+            const isProfileAnalyzed = profile.profile_analyzed || false;
+            const initialScrapingDone = profile.initial_scraping_done || false;
+            
+            const missingFields = [];
+            if (!profile.full_name) missingFields.push('full_name');
+            if (!profile.headline) missingFields.push('headline');  
+            if (!profile.current_company && !profile.current_position) missingFields.push('company_info');
+            if (!profile.location) missingFields.push('location');
+            
+            const isIncomplete = (
+                !initialScrapingDone ||
+                extractionStatus !== 'completed' ||
+                !isProfileAnalyzed ||
+                missingFields.length > 0
+            );
+            
+            syncStatus = {
+                isIncomplete: isIncomplete,
+                missingFields: missingFields,
+                extractionStatus: extractionStatus,
+                profileAnalyzed: isProfileAnalyzed,
+                initialScrapingDone: initialScrapingDone,
+                isCurrentlyProcessing: false,
+                reason: isIncomplete ? 
+                    `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
+                    'Profile complete and ready for target scraping'
+            };
+        }
+
+        res.json({
+            success: true,
+            data: {
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    displayName: req.user.display_name,
+                    profilePicture: req.user.profile_picture,
+                    packageType: req.user.package_type,
+                    billingModel: req.user.billing_model,
+                    credits: req.user.credits_remaining,
+                    subscriptionStatus: req.user.subscription_status,
+                    hasGoogleAccount: !!req.user.google_id,
+                    createdAt: req.user.created_at,
+                    registrationCompleted: req.user.registration_completed,
+                    authMethod: 'session'
+                },
+                profile: profile && profile.user_id ? {
+                    linkedinUrl: profile.linkedin_url,
+                    linkedinId: profile.linkedin_id,
+                    linkedinNumId: profile.linkedin_num_id,
+                    inputUrl: profile.input_url,
+                    url: profile.url,
+                    fullName: profile.full_name,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    headline: profile.headline,
+                    currentRole: profile.current_role,
+                    summary: profile.summary,
+                    about: profile.about,
+                    location: profile.location,
+                    city: profile.city,
+                    state: profile.state,
+                    country: profile.country,
+                    countryCode: profile.country_code,
+                    industry: profile.industry,
+                    currentCompany: profile.current_company,
+                    currentCompanyName: profile.current_company_name,
+                    currentCompanyId: profile.current_company_id,
+                    currentPosition: profile.current_position,
+                    connectionsCount: profile.connections_count,
+                    followersCount: profile.followers_count,
+                    connections: profile.connections,
+                    followers: profile.followers,
+                    totalLikes: profile.total_likes,
+                    totalComments: profile.total_comments,
+                    totalShares: profile.total_shares,
+                    averageLikes: profile.average_likes,
+                    recommendationsCount: profile.recommendations_count,
+                    profileImageUrl: profile.profile_image_url,
+                    avatar: profile.avatar,
+                    bannerImage: profile.banner_image,
+                    backgroundImageUrl: profile.background_image_url,
+                    publicIdentifier: profile.public_identifier,
+                    experience: profile.experience,
+                    education: profile.education,
+                    educationsDetails: profile.educations_details,
+                    skills: profile.skills,
+                    skillsWithEndorsements: profile.skills_with_endorsements,
+                    languages: profile.languages,
+                    certifications: profile.certifications,
+                    awards: profile.awards,
+                    courses: profile.courses,
+                    projects: profile.projects,
+                    publications: profile.publications,
+                    patents: profile.patents,
+                    volunteerExperience: profile.volunteer_experience,
+                    volunteering: profile.volunteering,
+                    honorsAndAwards: profile.honors_and_awards,
+                    organizations: profile.organizations,
+                    recommendations: profile.recommendations,
+                    recommendationsGiven: profile.recommendations_given,
+                    recommendationsReceived: profile.recommendations_received,
+                    posts: profile.posts,
+                    activity: profile.activity,
+                    articles: profile.articles,
+                    peopleAlsoViewed: profile.people_also_viewed,
+                    engagementData: profile.engagement_data,
+                    timestamp: profile.timestamp,
+                    dataSource: profile.data_source,
+                    extractionStatus: profile.data_extraction_status,
+                    extractionAttempted: profile.extraction_attempted_at,
+                    extractionCompleted: profile.extraction_completed_at,
+                    extractionError: profile.extraction_error,
+                    extractionRetryCount: profile.extraction_retry_count,
+                    profileAnalyzed: profile.profile_analyzed,
+                    initialScrapingDone: profile.initial_scraping_done
+                } : null,
+                syncStatus: syncStatus
+            }
+        });
+    } catch (error) {
+        console.error('❌ Enhanced profile fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch profile'
+        });
+    }
+});
+
+// ✅ KEPT IN SERVER.JS: Check profile extraction status - Session Authentication for Web Dashboard
+app.get('/profile-status', async (req, res) => {
+    try {
+        // Check if user is authenticated via session
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+            return res.status(401).json({
+                success: false,
+                error: 'Please log in to check profile status'
+            });
+        }
+        
+        console.log(`📊 Profile status request from authenticated user: ${req.user.email}`);
+        
+        const userQuery = `
+            SELECT 
+                u.extraction_status,
+                u.error_message,
+                u.registration_completed,
+                u.linkedin_url,
+                up.data_extraction_status,
+                up.extraction_completed_at,
+                up.extraction_retry_count,
+                up.extraction_error,
+                up.initial_scraping_done
+            FROM users u
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.id = $1
+        `;
+        
+        const result = await pool.query(userQuery, [req.user.id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const status = result.rows[0];
+        
+        res.json({
+            extraction_status: status.extraction_status,
+            registration_completed: status.registration_completed,
+            linkedin_url: status.linkedin_url,
+            error_message: status.error_message,
+            data_extraction_status: status.data_extraction_status,
+            extraction_completed_at: status.extraction_completed_at,
+            extraction_retry_count: status.extraction_retry_count,
+            extraction_error: status.extraction_error,
+            initial_scraping_done: status.initial_scraping_done || false,
+            is_currently_processing: false,
+            processing_mode: 'ENHANCED_HTML_SCRAPING',
+            message: getStatusMessage(status.extraction_status, status.initial_scraping_done),
+            authMethod: 'session'
+        });
+        
+    } catch (error) {
+        console.error('Status check error:', error);
+        res.status(500).json({ error: 'Status check failed' });
+    }
+});
+
+// ==================== GOOGLE OAUTH ROUTES ====================
+
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
@@ -366,13 +595,13 @@ app.get('/auth/google/callback',
             // ✅ FIXED: Smart redirect logic using registration_completed
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.linkedin_url || 
-                                   !req.user.registration_completed ||  // ✅ FIXED: Changed from profile_completed
+                                   !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
             console.log(`🔍 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-            console.log(`   - Registration completed: ${req.user.registration_completed || false}`);  // ✅ FIXED
+            console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
             console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
@@ -394,6 +623,8 @@ app.get('/auth/google/callback',
 app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
+
+// ==================== REMAINING API ENDPOINTS ====================
 
 // Get Available Packages
 app.get('/packages', (req, res) => {
@@ -1014,21 +1245,25 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - STEP 2F COMPLETED: Profile Routes Extracted!');
+            console.log('🚀 Msgly.AI Server - STEP 2F REVISED: Smart Profile Routes Split!');
             console.log(`📍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL with registration_completed field FIXED`);
-            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension Ready`);
-            console.log(`🔧 MODULARIZATION STEP 2F COMPLETED - MASSIVE EXTRACTION:`);
-            console.log(`   ✅ EXTRACTED: Profile management routes moved to routes/profiles.js`);
-            console.log(`   ✅ REDUCED: server.js size decreased by ~400-500 MORE lines (BIGGEST REDUCTION!)`);
-            console.log(`   ✅ WORKING: Profile scraping, HTML processing, user/target profiles, status checks`);
-            console.log(`🎯 ESTIMATED SERVER SIZE: ~1875-1925 lines (reduced from 2375)`);
-            console.log(`📊 TOTAL REDUCTION SO FAR: 1525+ lines removed (58% reduction!)`);
-            console.log(`🔧 PROFILE ROUTES: Successfully modularized with comprehensive data handling!`);
+            console.log(`🔐 Auth: JWT + Google OAuth + Chrome Extension + Session Authentication`);
+            console.log(`🔧 MODULARIZATION STEP 2F REVISED - SMART SPLIT:`);
+            console.log(`   ✅ EXTRACTED TO MODULE: Chrome extension profile routes (JWT auth)`);
+            console.log(`   ✅ KEPT IN SERVER.JS: Web dashboard profile routes (session auth)`);
+            console.log(`   ✅ REDUCED: server.js size decreased by ~300-350 lines`);
+            console.log(`   ✅ WORKING: Both JWT (extension) and session (web) authentication`);
+            console.log(`🎯 ESTIMATED SERVER SIZE: ~2025-2075 lines (reduced from 2375)`);
+            console.log(`📊 TOTAL REDUCTION SO FAR: 1425+ lines removed (55% reduction!)`);
+            console.log(`🔧 SMART ARCHITECTURE: Different auth methods handled appropriately!`);
+            console.log(`📋 ROUTES SPLIT:`);
+            console.log(`   🌐 SESSION AUTH (in server.js): GET /profile, GET /profile-status`);
+            console.log(`   🔑 JWT AUTH (in module): POST /scrape-html, POST /profile/user, POST /profile/target`);
             console.log(`📋 NEXT STEPS:`);
             console.log(`   Step 2G: Extract Auth Routes → routes/auth.js (~150-200 lines)`);
             console.log(`   Step 2H: Extract Message Routes → routes/messages.js (~200-250 lines)`);
-            console.log(`🚀 Profile Management: Successfully modularized with HTML scraping!`);
+            console.log(`🚀 Smart Profile Management: Session + JWT hybrid architecture working!`);
         });
         
     } catch (error) {
