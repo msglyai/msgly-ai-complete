@@ -1,4 +1,4 @@
-// Enhanced sendToGemini.js - Google Gemini 1.5 Flash Version - FIXED DATA EXTRACTION
+// Enhanced sendToGemini.js - DOUBLED LIMITS + TIER 1/2 PRIORITIZED EXTRACTION
 const axios = require('axios');
 
 // ✅ Rate limiting configuration (Gemini is generous)
@@ -9,11 +9,11 @@ const RATE_LIMIT = {
     MAX_RETRY_DELAY: 20000          // Maximum retry delay (20 seconds)
 };
 
-// ✅ Gemini 1.5 Flash token limits - MORE GENEROUS
+// 🚀 DOUBLED Gemini 1.5 Flash token limits for COMPLETE TIER 1/2 DATA EXTRACTION
 const GEMINI_LIMITS = {
-    MAX_TOKENS_INPUT: 25000,         // 2x more than GPT-3.5 (was 14000)
-    MAX_TOKENS_OUTPUT: 4000,         // More generous output (was 2048)
-    MAX_SIZE_KB: 1500               // Larger HTML size allowed (was 1000)
+    MAX_TOKENS_INPUT: 50000,         // DOUBLED: 25000 → 50000 (allows larger LinkedIn profiles)
+    MAX_TOKENS_OUTPUT: 8000,         // DOUBLED: 4000 → 8000 (CRITICAL for all TIER 1/2 data)
+    MAX_SIZE_KB: 3000               // DOUBLED: 1500 → 3000 (less aggressive preprocessing)
 };
 
 // ✅ Last request timestamp for rate limiting
@@ -69,11 +69,10 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// 🚀 ULTRA-AGGRESSIVE LinkedIn HTML Preprocessor - Research-Based Fix Applied
-// ✅ KEPT EXACTLY THE SAME - Only updated references to GEMINI_LIMITS
+// 🚀 ULTRA-AGGRESSIVE LinkedIn HTML Preprocessor - Updated for DOUBLED limits
 function preprocessHTMLForGemini(html) {
     try {
-        console.log(`🔄 Starting ultra-aggressive HTML preprocessing (size: ${(html.length / 1024).toFixed(2)} KB)`);
+        console.log(`🔄 Starting HTML preprocessing for TIER 1/2 extraction (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         const originalSize = processedHtml.length;
@@ -205,13 +204,13 @@ function preprocessHTMLForGemini(html) {
             // Remove leading/trailing whitespace
             .trim();
         
-        // STAGE 7: Final size check and nuclear fallback
+        // STAGE 7: Final size check with DOUBLED limits
         const currentSize = processedHtml.length;
         const estimatedTokens = Math.ceil(currentSize / 3); // Conservative estimate for HTML
         
         console.log(`📊 After processing: ${(currentSize / 1024).toFixed(2)} KB, ~${estimatedTokens} tokens`);
         
-        // NUCLEAR FALLBACK: If still too large, extract only text content
+        // NUCLEAR FALLBACK: If still too large even with doubled limits
         if (estimatedTokens > GEMINI_LIMITS.MAX_TOKENS_INPUT * 0.8) {
             console.log('🚨 NUCLEAR FALLBACK: Extracting text-only content...');
             
@@ -236,11 +235,11 @@ function preprocessHTMLForGemini(html) {
         const finalTokens = Math.ceil(finalSize / 3);
         const reduction = ((originalSize - finalSize) / originalSize * 100).toFixed(1);
         
-        console.log(`✅ HTML preprocessing completed:`);
+        console.log(`✅ HTML preprocessing completed for TIER 1/2 extraction:`);
         console.log(`   Original: ${(originalSize / 1024).toFixed(2)} KB`);
         console.log(`   Final: ${(finalSize / 1024).toFixed(2)} KB`);
         console.log(`   Reduction: ${reduction}%`);
-        console.log(`   Estimated tokens: ~${finalTokens}`);
+        console.log(`   Estimated tokens: ~${finalTokens} (Max: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`);
         
         return processedHtml;
         
@@ -276,7 +275,7 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ Main function to send data to Gemini 1.5 Flash
+// ✅ Main function to send data to Gemini 1.5 Flash with TIER 1/2 prioritization
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
@@ -285,7 +284,7 @@ async function sendToGemini(inputData) {
             throw new Error('GEMINI_API_KEY environment variable is not set');
         }
         
-        console.log('🤖 === ENHANCED GEMINI 1.5 FLASH PROCESSING START ===');
+        console.log('🤖 === GEMINI 1.5 FLASH - TIER 1/2 PRIORITIZED EXTRACTION START ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -299,18 +298,18 @@ async function sendToGemini(inputData) {
             console.log(`📄 Input type: ${inputType}`);
             console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
-            // Check HTML size limits (more generous now)
+            // Check HTML size limits (DOUBLED now)
             const htmlSizeKB = inputData.html.length / 1024;
             if (htmlSizeKB > GEMINI_LIMITS.MAX_SIZE_KB) {
                 throw new Error(`HTML too large: ${htmlSizeKB.toFixed(2)} KB (max: ${GEMINI_LIMITS.MAX_SIZE_KB} KB)`);
             }
             
-            // Preprocess HTML for Gemini with same aggressive function
+            // Preprocess HTML for Gemini
             const preprocessedHtml = preprocessHTMLForGemini(inputData.html);
             
             // Estimate token count with improved estimation
             const estimatedTokens = estimateTokenCount(preprocessedHtml);
-            console.log(`🔢 Estimated tokens: ${estimatedTokens}`);
+            console.log(`🔢 Estimated tokens: ${estimatedTokens} (Max input: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`);
             
             if (estimatedTokens > GEMINI_LIMITS.MAX_TOKENS_INPUT) {
                 throw new Error(`Content too large: ~${estimatedTokens} tokens (max: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`);
@@ -323,39 +322,58 @@ async function sendToGemini(inputData) {
                 optimization: inputData.optimization || {}
             };
             
-            // ✅ ENHANCED System prompt for Gemini with more data fields
+            // ✅ TIER 1/2 PRIORITIZED System prompt for Gemini
             systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract comprehensive LinkedIn profile information into valid JSON format.
 
+CRITICAL EXTRACTION PRIORITY:
+🥇 TIER 1 (HIGHEST PRIORITY - Extract first):
+- Basic profile info: name, headline, currentRole, currentCompany, location, about
+- Experience/work history: ALL job entries with titles, companies, durations, descriptions
+- Education: ALL education entries with schools, degrees, fields, years, grades, activities  
+- Awards: ALL awards with titles, issuers, dates, descriptions
+
+🥈 TIER 2 (SECONDARY PRIORITY - Extract after TIER 1):
+- Volunteer work: organizations, roles
+- Following data: companies followed, people followed
+- Activity content: recent posts and content
+- Social metrics: followers, connections, mutual connections
+
 CRITICAL REQUIREMENTS:
-1. EXPERIENCE data is HIGHEST PRIORITY (needed for feature unlock)
+1. PRIORITIZE TIER 1 DATA - Extract completely before moving to TIER 2
 2. Return ONLY valid JSON - no markdown, no explanations, no comments
 3. Use the exact JSON structure provided below
 4. Extract all available text content, ignore styling and layout elements
 5. If a section is empty, use empty array [] or empty string ""
-6. Look for ALL social engagement metrics (likes, comments, followers)
-7. Extract activity posts, awards, and certifications if available`;
+6. For arrays, extract EVERY item found - don't truncate due to length
+7. DOUBLED output token limit allows for complete data extraction`;
 
-            // ✅ ENHANCED User prompt with comprehensive data structure
-            userPrompt = `Extract comprehensive LinkedIn profile data from this HTML and return as JSON with this EXACT structure:
+            // ✅ TIER 1/2 PRIORITIZED User prompt with ENHANCED structure
+            userPrompt = `Extract comprehensive LinkedIn profile data from this HTML. PRIORITIZE TIER 1 fields first, then TIER 2. Return as JSON with this EXACT structure:
 
 {
   "profile": {
     "name": "Full Name",
+    "firstName": "First Name", 
+    "lastName": "Last Name",
     "headline": "Professional Headline",
     "currentRole": "Current Job Title", 
     "currentCompany": "Current Company Name",
     "location": "City, Country",
     "about": "About section text",
     "followersCount": "Number of followers",
-    "connectionsCount": "Number of connections"
+    "connectionsCount": "Number of connections",
+    "mutualConnections": "Number of mutual connections"
   },
   "experience": [
     {
       "title": "Job Title",
       "company": "Company Name", 
+      "companyUrl": "Company LinkedIn URL if available",
       "duration": "Start Date - End Date",
-      "description": "Job description and achievements",
-      "location": "Job location"
+      "startDate": "Start Date",
+      "endDate": "End Date or Present",
+      "location": "Job location",
+      "description": "Job description and achievements"
     }
   ],
   "education": [
@@ -363,7 +381,48 @@ CRITICAL REQUIREMENTS:
       "school": "University/School Name",
       "degree": "Degree Type",
       "field": "Field of Study", 
-      "duration": "Start Year - End Year"
+      "startYear": "Start Year",
+      "endYear": "End Year",
+      "duration": "Start Year - End Year",
+      "grade": "GPA or Grade if available",
+      "activities": "Activities & societies if available",
+      "description": "Additional details if available"
+    }
+  ],
+  "awards": [
+    {
+      "title": "Award Title",
+      "issuer": "Issuing Organization",
+      "date": "Award Date",
+      "description": "Award description if available"
+    }
+  ],
+  "volunteer": [
+    {
+      "organization": "Organization Name",
+      "role": "Volunteer Role",
+      "cause": "Cause area if available",
+      "startDate": "Start Date if available",
+      "endDate": "End Date if available", 
+      "description": "Description of volunteer work"
+    }
+  ],
+  "followingCompanies": [
+    "Company Name 1",
+    "Company Name 2"
+  ],
+  "followingPeople": [
+    "Person Name 1", 
+    "Person Name 2"
+  ],
+  "activity": [
+    {
+      "type": "post|article|share|video",
+      "content": "Activity content preview",
+      "date": "Activity date",
+      "likes": "Number of likes",
+      "comments": "Number of comments",
+      "shares": "Number of shares"
     }
   ],
   "certifications": [
@@ -374,34 +433,24 @@ CRITICAL REQUIREMENTS:
       "url": "Certificate URL if available"
     }
   ],
-  "awards": [
-    {
-      "title": "Award Title",
-      "issuer": "Organization",
-      "date": "Award Date",
-      "description": "Award description"
-    }
-  ],
-  "activity": [
-    {
-      "type": "post|article|share",
-      "content": "Activity content preview",
-      "date": "Activity date",
-      "likes": "Number of likes",
-      "comments": "Number of comments",
-      "shares": "Number of shares"
-    }
-  ],
+  "skills": ["Skill 1", "Skill 2", "Skill 3"],
   "engagement": {
     "totalLikes": "Sum of all likes across posts",
-    "totalComments": "Sum of all comments across posts",
+    "totalComments": "Sum of all comments across posts", 
     "totalShares": "Sum of all shares across posts",
     "averageLikes": "Average likes per post"
-  },
-  "skills": ["Skill 1", "Skill 2", "Skill 3"]
+  }
 }
 
-IMPORTANT: Look for numbers, engagement metrics, follower counts, and activity data throughout the HTML. Extract as much detail as possible.
+IMPORTANT EXTRACTION NOTES:
+- TIER 1 fields must be extracted completely first (profile, experience, education, awards)
+- For experience: Extract EVERY job, with company URLs when available
+- For education: Include grades, activities, descriptions when present
+- For awards: Extract ALL awards with full details
+- TIER 2 fields: Extract volunteer work, following data, activity content
+- Look for numbers, engagement metrics, follower counts throughout HTML
+- Extract as much detail as possible with doubled token limits
+- Don't truncate arrays - extract all items found
 
 HTML Content:
 ${preprocessedHtml}`;
@@ -414,15 +463,16 @@ ${preprocessedHtml}`;
             const jsonData = inputData.data || inputData.results || inputData;
             processedData = jsonData;
             
-            systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure comprehensive profile information from the provided JSON data.
+            systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure comprehensive profile information from the provided JSON data with TIER 1/2 prioritization.
 
 CRITICAL REQUIREMENTS:
-1. EXPERIENCE data is HIGHEST PRIORITY (needed for feature unlock)  
-2. Return ONLY valid JSON - no markdown, no explanations
-3. Use the exact structure provided
-4. Extract engagement metrics and activity data`;
+1. TIER 1 data is HIGHEST PRIORITY (profile, experience, education, awards)
+2. TIER 2 data is SECONDARY (volunteer, following, activity, social metrics)  
+3. Return ONLY valid JSON - no markdown, no explanations
+4. Use the exact structure provided
+5. Extract engagement metrics and activity data`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON and return as structured JSON with the same format as specified above:
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with TIER 1/2 prioritization and return as structured JSON with the same format as specified above:
 
 ${JSON.stringify(jsonData, null, 2)}`;
             
@@ -430,7 +480,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             throw new Error('Invalid input data: must contain either "html" or "data" property');
         }
         
-        console.log(`🎯 Processing ${inputType}...`);
+        console.log(`🎯 Processing ${inputType} with TIER 1/2 prioritization...`);
         console.log(`📝 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
@@ -438,7 +488,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         
         // Make request to Gemini with retry logic
         const geminiResponse = await retryWithBackoff(async () => {
-            console.log('📤 Sending request to Gemini 1.5 Flash API...');
+            console.log('📤 Sending TIER 1/2 prioritized request to Gemini 1.5 Flash API...');
             
             const response = await axios.post(
                 `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
@@ -452,7 +502,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
                         temperature: 0.1,               // Low temperature for consistent extraction
                         topK: 1,                       // Most focused responses
                         topP: 0.95,                    
-                        maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
+                        maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,  // DOUBLED: 4000 → 8000
                         responseMimeType: "application/json" // Force JSON response
                     },
                     safetySettings: [
@@ -512,24 +562,38 @@ ${JSON.stringify(jsonData, null, 2)}`;
             throw new Error('Failed to parse Gemini response as JSON');
         }
         
-        // Validate critical data
-        const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
+        // Validate TIER 1 critical data
         const hasProfile = parsedData.profile && parsedData.profile.name;
+        const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
+        const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
+        const hasAwards = parsedData.awards && Array.isArray(parsedData.awards) && parsedData.awards.length > 0;
         
-        console.log('✅ === GEMINI 1.5 FLASH PROCESSING COMPLETED ===');
-        console.log(`📊 Processing results:`);
-        console.log(`   - Profile name: ${hasProfile ? 'YES' : 'NO'}`);
-        console.log(`   - Experience entries: ${parsedData.experience?.length || 0}`);
-        console.log(`   - Education entries: ${parsedData.education?.length || 0}`);
+        // Validate TIER 2 data
+        const hasVolunteer = parsedData.volunteer && Array.isArray(parsedData.volunteer) && parsedData.volunteer.length > 0;
+        const hasFollowing = (parsedData.followingCompanies && parsedData.followingCompanies.length > 0) || 
+                            (parsedData.followingPeople && parsedData.followingPeople.length > 0);
+        const hasActivity = parsedData.activity && Array.isArray(parsedData.activity) && parsedData.activity.length > 0;
+        
+        console.log('✅ === GEMINI 1.5 FLASH - TIER 1/2 EXTRACTION COMPLETED ===');
+        console.log(`📊 TIER 1 Extraction Results:`);
+        console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
+        console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
+        console.log(`   🥇 Education entries: ${parsedData.education?.length || 0}`);
+        console.log(`   🥇 Awards: ${parsedData.awards?.length || 0}`);
+        console.log(`📊 TIER 2 Extraction Results:`);
+        console.log(`   🥈 Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
+        console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
+        console.log(`   🥈 Following people: ${parsedData.followingPeople?.length || 0}`);
+        console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
+        console.log(`📊 Additional Data:`);
         console.log(`   - Skills count: ${parsedData.skills?.length || 0}`);
         console.log(`   - Certifications: ${parsedData.certifications?.length || 0}`);
-        console.log(`   - Awards: ${parsedData.awards?.length || 0}`);
-        console.log(`   - Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`   - Input type: ${inputType}`);
         console.log(`   - Token usage: ${usageMetadata?.totalTokenCount || 'N/A'}`);
+        console.log(`   - Max output tokens used: ${GEMINI_LIMITS.MAX_TOKENS_OUTPUT}`);
         
-        if (!hasExperience) {
-            console.warn('⚠️ WARNING: No experience data extracted - this may affect feature unlock');
+        if (!hasExperience && !hasEducation) {
+            console.warn('⚠️ WARNING: No TIER 1 experience or education data extracted - this may affect feature unlock');
         }
         
         return {
@@ -538,15 +602,27 @@ ${JSON.stringify(jsonData, null, 2)}`;
             metadata: {
                 inputType: inputType,
                 processingTime: Date.now(),
-                hasExperience: hasExperience,
                 hasProfile: hasProfile,
-                dataQuality: hasExperience && hasProfile ? 'high' : 'medium',
-                tokenUsage: usageMetadata
+                hasExperience: hasExperience,
+                hasEducation: hasEducation,
+                hasAwards: hasAwards,
+                hasVolunteer: hasVolunteer,
+                hasFollowing: hasFollowing,
+                hasActivity: hasActivity,
+                tier1Complete: hasProfile && (hasExperience || hasEducation),
+                tier2Complete: hasVolunteer || hasFollowing || hasActivity,
+                dataQuality: (hasProfile && hasExperience) ? 'high' : 'medium',
+                tokenUsage: usageMetadata,
+                limitsUsed: {
+                    maxInputTokens: GEMINI_LIMITS.MAX_TOKENS_INPUT,
+                    maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
+                    maxSizeKB: GEMINI_LIMITS.MAX_SIZE_KB
+                }
             }
         };
         
     } catch (error) {
-        console.error('❌ === GEMINI 1.5 FLASH PROCESSING FAILED ===');
+        console.error('❌ === GEMINI 1.5 FLASH - TIER 1/2 EXTRACTION FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
@@ -566,7 +642,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         } else if (error.message.includes('timeout')) {
             userFriendlyMessage = 'Processing timeout. Please try again with a smaller profile.';
         } else if (error.message.includes('too large')) {
-            userFriendlyMessage = 'Profile too large to process. Please try refreshing the page.';
+            userFriendlyMessage = 'Profile too large to process even with doubled limits. Please try refreshing the page.';
         } else if (error.message.includes('JSON')) {
             userFriendlyMessage = 'Failed to parse AI response. Please try again.';
         } else if (error.message.includes('SAFETY')) {
@@ -580,7 +656,12 @@ ${JSON.stringify(jsonData, null, 2)}`;
             details: {
                 status: error.response?.status,
                 type: error.name,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                limitsUsed: {
+                    maxInputTokens: GEMINI_LIMITS.MAX_TOKENS_INPUT,
+                    maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
+                    maxSizeKB: GEMINI_LIMITS.MAX_SIZE_KB
+                }
             }
         };
     }
