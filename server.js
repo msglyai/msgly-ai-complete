@@ -59,8 +59,8 @@ const {
     requireAdmin
 } = require('./middleware/auth');
 
-// ✅ STEP 2E: Import user routes
-const { router: userRoutes, initUserRoutes } = require('./routes/users');
+// ✅ STEP 2E: Import user routes initialization function
+const { initUserRoutes } = require('./routes/users');
 
 // ✅ STEP 2C: Import modularized routes
 const healthRoutes = require('./routes/health')(pool);
@@ -77,8 +77,8 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 // ✅ STEP 2D: Initialize authentication middleware with database functions
 initAuthMiddleware({ getUserById });
 
-// ✅ STEP 2E: Initialize user routes with dependencies
-initUserRoutes({
+// ✅ STEP 2E: Initialize user routes with dependencies and get router
+const userRoutes = initUserRoutes({
     pool,
     authenticateToken,
     getUserByEmail,
