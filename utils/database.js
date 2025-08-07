@@ -1,4 +1,4 @@
-// Msgly.AI Database Utilities - STEP 2A EXTRACTION
+// Msgly.AI Database Utilities - STEP 2A EXTRACTION - COMPLETE WITH ALL LINKEDIN FIELDS
 // All database functions, helpers, and utilities extracted from server.js
 
 // ==================== DATABASE CONNECTION & SETUP ====================
@@ -36,7 +36,7 @@ const initDB = async () => {
                 profile_data JSONB,
                 extraction_status VARCHAR(50) DEFAULT 'not_started',
                 error_message TEXT,
-                profile_completed BOOLEAN DEFAULT false,
+                registration_completed BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -83,6 +83,7 @@ const initDB = async () => {
                 -- ✅ ENHANCED: Metrics with new engagement fields
                 connections_count INTEGER,
                 followers_count INTEGER,
+                mutual_connections_count INTEGER DEFAULT 0,
                 connections INTEGER,
                 followers INTEGER,
                 recommendations_count INTEGER,
@@ -126,6 +127,24 @@ const initDB = async () => {
                 articles JSONB DEFAULT '[]'::JSONB,
                 people_also_viewed JSONB DEFAULT '[]'::JSONB,
                 engagement_data JSONB DEFAULT '{}'::JSONB,
+                
+                -- ✅ NEW: Additional fields for complete LinkedIn data
+                following_companies JSONB DEFAULT '[]'::JSONB,
+                following_people JSONB DEFAULT '[]'::JSONB,
+                following_hashtags JSONB DEFAULT '[]'::JSONB,
+                following_newsletters JSONB DEFAULT '[]'::JSONB,
+                interests_industries JSONB DEFAULT '[]'::JSONB,
+                interests_topics JSONB DEFAULT '[]'::JSONB,
+                groups JSONB DEFAULT '[]'::JSONB,
+                featured JSONB DEFAULT '[]'::JSONB,
+                creator_info JSONB DEFAULT '{}'::JSONB,
+                services JSONB DEFAULT '[]'::JSONB,
+                business_info JSONB DEFAULT '{}'::JSONB,
+                
+                -- ✅ NEW: RAW GEMINI DATA STORAGE FOR GPT 4.1
+                gemini_raw_data JSONB,
+                gemini_processed_at TIMESTAMP,
+                gemini_token_usage JSONB DEFAULT '{}'::JSONB,
                 
                 -- Metadata
                 timestamp TIMESTAMP,
@@ -181,6 +200,7 @@ const initDB = async () => {
                 -- ✅ ENHANCED: Metrics with new engagement fields
                 connections_count INTEGER,
                 followers_count INTEGER,
+                mutual_connections_count INTEGER DEFAULT 0,
                 connections INTEGER,
                 followers INTEGER,
                 recommendations_count INTEGER,
@@ -224,6 +244,24 @@ const initDB = async () => {
                 articles JSONB DEFAULT '[]'::JSONB,
                 people_also_viewed JSONB DEFAULT '[]'::JSONB,
                 engagement_data JSONB DEFAULT '{}'::JSONB,
+                
+                -- ✅ NEW: Additional fields for complete LinkedIn data
+                following_companies JSONB DEFAULT '[]'::JSONB,
+                following_people JSONB DEFAULT '[]'::JSONB,
+                following_hashtags JSONB DEFAULT '[]'::JSONB,
+                following_newsletters JSONB DEFAULT '[]'::JSONB,
+                interests_industries JSONB DEFAULT '[]'::JSONB,
+                interests_topics JSONB DEFAULT '[]'::JSONB,
+                groups JSONB DEFAULT '[]'::JSONB,
+                featured JSONB DEFAULT '[]'::JSONB,
+                creator_info JSONB DEFAULT '{}'::JSONB,
+                services JSONB DEFAULT '[]'::JSONB,
+                business_info JSONB DEFAULT '{}'::JSONB,
+                
+                -- ✅ NEW: RAW GEMINI DATA STORAGE FOR GPT 4.1
+                gemini_raw_data JSONB,
+                gemini_processed_at TIMESTAMP,
+                gemini_token_usage JSONB DEFAULT '{}'::JSONB,
                 
                 -- Metadata
                 timestamp TIMESTAMP DEFAULT NOW(),
@@ -271,7 +309,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_data JSONB',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT \'not_started\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT false'
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false'
             ];
             
             for (const columnQuery of userColumns) {
@@ -296,7 +334,22 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB'
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_companies JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_people JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_hashtags JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_newsletters JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS interests_industries JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS interests_topics JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS groups JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS featured JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS creator_info JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS services JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB'
             ];
 
             for (const columnQuery of userProfileColumns) {
@@ -316,7 +369,22 @@ const initDB = async () => {
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB'
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_companies JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_people JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_hashtags JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_newsletters JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS interests_industries JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS interests_topics JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS groups JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS featured JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS creator_info JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS services JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB'
             ];
 
             for (const columnQuery of targetProfileColumns) {
@@ -349,6 +417,10 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url ON target_profiles(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_scraped_at ON target_profiles(scraped_at);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_gemini_processed ON user_profiles(gemini_processed_at);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_mutual_connections ON user_profiles(mutual_connections_count);
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_gemini_processed ON target_profiles(gemini_processed_at);
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_mutual_connections ON target_profiles(mutual_connections_count);
             `);
             console.log('✅ Created enhanced database indexes');
         } catch (err) {
@@ -463,13 +535,13 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ FIXED: Process OpenAI data correctly
-const processOpenAIData = (openaiResponse, cleanProfileUrl) => {
+// ✅ FIXED: Process Gemini data correctly (RENAMED from processOpenAIData)
+const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
-        console.log('📊 Processing OpenAI extracted data...');
+        console.log('📊 Processing Gemini extracted data...');
         
         // ✅ CRITICAL FIX: Extract data from the correct structure
-        const aiData = openaiResponse.data; // This is where the actual profile data is
+        const aiData = geminiResponse.data; // This is where the actual profile data is
         const profile = aiData.profile || {};
         const engagement = aiData.engagement || {};
         
@@ -480,12 +552,14 @@ const processOpenAIData = (openaiResponse, cleanProfileUrl) => {
         console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
         
         const processedData = {
-            // ✅ FIXED: Map from correct OpenAI response structure
+            // ✅ FIXED: Map from correct Gemini response structure
             linkedinUrl: cleanProfileUrl,
             url: cleanProfileUrl,
             
             // Basic Info - Map from profile object
             fullName: profile.name || '',
+            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
+            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
             headline: profile.headline || '',
             currentRole: profile.currentRole || '',
             about: profile.about || '',
@@ -498,6 +572,7 @@ const processOpenAIData = (openaiResponse, cleanProfileUrl) => {
             // Metrics - Parse numbers correctly
             connectionsCount: parseLinkedInNumber(profile.connectionsCount),
             followersCount: parseLinkedInNumber(profile.followersCount),
+            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
             
             // ✅ ENHANCED: New engagement fields
             totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
@@ -512,15 +587,32 @@ const processOpenAIData = (openaiResponse, cleanProfileUrl) => {
             certifications: ensureValidJSONArray(aiData.certifications || []),
             awards: ensureValidJSONArray(aiData.awards || []),
             activity: ensureValidJSONArray(aiData.activity || []),
+            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
+            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
+            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
+            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
+            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
+            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
+            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
+            groups: ensureValidJSONArray(aiData.groups || []),
+            featured: ensureValidJSONArray(aiData.featured || []),
+            services: ensureValidJSONArray(aiData.services || []),
             engagementData: sanitizeForJSON(engagement),
+            creatorInfo: sanitizeForJSON(aiData.creator || {}),
+            businessInfo: sanitizeForJSON(aiData.business || {}),
+            
+            // ✅ NEW: Raw Gemini data storage for GPT 4.1
+            geminiRawData: sanitizeForJSON(geminiResponse),
+            geminiProcessedAt: new Date(),
+            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
             
             // Metadata
             timestamp: new Date(),
-            dataSource: 'html_scraping_openai',
+            dataSource: 'html_scraping_gemini',
             hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
         };
         
-        console.log('✅ OpenAI data processed successfully');
+        console.log('✅ Gemini data processed successfully');
         console.log(`📊 Processed data summary:`);
         console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
         console.log(`   - Current Role: ${processedData.currentRole || 'Not available'}`);
@@ -530,13 +622,17 @@ const processOpenAIData = (openaiResponse, cleanProfileUrl) => {
         console.log(`   - Certifications: ${processedData.certifications.length}`);
         console.log(`   - Awards: ${processedData.awards.length}`);
         console.log(`   - Activity posts: ${processedData.activity.length}`);
+        console.log(`   - Volunteer experiences: ${processedData.volunteerExperience.length}`);
+        console.log(`   - Following companies: ${processedData.followingCompanies.length}`);
+        console.log(`   - Following people: ${processedData.followingPeople.length}`);
+        console.log(`   - Raw Gemini data stored: ${!!processedData.geminiRawData}`);
         console.log(`   - Has Experience: ${processedData.hasExperience}`);
         
         return processedData;
         
     } catch (error) {
-        console.error('❌ Error processing OpenAI data:', error);
-        throw new Error(`OpenAI data processing failed: ${error.message}`);
+        console.error('❌ Error processing Gemini data:', error);
+        throw new Error(`Gemini data processing failed: ${error.message}`);
     }
 };
 
@@ -577,6 +673,7 @@ const processScrapedProfileData = (scrapedData, isUserProfile = false) => {
             followersCount: parseLinkedInNumber(scrapedData.followersCount || scrapedData.followers),
             connections: parseLinkedInNumber(scrapedData.connections || scrapedData.connectionsCount),
             followers: parseLinkedInNumber(scrapedData.followers || scrapedData.followersCount),
+            mutualConnectionsCount: parseLinkedInNumber(scrapedData.mutualConnections) || 0,
             
             totalLikes: parseLinkedInNumber(scrapedData.totalLikes) || 0,
             totalComments: parseLinkedInNumber(scrapedData.totalComments) || 0,
@@ -592,6 +689,9 @@ const processScrapedProfileData = (scrapedData, isUserProfile = false) => {
             certifications: ensureValidJSONArray(scrapedData.certifications || []),
             awards: ensureValidJSONArray(scrapedData.awards || []),
             activity: ensureValidJSONArray(scrapedData.activity || []),
+            volunteerExperience: ensureValidJSONArray(scrapedData.volunteerExperience || []),
+            followingCompanies: ensureValidJSONArray(scrapedData.followingCompanies || []),
+            followingPeople: ensureValidJSONArray(scrapedData.followingPeople || []),
             
             timestamp: new Date(),
             dataSource: 'chrome_extension',
@@ -746,6 +846,6 @@ module.exports = {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processOpenAIData,
+    processGeminiData,      // ✅ RENAMED: processOpenAIData → processGeminiData
     processScrapedProfileData
 };
