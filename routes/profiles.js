@@ -2,6 +2,7 @@
 // routes/profiles.js - Profile management and scraping routes
 
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { sendToGemini } = require('../sendToGemini');
 
 // Dependencies to be injected
@@ -342,8 +343,38 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ FIXED: Get User Profile - Returns registration_completed field
-    router.get('/profile', authenticateToken, async (req, res) => {
+    // ✅ FIXED: Get User Profile - Returns registration_completed field (supports both JWT and session auth)
+    router.get('/profile', async (req, res) => {
+        // Handle both JWT and session authentication
+        let userId = null;
+        
+        // Try JWT authentication first
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+            try {
+                const token = req.headers.authorization.substring(7);
+                const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
+                userId = decoded.userId;
+            } catch (error) {
+                console.log('JWT auth failed, trying session auth');
+            }
+        }
+        
+        // Try session authentication if JWT failed
+        if (!userId && req.isAuthenticated && req.isAuthenticated()) {
+            userId = req.user.id;
+        }
+        
+        // If neither authentication method worked
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        // Get user data for the request
+        const user = await getUserById(userId);
+        req.user = user;
         try {
             const profileResult = await pool.query(`
                 SELECT 
@@ -353,7 +384,7 @@ function initProfileRoutes(dependencies) {
                 FROM user_profiles up 
                 RIGHT JOIN users u ON u.id = up.user_id 
                 WHERE u.id = $1
-            `, [req.user.id]);
+            `, [userId]);
             
             const profile = profileResult.rows[0];
 
@@ -407,17 +438,17 @@ function initProfileRoutes(dependencies) {
                 success: true,
                 data: {
                     user: {
-                        id: req.user.id,
-                        email: req.user.email,
-                        displayName: req.user.display_name,
-                        profilePicture: req.user.profile_picture,
-                        packageType: req.user.package_type,
-                        billingModel: req.user.billing_model,
-                        credits: req.user.credits_remaining,
-                        subscriptionStatus: req.user.subscription_status,
-                        hasGoogleAccount: !!req.user.google_id,
-                        createdAt: req.user.created_at,
-                        registrationCompleted: req.user.registration_completed  // ✅ FIXED: Changed from profile_completed
+                        id: user.id,
+                        email: user.email,
+                        displayName: user.display_name,
+                        profilePicture: user.profile_picture,
+                        packageType: user.package_type,
+                        billingModel: user.billing_model,
+                        credits: user.credits_remaining,
+                        subscriptionStatus: user.subscription_status,
+                        hasGoogleAccount: !!user.google_id,
+                        createdAt: user.created_at,
+                        registrationCompleted: user.registration_completed  // ✅ FIXED: Changed from profile_completed
                     },
                     profile: profile && profile.user_id ? {
                         linkedinUrl: profile.linkedin_url,
@@ -504,8 +535,34 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ FIXED: Check profile extraction status - Returns registration_completed
-    router.get('/profile-status', authenticateToken, async (req, res) => {
+    // ✅ FIXED: Check profile extraction status - Returns registration_completed (supports both JWT and session auth)
+    router.get('/profile-status', async (req, res) => {
+        // Handle both JWT and session authentication
+        let userId = null;
+        
+        // Try JWT authentication first
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+            try {
+                const token = req.headers.authorization.substring(7);
+                const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
+                userId = decoded.userId;
+            } catch (error) {
+                console.log('JWT auth failed, trying session auth');
+            }
+        }
+        
+        // Try session authentication if JWT failed
+        if (!userId && req.isAuthenticated && req.isAuthenticated()) {
+            userId = req.user.id;
+        }
+        
+        // If neither authentication method worked
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
         try {
             const userQuery = `
                 SELECT 
@@ -523,7 +580,7 @@ function initProfileRoutes(dependencies) {
                 WHERE u.id = $1
             `;
             
-            const result = await pool.query(userQuery, [req.user.id]);
+            const result = await pool.query(userQuery, [userId]);
             
             if (result.rows.length === 0) {
                 return res.status(404).json({ error: 'User not found' });
