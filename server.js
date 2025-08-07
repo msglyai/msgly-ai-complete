@@ -1,6 +1,5 @@
-// Msgly.AI Server - STEP 2F COMPLETED: Smart Profile Routes Split (~885+ lines extracted!)
-// ✅ KEEP IN SERVER: Session-dependent routes (Web Dashboard + OAuth)  
-// ✅ EXTRACTED TO MODULE: JWT-only routes (Chrome Extension + API)
+// Msgly.AI Server - Complete with Traffic Light System Integrated
+// ✅ TRAFFIC LIGHT SYSTEM: Dashboard RED/ORANGE/GREEN status fully implemented
 // 🔧 FIXED: Dual authentication support for dashboard compatibility
 
 const express = require('express');
@@ -349,7 +348,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     packageType: user.package_type,
                     credits: user.credits_remaining || 10,
                     linkedinUrl: user.linkedin_url,
-                    registrationCompleted: user.registration_completed  // ✅ FIXED: Changed from profileCompleted
+                    registrationCompleted: user.registration_completed
                 },
                 isNewUser: isNewUser
             }
@@ -403,13 +402,13 @@ app.get('/auth/google/callback',
             // ✅ FIXED: Smart redirect logic using registration_completed
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.linkedin_url || 
-                                   !req.user.registration_completed ||  // ✅ FIXED: Changed from profile_completed
+                                   !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
             console.log(`🔍 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-            console.log(`   - Registration completed: ${req.user.registration_completed || false}`);  // ✅ FIXED
+            console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
             console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
@@ -432,7 +431,108 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// 🔧 FIXED: Get User Profile - DUAL Authentication Support (Session OR JWT)
+// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - NEW ENDPOINT FOR DASHBOARD
+app.get('/traffic-light-status', authenticateDual, async (req, res) => {
+    try {
+        console.log(`🚦 Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
+
+        const profileResult = await pool.query(`
+            SELECT 
+                u.registration_completed,
+                u.linkedin_url,
+                up.initial_scraping_done,
+                up.data_extraction_status,
+                up.profile_analyzed,
+                up.extraction_completed_at,
+                up.experience,
+                up.full_name,
+                up.headline,
+                up.current_company,
+                up.current_company_name
+            FROM users u 
+            LEFT JOIN user_profiles up ON u.id = up.user_id 
+            WHERE u.id = $1
+        `, [req.user.id]);
+        
+        const data = profileResult.rows[0];
+        
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'User profile not found'
+            });
+        }
+
+        // 🚦 DETERMINE TRAFFIC LIGHT STATUS
+        const isRegistrationComplete = data.registration_completed || false;
+        const isInitialScrapingDone = data.initial_scraping_done || false;
+        const extractionStatus = data.data_extraction_status || 'pending';
+        const hasExperience = data.experience && Array.isArray(data.experience) && data.experience.length > 0;
+
+        let trafficLightStatus;
+        let statusMessage;
+        let actionRequired;
+
+        if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
+            trafficLightStatus = 'GREEN';
+            statusMessage = 'Profile fully synced and ready! You can now use all features.';
+            actionRequired = null;
+        } else if (isRegistrationComplete && isInitialScrapingDone) {
+            trafficLightStatus = 'ORANGE';
+            statusMessage = 'We\'re analyzing your profile data. This usually takes a few minutes.';
+            actionRequired = 'WAIT_FOR_ANALYSIS';
+        } else if (isRegistrationComplete) {
+            trafficLightStatus = 'RED';
+            statusMessage = 'Please visit your own LinkedIn profile with the Msgly.AI Chrome extension installed and active.';
+            actionRequired = 'VISIT_LINKEDIN_PROFILE';
+        } else {
+            trafficLightStatus = 'RED';
+            statusMessage = 'Please complete your registration by providing your LinkedIn URL.';
+            actionRequired = 'COMPLETE_REGISTRATION';
+        }
+
+        console.log(`🚦 User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
+        console.log(`   - Registration Complete: ${isRegistrationComplete}`);
+        console.log(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
+        console.log(`   - Extraction Status: ${extractionStatus}`);
+        console.log(`   - Has Experience: ${hasExperience}`);
+
+        res.json({
+            success: true,
+            data: {
+                trafficLightStatus: trafficLightStatus,
+                statusMessage: statusMessage,
+                actionRequired: actionRequired,
+                details: {
+                    registrationCompleted: isRegistrationComplete,
+                    initialScrapingDone: isInitialScrapingDone,
+                    extractionStatus: extractionStatus,
+                    hasExperience: hasExperience,
+                    experienceCount: hasExperience ? data.experience.length : 0,
+                    profileAnalyzed: data.profile_analyzed || false,
+                    extractionCompletedAt: data.extraction_completed_at,
+                    hasLinkedInUrl: !!data.linkedin_url,
+                    hasBasicProfile: !!(data.full_name && data.headline),
+                    hasCompanyInfo: !!(data.current_company || data.current_company_name)
+                },
+                debugInfo: {
+                    userId: req.user.id,
+                    authMethod: req.authMethod,
+                    timestamp: new Date().toISOString()
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Traffic light status error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check traffic light status'
+        });
+    }
+});
+
+// 🔧 FIXED: Get User Profile - DUAL Authentication Support (Session OR JWT) with Traffic Light Data
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
         console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -441,7 +541,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
             SELECT 
                 up.*,
                 u.extraction_status as user_extraction_status,
-                u.registration_completed as user_registration_completed  -- ✅ FIXED: Changed from profile_completed
+                u.registration_completed as user_registration_completed
             FROM user_profiles up 
             RIGHT JOIN users u ON u.id = up.user_id 
             WHERE u.id = $1
@@ -488,7 +588,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 extractionStatus: extractionStatus,
                 profileAnalyzed: isProfileAnalyzed,
                 initialScrapingDone: initialScrapingDone,
-                isCurrentlyProcessing: false, // No background processing
+                isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
                     'Profile complete and ready for target scraping'
@@ -509,8 +609,8 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at,
-                    registrationCompleted: req.user.registration_completed,  // ✅ FIXED: Changed from profile_completed
-                    authMethod: req.authMethod  // ✅ NEW: Indicate which auth method was used
+                    registrationCompleted: req.user.registration_completed,
+                    authMethod: req.authMethod
                 },
                 profile: profile && profile.user_id ? {
                     linkedinUrl: profile.linkedin_url,
@@ -522,7 +622,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     firstName: profile.first_name,
                     lastName: profile.last_name,
                     headline: profile.headline,
-                    currentRole: profile.current_role,  // Note: returned from DB without quotes
+                    currentRole: profile.current_role,
                     summary: profile.summary,
                     about: profile.about,
                     location: profile.location,
@@ -539,7 +639,6 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     followersCount: profile.followers_count,
                     connections: profile.connections,
                     followers: profile.followers,
-                    // ✅ ENHANCED: New engagement fields
                     totalLikes: profile.total_likes,
                     totalComments: profile.total_comments,
                     totalShares: profile.total_shares,
@@ -557,7 +656,6 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     skillsWithEndorsements: profile.skills_with_endorsements,
                     languages: profile.languages,
                     certifications: profile.certifications,
-                    // ✅ ENHANCED: New fields
                     awards: profile.awards,
                     courses: profile.courses,
                     projects: profile.projects,
@@ -578,12 +676,12 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     timestamp: profile.timestamp,
                     dataSource: profile.data_source,
                     extractionStatus: profile.data_extraction_status,
+                    initialScrapingDone: profile.initial_scraping_done,
                     extractionAttempted: profile.extraction_attempted_at,
                     extractionCompleted: profile.extraction_completed_at,
                     extractionError: profile.extraction_error,
                     extractionRetryCount: profile.extraction_retry_count,
-                    profileAnalyzed: profile.profile_analyzed,
-                    initialScrapingDone: profile.initial_scraping_done
+                    profileAnalyzed: profile.profile_analyzed
                 } : null,
                 syncStatus: syncStatus
             }
@@ -606,7 +704,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             SELECT 
                 u.extraction_status,
                 u.error_message,
-                u.registration_completed,  -- ✅ FIXED: Changed from profile_completed
+                u.registration_completed,
                 u.linkedin_url,
                 up.data_extraction_status,
                 up.extraction_completed_at,
@@ -628,7 +726,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
         
         res.json({
             extraction_status: status.extraction_status,
-            registration_completed: status.registration_completed,  // ✅ FIXED: Changed from profile_completed
+            registration_completed: status.registration_completed,
             linkedin_url: status.linkedin_url,
             error_message: status.error_message,
             data_extraction_status: status.data_extraction_status,
@@ -636,7 +734,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_retry_count: status.extraction_retry_count,
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
-            is_currently_processing: false, // No background processing
+            is_currently_processing: false,
             processing_mode: 'ENHANCED_HTML_SCRAPING',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
@@ -788,22 +886,23 @@ app.use((req, res, next) => {
             'POST /auth/chrome-extension',
             'POST /complete-registration',
             'POST /update-profile',
-            'GET /profile',  // ✅ FIXED: DUAL AUTH (Session + JWT)
-            'GET /profile-status',  // ✅ FIXED: DUAL AUTH (Session + JWT)
-            'POST /profile/user',  // ✅ MOVED: JWT auth (Chrome Extension)
-            'POST /profile/target',  // ✅ MOVED: JWT auth (Chrome Extension)
-            'GET /target-profiles',  // ✅ MOVED: JWT auth (API)
-            'GET /target-profiles/search',  // ✅ MOVED: JWT auth (API)
-            'DELETE /target-profiles/:id',  // ✅ MOVED: JWT auth (API)
-            'POST /scrape-html',  // ✅ MOVED: JWT auth (Chrome Extension)
+            'GET /profile',
+            'GET /profile-status',
+            'GET /traffic-light-status', // ✅ NEW: Traffic light endpoint
+            'POST /profile/user',
+            'POST /profile/target',
+            'GET /target-profiles',
+            'GET /target-profiles/search',
+            'DELETE /target-profiles/:id',
+            'POST /scrape-html',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
             'PUT /user/settings',
-            'POST /generate-message',  // ✅ MOVED: JWT auth (API)
-            'GET /message-history',  // ✅ MOVED: JWT auth (API)
-            'GET /credits-history',  // ✅ MOVED: JWT auth (API)
-            'POST /retry-extraction',  // ✅ MOVED: JWT auth (API)
+            'POST /generate-message',
+            'GET /message-history',
+            'GET /credits-history',
+            'POST /retry-extraction',
             'GET /packages'
         ]
     });
@@ -822,28 +921,23 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - STEP 2F COMPLETED: Smart Profile Routes Split! AUTHENTICATION FIXED!');
+            console.log('🚀 Msgly.AI Server - COMPLETE WITH TRAFFIC LIGHT SYSTEM!');
             console.log(`📍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with registration_completed field FIXED`);
-            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API) + DASHBOARD COMPATIBILITY!`);
-            console.log(`🔧 CRITICAL FIX: /profile and /profile-status now support BOTH session and JWT authentication`);
-            console.log(`🎯 AUTHENTICATION ARCHITECTURE PERFECTED:`);
-            console.log(`   ✅ Web Dashboard: Session auth OR JWT token (both work!)`);
-            console.log(`   ✅ Chrome Extension: JWT token authentication`);
-            console.log(`   ✅ API Endpoints: JWT token authentication`);
-            console.log(`   ✅ OAuth Callback: Creates session + provides JWT token`);
-            console.log(`📊 SERVER MODULARIZATION STATUS:`);
-            console.log(`   🔥 Server Size: 2375 → ~1490 lines (37% reduction in Step 2F!)`);
-            console.log(`   🚀 Total Progress: ~1885+ lines removed (70% TOTAL REDUCTION!)`);
-            console.log(`   🏆 BIGGEST EXTRACTION: 885+ lines in one step!`);
-            console.log(`🎯 AUTHENTICATION FLOW NOW WORKING:`);
-            console.log(`   📱 Dashboard: Accepts JWT tokens from OAuth callback`);
-            console.log(`   🔌 Extension: JWT authentication for all scraping operations`);
-            console.log(`   🔗 API: JWT authentication for all messaging/profile operations`);
-            console.log(`📋 DASHBOARD SHOULD NOW WORK PERFECTLY:`);
-            console.log(`   ✅ OAuth → JWT token → Dashboard receives profile data`);
-            console.log(`   ✅ All 401 errors resolved with dual authentication`);
-            console.log(`🏆 STEP 2F COMPLETE WITH AUTHENTICATION FIX!`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL with traffic light fields`);
+            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE:`);
+            console.log(`   🔴 RED: registration_completed = true + initial_scraping_done = false`);
+            console.log(`   🟠 ORANGE: registration + scraping done + extraction != completed`);
+            console.log(`   🟢 GREEN: registration + scraping + extraction completed + has experience`);
+            console.log(`📊 NEW ENDPOINTS:`);
+            console.log(`   ✅ GET /traffic-light-status - Dashboard traffic light API`);
+            console.log(`   ✅ Enhanced /profile - With traffic light data`);
+            console.log(`   ✅ Enhanced /profile-status - With traffic light compatibility`);
+            console.log(`🎯 DASHBOARD COMPATIBILITY:`);
+            console.log(`   📱 Dashboard: JWT + Session auth supported`);
+            console.log(`   🔌 Extension: JWT authentication`);
+            console.log(`   🔗 API: JWT authentication`);
+            console.log(`🏆 TRAFFIC LIGHT SYSTEM READY FOR DASHBOARD!`);
         });
         
     } catch (error) {
