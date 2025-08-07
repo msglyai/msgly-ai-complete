@@ -1,63 +1,16 @@
-// ✅ STEP 2F: Profile Routes - MASSIVE EXTRACTION (~400-500 lines)
-// routes/profiles.js - Profile management and scraping routes
+// ✅ STEP 2F REVISED: JWT-Only Profile Routes (~300-350 lines)
+// routes/profiles.js - Chrome extension profile routes (JWT authentication only)
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const { sendToGemini } = require('../sendToGemini');
 
 // Dependencies to be injected
 let pool, authenticateToken;
 let getUserById, processOpenAIData, processScrapedProfileData;
-let cleanLinkedInUrl, getStatusMessage;
+let cleanLinkedInUrl;
 
 /**
- * Dual authentication middleware - handles both JWT and session auth
- */
-function authenticateUser(req, res, next) {
-    // Try JWT authentication first
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-        try {
-            const token = req.headers.authorization.substring(7);
-            const jwt = require('jsonwebtoken');
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
-            
-            // Get user data for JWT auth
-            getUserById(decoded.userId)
-                .then(user => {
-                    if (user) {
-                        req.user = user;
-                        req.authMethod = 'jwt';
-                        return next();
-                    } else {
-                        return res.status(401).json({ success: false, error: 'User not found' });
-                    }
-                })
-                .catch(err => {
-                    console.error('JWT user lookup error:', err);
-                    return res.status(401).json({ success: false, error: 'Authentication failed' });
-                });
-            return;
-        } catch (error) {
-            console.log('JWT auth failed, trying session auth');
-        }
-    }
-    
-    // Try session authentication
-    if (req.isAuthenticated && req.isAuthenticated()) {
-        req.authMethod = 'session';
-        return next();
-    }
-    
-    // No valid authentication found
-    return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        details: 'Please login via dashboard or provide valid JWT token'
-    });
-}
-
-/**
- * Initialize profile routes with dependencies
+ * Initialize profile routes with dependencies (JWT-only routes)
  * @param {Object} dependencies - Required dependencies
  * @returns {express.Router} Configured router
  */
@@ -69,12 +22,11 @@ function initProfileRoutes(dependencies) {
     processOpenAIData = dependencies.processOpenAIData;
     processScrapedProfileData = dependencies.processScrapedProfileData;
     cleanLinkedInUrl = dependencies.cleanLinkedInUrl;
-    getStatusMessage = dependencies.getStatusMessage;
 
     // Create router AFTER dependencies are injected
     const router = express.Router();
 
-    // ==================== PROFILE SCRAPING ROUTES ====================
+    // ==================== CHROME EXTENSION PROFILE ROUTES ====================
 
     // ✅ FULLY FIXED: HTML Scraping endpoint for Chrome extension - WITH ESCAPED current_role
     router.post('/scrape-html', authenticateToken, async (req, res) => {
@@ -386,273 +338,6 @@ function initProfileRoutes(dependencies) {
                 error: 'Failed to process HTML scraping',
                 details: error.message
             });
-        }
-    });
-
-    // ✅ FIXED: Get User Profile - Returns registration_completed field (supports both JWT and session auth)
-    router.get('/profile', async (req, res) => {
-        // Handle both JWT and session authentication
-        let userId = null;
-        
-        // Try JWT authentication first
-        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-            try {
-                const token = req.headers.authorization.substring(7);
-                const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
-                userId = decoded.userId;
-            } catch (error) {
-                console.log('JWT auth failed, trying session auth');
-            }
-        }
-        
-        // Try session authentication if JWT failed
-        if (!userId && req.isAuthenticated && req.isAuthenticated()) {
-            userId = req.user.id;
-        }
-        
-        // If neither authentication method worked
-        if (!userId) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-        
-        // Get user data for the request
-        const user = await getUserById(userId);
-        req.user = user;
-        try {
-            const profileResult = await pool.query(`
-                SELECT 
-                    up.*,
-                    u.extraction_status as user_extraction_status,
-                    u.registration_completed as user_registration_completed  -- ✅ FIXED: Changed from profile_completed
-                FROM user_profiles up 
-                RIGHT JOIN users u ON u.id = up.user_id 
-                WHERE u.id = $1
-            `, [userId]);
-            
-            const profile = profileResult.rows[0];
-
-            let syncStatus = {
-                isIncomplete: false,
-                missingFields: [],
-                extractionStatus: 'unknown',
-                initialScrapingDone: false
-            };
-
-            if (!profile || !profile.user_id) {
-                syncStatus = {
-                    isIncomplete: true,
-                    missingFields: ['complete_profile'],
-                    extractionStatus: 'not_started',
-                    initialScrapingDone: false,
-                    reason: 'No profile data found'
-                };
-            } else {
-                const extractionStatus = profile.data_extraction_status || 'not_started';
-                const isProfileAnalyzed = profile.profile_analyzed || false;
-                const initialScrapingDone = profile.initial_scraping_done || false;
-                
-                const missingFields = [];
-                if (!profile.full_name) missingFields.push('full_name');
-                if (!profile.headline) missingFields.push('headline');  
-                if (!profile.current_company && !profile.current_position) missingFields.push('company_info');
-                if (!profile.location) missingFields.push('location');
-                
-                const isIncomplete = (
-                    !initialScrapingDone ||
-                    extractionStatus !== 'completed' ||
-                    !isProfileAnalyzed ||
-                    missingFields.length > 0
-                );
-                
-                syncStatus = {
-                    isIncomplete: isIncomplete,
-                    missingFields: missingFields,
-                    extractionStatus: extractionStatus,
-                    profileAnalyzed: isProfileAnalyzed,
-                    initialScrapingDone: initialScrapingDone,
-                    isCurrentlyProcessing: false, // No background processing
-                    reason: isIncomplete ? 
-                        `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                        'Profile complete and ready for target scraping'
-                };
-            }
-
-            res.json({
-                success: true,
-                data: {
-                    user: {
-                        id: req.user.id,
-                        email: req.user.email,
-                        displayName: req.user.display_name,
-                        profilePicture: req.user.profile_picture,
-                        packageType: req.user.package_type,
-                        billingModel: req.user.billing_model,
-                        credits: req.user.credits_remaining,
-                        subscriptionStatus: req.user.subscription_status,
-                        hasGoogleAccount: !!req.user.google_id,
-                        createdAt: req.user.created_at,
-                        registrationCompleted: req.user.registration_completed,  // ✅ FIXED: Changed from profile_completed
-                        authMethod: req.authMethod  // Debug info
-                    },
-                    profile: profile && profile.user_id ? {
-                        linkedinUrl: profile.linkedin_url,
-                        linkedinId: profile.linkedin_id,
-                        linkedinNumId: profile.linkedin_num_id,
-                        inputUrl: profile.input_url,
-                        url: profile.url,
-                        fullName: profile.full_name,
-                        firstName: profile.first_name,
-                        lastName: profile.last_name,
-                        headline: profile.headline,
-                        currentRole: profile.current_role,  // Note: returned from DB without quotes
-                        summary: profile.summary,
-                        about: profile.about,
-                        location: profile.location,
-                        city: profile.city,
-                        state: profile.state,
-                        country: profile.country,
-                        countryCode: profile.country_code,
-                        industry: profile.industry,
-                        currentCompany: profile.current_company,
-                        currentCompanyName: profile.current_company_name,
-                        currentCompanyId: profile.current_company_id,
-                        currentPosition: profile.current_position,
-                        connectionsCount: profile.connections_count,
-                        followersCount: profile.followers_count,
-                        connections: profile.connections,
-                        followers: profile.followers,
-                        // ✅ ENHANCED: New engagement fields
-                        totalLikes: profile.total_likes,
-                        totalComments: profile.total_comments,
-                        totalShares: profile.total_shares,
-                        averageLikes: profile.average_likes,
-                        recommendationsCount: profile.recommendations_count,
-                        profileImageUrl: profile.profile_image_url,
-                        avatar: profile.avatar,
-                        bannerImage: profile.banner_image,
-                        backgroundImageUrl: profile.background_image_url,
-                        publicIdentifier: profile.public_identifier,
-                        experience: profile.experience,
-                        education: profile.education,
-                        educationsDetails: profile.educations_details,
-                        skills: profile.skills,
-                        skillsWithEndorsements: profile.skills_with_endorsements,
-                        languages: profile.languages,
-                        certifications: profile.certifications,
-                        // ✅ ENHANCED: New fields
-                        awards: profile.awards,
-                        courses: profile.courses,
-                        projects: profile.projects,
-                        publications: profile.publications,
-                        patents: profile.patents,
-                        volunteerExperience: profile.volunteer_experience,
-                        volunteering: profile.volunteering,
-                        honorsAndAwards: profile.honors_and_awards,
-                        organizations: profile.organizations,
-                        recommendations: profile.recommendations,
-                        recommendationsGiven: profile.recommendations_given,
-                        recommendationsReceived: profile.recommendations_received,
-                        posts: profile.posts,
-                        activity: profile.activity,
-                        articles: profile.articles,
-                        peopleAlsoViewed: profile.people_also_viewed,
-                        engagementData: profile.engagement_data,
-                        timestamp: profile.timestamp,
-                        dataSource: profile.data_source,
-                        extractionStatus: profile.data_extraction_status,
-                        extractionAttempted: profile.extraction_attempted_at,
-                        extractionCompleted: profile.extraction_completed_at,
-                        extractionError: profile.extraction_error,
-                        extractionRetryCount: profile.extraction_retry_count,
-                        profileAnalyzed: profile.profile_analyzed,
-                        initialScrapingDone: profile.initial_scraping_done
-                    } : null,
-                    syncStatus: syncStatus
-                }
-            });
-        } catch (error) {
-            console.error('❌ Enhanced profile fetch error:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to fetch profile'
-            });
-        }
-    });
-
-    // ✅ FIXED: Check profile extraction status - Returns registration_completed (supports both JWT and session auth)
-    router.get('/profile-status', async (req, res) => {
-        // Handle both JWT and session authentication
-        let userId = null;
-        
-        // Try JWT authentication first
-        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-            try {
-                const token = req.headers.authorization.substring(7);
-                const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'msgly-simple-secret-2024');
-                userId = decoded.userId;
-            } catch (error) {
-                console.log('JWT auth failed, trying session auth');
-            }
-        }
-        
-        // Try session authentication if JWT failed
-        if (!userId && req.isAuthenticated && req.isAuthenticated()) {
-            userId = req.user.id;
-        }
-        
-        // If neither authentication method worked
-        if (!userId) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-        try {
-            const userQuery = `
-                SELECT 
-                    u.extraction_status,
-                    u.error_message,
-                    u.registration_completed,  -- ✅ FIXED: Changed from profile_completed
-                    u.linkedin_url,
-                    up.data_extraction_status,
-                    up.extraction_completed_at,
-                    up.extraction_retry_count,
-                    up.extraction_error,
-                    up.initial_scraping_done
-                FROM users u
-                LEFT JOIN user_profiles up ON u.id = up.user_id
-                WHERE u.id = $1
-            `;
-            
-            const result = await pool.query(userQuery, [userId]);
-            
-            if (result.rows.length === 0) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            
-            const status = result.rows[0];
-            
-            res.json({
-                extraction_status: status.extraction_status,
-                registration_completed: status.registration_completed,  // ✅ FIXED: Changed from profile_completed
-                linkedin_url: status.linkedin_url,
-                error_message: status.error_message,
-                data_extraction_status: status.data_extraction_status,
-                extraction_completed_at: status.extraction_completed_at,
-                extraction_retry_count: status.extraction_retry_count,
-                extraction_error: status.extraction_error,
-                initial_scraping_done: status.initial_scraping_done || false,
-                is_currently_processing: false, // No background processing
-                processing_mode: 'ENHANCED_HTML_SCRAPING',
-                message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
-            });
-            
-        } catch (error) {
-            console.error('Status check error:', error);
-            res.status(500).json({ error: 'Status check failed' });
         }
     });
 
