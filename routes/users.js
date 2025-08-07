@@ -3,18 +3,16 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-// Router setup
-const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 
 // This will be initialized when the routes are mounted
 let pool, authenticateToken;
 let getUserByEmail, getUserById, createUser, createOrUpdateUserProfile;
 let getSetupStatusMessage;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
-
-// Initialize function to inject dependencies
+// Initialize function to inject dependencies and return configured router
 const initUserRoutes = (dependencies) => {
+    // Inject dependencies
     pool = dependencies.pool;
     authenticateToken = dependencies.authenticateToken;
     getUserByEmail = dependencies.getUserByEmail;
@@ -22,7 +20,9 @@ const initUserRoutes = (dependencies) => {
     createUser = dependencies.createUser;
     createOrUpdateUserProfile = dependencies.createOrUpdateUserProfile;
     getSetupStatusMessage = dependencies.getSetupStatusMessage;
-};
+    
+    // Create router AFTER dependencies are injected
+    const router = express.Router();
 
 // ==================== USER MANAGEMENT ROUTES ====================
 
@@ -675,8 +675,11 @@ router.put('/user/settings', authenticateToken, async (req, res) => {
     }
 });
 
-// Export router and initialization function
+    // Return the configured router
+    return router;
+};
+
+// Export initialization function only
 module.exports = {
-    router,
     initUserRoutes
 };
