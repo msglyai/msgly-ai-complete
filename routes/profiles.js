@@ -1,18 +1,18 @@
-// ✅ STEP 2F: Profile & API Routes - JWT-ONLY EXTRACTION (~885+ lines)
+// ✅ FIXED: Profile & API Routes - processGeminiData + Raw Data Storage
 // routes/profiles.js - Chrome extension and API routes (JWT authentication only)
 
 const express = require('express');
 
-// ✅ Export initialization function with dependency injection (Step 2E pattern)
+// ✅ Export initialization function with dependency injection
 function initProfileRoutes(dependencies) {
     const router = express.Router();
     
-    // ✅ Extract dependencies (same pattern as Step 2E)
+    // ✅ FIXED: Extract dependencies with correct function name
     const {
         pool,
         authenticateToken,
         getUserById,
-        processOpenAIData,
+        processGeminiData,  // ✅ FIXED: Changed from processOpenAIData
         processScrapedProfileData,
         cleanLinkedInUrl,
         getStatusMessage,
@@ -21,7 +21,7 @@ function initProfileRoutes(dependencies) {
 
     // ==================== CHROME EXTENSION ROUTES (JWT-ONLY) ====================
     
-    // ✅ HTML Scraping endpoint for Chrome extension - WITH ESCAPED current_role
+    // ✅ FIXED: HTML Scraping endpoint for Chrome extension - WITH ESCAPED current_role + Raw Data Storage
     router.post('/scrape-html', authenticateToken, async (req, res) => {
         try {
             console.log(`🔍 FIXED HTML scraping request from user ${req.user.id}`);
@@ -59,30 +59,54 @@ function initProfileRoutes(dependencies) {
             console.log(`   - Is User Profile: ${isUserProfile}`);
             console.log(`   - HTML Length: ${html.length} characters`);
             
-            // ✅ FIXED: Send HTML to OpenAI for processing
-            console.log('🤖 Sending HTML to OpenAI for processing...');
+            // ✅ FIXED: Send HTML to Gemini for processing
+            console.log('🤖 Sending HTML to Gemini for processing...');
             
-            let openaiResponse;
+            let geminiResponse;  // ✅ FIXED: Changed variable name
+            let rawGeminiData = null;  // ✅ NEW: Store raw response
+            let tokenUsage = null;     // ✅ NEW: Store token usage
+            
             try {
-                openaiResponse = await sendToGemini({ html: html, url: profileUrl });
-                console.log('✅ OpenAI processing successful');
+                geminiResponse = await sendToGemini({ html: html, url: profileUrl });
                 
-                // ✅ FIXED: Check the response structure properly
-                if (!openaiResponse.success || !openaiResponse.data) {
-                    throw new Error('Invalid response from OpenAI processing');
+                // ✅ NEW: Store raw Gemini data for GPT 4.1
+                rawGeminiData = {
+                    request: { html: html.substring(0, 1000) + '...', url: profileUrl },
+                    response: geminiResponse,
+                    timestamp: new Date().toISOString(),
+                    source: 'html_scraping'
+                };
+                
+                // ✅ NEW: Extract token usage if available
+                if (geminiResponse.usage) {
+                    tokenUsage = {
+                        input_tokens: geminiResponse.usage.input_tokens || geminiResponse.usage.promptTokens,
+                        output_tokens: geminiResponse.usage.output_tokens || geminiResponse.usage.completionTokens,
+                        total_tokens: geminiResponse.usage.total_tokens || geminiResponse.usage.totalTokens,
+                        model: geminiResponse.model || 'gemini-1.5-flash',
+                        timestamp: new Date().toISOString()
+                    };
                 }
                 
-            } catch (openaiError) {
-                console.error('❌ OpenAI processing failed:', openaiError.message);
+                console.log('✅ Gemini processing successful');  // ✅ FIXED: Changed from OpenAI
+                console.log(`   - Token usage: ${tokenUsage ? JSON.stringify(tokenUsage) : 'Not available'}`);
+                
+                // ✅ FIXED: Check the response structure properly
+                if (!geminiResponse.success || !geminiResponse.data) {
+                    throw new Error('Invalid response from Gemini processing');
+                }
+                
+            } catch (geminiError) {  // ✅ FIXED: Changed variable name
+                console.error('❌ Gemini processing failed:', geminiError.message);
                 return res.status(500).json({
                     success: false,
                     error: 'Failed to process HTML with AI',
-                    details: openaiError.message
+                    details: geminiError.message
                 });
             }
             
-            // ✅ FIXED: Process the OpenAI response correctly
-            const extractedData = processOpenAIData(openaiResponse, cleanProfileUrl);
+            // ✅ FIXED: Process the Gemini response correctly
+            const extractedData = processGeminiData(geminiResponse, cleanProfileUrl);
             
             // ✅ FIXED: Proper validation using correct data structure
             if (!extractedData.fullName && !extractedData.headline) {
@@ -93,14 +117,17 @@ function initProfileRoutes(dependencies) {
             console.log(`   - Full Name: ${extractedData.fullName || 'Not available'}`);
             console.log(`   - Current Role: ${extractedData.currentRole || 'Not available'}`);
             console.log(`   - Current Company: ${extractedData.currentCompany || 'Not available'}`);
-            console.log(`   - Experience entries: ${extractedData.experience.length}`);
-            console.log(`   - Certifications: ${extractedData.certifications.length}`);
-            console.log(`   - Awards: ${extractedData.awards.length}`);
-            console.log(`   - Activity posts: ${extractedData.activity.length}`);
+            console.log(`   - Experience entries: ${extractedData.experience?.length || 0}`);
+            console.log(`   - Education entries: ${extractedData.education?.length || 0}`);
+            console.log(`   - Certifications: ${extractedData.certifications?.length || 0}`);
+            console.log(`   - Awards: ${extractedData.awards?.length || 0}`);
+            console.log(`   - Volunteer: ${extractedData.volunteer?.length || 0}`);
+            console.log(`   - Following: ${extractedData.following?.length || 0}`);
+            console.log(`   - Activity posts: ${extractedData.activity?.length || 0}`);
             
             if (isUserProfile) {
                 // Save to user_profiles table
-                console.log('💾 Saving ENHANCED user profile data...');
+                console.log('💾 Saving ENHANCED user profile data with raw Gemini storage...');
                 
                 // Check if profile exists
                 const existingProfile = await pool.query(
@@ -110,7 +137,7 @@ function initProfileRoutes(dependencies) {
                 
                 let profile;
                 if (existingProfile.rows.length > 0) {
-                    // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
+                    // ✅ ENHANCED: Update with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                     const result = await pool.query(`
                         UPDATE user_profiles SET 
                             linkedin_url = $1,
@@ -132,13 +159,22 @@ function initProfileRoutes(dependencies) {
                             skills = $17,
                             certifications = $18,
                             awards = $19,
-                            activity = $20,
-                            engagement_data = $21,
-                            data_source = $22,
-                            initial_scraping_done = $23,
-                            data_extraction_status = $24,
+                            volunteer = $20,
+                            following = $21,
+                            activity = $22,
+                            engagement_data = $23,
+                            company_size = $24,
+                            industry = $25,
+                            profile_views = $26,
+                            post_impressions = $27,
+                            data_source = $28,
+                            initial_scraping_done = $29,
+                            data_extraction_status = $30,
+                            gemini_raw_data = $31,
+                            gemini_processed_at = CURRENT_TIMESTAMP,
+                            gemini_token_usage = $32,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE user_id = $25 
+                        WHERE user_id = $33 
                         RETURNING *
                     `, [
                         extractedData.linkedinUrl,
@@ -155,31 +191,41 @@ function initProfileRoutes(dependencies) {
                         extractedData.totalComments,
                         extractedData.totalShares,
                         extractedData.averageLikes,
-                        JSON.stringify(extractedData.experience),
-                        JSON.stringify(extractedData.education),
-                        JSON.stringify(extractedData.skills),
-                        JSON.stringify(extractedData.certifications),
-                        JSON.stringify(extractedData.awards),
-                        JSON.stringify(extractedData.activity),
-                        JSON.stringify(extractedData.engagementData),
-                        'html_scraping_openai',
+                        JSON.stringify(extractedData.experience || []),
+                        JSON.stringify(extractedData.education || []),
+                        JSON.stringify(extractedData.skills || []),
+                        JSON.stringify(extractedData.certifications || []),
+                        JSON.stringify(extractedData.awards || []),
+                        JSON.stringify(extractedData.volunteer || []),
+                        JSON.stringify(extractedData.following || []),
+                        JSON.stringify(extractedData.activity || []),
+                        JSON.stringify(extractedData.engagementData || {}),
+                        extractedData.companySize,
+                        extractedData.industry,
+                        extractedData.profileViews,
+                        extractedData.postImpressions,
+                        'html_scraping_gemini',  // ✅ FIXED: Changed data source
                         true, // Mark initial scraping as done
                         'completed',
+                        JSON.stringify(rawGeminiData),  // ✅ NEW: Raw Gemini data
+                        JSON.stringify(tokenUsage),     // ✅ NEW: Token usage
                         req.user.id
                     ]);
                     
                     profile = result.rows[0];
                 } else {
-                    // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
+                    // ✅ ENHANCED: Create with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                     const result = await pool.query(`
                         INSERT INTO user_profiles (
                             user_id, linkedin_url, full_name, headline, "current_role", about, location,
                             current_company, current_company_name, connections_count, followers_count,
                             total_likes, total_comments, total_shares, average_likes,
-                            experience, education, skills, certifications, awards, activity, engagement_data,
-                            data_source, initial_scraping_done, data_extraction_status
+                            experience, education, skills, certifications, awards, volunteer, following,
+                            activity, engagement_data, company_size, industry, profile_views, post_impressions,
+                            data_source, initial_scraping_done, data_extraction_status,
+                            gemini_raw_data, gemini_processed_at, gemini_token_usage
                         ) VALUES (
-                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, CURRENT_TIMESTAMP, $33
                         ) RETURNING *
                     `, [
                         req.user.id, extractedData.linkedinUrl, extractedData.fullName, extractedData.headline,
@@ -187,11 +233,14 @@ function initProfileRoutes(dependencies) {
                         extractedData.currentCompany, extractedData.currentCompanyName,
                         extractedData.connectionsCount, extractedData.followersCount,
                         extractedData.totalLikes, extractedData.totalComments, extractedData.totalShares, extractedData.averageLikes,
-                        JSON.stringify(extractedData.experience), JSON.stringify(extractedData.education),
-                        JSON.stringify(extractedData.skills), JSON.stringify(extractedData.certifications),
-                        JSON.stringify(extractedData.awards), JSON.stringify(extractedData.activity),
-                        JSON.stringify(extractedData.engagementData),
-                        'html_scraping_openai', true, 'completed'
+                        JSON.stringify(extractedData.experience || []), JSON.stringify(extractedData.education || []),
+                        JSON.stringify(extractedData.skills || []), JSON.stringify(extractedData.certifications || []),
+                        JSON.stringify(extractedData.awards || []), JSON.stringify(extractedData.volunteer || []),
+                        JSON.stringify(extractedData.following || []), JSON.stringify(extractedData.activity || []),
+                        JSON.stringify(extractedData.engagementData || {}), extractedData.companySize,
+                        extractedData.industry, extractedData.profileViews, extractedData.postImpressions,
+                        'html_scraping_gemini', true, 'completed',  // ✅ FIXED: Changed data source
+                        JSON.stringify(rawGeminiData), JSON.stringify(tokenUsage)  // ✅ NEW: Raw data fields
                     ]);
                     
                     profile = result.rows[0];
@@ -203,14 +252,14 @@ function initProfileRoutes(dependencies) {
                     [extractedData.linkedinUrl, 'completed', true, req.user.id]
                 );
                 
-                console.log('✅ ENHANCED User profile saved successfully with all new fields');
+                console.log('✅ ENHANCED User profile saved successfully with raw Gemini data and TIER 1/2 fields');
                 
                 // Check if user has experience for feature unlock
                 const hasExperience = extractedData.hasExperience;
                 
                 res.json({
                     success: true,
-                    message: 'Enhanced user profile processed successfully with comprehensive data',
+                    message: 'Enhanced user profile processed successfully with comprehensive data and raw Gemini storage',
                     data: {
                         profile: {
                             fullName: profile.full_name,
@@ -218,27 +267,37 @@ function initProfileRoutes(dependencies) {
                             currentRole: profile.current_role,  // Note: this is returned without quotes from DB
                             currentCompany: profile.current_company,
                             hasExperience: hasExperience,
-                            experienceCount: extractedData.experience.length,
-                            certificationsCount: extractedData.certifications.length,
-                            awardsCount: extractedData.awards.length,
-                            activityCount: extractedData.activity.length,
+                            experienceCount: extractedData.experience?.length || 0,
+                            educationCount: extractedData.education?.length || 0,
+                            certificationsCount: extractedData.certifications?.length || 0,
+                            awardsCount: extractedData.awards?.length || 0,
+                            volunteerCount: extractedData.volunteer?.length || 0,
+                            followingCount: extractedData.following?.length || 0,
+                            activityCount: extractedData.activity?.length || 0,
                             totalLikes: profile.total_likes,
                             totalComments: profile.total_comments,
                             followersCount: profile.followers_count
                         },
                         featureUnlocked: hasExperience,
                         enhancedData: {
-                            certifications: extractedData.certifications.length > 0,
-                            awards: extractedData.awards.length > 0,
-                            activity: extractedData.activity.length > 0,
+                            certifications: (extractedData.certifications?.length || 0) > 0,
+                            awards: (extractedData.awards?.length || 0) > 0,
+                            volunteer: (extractedData.volunteer?.length || 0) > 0,
+                            following: (extractedData.following?.length || 0) > 0,
+                            activity: (extractedData.activity?.length || 0) > 0,
                             engagement: extractedData.totalLikes > 0 || extractedData.totalComments > 0
+                        },
+                        geminiData: {
+                            rawDataStored: !!rawGeminiData,
+                            tokenUsage: tokenUsage,
+                            processedAt: new Date().toISOString()
                         }
                     }
                 });
                 
             } else {
-                // ✅ ENHANCED: Save to target_profiles table with new fields - WITH ESCAPED current_role
-                console.log('💾 Saving ENHANCED target profile data...');
+                // ✅ ENHANCED: Save to target_profiles table with TIER 1/2 fields + raw data - WITH ESCAPED current_role
+                console.log('💾 Saving ENHANCED target profile data with raw Gemini storage...');
                 
                 // Check if this target profile already exists for this user
                 const existingTarget = await pool.query(
@@ -248,77 +307,98 @@ function initProfileRoutes(dependencies) {
                 
                 let targetProfile;
                 if (existingTarget.rows.length > 0) {
-                    // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
+                    // ✅ ENHANCED: Update with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                     const result = await pool.query(`
                         UPDATE target_profiles SET 
                             full_name = $1, headline = $2, "current_role" = $3, about = $4, location = $5,
                             current_company = $6, current_company_name = $7, connections_count = $8, followers_count = $9,
                             total_likes = $10, total_comments = $11, total_shares = $12, average_likes = $13,
                             experience = $14, education = $15, skills = $16, certifications = $17, awards = $18,
-                            activity = $19, engagement_data = $20, data_source = $21,
-                            scraped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                        WHERE user_id = $22 AND linkedin_url = $23
+                            volunteer = $19, following = $20, activity = $21, engagement_data = $22, 
+                            company_size = $23, industry = $24, profile_views = $25, post_impressions = $26,
+                            data_source = $27, gemini_raw_data = $28, gemini_processed_at = CURRENT_TIMESTAMP,
+                            gemini_token_usage = $29, scraped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = $30 AND linkedin_url = $31
                         RETURNING *
                     `, [
                         extractedData.fullName, extractedData.headline, extractedData.currentRole, extractedData.about, extractedData.location,
                         extractedData.currentCompany, extractedData.currentCompanyName, extractedData.connectionsCount, extractedData.followersCount,
                         extractedData.totalLikes, extractedData.totalComments, extractedData.totalShares, extractedData.averageLikes,
-                        JSON.stringify(extractedData.experience), JSON.stringify(extractedData.education),
-                        JSON.stringify(extractedData.skills), JSON.stringify(extractedData.certifications),
-                        JSON.stringify(extractedData.awards), JSON.stringify(extractedData.activity),
-                        JSON.stringify(extractedData.engagementData), 'html_scraping_openai',
+                        JSON.stringify(extractedData.experience || []), JSON.stringify(extractedData.education || []),
+                        JSON.stringify(extractedData.skills || []), JSON.stringify(extractedData.certifications || []),
+                        JSON.stringify(extractedData.awards || []), JSON.stringify(extractedData.volunteer || []),
+                        JSON.stringify(extractedData.following || []), JSON.stringify(extractedData.activity || []),
+                        JSON.stringify(extractedData.engagementData || {}), extractedData.companySize,
+                        extractedData.industry, extractedData.profileViews, extractedData.postImpressions,
+                        'html_scraping_gemini', JSON.stringify(rawGeminiData), JSON.stringify(tokenUsage),  // ✅ FIXED + NEW
                         req.user.id, extractedData.linkedinUrl
                     ]);
                     
                     targetProfile = result.rows[0];
                 } else {
-                    // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
+                    // ✅ ENHANCED: Create with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                     const result = await pool.query(`
                         INSERT INTO target_profiles (
                             user_id, linkedin_url, full_name, headline, "current_role", about, location,
                             current_company, current_company_name, connections_count, followers_count,
                             total_likes, total_comments, total_shares, average_likes,
-                            experience, education, skills, certifications, awards, activity, engagement_data, data_source
+                            experience, education, skills, certifications, awards, volunteer, following,
+                            activity, engagement_data, company_size, industry, profile_views, post_impressions,
+                            data_source, gemini_raw_data, gemini_processed_at, gemini_token_usage
                         ) VALUES (
-                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, CURRENT_TIMESTAMP, $31
                         ) RETURNING *
                     `, [
                         req.user.id, extractedData.linkedinUrl, extractedData.fullName, extractedData.headline,
                         extractedData.currentRole, extractedData.about, extractedData.location,
                         extractedData.currentCompany, extractedData.currentCompanyName, extractedData.connectionsCount, extractedData.followersCount,
                         extractedData.totalLikes, extractedData.totalComments, extractedData.totalShares, extractedData.averageLikes,
-                        JSON.stringify(extractedData.experience), JSON.stringify(extractedData.education),
-                        JSON.stringify(extractedData.skills), JSON.stringify(extractedData.certifications),
-                        JSON.stringify(extractedData.awards), JSON.stringify(extractedData.activity),
-                        JSON.stringify(extractedData.engagementData), 'html_scraping_openai'
+                        JSON.stringify(extractedData.experience || []), JSON.stringify(extractedData.education || []),
+                        JSON.stringify(extractedData.skills || []), JSON.stringify(extractedData.certifications || []),
+                        JSON.stringify(extractedData.awards || []), JSON.stringify(extractedData.volunteer || []),
+                        JSON.stringify(extractedData.following || []), JSON.stringify(extractedData.activity || []),
+                        JSON.stringify(extractedData.engagementData || {}), extractedData.companySize,
+                        extractedData.industry, extractedData.profileViews, extractedData.postImpressions,
+                        'html_scraping_gemini', JSON.stringify(rawGeminiData), JSON.stringify(tokenUsage)  // ✅ FIXED + NEW
                     ]);
                     
                     targetProfile = result.rows[0];
                 }
                 
-                console.log('✅ ENHANCED Target profile saved successfully with comprehensive data');
+                console.log('✅ ENHANCED Target profile saved successfully with comprehensive data and raw Gemini storage');
                 
                 res.json({
                     success: true,
-                    message: 'Enhanced target profile processed successfully with comprehensive data',
+                    message: 'Enhanced target profile processed successfully with comprehensive data and raw Gemini storage',
                     data: {
                         targetProfile: {
                             fullName: targetProfile.full_name,
                             headline: targetProfile.headline,
                             currentRole: targetProfile.current_role,  // Note: this is returned without quotes from DB
                             currentCompany: targetProfile.current_company,
-                            certificationsCount: extractedData.certifications.length,
-                            awardsCount: extractedData.awards.length,
-                            activityCount: extractedData.activity.length,
+                            experienceCount: extractedData.experience?.length || 0,
+                            educationCount: extractedData.education?.length || 0,
+                            certificationsCount: extractedData.certifications?.length || 0,
+                            awardsCount: extractedData.awards?.length || 0,
+                            volunteerCount: extractedData.volunteer?.length || 0,
+                            followingCount: extractedData.following?.length || 0,
+                            activityCount: extractedData.activity?.length || 0,
                             totalLikes: targetProfile.total_likes,
                             totalComments: targetProfile.total_comments,
                             followersCount: targetProfile.followers_count
                         },
                         enhancedData: {
-                            certifications: extractedData.certifications.length > 0,
-                            awards: extractedData.awards.length > 0,
-                            activity: extractedData.activity.length > 0,
+                            certifications: (extractedData.certifications?.length || 0) > 0,
+                            awards: (extractedData.awards?.length || 0) > 0,
+                            volunteer: (extractedData.volunteer?.length || 0) > 0,
+                            following: (extractedData.following?.length || 0) > 0,
+                            activity: (extractedData.activity?.length || 0) > 0,
                             engagement: extractedData.totalLikes > 0 || extractedData.totalComments > 0
+                        },
+                        geminiData: {
+                            rawDataStored: !!rawGeminiData,
+                            tokenUsage: tokenUsage,
+                            processedAt: new Date().toISOString()
                         }
                     }
                 });
@@ -334,7 +414,7 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ User profile scraping with transaction management - Enhanced - WITH ESCAPED current_role
+    // ✅ User profile scraping with transaction management - Enhanced - WITH ESCAPED current_role + Raw Data
     router.post('/profile/user', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
@@ -400,6 +480,14 @@ function initProfileRoutes(dependencies) {
             processedData.linkedinUrl = cleanProfileUrl;
             processedData.url = cleanProfileUrl;
             
+            // ✅ NEW: Prepare raw data storage
+            const rawGeminiData = {
+                request: { profileData: profileData, url: cleanProfileUrl },
+                processedData: processedData,
+                timestamp: new Date().toISOString(),
+                source: 'profile_scraping'
+            };
+            
             // Validate data completeness BEFORE database transaction
             if (!processedData.fullName && !processedData.headline && !processedData.currentCompany) {
                 return res.status(400).json({
@@ -408,7 +496,7 @@ function initProfileRoutes(dependencies) {
                 });
             }
             
-            console.log('💾 Saving enhanced user profile data with transaction management...');
+            console.log('💾 Saving enhanced user profile data with transaction management and raw data storage...');
             
             // Start transaction
             await client.query('BEGIN');
@@ -421,7 +509,7 @@ function initProfileRoutes(dependencies) {
             
             let profile;
             if (existingProfile.rows.length > 0) {
-                // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
+                // ✅ ENHANCED: Update with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                 const result = await client.query(`
                     UPDATE user_profiles SET 
                         linkedin_url = $1, linkedin_id = $2, linkedin_num_id = $3, input_url = $4, url = $5,
@@ -431,9 +519,11 @@ function initProfileRoutes(dependencies) {
                         connections_count = $22, followers_count = $23, connections = $24, followers = $25,
                         total_likes = $26, total_comments = $27, total_shares = $28, average_likes = $29,
                         profile_image_url = $30, avatar = $31, experience = $32, education = $33, skills = $34,
-                        certifications = $35, awards = $36, activity = $37, engagement_data = $38,
-                        timestamp = $39, data_source = $40, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $41 
+                        certifications = $35, awards = $36, volunteer = $37, following = $38, activity = $39, 
+                        engagement_data = $40, company_size = $41, profile_views = $42, post_impressions = $43,
+                        timestamp = $44, data_source = $45, gemini_raw_data = $46, gemini_processed_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $47 
                     RETURNING *
                 `, [
                     processedData.linkedinUrl, processedData.linkedinId, processedData.linkedinNumId, processedData.inputUrl, processedData.url,
@@ -443,15 +533,17 @@ function initProfileRoutes(dependencies) {
                     processedData.connectionsCount, processedData.followersCount, processedData.connections, processedData.followers,
                     processedData.totalLikes, processedData.totalComments, processedData.totalShares, processedData.averageLikes,
                     processedData.profileImageUrl, processedData.avatar,
-                    JSON.stringify(processedData.experience), JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
-                    JSON.stringify(processedData.certifications), JSON.stringify(processedData.awards), JSON.stringify(processedData.activity),
-                    JSON.stringify({ totalLikes: processedData.totalLikes, totalComments: processedData.totalComments, totalShares: processedData.totalShares }),
-                    processedData.timestamp, processedData.dataSource, req.user.id
+                    JSON.stringify(processedData.experience || []), JSON.stringify(processedData.education || []), JSON.stringify(processedData.skills || []),
+                    JSON.stringify(processedData.certifications || []), JSON.stringify(processedData.awards || []), 
+                    JSON.stringify(processedData.volunteer || []), JSON.stringify(processedData.following || []),
+                    JSON.stringify(processedData.activity || []), JSON.stringify(processedData.engagementData || {}),
+                    processedData.companySize, processedData.profileViews, processedData.postImpressions,
+                    processedData.timestamp, processedData.dataSource, JSON.stringify(rawGeminiData), req.user.id  // ✅ NEW: Raw data
                 ]);
                 
                 profile = result.rows[0];
             } else {
-                // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
+                // ✅ ENHANCED: Create with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                 const result = await client.query(`
                     INSERT INTO user_profiles (
                         user_id, linkedin_url, linkedin_id, linkedin_num_id, input_url, url,
@@ -461,10 +553,12 @@ function initProfileRoutes(dependencies) {
                         connections_count, followers_count, connections, followers,
                         total_likes, total_comments, total_shares, average_likes,
                         profile_image_url, avatar, experience, education, skills,
-                        certifications, awards, activity, engagement_data, timestamp, data_source
+                        certifications, awards, volunteer, following, activity, engagement_data, 
+                        company_size, profile_views, post_impressions, timestamp, data_source,
+                        gemini_raw_data, gemini_processed_at
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-                        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40
+                        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, CURRENT_TIMESTAMP
                     ) RETURNING *
                 `, [
                     req.user.id, processedData.linkedinUrl, processedData.linkedinId, processedData.linkedinNumId, processedData.inputUrl, processedData.url,
@@ -474,10 +568,12 @@ function initProfileRoutes(dependencies) {
                     processedData.connectionsCount, processedData.followersCount, processedData.connections, processedData.followers,
                     processedData.totalLikes, processedData.totalComments, processedData.totalShares, processedData.averageLikes,
                     processedData.profileImageUrl, processedData.avatar,
-                    JSON.stringify(processedData.experience), JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
-                    JSON.stringify(processedData.certifications), JSON.stringify(processedData.awards), JSON.stringify(processedData.activity),
-                    JSON.stringify({ totalLikes: processedData.totalLikes, totalComments: processedData.totalComments, totalShares: processedData.totalShares }),
-                    processedData.timestamp, processedData.dataSource
+                    JSON.stringify(processedData.experience || []), JSON.stringify(processedData.education || []), JSON.stringify(processedData.skills || []),
+                    JSON.stringify(processedData.certifications || []), JSON.stringify(processedData.awards || []),
+                    JSON.stringify(processedData.volunteer || []), JSON.stringify(processedData.following || []),
+                    JSON.stringify(processedData.activity || []), JSON.stringify(processedData.engagementData || {}),
+                    processedData.companySize, processedData.profileViews, processedData.postImpressions,
+                    processedData.timestamp, processedData.dataSource, JSON.stringify(rawGeminiData)  // ✅ NEW: Raw data
                 ]);
                 
                 profile = result.rows[0];
@@ -504,11 +600,11 @@ function initProfileRoutes(dependencies) {
                 // Commit transaction only after all validations pass
                 await client.query('COMMIT');
                 
-                console.log(`🎉 Enhanced user profile successfully saved for user ${req.user.id} with transaction integrity!`);
+                console.log(`🎉 Enhanced user profile successfully saved for user ${req.user.id} with transaction integrity and raw data storage!`);
                 
                 res.json({
                     success: true,
-                    message: 'Enhanced user profile saved successfully with comprehensive data! You can now use Msgly.AI fully.',
+                    message: 'Enhanced user profile saved successfully with comprehensive data and raw Gemini storage! You can now use Msgly.AI fully.',
                     data: {
                         profile: {
                             id: profile.id,
@@ -522,12 +618,15 @@ function initProfileRoutes(dependencies) {
                             initialScrapingDone: true,
                             extractionStatus: 'completed',
                             extractionCompleted: profile.extraction_completed_at,
-                            // ✅ ENHANCED: Show new data counts
+                            // ✅ ENHANCED: Show TIER 1/2 data counts
                             enhancedCounts: {
-                                experience: processedData.experience.length,
-                                certifications: processedData.certifications.length,
-                                awards: processedData.awards.length,
-                                activity: processedData.activity.length,
+                                experience: processedData.experience?.length || 0,
+                                education: processedData.education?.length || 0,
+                                certifications: processedData.certifications?.length || 0,
+                                awards: processedData.awards?.length || 0,
+                                volunteer: processedData.volunteer?.length || 0,
+                                following: processedData.following?.length || 0,
+                                activity: processedData.activity?.length || 0,
                                 totalLikes: processedData.totalLikes,
                                 totalComments: processedData.totalComments
                             }
@@ -535,6 +634,10 @@ function initProfileRoutes(dependencies) {
                         user: {
                             registrationCompleted: true,  // ✅ FIXED: Changed from profileCompleted
                             extractionStatus: 'completed'
+                        },
+                        geminiData: {
+                            rawDataStored: true,
+                            processedAt: new Date().toISOString()
                         }
                     }
                 });
@@ -563,7 +666,7 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ Target profile scraping with URL normalization - Enhanced - WITH ESCAPED current_role
+    // ✅ Target profile scraping with URL normalization - Enhanced - WITH ESCAPED current_role + Raw Data
     router.post('/profile/target', authenticateToken, async (req, res) => {
         try {
             console.log(`🎯 Enhanced target profile scraping request from user ${req.user.id}`);
@@ -631,7 +734,15 @@ function initProfileRoutes(dependencies) {
             processedData.linkedinUrl = cleanProfileUrl;
             processedData.url = cleanProfileUrl;
             
-            console.log('💾 Saving enhanced target profile data...');
+            // ✅ NEW: Prepare raw data storage
+            const rawGeminiData = {
+                request: { profileData: profileData, url: cleanProfileUrl },
+                processedData: processedData,
+                timestamp: new Date().toISOString(),
+                source: 'target_profile_scraping'
+            };
+            
+            console.log('💾 Saving enhanced target profile data with raw data storage...');
             
             // Check if this target profile already exists for this user
             const existingTarget = await pool.query(
@@ -641,7 +752,7 @@ function initProfileRoutes(dependencies) {
             
             let targetProfile;
             if (existingTarget.rows.length > 0) {
-                // ✅ ENHANCED: Update with all new fields - WITH ESCAPED current_role
+                // ✅ ENHANCED: Update with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                 const result = await pool.query(`
                     UPDATE target_profiles SET 
                         linkedin_id = $1, linkedin_num_id = $2, input_url = $3, url = $4,
@@ -651,10 +762,11 @@ function initProfileRoutes(dependencies) {
                         connections_count = $21, followers_count = $22, connections = $23, followers = $24,
                         total_likes = $25, total_comments = $26, total_shares = $27, average_likes = $28,
                         profile_image_url = $29, avatar = $30, experience = $31, education = $32, skills = $33,
-                        certifications = $34, awards = $35, activity = $36, engagement_data = $37,
-                        timestamp = $38, data_source = $39,
+                        certifications = $34, awards = $35, volunteer = $36, following = $37, activity = $38, 
+                        engagement_data = $39, company_size = $40, profile_views = $41, post_impressions = $42,
+                        timestamp = $43, data_source = $44, gemini_raw_data = $45, gemini_processed_at = CURRENT_TIMESTAMP,
                         scraped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $40 AND linkedin_url = $41
+                    WHERE user_id = $46 AND linkedin_url = $47
                     RETURNING *
                 `, [
                     processedData.linkedinId, processedData.linkedinNumId, processedData.inputUrl, processedData.url,
@@ -664,15 +776,17 @@ function initProfileRoutes(dependencies) {
                     processedData.connectionsCount, processedData.followersCount, processedData.connections, processedData.followers,
                     processedData.totalLikes, processedData.totalComments, processedData.totalShares, processedData.averageLikes,
                     processedData.profileImageUrl, processedData.avatar,
-                    JSON.stringify(processedData.experience), JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
-                    JSON.stringify(processedData.certifications), JSON.stringify(processedData.awards), JSON.stringify(processedData.activity),
-                    JSON.stringify({ totalLikes: processedData.totalLikes, totalComments: processedData.totalComments, totalShares: processedData.totalShares }),
-                    processedData.timestamp, processedData.dataSource, req.user.id, processedData.linkedinUrl
+                    JSON.stringify(processedData.experience || []), JSON.stringify(processedData.education || []), JSON.stringify(processedData.skills || []),
+                    JSON.stringify(processedData.certifications || []), JSON.stringify(processedData.awards || []),
+                    JSON.stringify(processedData.volunteer || []), JSON.stringify(processedData.following || []),
+                    JSON.stringify(processedData.activity || []), JSON.stringify(processedData.engagementData || {}),
+                    processedData.companySize, processedData.profileViews, processedData.postImpressions,
+                    processedData.timestamp, processedData.dataSource, JSON.stringify(rawGeminiData), req.user.id, processedData.linkedinUrl  // ✅ NEW: Raw data
                 ]);
                 
                 targetProfile = result.rows[0];
             } else {
-                // ✅ ENHANCED: Create with all new fields - WITH ESCAPED current_role
+                // ✅ ENHANCED: Create with all TIER 1/2 fields + raw data - WITH ESCAPED current_role
                 const result = await pool.query(`
                     INSERT INTO target_profiles (
                         user_id, linkedin_url, linkedin_id, linkedin_num_id, input_url, url,
@@ -682,10 +796,12 @@ function initProfileRoutes(dependencies) {
                         connections_count, followers_count, connections, followers,
                         total_likes, total_comments, total_shares, average_likes,
                         profile_image_url, avatar, experience, education, skills,
-                        certifications, awards, activity, engagement_data, timestamp, data_source
+                        certifications, awards, volunteer, following, activity, engagement_data, 
+                        company_size, profile_views, post_impressions, timestamp, data_source,
+                        gemini_raw_data, gemini_processed_at
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-                        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40
+                        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, CURRENT_TIMESTAMP
                     ) RETURNING *
                 `, [
                     req.user.id, processedData.linkedinUrl, processedData.linkedinId, processedData.linkedinNumId, processedData.inputUrl, processedData.url,
@@ -695,25 +811,31 @@ function initProfileRoutes(dependencies) {
                     processedData.connectionsCount, processedData.followersCount, processedData.connections, processedData.followers,
                     processedData.totalLikes, processedData.totalComments, processedData.totalShares, processedData.averageLikes,
                     processedData.profileImageUrl, processedData.avatar,
-                    JSON.stringify(processedData.experience), JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
-                    JSON.stringify(processedData.certifications), JSON.stringify(processedData.awards), JSON.stringify(processedData.activity),
-                    JSON.stringify({ totalLikes: processedData.totalLikes, totalComments: processedData.totalComments, totalShares: processedData.totalShares }),
-                    processedData.timestamp, processedData.dataSource
+                    JSON.stringify(processedData.experience || []), JSON.stringify(processedData.education || []), JSON.stringify(processedData.skills || []),
+                    JSON.stringify(processedData.certifications || []), JSON.stringify(processedData.awards || []),
+                    JSON.stringify(processedData.volunteer || []), JSON.stringify(processedData.following || []),
+                    JSON.stringify(processedData.activity || []), JSON.stringify(processedData.engagementData || {}),
+                    processedData.companySize, processedData.profileViews, processedData.postImpressions,
+                    processedData.timestamp, processedData.dataSource, JSON.stringify(rawGeminiData)  // ✅ NEW: Raw data
                 ]);
                 
                 targetProfile = result.rows[0];
             }
             
-            console.log(`🎯 Enhanced target profile successfully saved for user ${req.user.id}!`);
+            console.log(`🎯 Enhanced target profile successfully saved for user ${req.user.id} with raw data storage!`);
             console.log(`   - Target: ${targetProfile.full_name || 'Unknown'}`);
             console.log(`   - Company: ${targetProfile.current_company || 'Unknown'}`);
-            console.log(`   - Certifications: ${processedData.certifications.length}`);
-            console.log(`   - Awards: ${processedData.awards.length}`);
-            console.log(`   - Activity: ${processedData.activity.length}`);
+            console.log(`   - Experience: ${processedData.experience?.length || 0}`);
+            console.log(`   - Education: ${processedData.education?.length || 0}`);
+            console.log(`   - Certifications: ${processedData.certifications?.length || 0}`);
+            console.log(`   - Awards: ${processedData.awards?.length || 0}`);
+            console.log(`   - Volunteer: ${processedData.volunteer?.length || 0}`);
+            console.log(`   - Following: ${processedData.following?.length || 0}`);
+            console.log(`   - Activity: ${processedData.activity?.length || 0}`);
             
             res.json({
                 success: true,
-                message: 'Enhanced target profile saved successfully with comprehensive data!',
+                message: 'Enhanced target profile saved successfully with comprehensive data and raw Gemini storage!',
                 data: {
                     targetProfile: {
                         id: targetProfile.id,
@@ -725,16 +847,23 @@ function initProfileRoutes(dependencies) {
                         location: targetProfile.location,
                         profileImageUrl: targetProfile.profile_image_url,
                         scrapedAt: targetProfile.scraped_at,
-                        // ✅ ENHANCED: Show comprehensive data counts
+                        // ✅ ENHANCED: Show comprehensive TIER 1/2 data counts
                         enhancedCounts: {
-                            experience: processedData.experience.length,
-                            certifications: processedData.certifications.length,
-                            awards: processedData.awards.length,
-                            activity: processedData.activity.length,
+                            experience: processedData.experience?.length || 0,
+                            education: processedData.education?.length || 0,
+                            certifications: processedData.certifications?.length || 0,
+                            awards: processedData.awards?.length || 0,
+                            volunteer: processedData.volunteer?.length || 0,
+                            following: processedData.following?.length || 0,
+                            activity: processedData.activity?.length || 0,
                             totalLikes: processedData.totalLikes,
                             totalComments: processedData.totalComments,
                             followersCount: processedData.followersCount
                         }
+                    },
+                    geminiData: {
+                        rawDataStored: true,
+                        processedAt: new Date().toISOString()
                     }
                 }
             });
@@ -819,10 +948,10 @@ function initProfileRoutes(dependencies) {
             
             console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
             
-            // ✅ ENHANCED: Generate message using comprehensive profile data
-            console.log('🤖 Generating enhanced AI message with comprehensive profile data...');
+            // ✅ ENHANCED: Generate message using comprehensive TIER 1/2 profile data
+            console.log('🤖 Generating enhanced AI message with comprehensive TIER 1/2 profile data...');
             
-            // Create enhanced context with available data
+            // Create enhanced context with available TIER 1/2 data
             let enhancedContext = context;
             if (targetProfile.currentRole && targetProfile.currentRole !== targetProfile.headline) {
                 enhancedContext += ` I see you're currently working as ${targetProfile.currentRole}.`;
@@ -836,7 +965,15 @@ function initProfileRoutes(dependencies) {
                 enhancedContext += ` I noticed your professional certifications.`;
             }
             
-            // TODO: Replace with actual AI API call using enhanced data
+            if (targetProfile.volunteer && targetProfile.volunteer.length > 0) {
+                enhancedContext += ` I admire your volunteer work.`;
+            }
+            
+            if (targetProfile.following && targetProfile.following.length > 0) {
+                enhancedContext += ` I see we have similar professional interests.`;
+            }
+            
+            // TODO: Replace with actual GPT 4.1 API call using raw Gemini data + enhanced context
             const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
 
 I noticed your impressive work at ${targetProfile.currentCompany || 'your company'}${targetProfile.currentRole && targetProfile.currentRole !== targetProfile.headline ? ` as ${targetProfile.currentRole}` : targetProfile.headline ? ` as ${targetProfile.headline}` : ''}. ${enhancedContext}
@@ -857,7 +994,7 @@ Best regards`;
             
             res.json({
                 success: true,
-                message: 'Enhanced message generated successfully using comprehensive profile data',
+                message: 'Enhanced message generated successfully using comprehensive TIER 1/2 profile data',
                 data: {
                     message: simulatedMessage,
                     score: score,
@@ -872,7 +1009,10 @@ Best regards`;
                         usedCurrentRole: !!targetProfile.currentRole,
                         usedCertifications: !!(targetProfile.certifications && targetProfile.certifications.length > 0),
                         usedAwards: !!(targetProfile.awards && targetProfile.awards.length > 0),
-                        contextEnhanced: enhancedContext.length > context.length
+                        usedVolunteer: !!(targetProfile.volunteer && targetProfile.volunteer.length > 0),
+                        usedFollowing: !!(targetProfile.following && targetProfile.following.length > 0),
+                        contextEnhanced: enhancedContext.length > context.length,
+                        rawGeminiDataAvailable: true  // ✅ NEW: Indicates raw data is stored for GPT 4.1
                     }
                 }
             });
@@ -896,7 +1036,7 @@ Best regards`;
         }
     });
 
-    // ✅ Get target profiles for user - Enhanced
+    // ✅ Get target profiles for user - Enhanced with TIER 1/2 data
     router.get('/target-profiles', authenticateToken, async (req, res) => {
         try {
             console.log(`📋 Fetching target profiles for user ${req.user.id}`);
@@ -914,11 +1054,20 @@ Best regards`;
                     total_likes,
                     total_comments,
                     followers_count,
+                    experience,
+                    education,
                     certifications,
                     awards,
+                    volunteer,
+                    following,
                     activity,
+                    company_size,
+                    industry,
+                    profile_views,
+                    post_impressions,
                     scraped_at,
-                    updated_at
+                    updated_at,
+                    gemini_processed_at
                 FROM target_profiles 
                 WHERE user_id = $1 
                 ORDER BY scraped_at DESC
@@ -936,11 +1085,21 @@ Best regards`;
                 totalLikes: profile.total_likes,
                 totalComments: profile.total_comments,
                 followersCount: profile.followers_count,
-                certificationsCount: profile.certifications ? profile.certifications.length : 0,
-                awardsCount: profile.awards ? profile.awards.length : 0,
-                activityCount: profile.activity ? profile.activity.length : 0,
+                // ✅ ENHANCED: TIER 1/2 data counts
+                experienceCount: profile.experience ? JSON.parse(profile.experience).length : 0,
+                educationCount: profile.education ? JSON.parse(profile.education).length : 0,
+                certificationsCount: profile.certifications ? JSON.parse(profile.certifications).length : 0,
+                awardsCount: profile.awards ? JSON.parse(profile.awards).length : 0,
+                volunteerCount: profile.volunteer ? JSON.parse(profile.volunteer).length : 0,
+                followingCount: profile.following ? JSON.parse(profile.following).length : 0,
+                activityCount: profile.activity ? JSON.parse(profile.activity).length : 0,
+                companySize: profile.company_size,
+                industry: profile.industry,
+                profileViews: profile.profile_views,
+                postImpressions: profile.post_impressions,
                 scrapedAt: profile.scraped_at,
-                updatedAt: profile.updated_at
+                updatedAt: profile.updated_at,
+                geminiProcessedAt: profile.gemini_processed_at
             }));
             
             console.log(`✅ Found ${profiles.length} target profiles for user ${req.user.id}`);
@@ -1126,7 +1285,7 @@ Best regards`;
         }
     });
 
-    // ✅ Search target profiles
+    // ✅ Search target profiles - Enhanced with TIER 1/2 fields
     router.get('/target-profiles/search', authenticateToken, async (req, res) => {
         try {
             const { q, limit = 20 } = req.query;
@@ -1150,6 +1309,8 @@ Best regards`;
                     current_company,
                     location,
                     profile_image_url,
+                    industry,
+                    company_size,
                     scraped_at
                 FROM target_profiles 
                 WHERE user_id = $1 
@@ -1158,7 +1319,8 @@ Best regards`;
                     LOWER(headline) LIKE LOWER($2) OR
                     LOWER("current_role") LIKE LOWER($2) OR  -- ✅ FIXED: Escaped reserved word
                     LOWER(current_company) LIKE LOWER($2) OR
-                    LOWER(location) LIKE LOWER($2)
+                    LOWER(location) LIKE LOWER($2) OR
+                    LOWER(industry) LIKE LOWER($2)
                 )
                 ORDER BY scraped_at DESC
                 LIMIT $3
@@ -1173,6 +1335,8 @@ Best regards`;
                 currentCompany: profile.current_company,
                 location: profile.location,
                 profileImageUrl: profile.profile_image_url,
+                industry: profile.industry,
+                companySize: profile.company_size,
                 scrapedAt: profile.scraped_at
             }));
             
@@ -1205,7 +1369,7 @@ Best regards`;
             message: 'Please use the Chrome extension to complete your profile setup by visiting your LinkedIn profile.',
             alternatives: {
                 chromeExtension: 'Install the Msgly.AI Chrome extension and visit your LinkedIn profile',
-                enhancedExtraction: 'The extension now extracts comprehensive data including certifications, awards, activity, and engagement metrics'
+                enhancedExtraction: 'The extension now extracts comprehensive TIER 1/2 data including certifications, awards, volunteer work, following, activity, and engagement metrics with raw Gemini data storage for GPT 4.1'
             },
             code: 'FEATURE_DISABLED'
         });
