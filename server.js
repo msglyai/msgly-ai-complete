@@ -72,43 +72,60 @@ const { initProfileRoutes } = require('./routes/profiles');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ FIXED: ADD processGeminiData FUNCTION HERE (instead of importing from utils/database.js)
+// ✅ FIXED: processGeminiData FUNCTION - CORRECT DATA STRUCTURE MAPPING
 function processGeminiData(geminiResponse, profileUrl) {
     try {
         console.log('🤖 Processing Gemini API response for profile extraction');
         
-        // Extract the actual data from the Gemini response structure
+        // ✅ FIXED: Extract data from correct Gemini response structure
         let extractedData = {};
         
         if (geminiResponse && geminiResponse.data) {
-            extractedData = geminiResponse.data;
+            extractedData = geminiResponse.data;  // This is the parsed profile data from sendToGemini
         } else if (geminiResponse && geminiResponse.extractedData) {
             extractedData = geminiResponse.extractedData;
         } else if (geminiResponse) {
             extractedData = geminiResponse;
         }
         
-        // Ensure we have basic profile structure with defaults
+        // ✅ CRITICAL FIX: Read from correct structure - extractedData.profile.*
+        const profile = extractedData.profile || {};
+        const engagement = extractedData.engagement || {};
+        
+        console.log('🔍 Extracted data structure check:');
+        console.log(`   - Has profile object: ${!!profile}`);
+        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
+        console.log(`   - Profile headline: ${profile.headline || 'Not found'}`);
+        console.log(`   - Current role: ${profile.currentRole || 'Not found'}`);
+        console.log(`   - Current company: ${profile.currentCompany || 'Not found'}`);
+        console.log(`   - Experience count: ${extractedData.experience?.length || 0}`);
+        console.log(`   - Education count: ${extractedData.education?.length || 0}`);
+        
+        // ✅ FIXED: Map from correct structure
         const processedProfile = {
             linkedinUrl: profileUrl || extractedData.linkedinUrl || extractedData.url || '',
             url: profileUrl || extractedData.url || extractedData.linkedinUrl || '',
-            fullName: extractedData.fullName || extractedData.full_name || '',
-            firstName: extractedData.firstName || extractedData.first_name || '',
-            lastName: extractedData.lastName || extractedData.last_name || '',
-            headline: extractedData.headline || '',
-            currentRole: extractedData.currentRole || extractedData.current_role || '',
-            about: extractedData.about || extractedData.summary || '',
-            location: extractedData.location || '',
-            currentCompany: extractedData.currentCompany || extractedData.current_company || '',
-            currentCompanyName: extractedData.currentCompanyName || extractedData.current_company_name || '',
-            connectionsCount: parseInt(extractedData.connectionsCount || extractedData.connections_count || 0),
-            followersCount: parseInt(extractedData.followersCount || extractedData.followers_count || 0),
-            totalLikes: parseInt(extractedData.totalLikes || extractedData.total_likes || 0),
-            totalComments: parseInt(extractedData.totalComments || extractedData.total_comments || 0),
-            totalShares: parseInt(extractedData.totalShares || extractedData.total_shares || 0),
-            averageLikes: parseFloat(extractedData.averageLikes || extractedData.average_likes || 0),
             
-            // ✅ TIER 1/2 Enhanced fields (arrays)
+            // ✅ FIXED: Read from profile object
+            fullName: profile.name || profile.fullName || '',
+            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
+            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
+            headline: profile.headline || '',
+            currentRole: profile.currentRole || '',
+            about: profile.about || '',
+            location: profile.location || '',
+            currentCompany: profile.currentCompany || '',
+            currentCompanyName: profile.currentCompany || '',
+            
+            // ✅ FIXED: Parse metrics from profile object
+            connectionsCount: parseInt(profile.connectionsCount || profile.connections || 0),
+            followersCount: parseInt(profile.followersCount || profile.followers || 0),
+            totalLikes: parseInt(engagement.totalLikes || 0),
+            totalComments: parseInt(engagement.totalComments || 0),
+            totalShares: parseInt(engagement.totalShares || 0),
+            averageLikes: parseFloat(engagement.averageLikes || 0),
+            
+            // ✅ FIXED: Arrays from root level of extractedData
             experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
             education: Array.isArray(extractedData.education) ? extractedData.education : [],
             skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
@@ -118,12 +135,12 @@ function processGeminiData(geminiResponse, profileUrl) {
             following: Array.isArray(extractedData.following) ? extractedData.following : [],
             activity: Array.isArray(extractedData.activity) ? extractedData.activity : [],
             
-            // ✅ Enhanced engagement and company data
-            engagementData: extractedData.engagementData || extractedData.engagement_data || {},
-            companySize: extractedData.companySize || extractedData.company_size || '',
+            // ✅ Enhanced engagement and metadata
+            engagementData: engagement || {},
+            companySize: extractedData.companySize || '',
             industry: extractedData.industry || '',
-            profileViews: parseInt(extractedData.profileViews || extractedData.profile_views || 0),
-            postImpressions: parseInt(extractedData.postImpressions || extractedData.post_impressions || 0),
+            profileViews: parseInt(extractedData.profileViews || 0),
+            postImpressions: parseInt(extractedData.postImpressions || 0),
             
             // ✅ Metadata
             timestamp: new Date().toISOString(),
@@ -131,9 +148,13 @@ function processGeminiData(geminiResponse, profileUrl) {
             hasExperience: Array.isArray(extractedData.experience) && extractedData.experience.length > 0
         };
         
-        console.log('✅ Gemini data processed successfully');
-        console.log(`   - Profile: ${processedProfile.fullName || 'Unknown'}`);
-        console.log(`   - Company: ${processedProfile.currentCompany || 'Unknown'}`);
+        console.log('✅ USER PROFILE: Gemini data processed successfully');
+        console.log(`📊 Processed data summary:`);
+        console.log(`   - Full Name: ${processedProfile.fullName || 'Not available'}`);
+        console.log(`   - Headline: ${processedProfile.headline || 'Not available'}`);
+        console.log(`   - Current Role: ${processedProfile.currentRole || 'Not available'}`);
+        console.log(`   - Current Company: ${processedProfile.currentCompany || 'Not available'}`);
+        console.log(`   - Location: ${processedProfile.location || 'Not available'}`);
         console.log(`   - Experience entries: ${processedProfile.experience.length}`);
         console.log(`   - Education entries: ${processedProfile.education.length}`);
         console.log(`   - Certifications: ${processedProfile.certifications.length}`);
@@ -141,11 +162,12 @@ function processGeminiData(geminiResponse, profileUrl) {
         console.log(`   - Volunteer: ${processedProfile.volunteer.length}`);
         console.log(`   - Following: ${processedProfile.following.length}`);
         console.log(`   - Activity: ${processedProfile.activity.length}`);
+        console.log(`   - Has Experience: ${processedProfile.hasExperience}`);
         
         return processedProfile;
         
     } catch (error) {
-        console.error('❌ Error processing Gemini data:', error);
+        console.error('❌ Error processing USER PROFILE Gemini data:', error);
         
         // Return minimal profile structure on error
         return {
@@ -234,7 +256,7 @@ const profileRoutes = initProfileRoutes({
     pool,
     authenticateToken,
     getUserById,
-    processGeminiData,        // ✅ NOW DEFINED IN THIS FILE
+    processGeminiData,        // ✅ NOW FIXED IN THIS FILE
     processScrapedProfileData,
     cleanLinkedInUrl,
     getStatusMessage,
