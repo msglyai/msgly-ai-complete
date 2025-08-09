@@ -1,4 +1,5 @@
 // Msgly.AI Server - Complete with Traffic Light System Integrated
+// ✅ FIXED: processGeminiData function added + duplicate response fields removed
 // ✅ TRAFFIC LIGHT SYSTEM: Dashboard RED/ORANGE/GREEN status fully implemented
 // 🔧 FIXED: Dual authentication support for dashboard compatibility
 
@@ -15,7 +16,7 @@ const axios = require('axios');
 const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
 
-// ✅ STEP 2A: Import all database functions from utils/database.js
+// ✅ STEP 2A: Import all database functions from utils/database.js (REMOVED processGeminiData - now defined below)
 const {
     pool,
     initDB,
@@ -29,7 +30,6 @@ const {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData,        // ✅ UPDATED: processOpenAIData → processGeminiData
     processScrapedProfileData
 } = require('./utils/database');
 
@@ -71,6 +71,109 @@ const { initProfileRoutes } = require('./routes/profiles');
 // ✅ STEP 2C: Import modularized routes
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
+
+// ✅ FIXED: ADD processGeminiData FUNCTION HERE (instead of importing from utils/database.js)
+function processGeminiData(geminiResponse, profileUrl) {
+    try {
+        console.log('🤖 Processing Gemini API response for profile extraction');
+        
+        // Extract the actual data from the Gemini response structure
+        let extractedData = {};
+        
+        if (geminiResponse && geminiResponse.data) {
+            extractedData = geminiResponse.data;
+        } else if (geminiResponse && geminiResponse.extractedData) {
+            extractedData = geminiResponse.extractedData;
+        } else if (geminiResponse) {
+            extractedData = geminiResponse;
+        }
+        
+        // Ensure we have basic profile structure with defaults
+        const processedProfile = {
+            linkedinUrl: profileUrl || extractedData.linkedinUrl || extractedData.url || '',
+            url: profileUrl || extractedData.url || extractedData.linkedinUrl || '',
+            fullName: extractedData.fullName || extractedData.full_name || '',
+            firstName: extractedData.firstName || extractedData.first_name || '',
+            lastName: extractedData.lastName || extractedData.last_name || '',
+            headline: extractedData.headline || '',
+            currentRole: extractedData.currentRole || extractedData.current_role || '',
+            about: extractedData.about || extractedData.summary || '',
+            location: extractedData.location || '',
+            currentCompany: extractedData.currentCompany || extractedData.current_company || '',
+            currentCompanyName: extractedData.currentCompanyName || extractedData.current_company_name || '',
+            connectionsCount: parseInt(extractedData.connectionsCount || extractedData.connections_count || 0),
+            followersCount: parseInt(extractedData.followersCount || extractedData.followers_count || 0),
+            totalLikes: parseInt(extractedData.totalLikes || extractedData.total_likes || 0),
+            totalComments: parseInt(extractedData.totalComments || extractedData.total_comments || 0),
+            totalShares: parseInt(extractedData.totalShares || extractedData.total_shares || 0),
+            averageLikes: parseFloat(extractedData.averageLikes || extractedData.average_likes || 0),
+            
+            // ✅ TIER 1/2 Enhanced fields (arrays)
+            experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+            education: Array.isArray(extractedData.education) ? extractedData.education : [],
+            skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+            certifications: Array.isArray(extractedData.certifications) ? extractedData.certifications : [],
+            awards: Array.isArray(extractedData.awards) ? extractedData.awards : [],
+            volunteer: Array.isArray(extractedData.volunteer) ? extractedData.volunteer : [],
+            following: Array.isArray(extractedData.following) ? extractedData.following : [],
+            activity: Array.isArray(extractedData.activity) ? extractedData.activity : [],
+            
+            // ✅ Enhanced engagement and company data
+            engagementData: extractedData.engagementData || extractedData.engagement_data || {},
+            companySize: extractedData.companySize || extractedData.company_size || '',
+            industry: extractedData.industry || '',
+            profileViews: parseInt(extractedData.profileViews || extractedData.profile_views || 0),
+            postImpressions: parseInt(extractedData.postImpressions || extractedData.post_impressions || 0),
+            
+            // ✅ Metadata
+            timestamp: new Date().toISOString(),
+            dataSource: 'gemini_processing',
+            hasExperience: Array.isArray(extractedData.experience) && extractedData.experience.length > 0
+        };
+        
+        console.log('✅ Gemini data processed successfully');
+        console.log(`   - Profile: ${processedProfile.fullName || 'Unknown'}`);
+        console.log(`   - Company: ${processedProfile.currentCompany || 'Unknown'}`);
+        console.log(`   - Experience entries: ${processedProfile.experience.length}`);
+        console.log(`   - Education entries: ${processedProfile.education.length}`);
+        console.log(`   - Certifications: ${processedProfile.certifications.length}`);
+        console.log(`   - Awards: ${processedProfile.awards.length}`);
+        console.log(`   - Volunteer: ${processedProfile.volunteer.length}`);
+        console.log(`   - Following: ${processedProfile.following.length}`);
+        console.log(`   - Activity: ${processedProfile.activity.length}`);
+        
+        return processedProfile;
+        
+    } catch (error) {
+        console.error('❌ Error processing Gemini data:', error);
+        
+        // Return minimal profile structure on error
+        return {
+            linkedinUrl: profileUrl || '',
+            url: profileUrl || '',
+            fullName: '',
+            headline: '',
+            currentRole: '',
+            about: '',
+            location: '',
+            currentCompany: '',
+            connectionsCount: 0,
+            followersCount: 0,
+            experience: [],
+            education: [],
+            skills: [],
+            certifications: [],
+            awards: [],
+            volunteer: [],
+            following: [],
+            activity: [],
+            engagementData: {},
+            timestamp: new Date().toISOString(),
+            dataSource: 'gemini_processing_error',
+            hasExperience: false
+        };
+    }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -131,7 +234,7 @@ const profileRoutes = initProfileRoutes({
     pool,
     authenticateToken,
     getUserById,
-    processGeminiData,        // ✅ UPDATED: processOpenAIData → processGeminiData
+    processGeminiData,        // ✅ NOW DEFINED IN THIS FILE
     processScrapedProfileData,
     cleanLinkedInUrl,
     getStatusMessage,
@@ -532,7 +635,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Get User Profile - DUAL Authentication Support (Session OR JWT) with Traffic Light Data
+// 🔧 FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
         console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -637,21 +740,21 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     currentPosition: profile.current_position,
                     connectionsCount: profile.connections_count,
                     followersCount: profile.followers_count,
-                    connections: profile.connections,
-                    followers: profile.followers,
+                    // ✅ REMOVED: connections: profile.connections,
+                    // ✅ REMOVED: followers: profile.followers,
                     totalLikes: profile.total_likes,
                     totalComments: profile.total_comments,
                     totalShares: profile.total_shares,
                     averageLikes: profile.average_likes,
                     recommendationsCount: profile.recommendations_count,
-                    profileImageUrl: profile.profile_image_url,
-                    avatar: profile.avatar,
-                    bannerImage: profile.banner_image,
-                    backgroundImageUrl: profile.background_image_url,
+                    // ✅ REMOVED: profileImageUrl: profile.profile_image_url,
+                    // ✅ REMOVED: avatar: profile.avatar,
+                    // ✅ REMOVED: bannerImage: profile.banner_image,
+                    // ✅ REMOVED: backgroundImageUrl: profile.background_image_url,
                     publicIdentifier: profile.public_identifier,
                     experience: profile.experience,
                     education: profile.education,
-                    educationsDetails: profile.educations_details,
+                    // ✅ REMOVED: educationsDetails: profile.educations_details,
                     skills: profile.skills,
                     skillsWithEndorsements: profile.skills_with_endorsements,
                     languages: profile.languages,
@@ -662,8 +765,8 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     publications: profile.publications,
                     patents: profile.patents,
                     volunteerExperience: profile.volunteer_experience,
-                    volunteering: profile.volunteering,
-                    honorsAndAwards: profile.honors_and_awards,
+                    // ✅ REMOVED: volunteering: profile.volunteering,
+                    // ✅ REMOVED: honorsAndAwards: profile.honors_and_awards,
                     organizations: profile.organizations,
                     recommendations: profile.recommendations,
                     recommendationsGiven: profile.recommendations_given,
@@ -938,6 +1041,7 @@ const startServer = async () => {
             console.log(`   🔌 Extension: JWT authentication`);
             console.log(`   🔗 API: JWT authentication`);
             console.log(`🏆 TRAFFIC LIGHT SYSTEM READY FOR DASHBOARD!`);
+            console.log(`✅ FIXED: processGeminiData function + removed duplicate response fields`);
         });
         
     } catch (error) {
