@@ -1,5 +1,5 @@
-// Enhanced sendToGemini.js - DOUBLED LIMITS + TIER 1/2 PRIORITIZED EXTRACTION
-// ✅ FIXED: Token tracking added as specified in brief
+// Enhanced sendToGemini.js - LESS AGGRESSIVE PREPROCESSING TEST
+// ✅ TARGET: ~150KB processed HTML (vs current 97KB) to preserve more complete data
 const axios = require('axios');
 
 // ✅ Rate limiting configuration (Gemini is generous)
@@ -10,11 +10,11 @@ const RATE_LIMIT = {
     MAX_RETRY_DELAY: 20000          // Maximum retry delay (20 seconds)
 };
 
-// 🚀 DOUBLED Gemini 1.5 Flash token limits for COMPLETE TIER 1/2 DATA EXTRACTION
+// 🚀 INCREASED limits for TESTING - Allow more content to preserve complete data
 const GEMINI_LIMITS = {
-    MAX_TOKENS_INPUT: 50000,         // DOUBLED: 25000 → 50000 (allows larger LinkedIn profiles)
-    MAX_TOKENS_OUTPUT: 8000,         // DOUBLED: 4000 → 8000 (CRITICAL for all TIER 1/2 data)
-    MAX_SIZE_KB: 3000               // DOUBLED: 1500 → 3000 (less aggressive preprocessing)
+    MAX_TOKENS_INPUT: 50000,         // Same (you have 28K headroom)
+    MAX_TOKENS_OUTPUT: 8000,         // Same (you have 5K headroom)
+    MAX_SIZE_KB: 4000               // INCREASED: 3000 → 4000 KB (more content preserved)
 };
 
 // ✅ Last request timestamp for rate limiting
@@ -70,10 +70,10 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// 🚀 ULTRA-AGGRESSIVE LinkedIn HTML Preprocessor - Updated for DOUBLED limits
+// 🚀 LESS AGGRESSIVE LinkedIn HTML Preprocessor - PRESERVE MORE COMPLETE DATA
 function preprocessHTMLForGemini(html) {
     try {
-        console.log(`🔄 Starting HTML preprocessing for TIER 1/2 extraction (size: ${(html.length / 1024).toFixed(2)} KB)`);
+        console.log(`🔄 Starting LESS AGGRESSIVE HTML preprocessing (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         const originalSize = processedHtml.length;
@@ -116,41 +116,43 @@ function preprocessHTMLForGemini(html) {
             .replace(/<div[^>]*class="[^"]*share[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
             .replace(/<div[^>]*class="[^"]*social[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
         
-        // STAGE 3: NUCLEAR attribute removal (LinkedIn's biggest token bloat)
-        console.log('💥 Stage 3: Nuclear attribute removal...');
+        // STAGE 3: LESS AGGRESSIVE attribute removal - PRESERVE IMPORTANT IDENTIFIERS
+        console.log('🔧 Stage 3: LESS aggressive attribute removal - preserving important section identifiers...');
         processedHtml = processedHtml
-            // Remove ALL class attributes (LinkedIn's BEM classes are 100-200+ chars each!)
-            .replace(/\s+class="[^"]*"/gi, '')
+            // PRESERVE classes that might identify important profile sections
+            .replace(/\s+class="([^"]*(?:award|certification|honor|achievement|accomplishment|license|skill)[^"]*)"/gi, ' class="$1"')
             
-            // Remove ALL id attributes
-            .replace(/\s+id="[^"]*"/gi, '')
+            // Remove most other classes but keep profile structure classes
+            .replace(/\s+class="([^"]*(?:profile|experience|education|section|content|detail)[^"]*)"/gi, ' class="$1"')
+            .replace(/\s+class="(?![^"]*(?:award|certification|honor|achievement|accomplishment|license|skill|profile|experience|education|section|content|detail))[^"]*"/gi, '')
             
-            // Remove ALL data-* attributes (LinkedIn tracking bloat)
-            .replace(/\s+data-[^=]*="[^"]*"/gi, '')
+            // PRESERVE ids that might identify sections
+            .replace(/\s+id="([^"]*(?:award|certification|honor|achievement|accomplishment|license|skill|experience|education)[^"]*)"/gi, ' id="$1"')
+            .replace(/\s+id="(?![^"]*(?:award|certification|honor|achievement|accomplishment|license|skill|experience|education))[^"]*"/gi, '')
             
-            // Remove ALL style attributes
+            // PRESERVE data attributes that might contain important profile structure info
+            .replace(/\s+data-([^=]*(?:award|certification|honor|achievement|accomplishment|license|skill))[^=]*="[^"]*"/gi, ' data-$1="preserved"')
+            
+            // Remove most other data attributes
+            .replace(/\s+data-(?![^=]*(?:award|certification|honor|achievement|accomplishment|license|skill))[^=]*="[^"]*"/gi, '')
+            
+            // Remove ALL style attributes (still heavy)
             .replace(/\s+style="[^"]*"/gi, '')
             
             // Remove ALL event handlers
             .replace(/\s+on\w+="[^"]*"/gi, '')
             
-            // Remove ALL aria-* accessibility attributes (not needed for extraction)
-            .replace(/\s+aria-[^=]*="[^"]*"/gi, '')
+            // Remove most aria-* accessibility attributes but keep structure ones
+            .replace(/\s+aria-(?!label|labelledby)[^=]*="[^"]*"/gi, '')
             
-            // Remove ALL role attributes
-            .replace(/\s+role="[^"]*"/gi, '')
+            // Remove role attributes except important ones
+            .replace(/\s+role="(?!heading|listitem|list)[^"]*"/gi, '')
             
-            // Remove tabindex, title, and other UI attributes
-            .replace(/\s+tabindex="[^"]*"/gi, '')
-            .replace(/\s+title="[^"]*"/gi, '')
-            .replace(/\s+alt="[^"]*"/gi, '')
-            
-            // Remove ALL remaining attributes except href and src
-            .replace(/(<a[^>]*)\s+(?!href)[a-zA-Z-]+="[^"]*"/gi, '$1')
-            .replace(/(<img[^>]*)\s+(?!src)[a-zA-Z-]+="[^"]*"/gi, '$1');
+            // Remove tabindex, but keep title and alt for content context
+            .replace(/\s+tabindex="[^"]*"/gi, '');
         
-        // STAGE 4: Remove all non-content elements
-        console.log('🗑️ Stage 4: Removing non-content elements...');
+        // STAGE 4: Remove non-content elements but PRESERVE more structure
+        console.log('🗑️ Stage 4: Removing non-content elements while preserving structure...');
         processedHtml = processedHtml
             // Remove scripts, styles, comments
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -173,62 +175,60 @@ function preprocessHTMLForGemini(html) {
             .replace(/<select[^>]*>[\s\S]*?<\/select>/gi, '')
             .replace(/<textarea[^>]*>[\s\S]*?<\/textarea>/gi, '');
         
-        // STAGE 5: Simplify HTML structure to minimal semantic tags
-        console.log('🏗️ Stage 5: Simplifying HTML structure...');
+        // STAGE 5: PRESERVE more HTML structure for better extraction
+        console.log('🏗️ Stage 5: Preserving more HTML structure for complete data extraction...');
         processedHtml = processedHtml
-            // Convert complex tags to simple divs
-            .replace(/<article[^>]*>/gi, '<div>')
+            // KEEP article and section tags - they often contain important profile data
+            // Convert complex tags to simple divs ONLY if they don't have important classes
+            .replace(/<article(?![^>]*class="[^"]*(?:award|certification|honor|achievement|accomplishment)[^"]*")[^>]*>/gi, '<div>')
             .replace(/<\/article>/gi, '</div>')
-            .replace(/<section[^>]*>/gi, '<div>')
+            .replace(/<section(?![^>]*class="[^"]*(?:award|certification|honor|achievement|accomplishment|experience|education)[^"]*")[^>]*>/gi, '<div>')
             .replace(/<\/section>/gi, '</div>')
-            .replace(/<aside[^>]*>/gi, '<div>')
-            .replace(/<\/aside>/gi, '</div>')
             
-            // Keep only essential semantic tags: h1-h6, p, div, span, ul, li, a
-            // Remove everything else but preserve content
-            .replace(/<(?!\/?(?:h[1-6]|p|div|span|ul|ol|li|a|strong|em|br)\b)[^>]*>/gi, '')
+            // Keep more semantic tags that might contain profile data
+            // Keep: h1-h6, p, div, span, ul, ol, li, a, strong, em, br, section, article with important classes
+            .replace(/<(?!\/?(?:h[1-6]|p|div|span|ul|ol|li|a|strong|em|br|section|article)\b)[^>]*>/gi, '')
             
-            // Remove empty elements (very common after attribute removal)
+            // Remove empty elements but be less aggressive
             .replace(/<div[^>]*>\s*<\/div>/gi, '')
             .replace(/<p[^>]*>\s*<\/p>/gi, '')
-            .replace(/<span[^>]*>\s*<\/span>/gi, '')
-            .replace(/<li[^>]*>\s*<\/li>/gi, '')
-            .replace(/<h[1-6][^>]*>\s*<\/h[1-6]>/gi, '');
+            .replace(/<span[^>]*>\s*<\/span>/gi, '');
         
-        // STAGE 6: EXTREME whitespace cleanup
-        console.log('🧽 Stage 6: Extreme whitespace cleanup...');
+        // STAGE 6: MODERATE whitespace cleanup (less aggressive)
+        console.log('🧽 Stage 6: Moderate whitespace cleanup...');
         processedHtml = processedHtml
-            // Collapse all whitespace to single spaces
-            .replace(/\s+/g, ' ')
-            // Remove spaces around tags
+            // Collapse multiple spaces but preserve some structure
+            .replace(/\s{3,}/g, ' ')
+            // Remove spaces around tags but preserve some line breaks
             .replace(/>\s+</g, '><')
             // Remove leading/trailing whitespace
             .trim();
         
-        // STAGE 7: Final size check with DOUBLED limits
+        // STAGE 7: Final size check with increased limits
         const currentSize = processedHtml.length;
         const estimatedTokens = Math.ceil(currentSize / 3); // Conservative estimate for HTML
         
-        console.log(`📊 After processing: ${(currentSize / 1024).toFixed(2)} KB, ~${estimatedTokens} tokens`);
+        console.log(`📊 After LESS AGGRESSIVE processing: ${(currentSize / 1024).toFixed(2)} KB, ~${estimatedTokens} tokens`);
         
-        // NUCLEAR FALLBACK: If still too large even with doubled limits
-        if (estimatedTokens > GEMINI_LIMITS.MAX_TOKENS_INPUT * 0.8) {
-            console.log('🚨 NUCLEAR FALLBACK: Extracting text-only content...');
+        // Less aggressive fallback - only if WAY too large
+        if (estimatedTokens > GEMINI_LIMITS.MAX_TOKENS_INPUT * 0.9) {
+            console.log('🚨 Still too large - applying minimal text extraction...');
             
-            // Extract only text content, preserve basic structure with minimal markup
+            // Preserve structure but extract text content
             processedHtml = processedHtml
-                // Convert headings to simple text with markers
-                .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n\n## $1 ##\n')
-                // Convert paragraphs to text with line breaks
+                // Convert headings to text with clear markers
+                .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n\n=== $1 ===\n')
+                // Keep section markers for important profile sections
+                .replace(/<section[^>]*class="[^"]*(?:award|certification|honor|achievement)[^"]*"[^>]*>(.*?)<\/section>/gi, '\n\n[PROFILE SECTION]\n$1\n[/SECTION]\n')
+                // Convert paragraphs to text with structure
                 .replace(/<p[^>]*>(.*?)<\/p>/gi, '\n$1\n')
-                // Convert list items to simple lines
+                // Convert list items with bullets
                 .replace(/<li[^>]*>(.*?)<\/li>/gi, '• $1\n')
-                // Remove all remaining HTML tags
-                .replace(/<[^>]*>/g, '')
-                // Clean up multiple line breaks
-                .replace(/\n\s*\n\s*\n/g, '\n\n')
-                // Final whitespace cleanup
+                // Remove remaining HTML but preserve content
+                .replace(/<[^>]*>/g, ' ')
+                // Clean up spacing
                 .replace(/\s+/g, ' ')
+                .replace(/\n\s*\n\s*\n/g, '\n\n')
                 .trim();
         }
         
@@ -236,24 +236,24 @@ function preprocessHTMLForGemini(html) {
         const finalTokens = Math.ceil(finalSize / 3);
         const reduction = ((originalSize - finalSize) / originalSize * 100).toFixed(1);
         
-        console.log(`✅ HTML preprocessing completed for TIER 1/2 extraction:`);
+        console.log(`✅ LESS AGGRESSIVE HTML preprocessing completed:`);
         console.log(`   Original: ${(originalSize / 1024).toFixed(2)} KB`);
         console.log(`   Final: ${(finalSize / 1024).toFixed(2)} KB`);
         console.log(`   Reduction: ${reduction}%`);
         console.log(`   Estimated tokens: ~${finalTokens} (Max: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`);
+        console.log(`   TARGET: More complete data extraction with preserved content`);
         
         return processedHtml;
         
     } catch (error) {
         console.error('❌ HTML preprocessing failed:', error);
-        console.log('🔄 Fallback: Attempting basic text extraction...');
+        console.log('🔄 Fallback: Basic processing...');
         
         try {
-            // Emergency fallback: extract just text
+            // Basic fallback
             const fallback = html
                 .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
                 .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                .replace(/<[^>]*>/g, ' ')
                 .replace(/\s+/g, ' ')
                 .trim();
             
@@ -276,7 +276,7 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ FIXED: Main function to send data to Gemini 1.5 Flash with TIER 1/2 prioritization + Enhanced Token Tracking
+// ✅ MAIN function to send data to Gemini 1.5 Flash with TIER 1/2 prioritization + Enhanced Token Tracking
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
@@ -285,7 +285,7 @@ async function sendToGemini(inputData) {
             throw new Error('GEMINI_API_KEY environment variable is not set');
         }
         
-        console.log('🤖 === GEMINI 1.5 FLASH - TIER 1/2 PRIORITIZED EXTRACTION START ===');
+        console.log('🤖 === GEMINI 1.5 FLASH - LESS AGGRESSIVE TEST START ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -299,13 +299,13 @@ async function sendToGemini(inputData) {
             console.log(`📄 Input type: ${inputType}`);
             console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
-            // Check HTML size limits (DOUBLED now)
+            // Check HTML size limits (INCREASED for testing)
             const htmlSizeKB = inputData.html.length / 1024;
             if (htmlSizeKB > GEMINI_LIMITS.MAX_SIZE_KB) {
                 throw new Error(`HTML too large: ${htmlSizeKB.toFixed(2)} KB (max: ${GEMINI_LIMITS.MAX_SIZE_KB} KB)`);
             }
             
-            // Preprocess HTML for Gemini
+            // Preprocess HTML for Gemini with LESS AGGRESSIVE approach
             const preprocessedHtml = preprocessHTMLForGemini(inputData.html);
             
             // Estimate token count with improved estimation
@@ -323,7 +323,7 @@ async function sendToGemini(inputData) {
                 optimization: inputData.optimization || {}
             };
             
-            // ✅ TIER 1/2 PRIORITIZED System prompt for Gemini
+            // ✅ STANDARD System prompt for comprehensive data extraction
             systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract comprehensive LinkedIn profile information into valid JSON format.
 
 CRITICAL EXTRACTION PRIORITY:
@@ -331,7 +331,8 @@ CRITICAL EXTRACTION PRIORITY:
 - Basic profile info: name, headline, currentRole, currentCompany, location, about
 - Experience/work history: ALL job entries with titles, companies, durations, descriptions
 - Education: ALL education entries with schools, degrees, fields, years, grades, activities  
-- Awards: ALL awards with titles, issuers, dates, descriptions
+- Awards: ALL awards/honors/recognitions found
+- Certifications: ALL certifications/licenses found
 
 🥈 TIER 2 (SECONDARY PRIORITY - Extract after TIER 1):
 - Volunteer work: organizations, roles
@@ -341,15 +342,18 @@ CRITICAL EXTRACTION PRIORITY:
 
 CRITICAL REQUIREMENTS:
 1. PRIORITIZE TIER 1 DATA - Extract completely before moving to TIER 2
-2. Return ONLY valid JSON - no markdown, no explanations, no comments
-3. Use the exact JSON structure provided below
-4. Extract all available text content, ignore styling and layout elements
-5. If a section is empty, use empty array [] or empty string ""
-6. For arrays, extract EVERY item found - don't truncate due to length
-7. DOUBLED output token limit allows for complete data extraction`;
+2. Extract ALL available content from every section thoroughly
+3. Return ONLY valid JSON - no markdown, no explanations, no comments
+4. Use the exact JSON structure provided below
+5. Extract all available text content, ignore styling and layout elements
+6. If a section is empty, use empty array [] or empty string ""
+7. For arrays, extract EVERY item found - don't truncate due to length
+8. With more content preserved, extract maximum data from all sections`;
 
-            // ✅ TIER 1/2 PRIORITIZED User prompt with ENHANCED structure
-            userPrompt = `Extract comprehensive LinkedIn profile data from this HTML. PRIORITIZE TIER 1 fields first, then TIER 2. Return as JSON with this EXACT structure:
+            // ✅ BALANCED User prompt for comprehensive data extraction
+            userPrompt = `Extract comprehensive LinkedIn profile data from this HTML. With less aggressive preprocessing, more content is preserved so extract ALL available data thoroughly from every section.
+
+Return as JSON with this EXACT structure:
 
 {
   "profile": {
@@ -374,7 +378,7 @@ CRITICAL REQUIREMENTS:
       "startDate": "Start Date",
       "endDate": "End Date or Present",
       "location": "Job location",
-      "description": "Job description and achievements"
+      "description": "Job description and achievements - full content"
     }
   ],
   "education": [
@@ -396,6 +400,15 @@ CRITICAL REQUIREMENTS:
       "issuer": "Issuing Organization",
       "date": "Award Date",
       "description": "Award description if available"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Certification Name",
+      "issuer": "Issuing Organization",
+      "date": "Issue Date",
+      "url": "Certificate URL if available",
+      "description": "Certificate description if available"
     }
   ],
   "volunteer": [
@@ -426,14 +439,6 @@ CRITICAL REQUIREMENTS:
       "shares": "Number of shares"
     }
   ],
-  "certifications": [
-    {
-      "name": "Certification Name",
-      "issuer": "Issuing Organization",
-      "date": "Issue Date",
-      "url": "Certificate URL if available"
-    }
-  ],
   "skills": ["Skill 1", "Skill 2", "Skill 3"],
   "engagement": {
     "totalLikes": "Sum of all likes across posts",
@@ -444,14 +449,12 @@ CRITICAL REQUIREMENTS:
 }
 
 IMPORTANT EXTRACTION NOTES:
-- TIER 1 fields must be extracted completely first (profile, experience, education, awards)
-- For experience: Extract EVERY job, with company URLs when available
-- For education: Include grades, activities, descriptions when present
-- For awards: Extract ALL awards with full details
-- TIER 2 fields: Extract volunteer work, following data, activity content
-- Look for numbers, engagement metrics, follower counts throughout HTML
-- Extract as much detail as possible with doubled token limits
-- Don't truncate arrays - extract all items found
+- Extract ALL content thoroughly from every section with preserved structure
+- For experience: Extract complete descriptions and all job details
+- For education: Include all academic information and activities
+- For all arrays: Extract every item found, don't limit or truncate
+- Extract all available data with increased content preservation
+- Include all text content with full context and descriptions
 
 HTML Content:
 ${preprocessedHtml}`;
@@ -467,13 +470,13 @@ ${preprocessedHtml}`;
             systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure comprehensive profile information from the provided JSON data with TIER 1/2 prioritization.
 
 CRITICAL REQUIREMENTS:
-1. TIER 1 data is HIGHEST PRIORITY (profile, experience, education, awards)
+1. TIER 1 data is HIGHEST PRIORITY (profile, experience, education, awards, certifications)
 2. TIER 2 data is SECONDARY (volunteer, following, activity, social metrics)  
 3. Return ONLY valid JSON - no markdown, no explanations
 4. Use the exact structure provided
-5. Extract engagement metrics and activity data`;
+5. Extract ALL available data thoroughly from every section`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with TIER 1/2 prioritization and return as structured JSON with the same format as specified above:
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with balanced TIER 1/2 prioritization and return as structured JSON with the same format as specified above:
 
 ${JSON.stringify(jsonData, null, 2)}`;
             
@@ -481,7 +484,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             throw new Error('Invalid input data: must contain either "html" or "data" property');
         }
         
-        console.log(`🎯 Processing ${inputType} with TIER 1/2 prioritization...`);
+        console.log(`🎯 Processing ${inputType} with LESS AGGRESSIVE preprocessing...`);
         console.log(`📝 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
@@ -489,7 +492,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         
         // Make request to Gemini with retry logic
         const geminiResponse = await retryWithBackoff(async () => {
-            console.log('📤 Sending TIER 1/2 prioritized request to Gemini 1.5 Flash API...');
+            console.log('📤 Sending LESS AGGRESSIVE test request to Gemini 1.5 Flash API...');
             
             const response = await axios.post(
                 `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
@@ -503,7 +506,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
                         temperature: 0.1,               // Low temperature for consistent extraction
                         topK: 1,                       // Most focused responses
                         topP: 0.95,                    
-                        maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,  // DOUBLED: 4000 → 8000
+                        maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,  // 8000 tokens available
                         responseMimeType: "application/json" // Force JSON response
                     },
                     safetySettings: [
@@ -547,14 +550,14 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const rawResponse = geminiResponse.data.candidates[0].content.parts[0].text;
         console.log(`📝 Raw response length: ${rawResponse.length} characters`);
         
-        // ✅ FIXED: Enhanced token usage extraction and formatting as specified in brief
+        // ✅ Enhanced token usage extraction and formatting as specified in brief
         const usageMetadata = geminiResponse.data.usageMetadata;
         let tokenUsage = null;
         
         if (usageMetadata) {
-            console.log(`💰 Usage - Prompt tokens: ${usageMetadata.promptTokenCount}, Completion tokens: ${usageMetadata.candidatesTokenCount}, Total: ${usageMetadata.totalTokenCount}`);
+            console.log(`💰 TEST Usage - Prompt tokens: ${usageMetadata.promptTokenCount}, Completion tokens: ${usageMetadata.candidatesTokenCount}, Total: ${usageMetadata.totalTokenCount}`);
             
-            // ✅ FIXED: Format token usage exactly as specified in brief
+            // ✅ Format token usage exactly as specified in brief
             tokenUsage = {
                 input_tokens: usageMetadata.promptTokenCount || 0,
                 output_tokens: usageMetadata.candidatesTokenCount || 0,
@@ -579,6 +582,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
         const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
         const hasAwards = parsedData.awards && Array.isArray(parsedData.awards) && parsedData.awards.length > 0;
+        const hasCertifications = parsedData.certifications && Array.isArray(parsedData.certifications) && parsedData.certifications.length > 0;
         
         // Validate TIER 2 data
         const hasVolunteer = parsedData.volunteer && Array.isArray(parsedData.volunteer) && parsedData.volunteer.length > 0;
@@ -586,12 +590,13 @@ ${JSON.stringify(jsonData, null, 2)}`;
                             (parsedData.followingPeople && parsedData.followingPeople.length > 0);
         const hasActivity = parsedData.activity && Array.isArray(parsedData.activity) && parsedData.activity.length > 0;
         
-        console.log('✅ === GEMINI 1.5 FLASH - TIER 1/2 EXTRACTION COMPLETED ===');
-        console.log(`📊 TIER 1 Extraction Results:`);
+        console.log('✅ === GEMINI 1.5 FLASH - LESS AGGRESSIVE TEST COMPLETED ===');
+        console.log(`📊 TIER 1 Extraction Results (TESTING):`);
         console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
         console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
         console.log(`   🥇 Education entries: ${parsedData.education?.length || 0}`);
-        console.log(`   🥇 Awards: ${parsedData.awards?.length || 0}`);
+        console.log(`   🥇 Awards: ${parsedData.awards?.length || 0} (testing more data)`);
+        console.log(`   🥇 Certifications: ${parsedData.certifications?.length || 0} (testing more data)`);
         console.log(`📊 TIER 2 Extraction Results:`);
         console.log(`   🥈 Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
         console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
@@ -599,16 +604,25 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`📊 Additional Data:`);
         console.log(`   - Skills count: ${parsedData.skills?.length || 0}`);
-        console.log(`   - Certifications: ${parsedData.certifications?.length || 0}`);
         console.log(`   - Input type: ${inputType}`);
         console.log(`   - Token usage: ${usageMetadata?.totalTokenCount || 'N/A'}`);
-        console.log(`   - Max output tokens used: ${GEMINI_LIMITS.MAX_TOKENS_OUTPUT}`);
+        console.log(`   - Less aggressive preprocessing: ENABLED`);
         
-        if (!hasExperience && !hasEducation) {
-            console.warn('⚠️ WARNING: No TIER 1 experience or education data extracted - this may affect feature unlock');
+        // Balanced logging for test results
+        if (hasAwards && parsedData.awards.length > 2) {
+            console.log(`📈 MORE DATA SUCCESS: Found ${parsedData.awards.length} awards (previous: 2) - Less aggressive preprocessing working!`);
+        }
+        if (hasCertifications && parsedData.certifications.length > 0) {
+            console.log(`📈 MORE DATA SUCCESS: Found ${parsedData.certifications.length} certifications - More content preserved!`);
+        }
+        if (hasExperience && parsedData.experience.length > 8) {
+            console.log(`📈 MORE DATA SUCCESS: Found ${parsedData.experience.length} experience entries (previous: 8) - More content preserved!`);
+        }
+        if (hasEducation && parsedData.education.length > 2) {
+            console.log(`📈 MORE DATA SUCCESS: Found ${parsedData.education.length} education entries (previous: 2) - More content preserved!`);
         }
         
-        // ✅ FIXED: Return response with enhanced token tracking in exact format from brief
+        // ✅ Return response with enhanced token tracking in exact format from brief
         return {
             success: true,
             data: parsedData,
@@ -619,6 +633,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 hasExperience: hasExperience,
                 hasEducation: hasEducation,
                 hasAwards: hasAwards,
+                hasCertifications: hasCertifications,
                 hasVolunteer: hasVolunteer,
                 hasFollowing: hasFollowing,
                 hasActivity: hasActivity,
@@ -626,19 +641,20 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 tier2Complete: hasVolunteer || hasFollowing || hasActivity,
                 dataQuality: (hasProfile && hasExperience) ? 'high' : 'medium',
                 tokenUsage: usageMetadata,
+                testMode: 'less_aggressive_preprocessing',
                 limitsUsed: {
                     maxInputTokens: GEMINI_LIMITS.MAX_TOKENS_INPUT,
                     maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
                     maxSizeKB: GEMINI_LIMITS.MAX_SIZE_KB
                 }
             },
-            // ✅ FIXED: Add gemini_token_usage in exact format specified in brief
+            // ✅ Add gemini_token_usage in exact format specified in brief
             gemini_token_usage: tokenUsage ? JSON.stringify(tokenUsage) : null,
             usage: tokenUsage // Alternative format for backward compatibility
         };
         
     } catch (error) {
-        console.error('❌ === GEMINI 1.5 FLASH - TIER 1/2 EXTRACTION FAILED ===');
+        console.error('❌ === GEMINI 1.5 FLASH - LESS AGGRESSIVE TEST FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
@@ -658,7 +674,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         } else if (error.message.includes('timeout')) {
             userFriendlyMessage = 'Processing timeout. Please try again with a smaller profile.';
         } else if (error.message.includes('too large')) {
-            userFriendlyMessage = 'Profile too large to process even with doubled limits. Please try refreshing the page.';
+            userFriendlyMessage = 'Profile too large to process even with increased limits. Please try refreshing the page.';
         } else if (error.message.includes('JSON')) {
             userFriendlyMessage = 'Failed to parse AI response. Please try again.';
         } else if (error.message.includes('SAFETY')) {
@@ -673,13 +689,14 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 status: error.response?.status,
                 type: error.name,
                 timestamp: new Date().toISOString(),
+                testMode: 'less_aggressive_preprocessing',
                 limitsUsed: {
                     maxInputTokens: GEMINI_LIMITS.MAX_TOKENS_INPUT,
                     maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
                     maxSizeKB: GEMINI_LIMITS.MAX_SIZE_KB
                 }
             },
-            // ✅ FIXED: Include empty token tracking even on errors for consistency
+            // ✅ Include empty token tracking even on errors for consistency
             gemini_token_usage: null,
             usage: null
         };
