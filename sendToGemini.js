@@ -1,4 +1,5 @@
 // Enhanced sendToGemini.js - DOUBLED LIMITS + TIER 1/2 PRIORITIZED EXTRACTION
+// ✅ FIXED: Token tracking added as specified in brief
 const axios = require('axios');
 
 // ✅ Rate limiting configuration (Gemini is generous)
@@ -275,7 +276,7 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ Main function to send data to Gemini 1.5 Flash with TIER 1/2 prioritization
+// ✅ FIXED: Main function to send data to Gemini 1.5 Flash with TIER 1/2 prioritization + Enhanced Token Tracking
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
@@ -546,10 +547,21 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const rawResponse = geminiResponse.data.candidates[0].content.parts[0].text;
         console.log(`📝 Raw response length: ${rawResponse.length} characters`);
         
-        // Log usage metrics if available
+        // ✅ FIXED: Enhanced token usage extraction and formatting as specified in brief
         const usageMetadata = geminiResponse.data.usageMetadata;
+        let tokenUsage = null;
+        
         if (usageMetadata) {
             console.log(`💰 Usage - Prompt tokens: ${usageMetadata.promptTokenCount}, Completion tokens: ${usageMetadata.candidatesTokenCount}, Total: ${usageMetadata.totalTokenCount}`);
+            
+            // ✅ FIXED: Format token usage exactly as specified in brief
+            tokenUsage = {
+                input_tokens: usageMetadata.promptTokenCount || 0,
+                output_tokens: usageMetadata.candidatesTokenCount || 0,
+                total_tokens: usageMetadata.totalTokenCount || 0,
+                model: 'gemini-1.5-flash',
+                timestamp: new Date().toISOString()
+            };
         }
         
         // Parse JSON response
@@ -596,6 +608,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             console.warn('⚠️ WARNING: No TIER 1 experience or education data extracted - this may affect feature unlock');
         }
         
+        // ✅ FIXED: Return response with enhanced token tracking in exact format from brief
         return {
             success: true,
             data: parsedData,
@@ -618,7 +631,10 @@ ${JSON.stringify(jsonData, null, 2)}`;
                     maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
                     maxSizeKB: GEMINI_LIMITS.MAX_SIZE_KB
                 }
-            }
+            },
+            // ✅ FIXED: Add gemini_token_usage in exact format specified in brief
+            gemini_token_usage: tokenUsage ? JSON.stringify(tokenUsage) : null,
+            usage: tokenUsage // Alternative format for backward compatibility
         };
         
     } catch (error) {
@@ -662,7 +678,10 @@ ${JSON.stringify(jsonData, null, 2)}`;
                     maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
                     maxSizeKB: GEMINI_LIMITS.MAX_SIZE_KB
                 }
-            }
+            },
+            // ✅ FIXED: Include empty token tracking even on errors for consistency
+            gemini_token_usage: null,
+            usage: null
         };
     }
 }
