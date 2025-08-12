@@ -1,48 +1,48 @@
 // What changed in Stage G
-// ✅ Added LLM orchestrator integration + numeric sanitization
+// ✅ FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
 // routes/profiles.js - Chrome extension and API routes (JWT authentication only)
 
 const express = require('express');
 
 // What changed in Stage G — numeric sanitizers
 function toIntSafe(value) {
-    if (value === null || value === undefined) return null;
-    const s = String(value).trim();
-    if (!s) return null;
-    const km = s.match(/^([\d.,]+)\s*([KkMmBb])$/);
-    if (km) {
-        const num = parseFloat(km[1].replace(/,/g, ''));
-        if (isNaN(num)) return null;
-        const mult = { K:1e3, k:1e3, M:1e6, m:1e6, B:1e9, b:1e9 }[km[2]];
-        return Math.round(num * mult);
-    }
-    const digits = s.replace(/[^\d-]/g, '');
-    if (!digits || /^-?$/.test(digits)) return null;
-    const n = parseInt(digits, 10);
-    return Number.isFinite(n) ? n : null;
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const km = s.match(/^([\d.,]+)\s*([KkMmBb])$/);
+  if (km) {
+    const num = parseFloat(km[1].replace(/,/g, ''));
+    if (isNaN(num)) return null;
+    const mult = { K:1e3, k:1e3, M:1e6, m:1e6, B:1e9, b:1e9 }[km[2]];
+    return Math.round(num * mult);
+  }
+  const digits = s.replace(/[^\d-]/g, '');
+  if (!digits || /^-?$/.test(digits)) return null;
+  const n = parseInt(digits, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 function toFloatSafe(value) {
-    if (value === null || value === undefined) return null;
-    const s = String(value).trim();
-    if (!s) return null;
-    const km = s.match(/^([\d.,]+)\s*([KkMmBb])$/);
-    if (km) {
-        const num = parseFloat(km[1].replace(/,/g, ''));
-        if (isNaN(num)) return null;
-        const mult = { K:1e3, k:1e3, M:1e6, m:1e6, B:1e9, b:1e9 }[km[2]];
-        return num * mult;
-    }
-    const norm = s.replace(/,/g, '');
-    const n = parseFloat(norm);
-    return Number.isFinite(n) ? n : null;
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const km = s.match(/^([\d.,]+)\s*([KkMmBb])$/);
+  if (km) {
+    const num = parseFloat(km[1].replace(/,/g, ''));
+    if (isNaN(num)) return null;
+    const mult = { K:1e3, k:1e3, M:1e6, m:1e6, B:1e9, b:1e9 }[km[2]];
+    return num * mult;
+  }
+  const norm = s.replace(/,/g, '');
+  const n = parseFloat(norm);
+  return Number.isFinite(n) ? n : null;
 }
 
 // ✅ Export initialization function with dependency injection
 function initProfileRoutes(dependencies) {
     const router = express.Router();
     
-    // ✅ Extract dependencies
+    // ✅ Extract dependencies with LLM orchestrator
     const {
         pool,
         authenticateToken,
@@ -51,39 +51,29 @@ function initProfileRoutes(dependencies) {
         processScrapedProfileData,
         cleanLinkedInUrl,
         getStatusMessage,
-        sendToGemini
+        sendToGemini,
+        processProfileWithLLM  // NEW: LLM orchestrator
     } = dependencies;
 
-    // ✅ Import LLM orchestrator
-    const { processProfileWithLLM } = require('../utils/llmOrchestrator');
-
     // ==================== CHROME EXTENSION ROUTES (JWT-ONLY) ====================
-    
-    // ✅ User profile scraping with orchestrator and numeric sanitization
+
+    // ✅ User profile scraping with LLM orchestrator and numeric sanitization
     router.post('/profile/user', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
             console.log(`🔒 User profile scraping request from user ${req.user.id} (Stage G)`);
             
-            const { profileData } = req.body;
+            const { html, profileUrl, isUserProfile } = req.body;
             
-            if (!profileData) {
+            if (!html || !profileUrl) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Profile data is required'
-                });
-            }
-            
-            if (!profileData.url && !profileData.linkedinUrl) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'LinkedIn URL is required in profile data'
+                    error: 'HTML content and profileUrl are required'
                 });
             }
             
             // Clean and validate URL
-            const profileUrl = profileData.url || profileData.linkedinUrl;
             const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
             
             if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
@@ -97,7 +87,6 @@ function initProfileRoutes(dependencies) {
             const userLinkedInUrl = req.user.linkedin_url;
             if (userLinkedInUrl) {
                 const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
-                
                 if (cleanUserUrl !== cleanProfileUrl) {
                     return res.status(403).json({
                         success: false,
@@ -106,15 +95,15 @@ function initProfileRoutes(dependencies) {
                 }
             }
             
-            console.log('🤖 Using LLM orchestrator for user profile processing...');
+            console.log('🤖 Using LLM orchestrator for user profile extraction...');
             
-            // ✅ Stage G: Use orchestrator instead of direct sendToGemini
+            // Use LLM orchestrator instead of direct sendToGemini
             const result = await processProfileWithLLM({ 
-                html: profileData.html || profileData.htmlContent, 
+                html, 
                 url: cleanProfileUrl, 
                 isUserProfile: true 
             });
-            
+
             if (!result.success) {
                 const soft = result.transient || [408,429,500,502,503,504].includes(result.status || 0);
                 if (soft) {
@@ -129,11 +118,12 @@ function initProfileRoutes(dependencies) {
                     userMessage: result.userMessage || 'Failed to process profile' 
                 });
             }
-            
-            // ✅ Stage G: Extract and sanitize numeric values
+
+            // Process the AI result
             const aiResult = result;
-            const p = aiResult.data; // final JSON from orchestrator
+            const p = aiResult.data;
             
+            // Apply numeric sanitization before DB insert
             const numeric = {
                 followers_count: toIntSafe(p?.profile?.followersCount),
                 connections_count: toIntSafe(p?.profile?.connectionsCount),
@@ -156,65 +146,92 @@ function initProfileRoutes(dependencies) {
             
             let profile;
             if (existingProfile.rows.length > 0) {
-                // Update with comprehensive data + raw AI data + sanitized numeric values
+                // Update with sanitized numeric values
                 const result = await client.query(`
                     UPDATE user_profiles SET 
-                        linkedin_url = $1, url = $2, full_name = $3, first_name = $4, last_name = $5, 
-                        headline = $6, "current_role" = $7, about = $8, location = $9,
-                        current_company = $10, current_company_name = $11,
-                        connections_count = $12, followers_count = $13,
-                        total_likes = $14, total_comments = $15, total_shares = $16, average_likes = $17,
-                        experience = $18, education = $19, skills = $20, certifications = $21, awards = $22,
-                        volunteer_experience = $23, activity = $24, engagement_data = $25,
-                        data_json = $26, ai_provider = $27, ai_model = $28, 
-                        gemini_input_tokens = $29, gemini_output_tokens = $30, gemini_total_tokens = $31,
-                        data_extraction_status = 'completed', extraction_completed_at = CURRENT_TIMESTAMP,
-                        extraction_error = NULL, profile_analyzed = true, initial_scraping_done = true,
+                        linkedin_url = $1,
+                        full_name = $2,
+                        headline = $3,
+                        "current_role" = $4,
+                        current_company = $5,
+                        location = $6,
+                        about = $7,
+                        connections_count = $8,
+                        followers_count = $9,
+                        total_likes = $10,
+                        total_comments = $11,
+                        total_shares = $12,
+                        average_likes = $13,
+                        experience = $14,
+                        education = $15,
+                        skills = $16,
+                        certifications = $17,
+                        awards = $18,
+                        volunteer_experience = $19,
+                        data_json = $20,
+                        ai_provider = $21,
+                        ai_model = $22,
+                        input_tokens = $23,
+                        output_tokens = $24,
+                        total_tokens = $25,
+                        initial_scraping_done = true,
+                        data_extraction_status = 'completed',
+                        extraction_completed_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $32 
+                    WHERE user_id = $26 
                     RETURNING *
                 `, [
-                    cleanProfileUrl, cleanProfileUrl, 
-                    p?.profile?.name || '', p?.profile?.firstName || '', p?.profile?.lastName || '',
-                    p?.profile?.headline || '', p?.profile?.currentRole || '', p?.profile?.about || '', p?.profile?.location || '',
-                    p?.profile?.currentCompany || '', p?.profile?.currentCompany || '',
-                    numeric.connections_count, numeric.followers_count,
-                    numeric.total_likes, numeric.total_comments, numeric.total_shares, numeric.average_likes,
-                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []), 
-                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []), JSON.stringify(p?.awards || []),
-                    JSON.stringify(p?.volunteer || []), JSON.stringify(p?.activity || []), JSON.stringify(p?.engagement || {}),
-                    JSON.stringify(p), // Full AI data to data_json
-                    aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
-                    aiResult.usage?.input_tokens || 0, aiResult.usage?.output_tokens || 0, aiResult.usage?.total_tokens || 0,
+                    cleanProfileUrl,
+                    p?.profile?.name || '',
+                    p?.profile?.headline || '',
+                    p?.profile?.currentRole || '',
+                    p?.profile?.currentCompany || '',
+                    p?.profile?.location || '',
+                    p?.profile?.about || '',
+                    numeric.connections_count,
+                    numeric.followers_count,
+                    numeric.total_likes,
+                    numeric.total_comments,
+                    numeric.total_shares,
+                    numeric.average_likes,
+                    JSON.stringify(p?.experience || []),
+                    JSON.stringify(p?.education || []),
+                    JSON.stringify(p?.skills || []),
+                    JSON.stringify(p?.certifications || []),
+                    JSON.stringify(p?.awards || []),
+                    JSON.stringify(p?.volunteer || []),
+                    JSON.stringify(p),  // Full AI output
+                    aiResult.provider || 'gemini',
+                    aiResult.model || 'gemini-1.5-flash',
+                    aiResult.usage?.input_tokens || 0,
+                    aiResult.usage?.output_tokens || 0,
+                    aiResult.usage?.total_tokens || 0,
                     req.user.id
                 ]);
                 
                 profile = result.rows[0];
             } else {
-                // Create with comprehensive data + raw AI data + sanitized numeric values
+                // Insert with sanitized numeric values
                 const result = await client.query(`
                     INSERT INTO user_profiles (
-                        user_id, linkedin_url, url, full_name, first_name, last_name,
-                        headline, "current_role", about, location, current_company, current_company_name,
-                        connections_count, followers_count, total_likes, total_comments, total_shares, average_likes,
-                        experience, education, skills, certifications, awards, volunteer_experience, activity, engagement_data,
-                        data_json, ai_provider, ai_model, gemini_input_tokens, gemini_output_tokens, gemini_total_tokens,
-                        data_extraction_status, extraction_completed_at, profile_analyzed, initial_scraping_done
+                        user_id, linkedin_url, full_name, headline, "current_role", 
+                        current_company, location, about, connections_count, followers_count,
+                        total_likes, total_comments, total_shares, average_likes,
+                        experience, education, skills, certifications, awards, volunteer_experience,
+                        data_json, ai_provider, ai_model, input_tokens, output_tokens, total_tokens,
+                        initial_scraping_done, data_extraction_status, extraction_completed_at
                     ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, 'completed', CURRENT_TIMESTAMP, true, true
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, true, 'completed', CURRENT_TIMESTAMP
                     ) RETURNING *
                 `, [
-                    req.user.id, cleanProfileUrl, cleanProfileUrl, 
-                    p?.profile?.name || '', p?.profile?.firstName || '', p?.profile?.lastName || '',
-                    p?.profile?.headline || '', p?.profile?.currentRole || '', p?.profile?.about || '', p?.profile?.location || '',
-                    p?.profile?.currentCompany || '', p?.profile?.currentCompany || '',
-                    numeric.connections_count, numeric.followers_count,
+                    req.user.id, cleanProfileUrl, p?.profile?.name || '', p?.profile?.headline || '', 
+                    p?.profile?.currentRole || '', p?.profile?.currentCompany || '', p?.profile?.location || '', 
+                    p?.profile?.about || '', numeric.connections_count, numeric.followers_count,
                     numeric.total_likes, numeric.total_comments, numeric.total_shares, numeric.average_likes,
                     JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []), 
-                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []), JSON.stringify(p?.awards || []),
-                    JSON.stringify(p?.volunteer || []), JSON.stringify(p?.activity || []), JSON.stringify(p?.engagement || {}),
-                    JSON.stringify(p), // Full AI data to data_json
-                    aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
+                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []), 
+                    JSON.stringify(p?.awards || []), JSON.stringify(p?.volunteer || []),
+                    JSON.stringify(p), aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
                     aiResult.usage?.input_tokens || 0, aiResult.usage?.output_tokens || 0, aiResult.usage?.total_tokens || 0
                 ]);
                 
@@ -230,11 +247,11 @@ function initProfileRoutes(dependencies) {
             // Commit transaction
             await client.query('COMMIT');
             
-            console.log(`🎉 User profile successfully saved for user ${req.user.id} with LLM orchestrator (${aiResult.provider}/${aiResult.model}) and numeric sanitization!`);
+            console.log(`🎉 User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
             res.json({
                 success: true,
-                message: `Profile processed successfully with ${aiResult.provider} ${aiResult.model}!`,
+                message: 'User profile saved successfully with LLM fallback and numeric sanitization!',
                 data: {
                     profile: {
                         id: profile.id,
@@ -244,27 +261,19 @@ function initProfileRoutes(dependencies) {
                         currentRole: profile.current_role,
                         currentCompany: profile.current_company,
                         location: profile.location,
+                        profileImageUrl: profile.profile_image_url,
                         initialScrapingDone: true,
                         extractionStatus: 'completed',
-                        extractionCompleted: profile.extraction_completed_at
+                        extractionCompleted: profile.extraction_completed_at,
+                        numericData: numeric
                     },
                     user: {
                         registrationCompleted: true,
                         extractionStatus: 'completed'
                     },
-                    orchestrator: {
-                        provider: aiResult.provider,
-                        model: aiResult.model,
-                        tokenUsage: aiResult.usage
-                    },
-                    sanitization: {
-                        followersCount: numeric.followers_count,
-                        connectionsCount: numeric.connections_count,
-                        totalLikes: numeric.total_likes,
-                        totalComments: numeric.total_comments,
-                        totalShares: numeric.total_shares,
-                        averageLikes: numeric.average_likes
-                    }
+                    aiProvider: aiResult.provider,
+                    aiModel: aiResult.model,
+                    tokenUsage: aiResult.usage
                 }
             });
             
@@ -281,45 +290,21 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ Target profile scraping with orchestrator and numeric sanitization
+    // ✅ Target profile scraping with LLM orchestrator and numeric sanitization
     router.post('/profile/target', authenticateToken, async (req, res) => {
         try {
             console.log(`🎯 Target profile scraping request from user ${req.user.id} (Stage G)`);
             
-            // Check if initial scraping is done
-            const initialStatus = await pool.query(`
-                SELECT initial_scraping_done, data_extraction_status
-                FROM user_profiles 
-                WHERE user_id = $1
-            `, [req.user.id]);
+            const { html, profileUrl, isUserProfile } = req.body;
             
-            if (initialStatus.rows.length === 0 || !initialStatus.rows[0].initial_scraping_done) {
-                console.log(`🚫 User ${req.user.id} has not completed initial scraping`);
-                return res.status(403).json({
-                    success: false,
-                    error: 'Please complete your own profile scraping first before scraping target profiles',
-                    code: 'INITIAL_SCRAPING_REQUIRED'
-                });
-            }
-            
-            const { profileData } = req.body;
-            
-            if (!profileData) {
+            if (!html || !profileUrl) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Profile data is required'
-                });
-            }
-            
-            if (!profileData.url && !profileData.linkedinUrl) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'LinkedIn URL is required in profile data'
+                    error: 'HTML content and profileUrl are required'
                 });
             }
             
             // Clean and validate URL
-            const profileUrl = profileData.url || profileData.linkedinUrl;
             const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
             
             if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
@@ -333,7 +318,6 @@ function initProfileRoutes(dependencies) {
             const userLinkedInUrl = req.user.linkedin_url;
             if (userLinkedInUrl) {
                 const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
-                
                 if (cleanUserUrl === cleanProfileUrl) {
                     return res.status(400).json({
                         success: false,
@@ -342,15 +326,15 @@ function initProfileRoutes(dependencies) {
                 }
             }
             
-            console.log('🤖 Using LLM orchestrator for target profile processing...');
+            console.log('🤖 Using LLM orchestrator for target profile extraction...');
             
-            // ✅ Stage G: Use orchestrator instead of direct sendToGemini
+            // Use LLM orchestrator instead of direct sendToGemini  
             const result = await processProfileWithLLM({ 
-                html: profileData.html || profileData.htmlContent, 
+                html, 
                 url: cleanProfileUrl, 
                 isUserProfile: false 
             });
-            
+
             if (!result.success) {
                 const soft = result.transient || [408,429,500,502,503,504].includes(result.status || 0);
                 if (soft) {
@@ -365,11 +349,12 @@ function initProfileRoutes(dependencies) {
                     userMessage: result.userMessage || 'Failed to process profile' 
                 });
             }
-            
-            // ✅ Stage G: Extract and sanitize numeric values
+
+            // Process the AI result
             const aiResult = result;
-            const p = aiResult.data; // final JSON from orchestrator
+            const p = aiResult.data;
             
+            // Apply numeric sanitization before DB insert
             const numeric = {
                 followers_count: toIntSafe(p?.profile?.followersCount),
                 connections_count: toIntSafe(p?.profile?.connectionsCount),
@@ -389,73 +374,83 @@ function initProfileRoutes(dependencies) {
             
             let targetProfile;
             if (existingTarget.rows.length > 0) {
-                // Update with comprehensive data + raw AI data + sanitized numeric values
+                // Update with sanitized numeric values
                 const result = await pool.query(`
                     UPDATE target_profiles SET 
-                        url = $1, full_name = $2, first_name = $3, last_name = $4, 
-                        headline = $5, "current_role" = $6, about = $7, location = $8,
-                        current_company = $9, current_company_name = $10,
-                        connections_count = $11, followers_count = $12,
-                        total_likes = $13, total_comments = $14, total_shares = $15, average_likes = $16,
-                        experience = $17, education = $18, skills = $19, certifications = $20, awards = $21,
-                        volunteer_experience = $22, activity = $23, engagement_data = $24,
-                        data_json = $25, ai_provider = $26, ai_model = $27, 
-                        gemini_input_tokens = $28, gemini_output_tokens = $29, gemini_total_tokens = $30,
-                        scraped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $31 AND linkedin_url = $32
+                        full_name = $1,
+                        headline = $2,
+                        "current_role" = $3,
+                        current_company = $4,
+                        location = $5,
+                        about = $6,
+                        connections_count = $7,
+                        followers_count = $8,
+                        total_likes = $9,
+                        total_comments = $10,
+                        total_shares = $11,
+                        average_likes = $12,
+                        experience = $13,
+                        education = $14,
+                        skills = $15,
+                        certifications = $16,
+                        awards = $17,
+                        volunteer_experience = $18,
+                        data_json = $19,
+                        ai_provider = $20,
+                        ai_model = $21,
+                        input_tokens = $22,
+                        output_tokens = $23,
+                        total_tokens = $24,
+                        scraped_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $25 AND linkedin_url = $26
                     RETURNING *
                 `, [
-                    cleanProfileUrl, 
-                    p?.profile?.name || '', p?.profile?.firstName || '', p?.profile?.lastName || '',
-                    p?.profile?.headline || '', p?.profile?.currentRole || '', p?.profile?.about || '', p?.profile?.location || '',
-                    p?.profile?.currentCompany || '', p?.profile?.currentCompany || '',
-                    numeric.connections_count, numeric.followers_count,
-                    numeric.total_likes, numeric.total_comments, numeric.total_shares, numeric.average_likes,
-                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []), 
-                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []), JSON.stringify(p?.awards || []),
-                    JSON.stringify(p?.volunteer || []), JSON.stringify(p?.activity || []), JSON.stringify(p?.engagement || {}),
-                    JSON.stringify(p), // Full AI data to data_json
-                    aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
+                    p?.profile?.name || '', p?.profile?.headline || '', p?.profile?.currentRole || '',
+                    p?.profile?.currentCompany || '', p?.profile?.location || '', p?.profile?.about || '',
+                    numeric.connections_count, numeric.followers_count, numeric.total_likes,
+                    numeric.total_comments, numeric.total_shares, numeric.average_likes,
+                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []),
+                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []),
+                    JSON.stringify(p?.awards || []), JSON.stringify(p?.volunteer || []),
+                    JSON.stringify(p), aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
                     aiResult.usage?.input_tokens || 0, aiResult.usage?.output_tokens || 0, aiResult.usage?.total_tokens || 0,
                     req.user.id, cleanProfileUrl
                 ]);
                 
                 targetProfile = result.rows[0];
             } else {
-                // Create with comprehensive data + raw AI data + sanitized numeric values
+                // Insert with sanitized numeric values
                 const result = await pool.query(`
                     INSERT INTO target_profiles (
-                        user_id, linkedin_url, url, full_name, first_name, last_name,
-                        headline, "current_role", about, location, current_company, current_company_name,
-                        connections_count, followers_count, total_likes, total_comments, total_shares, average_likes,
-                        experience, education, skills, certifications, awards, volunteer_experience, activity, engagement_data,
-                        data_json, ai_provider, ai_model, gemini_input_tokens, gemini_output_tokens, gemini_total_tokens
+                        user_id, linkedin_url, full_name, headline, "current_role", 
+                        current_company, location, about, connections_count, followers_count,
+                        total_likes, total_comments, total_shares, average_likes,
+                        experience, education, skills, certifications, awards, volunteer_experience,
+                        data_json, ai_provider, ai_model, input_tokens, output_tokens, total_tokens
                     ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
                     ) RETURNING *
                 `, [
-                    req.user.id, cleanProfileUrl, cleanProfileUrl, 
-                    p?.profile?.name || '', p?.profile?.firstName || '', p?.profile?.lastName || '',
-                    p?.profile?.headline || '', p?.profile?.currentRole || '', p?.profile?.about || '', p?.profile?.location || '',
-                    p?.profile?.currentCompany || '', p?.profile?.currentCompany || '',
-                    numeric.connections_count, numeric.followers_count,
+                    req.user.id, cleanProfileUrl, p?.profile?.name || '', p?.profile?.headline || '',
+                    p?.profile?.currentRole || '', p?.profile?.currentCompany || '', p?.profile?.location || '',
+                    p?.profile?.about || '', numeric.connections_count, numeric.followers_count,
                     numeric.total_likes, numeric.total_comments, numeric.total_shares, numeric.average_likes,
-                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []), 
-                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []), JSON.stringify(p?.awards || []),
-                    JSON.stringify(p?.volunteer || []), JSON.stringify(p?.activity || []), JSON.stringify(p?.engagement || {}),
-                    JSON.stringify(p), // Full AI data to data_json
-                    aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
+                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []),
+                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []),
+                    JSON.stringify(p?.awards || []), JSON.stringify(p?.volunteer || []),
+                    JSON.stringify(p), aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
                     aiResult.usage?.input_tokens || 0, aiResult.usage?.output_tokens || 0, aiResult.usage?.total_tokens || 0
                 ]);
                 
                 targetProfile = result.rows[0];
             }
             
-            console.log(`🎯 Target profile successfully saved for user ${req.user.id} with LLM orchestrator (${aiResult.provider}/${aiResult.model}) and numeric sanitization!`);
+            console.log(`🎯 Target profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
             res.json({
                 success: true,
-                message: `Target profile processed successfully with ${aiResult.provider} ${aiResult.model}!`,
+                message: 'Target profile saved successfully with LLM fallback and numeric sanitization!',
                 data: {
                     targetProfile: {
                         id: targetProfile.id,
@@ -465,21 +460,13 @@ function initProfileRoutes(dependencies) {
                         currentRole: targetProfile.current_role,
                         currentCompany: targetProfile.current_company,
                         location: targetProfile.location,
-                        scrapedAt: targetProfile.scraped_at
+                        profileImageUrl: targetProfile.profile_image_url,
+                        scrapedAt: targetProfile.scraped_at,
+                        numericData: numeric
                     },
-                    orchestrator: {
-                        provider: aiResult.provider,
-                        model: aiResult.model,
-                        tokenUsage: aiResult.usage
-                    },
-                    sanitization: {
-                        followersCount: numeric.followers_count,
-                        connectionsCount: numeric.connections_count,
-                        totalLikes: numeric.total_likes,
-                        totalComments: numeric.total_comments,
-                        totalShares: numeric.total_shares,
-                        averageLikes: numeric.average_likes
-                    }
+                    aiProvider: aiResult.provider,
+                    aiModel: aiResult.model,
+                    tokenUsage: aiResult.usage
                 }
             });
             
@@ -563,10 +550,10 @@ function initProfileRoutes(dependencies) {
             
             console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
             
-            // TODO: Replace with actual GPT 4.1 API call using raw data + enhanced context
+            // Generate message (placeholder for now - integrate with GPT-4.1 later)
             const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
 
-I noticed your impressive work at ${targetProfile.currentCompany || 'your company'}${targetProfile.currentRole && targetProfile.currentRole !== targetProfile.headline ? ` as ${targetProfile.currentRole}` : targetProfile.headline ? ` as ${targetProfile.headline}` : ''}. ${context}
+I noticed your impressive work at ${targetProfile.currentCompany || 'your company'}. ${context}
 
 Would love to connect and learn more about your experience!
 
@@ -584,7 +571,7 @@ Best regards`;
             
             res.json({
                 success: true,
-                message: 'Message generated successfully using comprehensive profile data',
+                message: 'Message generated successfully',
                 data: {
                     message: simulatedMessage,
                     score: score,
@@ -624,9 +611,21 @@ Best regards`;
             
             const result = await pool.query(`
                 SELECT 
-                    id, linkedin_url, full_name, headline, "current_role", current_company, location,
-                    profile_image_url, total_likes, total_comments, followers_count,
-                    scraped_at, updated_at, ai_provider, ai_model
+                    id,
+                    linkedin_url,
+                    full_name,
+                    headline,
+                    "current_role",
+                    current_company,
+                    location,
+                    profile_image_url,
+                    total_likes,
+                    total_comments,
+                    followers_count,
+                    ai_provider,
+                    ai_model,
+                    scraped_at,
+                    updated_at
                 FROM target_profiles 
                 WHERE user_id = $1 
                 ORDER BY scraped_at DESC
@@ -644,10 +643,10 @@ Best regards`;
                 totalLikes: profile.total_likes,
                 totalComments: profile.total_comments,
                 followersCount: profile.followers_count,
-                scrapedAt: profile.scraped_at,
-                updatedAt: profile.updated_at,
                 aiProvider: profile.ai_provider,
-                aiModel: profile.ai_model
+                aiModel: profile.ai_model,
+                scrapedAt: profile.scraped_at,
+                updatedAt: profile.updated_at
             }));
             
             console.log(`✅ Found ${profiles.length} target profiles for user ${req.user.id}`);
