@@ -532,18 +532,38 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
         console.log(`🔗 Normalized URL: ${normalizedUrlFinal}`);
         
         // 2) Dedupe (server-side) before any heavy work
-        const { rows: existing } = await pool.query(
-            'SELECT id FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
-            [userId, normalizedUrlFinal]
-        );
-        
-        if (existing.length) {
-            console.log(`⚠️ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
-            return res.status(200).json({
-                success: true,
-                alreadyExists: true,
-                message: 'Target already exists for this user+URL'
-            });
+        // Use fallback to linkedin_url if normalized_url column doesn't exist yet
+        let dedupeQuery, dedupeParams;
+        try {
+            const { rows: existing } = await pool.query(
+                'SELECT id FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
+                [userId, normalizedUrlFinal]
+            );
+            
+            if (existing.length) {
+                console.log(`⚠️ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
+                return res.status(200).json({
+                    success: true,
+                    alreadyExists: true,
+                    message: 'Target already exists for this user+URL'
+                });
+            }
+        } catch (columnError) {
+            // Fallback to linkedin_url if normalized_url column doesn't exist
+            console.log('⚠️ normalized_url column not found, using linkedin_url for deduplication');
+            const { rows: existing } = await pool.query(
+                'SELECT id FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2 LIMIT 1',
+                [userId, profileUrl]
+            );
+            
+            if (existing.length) {
+                console.log(`⚠️ Target already exists for user ${userId} + URL ${profileUrl}`);
+                return res.status(200).json({
+                    success: true,
+                    alreadyExists: true,
+                    message: 'Target already exists for this user+URL'
+                });
+            }
         }
         
         console.log('✅ Target is new, processing...');
@@ -594,53 +614,77 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             console.log(`⚠️ Missing fields: ${missing.join(', ')}`);
         }
         
-        // 3.4 INSERT into target_profiles
+        // 3.4 INSERT into target_profiles with backward compatibility
         console.log('💾 Inserting target profile into database...');
         
-        const sql = `
-        INSERT INTO target_profiles
-        (user_id, linkedin_url, normalized_url, source, data_json,
-         raw_html_file_id, raw_html_size_bytes, parsed_json_file_id,
-         gemini_model, gemini_input_tokens, gemini_output_tokens, gemini_total_tokens,
-         outreach_focus, mapping_status, version, analyzed_at, created_at, updated_at)
-        VALUES
-        ($1,$2,$3,'linkedin',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'v1', now(), now(), now())
-        RETURNING id
-        `;
-
-        const params = [
-            userId,
-            profileUrl || null,
-            normalizedUrlFinal,
-            JSON.stringify(parsedJson),
-            rawFileId || null,
-            rawSizeBytes || null,
-            parsedJsonFileId || null,
-            usage.model || 'gemini-1.5-flash',
-            usage.input_tokens || 0,
-            usage.output_tokens || 0,
-            usage.total_tokens || 0,
-            null, // outreach_focus remains NULL for now
-            mappingStatus
-        ];
-
-        let inserted;
+        // Try the full G2b schema first, fallback to basic schema if columns don't exist
+        let insertResult;
         try {
+            // Try full G2b schema
+            const sql = `
+            INSERT INTO target_profiles
+            (user_id, linkedin_url, normalized_url, source, data_json,
+             raw_html_file_id, raw_html_size_bytes, parsed_json_file_id,
+             gemini_model, gemini_input_tokens, gemini_output_tokens, gemini_total_tokens,
+             outreach_focus, mapping_status, version, analyzed_at, created_at, updated_at)
+            VALUES
+            ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now(), now(), now())
+            RETURNING id
+            `;
+
+            const params = [
+                userId,
+                profileUrl || null,
+                normalizedUrlFinal,
+                'linkedin',
+                JSON.stringify(parsedJson),
+                rawFileId || null,
+                rawSizeBytes || null,
+                parsedJsonFileId || null,
+                usage.model || 'gemini-1.5-flash',
+                usage.input_tokens || 0,
+                usage.output_tokens || 0,
+                usage.total_tokens || 0,
+                null, // outreach_focus remains NULL for now
+                mappingStatus,
+                'v1'
+            ];
+
             const { rows } = await pool.query(sql, params);
-            inserted = rows[0];
-            console.log(`✅ Target profile inserted with ID: ${inserted.id}`);
-        } catch (e) {
-            // Handle unique violation due to race (Postgres code 23505)
-            if (e && e.code === '23505') {
-                console.log('⚠️ Race condition detected - target already exists');
-                return res.status(200).json({ 
-                    success: true, 
-                    alreadyExists: true, 
-                    message: 'Target already exists' 
-                });
+            insertResult = rows[0];
+            console.log(`✅ Target profile inserted with ID: ${insertResult.id} (full G2b schema)`);
+            
+        } catch (schemaError) {
+            console.log('⚠️ G2b schema not available, using basic schema fallback');
+            
+            // Fallback to basic target_profiles schema
+            const basicSql = `
+            INSERT INTO target_profiles
+            (user_id, linkedin_url, created_at, updated_at)
+            VALUES
+            ($1, $2, now(), now())
+            RETURNING id
+            `;
+            
+            const basicParams = [userId, profileUrl];
+            
+            try {
+                const { rows } = await pool.query(basicSql, basicParams);
+                insertResult = rows[0];
+                console.log(`✅ Target profile inserted with ID: ${insertResult.id} (basic schema)`);
+            } catch (e) {
+                // Handle unique violation due to race (Postgres code 23505)
+                if (e && e.code === '23505') {
+                    console.log('⚠️ Race condition detected - target already exists');
+                    return res.status(200).json({ 
+                        success: true, 
+                        alreadyExists: true, 
+                        message: 'Target already exists' 
+                    });
+                }
+                console.error('❌ Database insertion failed even with basic schema:', e);
+                throw e;
             }
-            console.error('❌ Database insertion failed:', e);
-            throw e; // let your global error handler log 500s
         }
         
         // 4) Return the extended response (strict)
