@@ -1,7 +1,7 @@
 // What changed in Stage G
 // LLM fallback chain: Gemini → GPT-5 nano → GPT-5 mini
 
-const { sendToGemini } = require('../sendToGemini (10).js');
+const { sendToGemini } = require('../sendToGemini.js');
 const { sendToOpenAI } = require('./sendToOpenAI');
 
 function isTransient(errOrRes) {
