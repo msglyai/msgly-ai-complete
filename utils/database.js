@@ -1,5 +1,6 @@
 // Msgly.AI Database Utilities - STEP 2A EXTRACTION - COMPLETE WITH ALL LINKEDIN FIELDS
 // All database functions, helpers, and utilities extracted from server.js
+// G2A UPDATE: Added missing columns to user_profiles for parity with target_profiles
 
 // ==================== DATABASE CONNECTION & SETUP ====================
 
@@ -42,7 +43,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ FIXED: Escape PostgreSQL reserved word "current_role" with double quotes
+        // ✅ G2A: Updated user_profiles with full parity to target_profiles
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -80,7 +81,7 @@ const initDB = async () => {
                 current_company_company_id TEXT,
                 current_position TEXT,
                 
-                -- ✅ ENHANCED: Metrics with new engagement fields
+                -- ✅ G2A: Enhanced metrics with parity to target_profiles
                 connections_count INTEGER,
                 followers_count INTEGER,
                 mutual_connections_count INTEGER DEFAULT 0,
@@ -90,7 +91,7 @@ const initDB = async () => {
                 total_likes INTEGER DEFAULT 0,
                 total_comments INTEGER DEFAULT 0,
                 total_shares INTEGER DEFAULT 0,
-                average_likes DECIMAL(10,2) DEFAULT 0,
+                average_likes INTEGER DEFAULT 0,  -- ✅ G2A: Changed to INTEGER for parity
                 
                 -- Media
                 profile_picture TEXT,
@@ -128,7 +129,7 @@ const initDB = async () => {
                 people_also_viewed JSONB DEFAULT '[]'::JSONB,
                 engagement_data JSONB DEFAULT '{}'::JSONB,
                 
-                -- ✅ NEW: Additional fields for complete LinkedIn data
+                -- ✅ Additional fields for complete LinkedIn data
                 following_companies JSONB DEFAULT '[]'::JSONB,
                 following_people JSONB DEFAULT '[]'::JSONB,
                 following_hashtags JSONB DEFAULT '[]'::JSONB,
@@ -141,7 +142,16 @@ const initDB = async () => {
                 services JSONB DEFAULT '[]'::JSONB,
                 business_info JSONB DEFAULT '{}'::JSONB,
                 
-                -- ✅ NEW: RAW GEMINI DATA STORAGE FOR GPT 4.1
+                -- ✅ G2A: NEW FIELDS FOR PARITY WITH TARGET_PROFILES
+                data_json JSONB,
+                ai_provider TEXT,
+                ai_model TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                artifacts_json JSONB,
+                
+                -- ✅ Legacy RAW GEMINI DATA STORAGE (kept for compatibility)
                 gemini_raw_data JSONB,
                 gemini_processed_at TIMESTAMP,
                 gemini_token_usage JSONB DEFAULT '{}'::JSONB,
@@ -296,7 +306,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ FIXED: Add missing columns one by one to avoid PostgreSQL syntax errors - WITH ESCAPED current_role
+        // ✅ G2A: Add missing columns one by one to avoid PostgreSQL syntax errors
         try {
             // Fix users table columns
             const userColumns = [
@@ -325,14 +335,14 @@ const initDB = async () => {
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
 
-            // ✅ FIXED: Add enhanced fields to user_profiles one by one - WITH ESCAPED current_role
+            // ✅ G2A: Add NEW FIELDS to user_profiles for parity with target_profiles
             const userProfileColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',  // ✅ FIXED: Escaped
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_comments INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS average_likes INTEGER DEFAULT 0',  // ✅ G2A: INTEGER not DECIMAL
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
@@ -349,7 +359,15 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB'
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB',
+                // ✅ G2A: ADD THE CRITICAL NEW FIELDS FOR PARITY
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS data_json JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ai_provider TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ai_model TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS input_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS artifacts_json JSONB'
             ];
 
             for (const columnQuery of userProfileColumns) {
@@ -359,6 +377,13 @@ const initDB = async () => {
                     // Column might already exist, continue
                     console.log(`Column might already exist: ${err.message}`);
                 }
+            }
+
+            // ✅ G2A: Fix average_likes to be INTEGER in user_profiles (for parity)
+            try {
+                await pool.query('ALTER TABLE user_profiles ALTER COLUMN average_likes TYPE INTEGER USING average_likes::INTEGER');
+            } catch (err) {
+                console.log(`Average_likes conversion might have failed: ${err.message}`);
             }
 
             // ✅ FIXED: Add enhanced fields to target_profiles one by one - WITH ESCAPED current_role
@@ -396,7 +421,7 @@ const initDB = async () => {
                 }
             }
             
-            console.log('✅ Enhanced database columns updated successfully');
+            console.log('✅ G2A: Database columns updated successfully - user_profiles now has parity with target_profiles!');
         } catch (err) {
             console.log('Some enhanced columns might already exist:', err.message);
         }
@@ -421,13 +446,17 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_mutual_connections ON user_profiles(mutual_connections_count);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_gemini_processed ON target_profiles(gemini_processed_at);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_mutual_connections ON target_profiles(mutual_connections_count);
+                -- ✅ G2A: New indexes for the parity fields
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_ai_provider ON user_profiles(ai_provider);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_ai_model ON user_profiles(ai_model);
+                CREATE INDEX IF NOT EXISTS idx_user_profiles_total_tokens ON user_profiles(total_tokens);
             `);
             console.log('✅ Created enhanced database indexes');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ Enhanced database tables created successfully - PostgreSQL reserved word fixed!');
+        console.log('✅ G2A: Enhanced database tables created successfully - user_profiles has full parity with target_profiles!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -816,7 +845,7 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ Enhanced database connected:', result.rows[0].now);
+        console.log('✅ G2A: Enhanced database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
