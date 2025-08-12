@@ -3,6 +3,7 @@
 // ✅ FIXED: processGeminiData function added + duplicate response fields removed
 // ✅ TRAFFIC LIGHT SYSTEM: Dashboard RED/ORANGE/GREEN status fully implemented
 // 🔧 FIXED: Dual authentication support for dashboard compatibility
+// 🔧 G2b HOTFIX: Added /scrape-html alias to JSON-first handler (deconflict)
 
 const express = require('express');
 const cors = require('cors');
@@ -509,9 +510,9 @@ app.post('/auth/chrome-extension', async (req, res) => {
     }
 });
 
-// ==================== G2B TARGET PROFILE ANALYSIS ROUTE (JSON-FIRST) ====================
+// ==================== G2B JSON-FIRST TARGET PROFILE HANDLER ====================
 
-app.post('/profile/target', authenticateToken, async (req, res) => {
+const handleAnalyzeTarget = async (req, res) => {
     try {
         console.log('🎯 Target profile analysis request received (G2b JSON-first)');
         console.log(`👤 User ID: ${req.user.id}`);
@@ -683,7 +684,12 @@ app.post('/profile/target', authenticateToken, async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
-});
+};
+
+// What changed in Stage G — route alias for extension + keep new path
+console.log('Routes mounted: POST /scrape-html (alias) | POST /profile/target');
+app.post('/scrape-html', authenticateToken, handleAnalyzeTarget); // alias for the extension (legacy path)
+app.post('/profile/target', authenticateToken, handleAnalyzeTarget); // new JSON-first path (keep)
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
 
@@ -1195,10 +1201,10 @@ app.use((req, res, next) => {
             'GET /traffic-light-status',
             'POST /profile/user',
             'POST /profile/target', // ✅ G2b Target analysis route (JSON-first)
+            'POST /scrape-html', // ✅ G2b HOTFIX: Alias for /profile/target
             'GET /target-profiles',
             'GET /target-profiles/search',
             'DELETE /target-profiles/:id',
-            'POST /scrape-html',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -1235,6 +1241,7 @@ const startServer = async () => {
             console.log(`   🟢 GREEN: registration + scraping + extraction completed + has experience`);
             console.log(`🎯 STAGE G2 FEATURES:`);
             console.log(`   ✅ POST /profile/target - JSON-first target analysis (G2b)`);
+            console.log(`   ✅ POST /scrape-html - ALIAS for JSON-first handler (G2b HOTFIX)`);
             console.log(`   ✅ Server-side URL normalization and deduplication`);
             console.log(`   ✅ Light validation with shared schema reference`);
             console.log(`   ✅ Extended JSON response with storage/gemini/mapping data`);
@@ -1247,7 +1254,8 @@ const startServer = async () => {
             console.log(`   📊 Token usage and mapping status tracking`);
             console.log(`   ⚡ Minimal changes - existing code preserved`);
             console.log(`   🏢 Generated columns for dashboard queries`);
-            console.log(`✅ STAGE G2 READY FOR CHROME EXTENSION + DASHBOARD TESTING!`);
+            console.log(`   🔄 Route alias: /scrape-html -> same handler as /profile/target`);
+            console.log(`✅ STAGE G2b HOTFIX READY FOR CHROME EXTENSION + DASHBOARD TESTING!`);
         });
         
     } catch (error) {
