@@ -1,5 +1,6 @@
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
+// UPDATED: Re-enabled Target Scanning with Strict Flow Separation
 // Msgly.AI Server - Complete with Traffic Light System Integrated
 
 const express = require('express');
@@ -17,8 +18,8 @@ const axios = require('axios');
 const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
 
-// ✅ FEATURE FLAG: Disable Target processing
-const ENABLE_TARGET = false; // Set to false to quarantine Target routes
+// ✅ UPDATED: Re-enable Target processing with strict flow separation
+const ENABLE_TARGET = true; // Set to true to re-enable Target routes with strict separation
 
 // ✅ STEP 2A: Import all database functions from utils/database.js
 const {
@@ -80,7 +81,7 @@ const { initProfileRoutes } = require('./routes/profiles');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G – numeric sanitizers
+// What changed in Stage G — numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -128,9 +129,9 @@ function normalizeLinkedInUrl(url = '') {
 // ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
 async function handleUserProfile(req, res) {
     try {
-        console.log('🔵 === USER PROFILE PROCESSING ===');
-        console.log(`👤 User ID: ${req.user.id}`);
-        console.log(`🔗 URL: ${req.body.profileUrl}`);
+        console.log('[USER_FLOW] === USER PROFILE PROCESSING ===');
+        console.log(`[USER_FLOW] User ID: ${req.user.id}`);
+        console.log(`[USER_FLOW] URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -145,7 +146,7 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('🤖 Processing HTML with Gemini for USER profile...');
+        console.log('[USER_FLOW] Processing HTML with Gemini for USER profile...');
         
         // Process HTML with Gemini
         const geminiResult = await sendToGemini({
@@ -155,14 +156,14 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('❌ Gemini processing failed for USER profile:', geminiResult.error);
+            console.error('[USER_FLOW] Gemini processing failed:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
             });
         }
         
-        console.log('✅ Gemini processing successful for USER profile');
+        console.log('[USER_FLOW] Gemini processing successful');
         
         // Process Gemini data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -215,7 +216,7 @@ async function handleUserProfile(req, res) {
             userId
         ]);
         
-        console.log('✅ USER profile saved to user_profiles table successfully');
+        console.log('[USER_FLOW] User profile saved to user_profiles table successfully');
         
         res.json({
             success: true,
@@ -231,7 +232,7 @@ async function handleUserProfile(req, res) {
         });
         
     } catch (error) {
-        console.error('❌ USER profile processing error:', error);
+        console.error('[USER_FLOW] User profile processing error:', error);
         
         res.status(500).json({
             success: false,
@@ -241,21 +242,12 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// ✅ TARGET PROFILE HANDLER: Quarantined with ENABLE_TARGET flag
+// ✅ UPDATED: TARGET PROFILE HANDLER with Strict Flow Separation
 async function handleAnalyzeTarget(req, res) {
-    // ✅ QUARANTINE: Check feature flag first
-    if (!ENABLE_TARGET) {
-        console.log('🚫 Target profile processing is temporarily disabled');
-        return res.status(501).json({
-            success: false,
-            error: 'Target profile processing is temporarily disabled',
-            message: 'This feature is currently under maintenance. Please try again later.'
-        });
-    }
-    
     try {
-        console.log('🎯 Target profile analysis request received (Stage G with LLM orchestrator)');
-        console.log(`👤 User ID: ${req.user.id}`);
+        console.log('[TARGET_FLOW] === TARGET PROFILE PROCESSING ===');
+        console.log(`[TARGET_FLOW] User ID: ${req.user.id}`);
+        console.log(`[TARGET_FLOW] URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl, normalizedUrl } = req.body;
         const userId = req.user.id;
@@ -267,199 +259,229 @@ async function handleAnalyzeTarget(req, res) {
             });
         }
         
-        // A.1 Normalize URL (server)
+        // Clean and validate URL
+        const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         const normalizedUrlFinal = normalizeLinkedInUrl(normalizedUrl || profileUrl);
-        console.log(`🔗 Original URL: ${profileUrl}`);
-        console.log(`🔗 Normalized URL: ${normalizedUrlFinal}`);
         
-        // A.2 Dedupe before heavy work
-        const { rows: existing } = await pool.query(
-            'SELECT id FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
-            [userId, normalizedUrlFinal]
+        console.log(`[TARGET_FLOW] Original URL: ${profileUrl}`);
+        console.log(`[TARGET_FLOW] Clean URL: ${cleanProfileUrl}`);
+        console.log(`[TARGET_FLOW] Normalized URL: ${normalizedUrlFinal}`);
+        
+        if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid LinkedIn profile URL'
+            });
+        }
+        
+        // Validate this is NOT the user's own profile
+        const userLinkedInUrl = req.user.linkedin_url;
+        if (userLinkedInUrl) {
+            const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
+            if (cleanUserUrl === cleanProfileUrl) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'This appears to be your own profile. Use /profile/user endpoint for your own profile.'
+                });
+            }
+        }
+        
+        // Check for existing record using UPSERT-safe query
+        const existingCheck = await pool.query(
+            'SELECT id FROM target_profiles WHERE user_id = $1 AND (linkedin_url = $2 OR normalized_url = $3) LIMIT 1',
+            [userId, cleanProfileUrl, normalizedUrlFinal]
         );
         
-        if (existing.length) {
-            console.log(`⚠️ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
+        if (existingCheck.rows.length > 0) {
+            console.log(`[TARGET_FLOW] Target already exists for user ${userId}`);
             return res.status(200).json({
                 success: true,
                 alreadyExists: true,
-                message: 'Target already exists for this user+URL'
+                message: 'Target profile already analyzed for this user'
             });
         }
         
-        console.log('✅ Target is new, processing with LLM orchestrator...');
+        console.log('[TARGET_FLOW] Processing HTML with LLM orchestrator...');
         
-        // A.3 Process new target with STAGE G orchestrator
-        const rawFileId = `html_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const rawSizeBytes = html ? html.length : null;
-        const parsedJsonFileId = `json_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // ✅ STAGE G: Call LLM orchestrator with fallback chain
-        console.log('🤖 Calling LLM orchestrator for target profile analysis...');
-        const orchestratorResult = await processProfileWithLLM({ 
-            html: html, 
-            url: profileUrl, 
+        // Use LLM orchestrator for target profile processing
+        const result = await processProfileWithLLM({ 
+            html, 
+            url: cleanProfileUrl, 
             isUserProfile: false 
         });
-        
-        if (!orchestratorResult || !orchestratorResult.success) {
-            console.error('❌ LLM orchestrator processing failed:', orchestratorResult?.error);
-            
-            // Handle transient errors
-            if (orchestratorResult?.transient || orchestratorResult?.status >= 500) {
+
+        if (!result.success) {
+            const soft = result.transient || [408,429,500,502,503,504].includes(result.status || 0);
+            if (soft) {
                 return res.status(200).json({ 
                     success: false, 
-                    transient: true,
-                    userMessage: orchestratorResult?.userMessage || 'Service temporarily unavailable. Please try again shortly.' 
+                    transient: true, 
+                    userMessage: result.userMessage || 'Please try again shortly.' 
                 });
             }
-            
             return res.status(200).json({ 
                 success: false, 
-                userMessage: orchestratorResult?.userMessage || 'Failed to process profile' 
+                userMessage: result.userMessage || 'Failed to process profile' 
             });
         }
+
+        // Process the AI result
+        const aiResult = result;
+        const p = aiResult.data;
         
-        const parsedJson = orchestratorResult.data;
-        const usage = orchestratorResult.usage || { 
-            input_tokens: 0, 
-            output_tokens: 0, 
-            total_tokens: 0, 
-            model: orchestratorResult.model || 'unknown'
-        };
-        const provider = orchestratorResult.provider || 'unknown';
-        const model = orchestratorResult.model || 'unknown';
-        
-        console.log('✅ LLM orchestrator processing completed');
-        console.log(`📊 Provider: ${provider}, Model: ${model}`);
-        console.log(`📊 Token usage: ${usage.total_tokens} total (${usage.input_tokens} input, ${usage.output_tokens} output)`);
-        
-        // Light validation (no new libs)
-        const missing = [];
-        if (!parsedJson?.profile?.name) missing.push('profile.name');
-        if (!Array.isArray(parsedJson?.experience)) missing.push('experience');
-        if (!Array.isArray(parsedJson?.education)) missing.push('education');
-        const mappingStatus = missing.length ? 'missing_fields' : 'ok';
-        
-        console.log(`🔍 Validation result: ${mappingStatus}`);
-        if (missing.length > 0) {
-            console.log(`⚠️ Missing fields: ${missing.join(', ')}`);
-        }
-        
-        // ✅ STAGE G: Apply numeric sanitization to parsed data
-        const p = parsedJson;
+        // Apply numeric sanitization using parseLinkedInNumber for all int fields
         const numeric = {
-            followers_count: toIntSafe(p?.profile?.followersCount),
-            connections_count: toIntSafe(p?.profile?.connectionsCount),
-            total_likes: toIntSafe(p?.engagement?.totalLikes),
-            total_comments: toIntSafe(p?.engagement?.totalComments),
-            total_shares: toIntSafe(p?.engagement?.totalShares),
+            followers_count: parseLinkedInNumber(p?.profile?.followersCount),
+            connections_count: parseLinkedInNumber(p?.profile?.connectionsCount),
+            total_likes: parseLinkedInNumber(p?.engagement?.totalLikes),
+            total_comments: parseLinkedInNumber(p?.engagement?.totalComments),
+            total_shares: parseLinkedInNumber(p?.engagement?.totalShares),
             average_likes: toFloatSafe(p?.engagement?.averageLikes)
         };
-        console.log('[DB-INSERT] numeric sanitized:', numeric);
         
-        // Insert to target_profiles (JSON-FIRST with STAGE G enhancements)
-        console.log('💾 Inserting target profile into database (JSON-first with orchestrator data)...');
+        console.log('[TARGET_FLOW] Numeric sanitized:', numeric);
         
-        const sql = `
-        INSERT INTO target_profiles
-        (user_id, linkedin_url, normalized_url, source, data_json,
-         raw_html_file_id, raw_html_size_bytes, parsed_json_file_id,
-         ai_provider, ai_model, gemini_input_tokens, gemini_output_tokens, gemini_total_tokens,
-         mapping_status, version, analyzed_at, created_at, updated_at,
-         followers_count, connections_count, total_likes, total_comments, total_shares, average_likes)
-        VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now(), now(),
-         $16, $17, $18, $19, $20, $21)
-        RETURNING id
+        // Generate file IDs for metadata tracking
+        const rawFileId = `html_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const parsedJsonFileId = `json_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const rawSizeBytes = html ? html.length : null;
+        
+        // Light validation
+        const missing = [];
+        if (!p?.profile?.name) missing.push('profile.name');
+        if (!Array.isArray(p?.experience)) missing.push('experience');
+        if (!Array.isArray(p?.education)) missing.push('education');
+        const mappingStatus = missing.length ? 'missing_fields' : 'ok';
+        
+        console.log(`[TARGET_FLOW] Validation: ${mappingStatus}, Missing: ${missing.join(', ')}`);
+        
+        // UPSERT to target_profiles with strict separation - NEVER touch users or user_profiles
+        console.log('[TARGET_FLOW] Inserting/updating target_profiles only...');
+        
+        const upsertSql = `
+            INSERT INTO target_profiles (
+                user_id, linkedin_url, normalized_url, full_name, headline, "current_role", 
+                current_company, location, about, connections_count, followers_count,
+                total_likes, total_comments, total_shares, average_likes,
+                experience, education, skills, certifications, awards, volunteer_experience,
+                data_json, ai_provider, ai_model, input_tokens, output_tokens, total_tokens,
+                artifacts_json, raw_html_file_id, raw_html_size_bytes, parsed_json_file_id,
+                mapping_status, version, source, analyzed_at, scraped_at, created_at, updated_at
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, NOW(), NOW(), NOW()
+            ) 
+            ON CONFLICT (user_id, normalized_url) 
+            DO UPDATE SET 
+                linkedin_url = EXCLUDED.linkedin_url,
+                full_name = EXCLUDED.full_name,
+                headline = EXCLUDED.headline,
+                "current_role" = EXCLUDED."current_role",
+                current_company = EXCLUDED.current_company,
+                location = EXCLUDED.location,
+                about = EXCLUDED.about,
+                connections_count = EXCLUDED.connections_count,
+                followers_count = EXCLUDED.followers_count,
+                total_likes = EXCLUDED.total_likes,
+                total_comments = EXCLUDED.total_comments,
+                total_shares = EXCLUDED.total_shares,
+                average_likes = EXCLUDED.average_likes,
+                experience = EXCLUDED.experience,
+                education = EXCLUDED.education,
+                skills = EXCLUDED.skills,
+                certifications = EXCLUDED.certifications,
+                awards = EXCLUDED.awards,
+                volunteer_experience = EXCLUDED.volunteer_experience,
+                data_json = EXCLUDED.data_json,
+                ai_provider = EXCLUDED.ai_provider,
+                ai_model = EXCLUDED.ai_model,
+                input_tokens = EXCLUDED.input_tokens,
+                output_tokens = EXCLUDED.output_tokens,
+                total_tokens = EXCLUDED.total_tokens,
+                artifacts_json = EXCLUDED.artifacts_json,
+                mapping_status = EXCLUDED.mapping_status,
+                analyzed_at = NOW(),
+                updated_at = NOW()
+            RETURNING id, (xmax = 0) AS inserted
         `;
 
         const params = [
             userId,
-            profileUrl,
+            cleanProfileUrl,
             normalizedUrlFinal,
-            'linkedin',
-            JSON.stringify(parsedJson),  // Full orchestrator JSON
-            rawFileId,
-            rawSizeBytes,
-            parsedJsonFileId,
-            provider,  // gemini/openai
-            model,     // specific model used
-            usage.input_tokens || 0,
-            usage.output_tokens || 0,
-            usage.total_tokens || 0,
-            mappingStatus,
-            'v1',
-            // ✅ STAGE G: Add sanitized numeric values
-            numeric.followers_count,
+            p?.profile?.name || '',
+            p?.profile?.headline || '',
+            p?.profile?.currentRole || '',
+            p?.profile?.currentCompany || '',
+            p?.profile?.location || '',
+            p?.profile?.about || '',
             numeric.connections_count,
+            numeric.followers_count,
             numeric.total_likes,
             numeric.total_comments,
             numeric.total_shares,
-            numeric.average_likes
+            numeric.average_likes,
+            JSON.stringify(p?.experience || []),
+            JSON.stringify(p?.education || []),
+            JSON.stringify(p?.skills || []),
+            JSON.stringify(p?.certifications || []),
+            JSON.stringify(p?.awards || []),
+            JSON.stringify(p?.volunteer || []),
+            JSON.stringify(p),  // Full AI output as data_json
+            aiResult.provider || 'gemini',
+            aiResult.model || 'gemini-1.5-flash',
+            aiResult.usage?.input_tokens || 0,
+            aiResult.usage?.output_tokens || 0,
+            aiResult.usage?.total_tokens || 0,
+            JSON.stringify(aiResult.usage || {}),  // artifacts_json
+            rawFileId,
+            rawSizeBytes,
+            parsedJsonFileId,
+            mappingStatus,
+            'v1',
+            'linkedin'
         ];
 
-        let inserted;
-        try {
-            const { rows } = await pool.query(sql, params);
-            inserted = rows[0];
-            console.log(`✅ Target profile inserted with ID: ${inserted.id} (JSON-first with orchestrator + numeric sanitization)`);
-        } catch (e) {
-            // Handle unique violation due to race (Postgres code 23505)
-            if (e && e.code === '23505') {
-                console.log('⚠️ Race condition detected - target already exists');
-                return res.status(200).json({ 
-                    success: true, 
-                    alreadyExists: true, 
-                    message: 'Target already exists' 
-                });
-            }
-            console.error('❌ Database insertion failed:', e);
-            throw e;
-        }
+        const result_db = await pool.query(upsertSql, params);
+        const inserted = result_db.rows[0];
+        const wasInserted = inserted.inserted;
         
-        // A.4 Response (strict) with STAGE G enhancements
-        console.log('📤 Returning STAGE G enhanced response...');
+        console.log(`[TARGET_FLOW] ${wasInserted ? 'Inserted' : 'Updated'} target profile ID: ${inserted.id}, tokens=${aiResult.usage?.input_tokens || 0}/${aiResult.usage?.output_tokens || 0}/${aiResult.usage?.total_tokens || 0}`);
         
-        return res.status(200).json({
+        // Return success response
+        res.json({
             success: true,
-            data: parsedJson,
-            storage: {
-                raw_html_saved: true,
-                raw_html_file_id: rawFileId,
-                raw_html_size_bytes: rawSizeBytes,
-                parsed_json_saved: true,
-                parsed_json_file_id: parsedJsonFileId
-            },
-            orchestrator: {
-                provider: provider,
-                model: model,
-                token_usage: {
-                    input_tokens: usage.input_tokens || 0,
-                    output_tokens: usage.output_tokens || 0,
-                    total_tokens: usage.total_tokens || 0
+            message: `Target profile ${wasInserted ? 'inserted' : 'updated'} successfully`,
+            data: {
+                targetProfile: {
+                    id: inserted.id,
+                    linkedinUrl: cleanProfileUrl,
+                    normalizedUrl: normalizedUrlFinal,
+                    fullName: p?.profile?.name || '',
+                    headline: p?.profile?.headline || '',
+                    currentRole: p?.profile?.currentRole || '',
+                    currentCompany: p?.profile?.currentCompany || '',
+                    location: p?.profile?.location || '',
+                    numericData: numeric,
+                    wasInserted: wasInserted
                 },
-                fallback_used: provider !== 'gemini'
+                aiProvider: aiResult.provider,
+                aiModel: aiResult.model,
+                tokenUsage: aiResult.usage,
+                processing: {
+                    mappingStatus: mappingStatus,
+                    missingFields: missing,
+                    validationPassed: mappingStatus === 'ok'
+                }
             },
-            mapping: {
-                schema_version: 'v1',
-                valid: mappingStatus === 'ok',
-                missing_fields: missing,
-                extra_fields: []
-            },
-            numeric_sanitization: {
-                applied: true,
-                sanitized_fields: Object.keys(numeric).filter(k => numeric[k] !== null)
-            },
-            alreadyExists: false
+            alreadyExists: !wasInserted
         });
         
     } catch (error) {
-        console.error('❌ Target profile analysis error:', error);
+        console.error('[TARGET_FLOW] Target profile processing error:', error);
         
-        return res.status(500).json({
+        res.status(500).json({
             success: false,
-            error: 'Target profile analysis failed',
+            error: 'Target profile processing failed',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -657,7 +679,7 @@ app.use('/', profileRoutes);
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔍 Chrome Extension Auth Request:', {
+    console.log('🔑 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -767,39 +789,53 @@ app.post('/auth/chrome-extension', async (req, res) => {
     }
 });
 
-// ==================== FIXED /scrape-html ROUTE WITH PROPER ROUTING ====================
+// ==================== UPDATED /scrape-html ROUTE WITH BOTH FLOWS ====================
 
-// ✅ REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
+// ✅ UPDATED: Lock /scrape-html to handle both flows with strict separation
 app.post('/scrape-html', authenticateToken, (req, res) => {
     // ✅ REQUIRED LOGGING: Route entry
-    console.log('📍 route=/scrape-html');
-    console.log(`📍 isUserProfile=${req.body.isUserProfile}`);
+    console.log('🔍 route=/scrape-html');
+    console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
     
     // ✅ HARD GUARD: Check isUserProfile at the very top
     if (req.body.isUserProfile === true) {
-        console.log('📍 selectedHandler=USER');
-        console.log('🔵 USER handler start');
-        console.log(`📍 userId=${req.user.id}`);
-        console.log(`📍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('🔍 selectedHandler=USER');
+        console.log('[USER_FLOW] Handler start');
+        console.log(`[USER_FLOW] userId=${req.user.id}`);
+        console.log(`[USER_FLOW] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         // Route to User handler
         return handleUserProfile(req, res);
-    } else {
-        console.log('📍 selectedHandler=DISABLED_TARGET');
-        console.log('🚫 Target processing is disabled - returning 501');
+    } else if (req.body.isUserProfile === false) {
+        console.log('🔍 selectedHandler=TARGET');
+        console.log('[TARGET_FLOW] Handler start');
+        console.log(`[TARGET_FLOW] userId=${req.user.id}`);
+        console.log(`[TARGET_FLOW] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
-        // Return 501 for any Target requests
-        return res.status(501).json({
+        // Check if Target is enabled
+        if (!ENABLE_TARGET) {
+            console.log('[TARGET_FLOW] Target processing is disabled - returning 501');
+            return res.status(501).json({
+                success: false,
+                error: 'Target profile processing is temporarily disabled',
+                message: 'This feature is currently under maintenance. Please try again later.'
+            });
+        }
+        
+        // Route to Target handler
+        return handleAnalyzeTarget(req, res);
+    } else {
+        console.log('🔍 selectedHandler=INVALID');
+        return res.status(400).json({
             success: false,
-            error: 'Target profile processing is temporarily disabled',
-            message: 'This feature is currently under maintenance. Please try again later.'
+            error: 'isUserProfile parameter is required and must be true or false'
         });
     }
 });
 
-// ==================== QUARANTINED TARGET ROUTES ====================
+// ==================== RE-ENABLED TARGET ROUTES ====================
 
-// ✅ QUARANTINE: Disable Target-related routes
+// ✅ RE-ENABLED: Target profile processing
 app.post('/profile/target', authenticateToken, (req, res) => {
     if (!ENABLE_TARGET) {
         console.log('🚫 POST /profile/target is temporarily disabled');
@@ -812,18 +848,6 @@ app.post('/profile/target', authenticateToken, (req, res) => {
     return handleAnalyzeTarget(req, res);
 });
 
-app.post('/target-profiles', authenticateToken, (req, res) => {
-    if (!ENABLE_TARGET) {
-        console.log('🚫 POST /target-profiles is temporarily disabled');
-        return res.status(501).json({
-            success: false,
-            error: 'Target profile operations are temporarily disabled'
-        });
-    }
-    // Original target profiles logic would go here
-    res.status(501).json({ success: false, error: 'Not implemented' });
-});
-
 app.post('/analyze-target-profile', authenticateToken, (req, res) => {
     if (!ENABLE_TARGET) {
         console.log('🚫 POST /analyze-target-profile is temporarily disabled');
@@ -832,8 +856,7 @@ app.post('/analyze-target-profile', authenticateToken, (req, res) => {
             error: 'Target profile analysis is temporarily disabled'
         });
     }
-    // Original analyze target logic would go here
-    res.status(501).json({ success: false, error: 'Not implemented' });
+    return handleAnalyzeTarget(req, res);
 });
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
@@ -1097,6 +1120,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     currentCompany: profile.current_company,
                     currentCompanyName: profile.current_company_name,
                     currentCompanyId: profile.current_company_id,
+                    currentCompanyCompanyId: profile.current_company_company_id,
                     currentPosition: profile.current_position,
                     connectionsCount: profile.connections_count,
                     followersCount: profile.followers_count,
@@ -1327,7 +1351,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        stageG: 'LLM Orchestrator + Numeric Sanitization Active',
+        targetFlowEnabled: ENABLE_TARGET,
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1345,9 +1369,9 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /profile/user',
-            'POST /scrape-html (RESTORED: User Profile Processing Only)',
-            'POST /profile/target (QUARANTINED: Returns 501)',
-            'POST /target-profiles (QUARANTINED: Returns 501)',
+            'POST /scrape-html (HANDLES BOTH USER AND TARGET)',
+            'POST /profile/target (RE-ENABLED)',
+            'POST /analyze-target-profile (RE-ENABLED)',
             'DELETE /target-profiles/:id',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
@@ -1375,22 +1399,26 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - USER PROFILE FLOW RESTORED!');
+            console.log('🚀 Msgly.AI Server - TARGET SCANNING RE-ENABLED WITH STRICT FLOW SEPARATION!');
             console.log(`🔍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with numeric sanitization columns`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL with target_profiles parity`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ EXECUTIVE BRIEF IMPLEMENTATION COMPLETE:`);
-            console.log(`   🔵 /scrape-html: Locked to USER handler only (isUserProfile=true)`);
-            console.log(`   🚫 Target routes: QUARANTINED (return 501)`);
+            console.log(`✅ STRICT FLOW SEPARATION IMPLEMENTED:`);
+            console.log(`   🔵 /scrape-html: USER handler (isUserProfile=true) → user_profiles only`);
+            console.log(`   🎯 /scrape-html: TARGET handler (isUserProfile=false) → target_profiles only`);
             console.log(`   🔧 sendToGemini: Fixed import path (./sendToGemini)`);
-            console.log(`   📊 Required logging: Route decisions logged`);
+            console.log(`   📊 Required logging: [USER_FLOW] and [TARGET_FLOW] tags`);
             console.log(`   🗃️ User DB: Schema unchanged, behavior preserved`);
-            console.log(`🛡️ RISK MITIGATION:`);
-            console.log(`   🚪 Feature flag ENABLE_TARGET=false prevents Target writes`);
-            console.log(`   🔒 Hard guard on /scrape-html prevents Target path execution`);
-            console.log(`   📝 All Target routes return 501 immediately`);
-            console.log(`✅ USER PROFILE FLOW READY FOR PRODUCTION!`);
+            console.log(`   🗃️ Target DB: Enhanced with missing columns for AI metadata`);
+            console.log(`🎯 TARGET FEATURES:`);
+            console.log(`   ✅ ENABLE_TARGET=${ENABLE_TARGET} (re-enabled)`);
+            console.log(`   🔒 Strict separation: Target handler NEVER touches users/user_profiles/traffic-light`);
+            console.log(`   📊 UPSERT logic: (user_id, normalized_url) constraint prevents duplicates`);
+            console.log(`   🔢 Numeric sanitization: Uses parseLinkedInNumber for all integer fields`);
+            console.log(`   📝 Flow logging: [TARGET_FLOW] tags for easy debugging`);
+            console.log(`   🚀 LLM orchestrator: processProfileWithLLM with fallback chain`);
+            console.log(`✅ BOTH USER AND TARGET FLOWS READY FOR PRODUCTION!`);
         });
         
     } catch (error) {
