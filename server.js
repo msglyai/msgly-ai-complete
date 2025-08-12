@@ -170,12 +170,12 @@ async function handleUserProfile(req, res) {
         // Save to user_profiles table only
         const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
         
-        // Update user_profiles with processed data
+        // Update user_profiles with processed data (✅ FIXED: Escape current_role reserved word)
         await pool.query(`
             UPDATE user_profiles SET 
                 full_name = $1,
                 headline = $2,
-                current_role = $3,
+                "current_role" = $3,
                 about = $4,
                 location = $5,
                 current_company = $6,
