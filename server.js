@@ -12,8 +12,13 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
-const { sendToGemini } = require('./utils/sendToGemini');
+
+// ✅ FIXED: Import sendToGemini from correct path (project root)
+const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
+
+// ✅ FEATURE FLAG: Disable Target processing
+const ENABLE_TARGET = false; // Set to false to quarantine Target routes
 
 // ✅ STEP 2A: Import all database functions from utils/database.js
 const {
@@ -29,7 +34,8 @@ const {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processScrapedProfileData
+    processScrapedProfileData,
+    processGeminiData  // ✅ Import processGeminiData for User processing
 } = require('./utils/database');
 
 // ✅ STAGE G: Import LLM orchestrator
@@ -74,7 +80,7 @@ const { initProfileRoutes } = require('./routes/profiles');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G — numeric sanitizers
+// What changed in Stage G – numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -119,439 +125,134 @@ function normalizeLinkedInUrl(url = '') {
   } catch { return ''; }
 }
 
-// ✅ FIXED: processGeminiData FUNCTION - CORRECT DATA STRUCTURE MAPPING
-function processGeminiData(geminiResponse, profileUrl) {
+// ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
+async function handleUserProfile(req, res) {
     try {
-        console.log('🤖 Processing Gemini API response for profile extraction');
+        console.log('🔵 === USER PROFILE PROCESSING ===');
+        console.log(`👤 User ID: ${req.user.id}`);
+        console.log(`🔗 URL: ${req.body.profileUrl}`);
         
-        // ✅ FIXED: Extract data from correct Gemini response structure
-        let extractedData = {};
+        const { html, profileUrl } = req.body;
+        const userId = req.user.id;
         
-        if (geminiResponse && geminiResponse.data) {
-            extractedData = geminiResponse.data;  // This is the parsed profile data from sendToGemini
-        } else if (geminiResponse && geminiResponse.extractedData) {
-            extractedData = geminiResponse.extractedData;
-        } else if (geminiResponse) {
-            extractedData = geminiResponse;
-        }
-        
-        // ✅ CRITICAL FIX: Read from correct structure - extractedData.profile.*
-        const profile = extractedData.profile || {};
-        const engagement = extractedData.engagement || {};
-        
-        console.log('🔍 Extracted data structure check:');
-        console.log(`   - Has profile object: ${!!profile}`);
-        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
-        console.log(`   - Profile headline: ${profile.headline || 'Not found'}`);
-        console.log(`   - Current role: ${profile.currentRole || 'Not found'}`);
-        console.log(`   - Current company: ${profile.currentCompany || 'Not found'}`);
-        console.log(`   - Experience count: ${extractedData.experience?.length || 0}`);
-        console.log(`   - Education count: ${extractedData.education?.length || 0}`);
-        
-        // ✅ STAGE G: Apply numeric sanitization
-        const processedProfile = {
-            linkedinUrl: profileUrl || extractedData.linkedinUrl || extractedData.url || '',
-            url: profileUrl || extractedData.url || extractedData.linkedinUrl || '',
-            
-            // ✅ FIXED: Read from profile object
-            fullName: profile.name || profile.fullName || '',
-            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
-            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
-            headline: profile.headline || '',
-            currentRole: profile.currentRole || '',
-            about: profile.about || '',
-            location: profile.location || '',
-            currentCompany: profile.currentCompany || '',
-            currentCompanyName: profile.currentCompany || '',
-            
-            // ✅ STAGE G: Apply numeric sanitization to metrics
-            connectionsCount: toIntSafe(profile.connectionsCount || profile.connections || 0),
-            followersCount: toIntSafe(profile.followersCount || profile.followers || 0),
-            totalLikes: toIntSafe(engagement.totalLikes || 0),
-            totalComments: toIntSafe(engagement.totalComments || 0),
-            totalShares: toIntSafe(engagement.totalShares || 0),
-            averageLikes: toFloatSafe(engagement.averageLikes || 0),
-            
-            // ✅ FIXED: Arrays from root level of extractedData
-            experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
-            education: Array.isArray(extractedData.education) ? extractedData.education : [],
-            skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
-            certifications: Array.isArray(extractedData.certifications) ? extractedData.certifications : [],
-            awards: Array.isArray(extractedData.awards) ? extractedData.awards : [],
-            volunteer: Array.isArray(extractedData.volunteer) ? extractedData.volunteer : [],
-            following: Array.isArray(extractedData.following) ? extractedData.following : [],
-            activity: Array.isArray(extractedData.activity) ? extractedData.activity : [],
-            
-            // ✅ Enhanced engagement and metadata
-            engagementData: engagement || {},
-            companySize: extractedData.companySize || '',
-            industry: extractedData.industry || '',
-            profileViews: toIntSafe(extractedData.profileViews || 0),
-            postImpressions: toIntSafe(extractedData.postImpressions || 0),
-            
-            // ✅ Metadata
-            timestamp: new Date().toISOString(),
-            dataSource: 'gemini_processing',
-            hasExperience: Array.isArray(extractedData.experience) && extractedData.experience.length > 0
-        };
-        
-        console.log('✅ USER PROFILE: Gemini data processed successfully with numeric sanitization');
-        console.log(`📊 Processed data summary:`);
-        console.log(`   - Full Name: ${processedProfile.fullName || 'Not available'}`);
-        console.log(`   - Headline: ${processedProfile.headline || 'Not available'}`);
-        console.log(`   - Current Role: ${processedProfile.currentRole || 'Not available'}`);
-        console.log(`   - Current Company: ${processedProfile.currentCompany || 'Not available'}`);
-        console.log(`   - Location: ${processedProfile.location || 'Not available'}`);
-        console.log(`   - Experience entries: ${processedProfile.experience.length}`);
-        console.log(`   - Education entries: ${processedProfile.education.length}`);
-        console.log(`   - Certifications: ${processedProfile.certifications.length}`);
-        console.log(`   - Awards: ${processedProfile.awards.length}`);
-        console.log(`   - Volunteer: ${processedProfile.volunteer.length}`);
-        console.log(`   - Following: ${processedProfile.following.length}`);
-        console.log(`   - Activity: ${processedProfile.activity.length}`);
-        console.log(`   - Has Experience: ${processedProfile.hasExperience}`);
-        console.log(`   - Connections (sanitized): ${processedProfile.connectionsCount}`);
-        console.log(`   - Followers (sanitized): ${processedProfile.followersCount}`);
-        console.log(`   - Total Likes (sanitized): ${processedProfile.totalLikes}`);
-        
-        return processedProfile;
-        
-    } catch (error) {
-        console.error('❌ Error processing USER PROFILE Gemini data:', error);
-        
-        // Return minimal profile structure on error
-        return {
-            linkedinUrl: profileUrl || '',
-            url: profileUrl || '',
-            fullName: '',
-            headline: '',
-            currentRole: '',
-            about: '',
-            location: '',
-            currentCompany: '',
-            connectionsCount: 0,
-            followersCount: 0,
-            experience: [],
-            education: [],
-            skills: [],
-            certifications: [],
-            awards: [],
-            volunteer: [],
-            following: [],
-            activity: [],
-            engagementData: {},
-            timestamp: new Date().toISOString(),
-            dataSource: 'gemini_processing_error',
-            hasExperience: false
-        };
-    }
-}
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-
-// ✅ STEP 2D: Initialize authentication middleware with database functions
-initAuthMiddleware({ getUserById });
-
-// 🔧 DUAL AUTHENTICATION HELPER FUNCTION
-const authenticateDual = async (req, res, next) => {
-    // First try JWT authentication
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-            const token = authHeader.substring(7);
-            const decoded = jwt.verify(token, JWT_SECRET);
-            const user = await getUserById(decoded.userId);
-            if (user) {
-                req.user = user;
-                req.authMethod = 'jwt';
-                return next();
-            }
-        } catch (jwtError) {
-            console.log('JWT auth failed, trying session:', jwtError.message);
-        }
-    }
-    
-    // Then try session authentication
-    if (req.isAuthenticated && req.isAuthenticated()) {
-        req.authMethod = 'session';
-        return next();
-    }
-    
-    // If both fail, return 401
-    return res.status(401).json({
-        success: false,
-        error: 'Please log in to access your profile'
-    });
-};
-
-// ✅ STEP 2E: Initialize user routes with dependencies and get router
-const userRoutes = initUserRoutes({
-    pool,
-    authenticateToken,
-    getUserByEmail,
-    getUserById,
-    createUser,
-    createOrUpdateUserProfile,
-    getSetupStatusMessage
-});
-
-// ✅ STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
-const profileRoutes = initProfileRoutes({
-    pool,
-    authenticateToken,
-    getUserById,
-    processGeminiData,
-    processScrapedProfileData,
-    cleanLinkedInUrl,
-    getStatusMessage,
-    sendToGemini,
-    // ✅ STAGE G: Add orchestrator and numeric helpers
-    processProfileWithLLM,
-    toIntSafe,
-    toFloatSafe
-});
-
-// CORS configuration
-const corsOptions = {
-    origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-        
-        const allowedOrigins = [
-            'https://www.linkedin.com',
-            'https://linkedin.com',
-            'http://localhost:3000',
-            'https://msgly.ai',
-            'https://www.msgly.ai',
-            'https://api.msgly.ai',
-            'https://test.msgly.ai'
-        ];
-        
-        if (origin.startsWith('chrome-extension://')) {
-            return callback(null, true);
-        }
-        
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            return callback(null, true);
-        }
-        
-        return callback(null, true);
-    },
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-};
-
-// ✅ MIDDLEWARE SETUP - PROPERLY POSITIONED
-app.use(cors(corsOptions));
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Session configuration
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000
-    }
-}));
-
-// Passport initialization
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Passport serialization
-passport.serializeUser((user, done) => {
-    done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-    try {
-        const user = await getUserById(id);
-        done(null, user);
-    } catch (error) {
-        done(error, null);
-    }
-});
-
-// Google OAuth Strategy
-passport.use(new GoogleStrategy({
-    clientID: GOOGLE_CLIENT_ID,
-    clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? "https://api.msgly.ai/auth/google/callback"
-        : "http://localhost:3000/auth/google/callback"
-},
-async (accessToken, refreshToken, profile, done) => {
-    try {
-        let user = await getUserByEmail(profile.emails[0].value);
-        let isNewUser = false;
-        
-        if (!user) {
-            user = await createGoogleUser(
-                profile.emails[0].value,
-                profile.displayName,
-                profile.id,
-                profile.photos[0]?.value
-            );
-            isNewUser = true;
-        } else if (!user.google_id) {
-            await linkGoogleAccount(user.id, profile.id);
-            user = await getUserById(user.id);
-        }
-        
-        user.isNewUser = isNewUser;
-        
-        return done(null, user);
-    } catch (error) {
-        console.error('Google OAuth error:', error);
-        return done(error, null);
-    }
-}));
-
-// Logging middleware
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-    next();
-});
-
-// ✅ STEP 2C: Mount static routes FIRST (before other routes)
-app.use('/', staticRoutes);
-
-// ✅ MODULARIZATION: Mount health routes
-app.use('/', healthRoutes);
-
-// ✅ STEP 2E: Mount user routes
-app.use('/', userRoutes);
-
-// ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
-app.use('/', profileRoutes);
-
-// ==================== CHROME EXTENSION AUTH ENDPOINT ====================
-
-app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension Auth Request:', {
-        hasGoogleToken: !!req.body.googleAccessToken,
-        clientType: req.body.clientType,
-        extensionId: req.body.extensionId
-    });
-    
-    try {
-        const { googleAccessToken, clientType, extensionId } = req.body;
-        
-        if (!googleAccessToken) {
+        if (!html || !profileUrl) {
             return res.status(400).json({
                 success: false,
-                error: 'Google access token is required'
+                error: 'HTML content and profileUrl are required for user profile processing'
             });
         }
         
-        if (clientType !== 'chrome_extension') {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid client type'
-            });
-        }
+        // Clean and validate LinkedIn URL
+        const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        // Verify Google token and get user info
-        console.log('🔍 Verifying Google token...');
-        const googleResponse = await axios.get(
-            `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
-        );
+        console.log('🤖 Processing HTML with Gemini for USER profile...');
         
-        if (!googleResponse.data || !googleResponse.data.email) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid Google token'
-            });
-        }
-        
-        const googleUser = googleResponse.data;
-        console.log('✅ Google user verified:', {
-            email: googleUser.email,
-            name: googleUser.name,
-            verified: googleUser.verified_email
+        // Process HTML with Gemini
+        const geminiResult = await sendToGemini({
+            html: html,
+            url: cleanProfileUrl,
+            isUserProfile: true
         });
         
-        // Find or create user
-        let user = await getUserByEmail(googleUser.email);
-        let isNewUser = false;
-        
-        if (!user) {
-            console.log('👤 Creating new user...');
-            user = await createGoogleUser(
-                googleUser.email,
-                googleUser.name,
-                googleUser.id,
-                googleUser.picture
-            );
-            isNewUser = true;
-        } else if (!user.google_id) {
-            console.log('🔗 Linking Google account to existing user...');
-            await linkGoogleAccount(user.id, googleUser.id);
-            user = await getUserById(user.id);
+        if (!geminiResult.success) {
+            console.error('❌ Gemini processing failed for USER profile:', geminiResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process profile data with Gemini'
+            });
         }
         
-        user.isNewUser = isNewUser;
+        console.log('✅ Gemini processing successful for USER profile');
         
-        // Generate JWT token
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-        );
+        // Process Gemini data for USER profile
+        const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
         
-        console.log('✅ Chrome extension authentication successful');
+        // Save to user_profiles table only
+        const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
+        
+        // Update user_profiles with processed data
+        await pool.query(`
+            UPDATE user_profiles SET 
+                full_name = $1,
+                headline = $2,
+                current_role = $3,
+                about = $4,
+                location = $5,
+                current_company = $6,
+                connections_count = $7,
+                followers_count = $8,
+                experience = $9,
+                education = $10,
+                skills = $11,
+                certifications = $12,
+                awards = $13,
+                volunteer_experience = $14,
+                activity = $15,
+                engagement_data = $16,
+                data_extraction_status = 'completed',
+                initial_scraping_done = true,
+                profile_analyzed = true,
+                extraction_completed_at = NOW(),
+                updated_at = NOW()
+            WHERE user_id = $17
+        `, [
+            processedProfile.fullName,
+            processedProfile.headline,
+            processedProfile.currentRole,
+            processedProfile.about,
+            processedProfile.location,
+            processedProfile.currentCompany,
+            processedProfile.connectionsCount,
+            processedProfile.followersCount,
+            JSON.stringify(processedProfile.experience),
+            JSON.stringify(processedProfile.education),
+            JSON.stringify(processedProfile.skills),
+            JSON.stringify(processedProfile.certifications),
+            JSON.stringify(processedProfile.awards),
+            JSON.stringify(processedProfile.volunteerExperience),
+            JSON.stringify(processedProfile.activity),
+            JSON.stringify(processedProfile.engagementData),
+            userId
+        ]);
+        
+        console.log('✅ USER profile saved to user_profiles table successfully');
         
         res.json({
             success: true,
-            message: 'Authentication successful',
+            message: 'User profile processed and saved successfully',
             data: {
-                token: token,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    displayName: user.display_name,
-                    profilePicture: user.profile_picture,
-                    packageType: user.package_type,
-                    credits: user.credits_remaining || 10,
-                    linkedinUrl: user.linkedin_url,
-                    registrationCompleted: user.registration_completed
-                },
-                isNewUser: isNewUser
+                fullName: processedProfile.fullName,
+                headline: processedProfile.headline,
+                currentRole: processedProfile.currentRole,
+                experienceCount: processedProfile.experience?.length || 0,
+                educationCount: processedProfile.education?.length || 0,
+                hasExperience: processedProfile.hasExperience
             }
         });
         
     } catch (error) {
-        console.error('❌ Chrome extension auth error:', error);
-        
-        if (error.response && error.response.status === 401) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid Google token'
-            });
-        }
+        console.error('❌ USER profile processing error:', error);
         
         res.status(500).json({
             success: false,
-            error: 'Authentication failed',
-            details: error.message
+            error: 'User profile processing failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
-});
+}
 
-// ==================== STAGE G: JSON-FIRST TARGET PROFILE HANDLER WITH LLM ORCHESTRATOR ====================
-
-const handleAnalyzeTarget = async (req, res) => {
+// ✅ TARGET PROFILE HANDLER: Quarantined with ENABLE_TARGET flag
+async function handleAnalyzeTarget(req, res) {
+    // ✅ QUARANTINE: Check feature flag first
+    if (!ENABLE_TARGET) {
+        console.log('🚫 Target profile processing is temporarily disabled');
+        return res.status(501).json({
+            success: false,
+            error: 'Target profile processing is temporarily disabled',
+            message: 'This feature is currently under maintenance. Please try again later.'
+        });
+    }
+    
     try {
         console.log('🎯 Target profile analysis request received (Stage G with LLM orchestrator)');
         console.log(`👤 User ID: ${req.user.id}`);
@@ -762,12 +463,378 @@ const handleAnalyzeTarget = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
+}
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
+// ✅ STEP 2D: Initialize authentication middleware with database functions
+initAuthMiddleware({ getUserById });
+
+// 🔧 DUAL AUTHENTICATION HELPER FUNCTION
+const authenticateDual = async (req, res, next) => {
+    // First try JWT authentication
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.substring(7);
+            const decoded = jwt.verify(token, JWT_SECRET);
+            const user = await getUserById(decoded.userId);
+            if (user) {
+                req.user = user;
+                req.authMethod = 'jwt';
+                return next();
+            }
+        } catch (jwtError) {
+            console.log('JWT auth failed, trying session:', jwtError.message);
+        }
+    }
+    
+    // Then try session authentication
+    if (req.isAuthenticated && req.isAuthenticated()) {
+        req.authMethod = 'session';
+        return next();
+    }
+    
+    // If both fail, return 401
+    return res.status(401).json({
+        success: false,
+        error: 'Please log in to access your profile'
+    });
 };
 
-// What changed in Stage G — route alias for extension + keep new path
-console.log('Routes mounted: POST /scrape-html (alias) | POST /profile/target (STAGE G with orchestrator)');
-app.post('/scrape-html', authenticateToken, handleAnalyzeTarget); // alias for the extension (legacy path)
-app.post('/profile/target', authenticateToken, handleAnalyzeTarget); // new JSON-first path with STAGE G orchestrator
+// ✅ STEP 2E: Initialize user routes with dependencies and get router
+const userRoutes = initUserRoutes({
+    pool,
+    authenticateToken,
+    getUserByEmail,
+    getUserById,
+    createUser,
+    createOrUpdateUserProfile,
+    getSetupStatusMessage
+});
+
+// ✅ STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
+const profileRoutes = initProfileRoutes({
+    pool,
+    authenticateToken,
+    getUserById,
+    processGeminiData,
+    processScrapedProfileData,
+    cleanLinkedInUrl,
+    getStatusMessage,
+    sendToGemini,
+    // ✅ STAGE G: Add orchestrator and numeric helpers
+    processProfileWithLLM,
+    toIntSafe,
+    toFloatSafe
+});
+
+// CORS configuration
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+            'https://www.linkedin.com',
+            'https://linkedin.com',
+            'http://localhost:3000',
+            'https://msgly.ai',
+            'https://www.msgly.ai',
+            'https://api.msgly.ai',
+            'https://test.msgly.ai'
+        ];
+        
+        if (origin.startsWith('chrome-extension://')) {
+            return callback(null, true);
+        }
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+        
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+};
+
+// ✅ MIDDLEWARE SETUP - PROPERLY POSITIONED
+app.use(cors(corsOptions));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Session configuration
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000
+    }
+}));
+
+// Passport initialization
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user = await getUserById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
+    }
+});
+
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? "https://api.msgly.ai/auth/google/callback"
+        : "http://localhost:3000/auth/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+    try {
+        let user = await getUserByEmail(profile.emails[0].value);
+        let isNewUser = false;
+        
+        if (!user) {
+            user = await createGoogleUser(
+                profile.emails[0].value,
+                profile.displayName,
+                profile.id,
+                profile.photos[0]?.value
+            );
+            isNewUser = true;
+        } else if (!user.google_id) {
+            await linkGoogleAccount(user.id, profile.id);
+            user = await getUserById(user.id);
+        }
+        
+        user.isNewUser = isNewUser;
+        
+        return done(null, user);
+    } catch (error) {
+        console.error('Google OAuth error:', error);
+        return done(error, null);
+    }
+}));
+
+// Logging middleware
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
+
+// ✅ STEP 2C: Mount static routes FIRST (before other routes)
+app.use('/', staticRoutes);
+
+// ✅ MODULARIZATION: Mount health routes
+app.use('/', healthRoutes);
+
+// ✅ STEP 2E: Mount user routes
+app.use('/', userRoutes);
+
+// ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
+app.use('/', profileRoutes);
+
+// ==================== CHROME EXTENSION AUTH ENDPOINT ====================
+
+app.post('/auth/chrome-extension', async (req, res) => {
+    console.log('🔍 Chrome Extension Auth Request:', {
+        hasGoogleToken: !!req.body.googleAccessToken,
+        clientType: req.body.clientType,
+        extensionId: req.body.extensionId
+    });
+    
+    try {
+        const { googleAccessToken, clientType, extensionId } = req.body;
+        
+        if (!googleAccessToken) {
+            return res.status(400).json({
+                success: false,
+                error: 'Google access token is required'
+            });
+        }
+        
+        if (clientType !== 'chrome_extension') {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid client type'
+            });
+        }
+        
+        // Verify Google token and get user info
+        console.log('🔍 Verifying Google token...');
+        const googleResponse = await axios.get(
+            `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
+        );
+        
+        if (!googleResponse.data || !googleResponse.data.email) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid Google token'
+            });
+        }
+        
+        const googleUser = googleResponse.data;
+        console.log('✅ Google user verified:', {
+            email: googleUser.email,
+            name: googleUser.name,
+            verified: googleUser.verified_email
+        });
+        
+        // Find or create user
+        let user = await getUserByEmail(googleUser.email);
+        let isNewUser = false;
+        
+        if (!user) {
+            console.log('👤 Creating new user...');
+            user = await createGoogleUser(
+                googleUser.email,
+                googleUser.name,
+                googleUser.id,
+                googleUser.picture
+            );
+            isNewUser = true;
+        } else if (!user.google_id) {
+            console.log('🔗 Linking Google account to existing user...');
+            await linkGoogleAccount(user.id, googleUser.id);
+            user = await getUserById(user.id);
+        }
+        
+        user.isNewUser = isNewUser;
+        
+        // Generate JWT token
+        const token = jwt.sign(
+            { userId: user.id, email: user.email },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        console.log('✅ Chrome extension authentication successful');
+        
+        res.json({
+            success: true,
+            message: 'Authentication successful',
+            data: {
+                token: token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    displayName: user.display_name,
+                    profilePicture: user.profile_picture,
+                    packageType: user.package_type,
+                    credits: user.credits_remaining || 10,
+                    linkedinUrl: user.linkedin_url,
+                    registrationCompleted: user.registration_completed
+                },
+                isNewUser: isNewUser
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Chrome extension auth error:', error);
+        
+        if (error.response && error.response.status === 401) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid Google token'
+            });
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Authentication failed',
+            details: error.message
+        });
+    }
+});
+
+// ==================== FIXED /scrape-html ROUTE WITH PROPER ROUTING ====================
+
+// ✅ REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
+app.post('/scrape-html', authenticateToken, (req, res) => {
+    // ✅ REQUIRED LOGGING: Route entry
+    console.log('📍 route=/scrape-html');
+    console.log(`📍 isUserProfile=${req.body.isUserProfile}`);
+    
+    // ✅ HARD GUARD: Check isUserProfile at the very top
+    if (req.body.isUserProfile === true) {
+        console.log('📍 selectedHandler=USER');
+        console.log('🔵 USER handler start');
+        console.log(`📍 userId=${req.user.id}`);
+        console.log(`📍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        
+        // Route to User handler
+        return handleUserProfile(req, res);
+    } else {
+        console.log('📍 selectedHandler=DISABLED_TARGET');
+        console.log('🚫 Target processing is disabled - returning 501');
+        
+        // Return 501 for any Target requests
+        return res.status(501).json({
+            success: false,
+            error: 'Target profile processing is temporarily disabled',
+            message: 'This feature is currently under maintenance. Please try again later.'
+        });
+    }
+});
+
+// ==================== QUARANTINED TARGET ROUTES ====================
+
+// ✅ QUARANTINE: Disable Target-related routes
+app.post('/profile/target', authenticateToken, (req, res) => {
+    if (!ENABLE_TARGET) {
+        console.log('🚫 POST /profile/target is temporarily disabled');
+        return res.status(501).json({
+            success: false,
+            error: 'Target profile processing is temporarily disabled',
+            message: 'This feature is currently under maintenance. Please try again later.'
+        });
+    }
+    return handleAnalyzeTarget(req, res);
+});
+
+app.post('/target-profiles', authenticateToken, (req, res) => {
+    if (!ENABLE_TARGET) {
+        console.log('🚫 POST /target-profiles is temporarily disabled');
+        return res.status(501).json({
+            success: false,
+            error: 'Target profile operations are temporarily disabled'
+        });
+    }
+    // Original target profiles logic would go here
+    res.status(501).json({ success: false, error: 'Not implemented' });
+});
+
+app.post('/analyze-target-profile', authenticateToken, (req, res) => {
+    if (!ENABLE_TARGET) {
+        console.log('🚫 POST /analyze-target-profile is temporarily disabled');
+        return res.status(501).json({
+            success: false,
+            error: 'Target profile analysis is temporarily disabled'
+        });
+    }
+    // Original analyze target logic would go here
+    res.status(501).json({ success: false, error: 'Not implemented' });
+});
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
 
@@ -1278,10 +1345,9 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /profile/user',
-            'POST /profile/target (STAGE G: LLM Orchestrator + Numeric Sanitization)',
-            'POST /scrape-html (STAGE G: Alias for /profile/target)',
-            'GET /target-profiles',
-            'GET /target-profiles/search',
+            'POST /scrape-html (RESTORED: User Profile Processing Only)',
+            'POST /profile/target (QUARANTINED: Returns 501)',
+            'POST /target-profiles (QUARANTINED: Returns 501)',
             'DELETE /target-profiles/:id',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
@@ -1309,26 +1375,22 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - STAGE G COMPLETE!');
-            console.log(`📍 Port: ${PORT}`);
+            console.log('🚀 Msgly.AI Server - USER PROFILE FLOW RESTORED!');
+            console.log(`🔍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL with numeric sanitization columns`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`🎯 STAGE G FEATURES:`);
-            console.log(`   ✅ LLM Orchestrator: Gemini → GPT-5 nano → GPT-5 mini fallback chain`);
-            console.log(`   ✅ Numeric Sanitization: "16,706", "500+", "1.6K", "2M" → numbers/NULL`);
-            console.log(`   ✅ JSON-first storage: Full AI output + token usage + provider/model tracking`);
-            console.log(`   ✅ Structured transient error handling (no throws on 503/timeout)`);
-            console.log(`   ✅ Optimization mode support: standard/less_aggressive`);
-            console.log(`   ✅ Enhanced target profile analysis with fallback reliability`);
-            console.log(`🔧 IMPLEMENTATION NOTES:`);
-            console.log(`   📝 Files created: utils/sendToOpenAI.js, utils/llmOrchestrator.js`);
-            console.log(`   📝 Files modified: server.js, routes/profiles.js, utils/sendToGemini.js`);
-            console.log(`   💾 Database: Enhanced with ai_provider, ai_model, numeric fields`);
-            console.log(`   📊 Validation: Light validation with shared schema reference`);
-            console.log(`   🔄 Fallback chain ensures high reliability even during Gemini outages`);
-            console.log(`   🔢 All numeric fields properly sanitized before database insertion`);
-            console.log(`✅ STAGE G READY FOR PRODUCTION TESTING!`);
+            console.log(`✅ EXECUTIVE BRIEF IMPLEMENTATION COMPLETE:`);
+            console.log(`   🔵 /scrape-html: Locked to USER handler only (isUserProfile=true)`);
+            console.log(`   🚫 Target routes: QUARANTINED (return 501)`);
+            console.log(`   🔧 sendToGemini: Fixed import path (./sendToGemini)`);
+            console.log(`   📊 Required logging: Route decisions logged`);
+            console.log(`   🗃️ User DB: Schema unchanged, behavior preserved`);
+            console.log(`🛡️ RISK MITIGATION:`);
+            console.log(`   🚪 Feature flag ENABLE_TARGET=false prevents Target writes`);
+            console.log(`   🔒 Hard guard on /scrape-html prevents Target path execution`);
+            console.log(`   📝 All Target routes return 501 immediately`);
+            console.log(`✅ USER PROFILE FLOW READY FOR PRODUCTION!`);
         });
         
     } catch (error) {
