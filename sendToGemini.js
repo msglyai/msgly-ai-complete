@@ -2,7 +2,7 @@
 // Enhanced sendToGemini.js - Support optimization.mode + structured transient returns
 const axios = require('axios');
 
-// ✅ Rate limiting configuration (Gemini is generous)
+// ✅ Rate limiting configuration (OpenAI GPT-5 nano)
 const RATE_LIMIT = {
     DELAY_BETWEEN_REQUESTS: 1000,    // 1 second between requests
     MAX_RETRIES: 3,                  // Maximum retry attempts
@@ -11,9 +11,9 @@ const RATE_LIMIT = {
 };
 
 // 🚀 INCREASED limits for TESTING - Allow more content to preserve complete data
-const GEMINI_LIMITS = {
+const OPENAI_LIMITS = {
     MAX_TOKENS_INPUT: 50000,         // Same (you have 28K headroom)
-    MAX_TOKENS_OUTPUT: 8000,         // Same (you have 5K headroom)
+    MAX_TOKENS_OUTPUT: 12000,        // INCREASED: 8000 → 12000 tokens
     MAX_SIZE_KB: 4000               // INCREASED: 3000 → 4000 KB (more content preserved)
 };
 
@@ -73,7 +73,7 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
 // 🚀 LESS AGGRESSIVE LinkedIn HTML Preprocessor based on optimization mode
 function preprocessHTMLForGemini(html, optimizationMode = 'less_aggressive') {
     try {
-        console.log(`🔄 Starting ${optimizationMode} HTML preprocessing (size: ${(html.length / 1024).toFixed(2)} KB)`);
+        console.log(`🔥 Starting ${optimizationMode} HTML preprocessing (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         const originalSize = processedHtml.length;
@@ -142,13 +142,13 @@ function preprocessHTMLForGemini(html, optimizationMode = 'less_aggressive') {
         console.log(`   Original: ${(originalSize / 1024).toFixed(2)} KB`);
         console.log(`   Final: ${(finalSize / 1024).toFixed(2)} KB`);
         console.log(`   Reduction: ${reduction}%`);
-        console.log(`   Estimated tokens: ~${finalTokens} (Max: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`);
+        console.log(`   Estimated tokens: ~${finalTokens} (Max: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
         
         return processedHtml;
         
     } catch (error) {
         console.error('❌ HTML preprocessing failed:', error);
-        console.log('🔄 Fallback: Basic processing...');
+        console.log('🔥 Fallback: Basic processing...');
         
         try {
             const fallback = html
@@ -173,22 +173,23 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ MAIN function to send data to Gemini 1.5 Flash with optimization mode support
+// ✅ MAIN function to send data to OpenAI GPT-5 nano with optimization mode support
 async function sendToGemini(inputData) {
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.OPENAI_API_KEY;
         
         if (!apiKey) {
-            return { success: false, status: 500, userMessage: 'GEMINI_API_KEY not configured', transient: false };
+            return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
         }
         
-        console.log('🤖 === GEMINI 1.5 FLASH WITH STAGE G OPTIMIZATION ===');
+        console.log('🤖 === OPENAI GPT-5 NANO WITH STAGE G OPTIMIZATION ===');
         
         // Determine input type and prepare data
         let processedData;
         let inputType;
         let systemPrompt;
         let userPrompt;
+        let preprocessedHtml;
         
         // Extract optimization mode from input
         const optimizationMode = inputData.optimization?.mode || 'less_aggressive';
@@ -197,29 +198,29 @@ async function sendToGemini(inputData) {
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
             console.log(`📄 Input type: ${inputType}`);
-            console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
+            console.log(`🔍 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
             const htmlSizeKB = inputData.html.length / 1024;
-            if (htmlSizeKB > GEMINI_LIMITS.MAX_SIZE_KB) {
+            if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
                 return { 
                     success: false, 
                     status: 413, 
-                    userMessage: `HTML too large: ${htmlSizeKB.toFixed(2)} KB (max: ${GEMINI_LIMITS.MAX_SIZE_KB} KB)`,
+                    userMessage: `HTML too large: ${htmlSizeKB.toFixed(2)} KB (max: ${OPENAI_LIMITS.MAX_SIZE_KB} KB)`,
                     transient: false 
                 };
             }
             
             // Preprocess HTML with optimization mode
-            const preprocessedHtml = preprocessHTMLForGemini(inputData.html, optimizationMode);
+            preprocessedHtml = preprocessHTMLForGemini(inputData.html, optimizationMode);
             
             const estimatedTokens = estimateTokenCount(preprocessedHtml);
-            console.log(`🔢 Estimated tokens: ${estimatedTokens} (Max input: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`);
+            console.log(`📢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
             
-            if (estimatedTokens > GEMINI_LIMITS.MAX_TOKENS_INPUT) {
+            if (estimatedTokens > OPENAI_LIMITS.MAX_TOKENS_INPUT) {
                 return { 
                     success: false, 
                     status: 413, 
-                    userMessage: `Content too large: ~${estimatedTokens} tokens (max: ${GEMINI_LIMITS.MAX_TOKENS_INPUT})`,
+                    userMessage: `Content too large: ~${estimatedTokens} tokens (max: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`,
                     transient: false 
                 };
             }
@@ -353,10 +354,7 @@ Return as JSON with this EXACT structure:
     "totalShares": "Sum of all shares across posts",
     "averageLikes": "Average likes per post"
   }
-}
-
-HTML Content:
-${preprocessedHtml}`;
+}`;
             
         } else if (inputData.data || inputData.results) {
             inputType = 'JSON Data';
@@ -374,9 +372,9 @@ CRITICAL REQUIREMENTS:
 4. Use the exact structure provided
 5. Extract ALL available data thoroughly from every section`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:
-
-${JSON.stringify(jsonData, null, 2)}`;
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:`;
+            
+            preprocessedHtml = JSON.stringify(jsonData, null, 2);
             
         } else {
             return { 
@@ -388,53 +386,35 @@ ${JSON.stringify(jsonData, null, 2)}`;
         }
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
-        console.log(`📝 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        console.log(`🔍 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to Gemini with retry logic
-        const geminiResponse = await retryWithBackoff(async () => {
-            console.log('📤 Sending request to Gemini 1.5 Flash API...');
+        // Make request to OpenAI GPT-5 nano with retry logic
+        const openaiResponse = await retryWithBackoff(async () => {
+            console.log('📤 Sending request to OpenAI GPT-5 nano API...');
             
             const response = await axios.post(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
+                `https://api.openai.com/v1/responses`,
                 {
-                    contents: [{
-                        parts: [{
-                            text: `${systemPrompt}\n\n${userPrompt}`
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.1,
-                        topK: 1,
-                        topP: 0.95,
-                        maxOutputTokens: GEMINI_LIMITS.MAX_TOKENS_OUTPUT,
-                        responseMimeType: "application/json"
-                    },
-                    safetySettings: [
-                        {
-                            category: "HARM_CATEGORY_HARASSMENT",
-                            threshold: "BLOCK_NONE"
-                        },
-                        {
-                            category: "HARM_CATEGORY_HATE_SPEECH", 
-                            threshold: "BLOCK_NONE"
-                        },
-                        {
-                            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold: "BLOCK_NONE"
-                        },
-                        {
-                            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold: "BLOCK_NONE"
-                        }
+                    model: "gpt-5-nano",
+                    response_format: { type: "json_object" },
+                    temperature: 0,
+                    max_output_tokens: 12000,
+                    input: [
+                        { role: "system", content: [{ type: "text", text: systemPrompt }] },
+                        { role: "user", content: [
+                            { type: "text", text: userPrompt },
+                            { type: "input_text", text: preprocessedHtml }
+                        ]}
                     ]
                 },
                 {
                     timeout: 60000,
                     headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
                     }
                 }
             );
@@ -442,33 +422,33 @@ ${JSON.stringify(jsonData, null, 2)}`;
             return response;
         });
         
-        console.log('📥 Gemini API response received');
-        console.log(`📊 Response status: ${geminiResponse.status}`);
+        console.log('🔥 OpenAI API response received');
+        console.log(`📊 Response status: ${openaiResponse.status}`);
         
-        if (!geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        if (!openaiResponse.data?.output_text) {
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'Invalid response structure from Gemini API',
+                userMessage: 'Invalid response structure from OpenAI API',
                 transient: true 
             };
         }
         
-        const rawResponse = geminiResponse.data.candidates[0].content.parts[0].text;
-        console.log(`📝 Raw response length: ${rawResponse.length} characters`);
+        const rawResponse = openaiResponse.data.output_text;
+        console.log(`🔍 Raw response length: ${rawResponse.length} characters`);
         
         // Enhanced token usage extraction
-        const usageMetadata = geminiResponse.data.usageMetadata;
+        const usageMetadata = openaiResponse.data.usage;
         let tokenUsage = null;
         
         if (usageMetadata) {
-            console.log(`💰 Usage - Prompt tokens: ${usageMetadata.promptTokenCount}, Completion tokens: ${usageMetadata.candidatesTokenCount}, Total: ${usageMetadata.totalTokenCount}`);
+            console.log(`💰 Usage - Prompt tokens: ${usageMetadata.prompt_tokens}, Completion tokens: ${usageMetadata.completion_tokens}, Total: ${usageMetadata.total_tokens}`);
             
             tokenUsage = {
-                input_tokens: usageMetadata.promptTokenCount || 0,
-                output_tokens: usageMetadata.candidatesTokenCount || 0,
-                total_tokens: usageMetadata.totalTokenCount || 0,
-                model: 'gemini-1.5-flash',
+                input_tokens: usageMetadata.prompt_tokens || 0,
+                output_tokens: usageMetadata.completion_tokens || 0,
+                total_tokens: usageMetadata.total_tokens || 0,
+                model: 'gpt-5-nano',
                 timestamp: new Date().toISOString()
             };
         }
@@ -483,7 +463,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'Failed to parse Gemini response as JSON',
+                userMessage: 'Failed to parse OpenAI response as JSON',
                 transient: true 
             };
         }
@@ -493,7 +473,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
         const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
         
-        console.log('✅ === GEMINI 1.5 FLASH WITH STAGE G OPTIMIZATION COMPLETED ===');
+        console.log('✅ === OPENAI GPT-5 NANO WITH STAGE G OPTIMIZATION COMPLETED ===');
         console.log(`📊 Extraction Results:`);
         console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
         console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
@@ -504,7 +484,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
         console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`   - Optimization mode: ${optimizationMode}`);
-        console.log(`   - Token usage: ${usageMetadata?.totalTokenCount || 'N/A'}`);
+        console.log(`   - Token usage: ${usageMetadata?.total_tokens || 'N/A'}`);
         
         return {
             success: true,
@@ -523,13 +503,13 @@ ${JSON.stringify(jsonData, null, 2)}`;
         };
         
     } catch (error) {
-        console.error('❌ === GEMINI 1.5 FLASH FAILED ===');
+        console.error('❌ === OPENAI GPT-5 NANO FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
         
-        // Handle specific Gemini error types with structured transient response
+        // Handle specific OpenAI error types with structured transient response
         let userFriendlyMessage = 'Failed to process profile data';
         let isTransient = false;
         let status = error.response?.status || 500;
@@ -538,7 +518,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             userFriendlyMessage = 'Rate limit exceeded. Please wait a moment and try again.';
             isTransient = true;
         } else if (error.response?.status === 503) {
-            userFriendlyMessage = 'Gemini is busy. Please try again in a moment.';
+            userFriendlyMessage = 'OpenAI is busy. Please try again in a moment.';
             isTransient = true;
         } else if (error.response?.status === 504) {
             userFriendlyMessage = 'Request timeout. Please try again.';
