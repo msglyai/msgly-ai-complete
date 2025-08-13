@@ -394,7 +394,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5-nano using Responses API (correct for GPT-5)
+        // Make request to OpenAI GPT-5-nano using Responses API (to get GPT-5 features)
         const openaiResponse = await retryWithBackoff(async () => {
             console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
             
@@ -403,19 +403,11 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 {
                     model: "gpt-5-nano",
                     input: [
-                        { 
-                            role: "system", 
-                            content: [{ type: "input_text", text: systemPrompt }] 
-                        },
-                        { 
-                            role: "user", 
-                            content: [{ type: "input_text", text: userPrompt }] 
-                        }
+                        { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
+                        { role: "user", content: [{ type: "input_text", text: userPrompt }] }
                     ],
                     max_output_tokens: 12000,
-                    reasoning: {
-                        effort: "medium"
-                    },
+                    reasoning: { effort: "medium" },
                     verbosity: "medium",
                     text: {
                         format: {
@@ -425,17 +417,8 @@ ${JSON.stringify(jsonData, null, 2)}`;
                                 properties: {
                                     profile: { type: "object" },
                                     experience: { type: "array" },
-                                    education: { type: "array" },
-                                    awards: { type: "array" },
-                                    certifications: { type: "array" },
-                                    volunteer: { type: "array" },
-                                    followingCompanies: { type: "array" },
-                                    followingPeople: { type: "array" },
-                                    activity: { type: "array" },
-                                    skills: { type: "array" },
-                                    engagement: { type: "object" }
-                                },
-                                required: ["profile", "experience", "education"]
+                                    education: { type: "array" }
+                                }
                             }
                         }
                     },
@@ -460,7 +443,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'Invalid response structure from OpenAI API',
+                userMessage: 'Invalid response structure from OpenAI Responses API',
                 transient: true 
             };
         }
@@ -468,7 +451,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const rawResponse = openaiResponse.data.output[0].content[0].text;
         console.log(`🔍 Raw response length: ${rawResponse.length} characters`);
         
-        // Enhanced token usage extraction  
+        // Enhanced token usage extraction from Responses API
         const usageMetadata = openaiResponse.data.usage;
         let tokenUsage = null;
         
@@ -494,7 +477,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'Failed to parse OpenAI response as JSON',
+                userMessage: 'Failed to parse OpenAI Responses API response as JSON',
                 transient: true 
             };
         }
