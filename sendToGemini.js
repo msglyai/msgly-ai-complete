@@ -354,7 +354,10 @@ Return as JSON with this EXACT structure:
     "totalShares": "Sum of all shares across posts",
     "averageLikes": "Average likes per post"
   }
-}`;
+}
+
+HTML Content:
+${preprocessedHtml}`;
             
         } else if (inputData.data || inputData.results) {
             inputType = 'JSON Data';
@@ -372,9 +375,9 @@ CRITICAL REQUIREMENTS:
 4. Use the exact structure provided
 5. Extract ALL available data thoroughly from every section`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:`;
-            
-            preprocessedHtml = JSON.stringify(jsonData, null, 2);
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:
+
+${JSON.stringify(jsonData, null, 2)}`;
             
         } else {
             return { 
@@ -396,19 +399,17 @@ CRITICAL REQUIREMENTS:
             console.log('📤 Sending request to OpenAI GPT-5 nano API...');
             
             const response = await axios.post(
-                `https://api.openai.com/v1/responses`,
+                `https://api.openai.com/v1/chat/completions`,
                 {
                     model: "gpt-5-nano",
-                    response_format: { type: "json_object" },
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: userPrompt }
+                    ],
                     temperature: 0,
-                    max_output_tokens: 12000,
-                    input: [
-                        { role: "system", content: [{ type: "text", text: systemPrompt }] },
-                        { role: "user", content: [
-                            { type: "text", text: userPrompt },
-                            { type: "input_text", text: preprocessedHtml }
-                        ]}
-                    ]
+                    max_tokens: 12000,
+                    response_format: { type: "json_object" },
+                    reasoning_effort: "medium"
                 },
                 {
                     timeout: 60000,
@@ -425,7 +426,7 @@ CRITICAL REQUIREMENTS:
         console.log('🔥 OpenAI API response received');
         console.log(`📊 Response status: ${openaiResponse.status}`);
         
-        if (!openaiResponse.data?.output_text) {
+        if (!openaiResponse.data?.choices?.[0]?.message?.content) {
             return { 
                 success: false, 
                 status: 500, 
@@ -434,7 +435,7 @@ CRITICAL REQUIREMENTS:
             };
         }
         
-        const rawResponse = openaiResponse.data.output_text;
+        const rawResponse = openaiResponse.data.choices[0].message.content;
         console.log(`🔍 Raw response length: ${rawResponse.length} characters`);
         
         // Enhanced token usage extraction
