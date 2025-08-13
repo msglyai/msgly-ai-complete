@@ -394,30 +394,30 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5-nano using Responses API with exact user specifications
+        // Make request to OpenAI GPT-5-nano using Responses API
         const openaiResponse = await retryWithBackoff(async () => {
             console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
             
             const response = await axios.post(
-                `https://api.openai.com/v1/responses`,
+                'https://api.openai.com/v1/responses',
                 {
                     model: 'gpt-5-nano',
-                    text: { format: 'json' },
+                    text: { format: { type: 'json' } },   // enforce JSON on Responses API
                     temperature: 0,
                     max_output_tokens: 12000,
                     input: [
                         { role: 'system', content: [{ type: 'input_text', text: systemPrompt ?? '' }] },
                         { role: 'user', content: [
-                            { type: 'input_text', text: userPrompt ?? '' },    // instructions/schema only
-                            { type: 'input_text', text: preprocessedHtml ?? '' }  // full HTML once
+                            { type: 'input_text', text: userPrompt ?? '' },       // schema/instructions only
+                            { type: 'input_text', text: preprocessedHtml ?? '' }  // the full HTML blob (once)
                         ]}
                     ]
                 },
                 {
                     timeout: 60000,
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
                         'OpenAI-Beta': 'responses-2024-12-17'
                     }
                 }
@@ -429,12 +429,14 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.log('📥 OpenAI API response received');
         console.log(`📊 Response status: ${openaiResponse.status}`);
         
-        // Parse response using user's specified robust format
+        // Parse response using exact specification
         const data = openaiResponse.data;
         const rawResponse = data.output_text ?? 
             (Array.isArray(data.output)
                 ? data.output
-                    .map(p => Array.isArray(p.content) ? p.content.map(c => c.text || '').join('') : '')
+                    .map(p => Array.isArray(p.content) 
+                        ? p.content.map(c => c.text || '').join('')
+                        : '')
                     .join('')
                 : '');
         
@@ -516,39 +518,44 @@ ${JSON.stringify(jsonData, null, 2)}`;
         
     } catch (error) {
         console.error('❌ === OPENAI GPT-5-NANO FAILED ===');
+        const resp = error.response;
+        console.error('OpenAI error', {
+            status: resp?.status,
+            requestId: resp?.headers?.['x-request-id']
+        });
+        if (resp?.data) {
+            console.error('OpenAI error body:', JSON.stringify(resp.data));
+        }
+        
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
-        console.error(`   - Status: ${error.response?.status || 'N/A'}`);
-        console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
+        console.error(`   - Status: ${resp?.status || 'N/A'}`);
+        console.error(`   - Request ID: ${resp?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
         
-        // Enhanced error logging - print the response body
-        if (error.response?.data) {
-            console.error('OpenAI error body:', JSON.stringify(error.response.data));
-        }
         
         // Handle specific OpenAI error types with structured transient response
         let userFriendlyMessage = 'Failed to process profile data';
         let isTransient = false;
-        let status = error.response?.status || 500;
+        let status = resp?.status || 500;
         
-        if (error.response?.status === 429) {
+        if (resp?.status === 429) {
             userFriendlyMessage = 'Rate limit exceeded. Please wait a moment and try again.';
             isTransient = true;
-        } else if (error.response?.status === 503) {
+        } else if (resp?.status === 503) {
             userFriendlyMessage = 'OpenAI is busy. Please try again in a moment.';
             isTransient = true;
-        } else if (error.response?.status === 504) {
+        } else if (resp?.status === 504) {
             userFriendlyMessage = 'Request timeout. Please try again.';
             isTransient = true;
         } else if (error.message.includes('timeout')) {
             userFriendlyMessage = 'Processing timeout. Please try again with a smaller profile.';
             isTransient = true;
             status = 503;
-        } else if (error.response?.status === 400) {
+        } else if (resp?.status === 400) {
             userFriendlyMessage = 'Invalid request format. Please try again.';
             isTransient = false;
-        } else if (error.response?.status === 401 || error.response?.status === 403) {
+        } else if (resp?.status === 401 || resp?.status === 403) {
             userFriendlyMessage = 'API authentication failed. Please check server configuration.';
             isTransient = false;
         }
@@ -563,7 +570,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 type: error.name,
                 timestamp: new Date().toISOString(),
                 optimizationMode: 'unknown',
-                requestId: error.response?.headers?.['x-request-id'] || null
+                requestId: resp?.headers?.['x-request-id'] || null
             },
             usage: null
         };
