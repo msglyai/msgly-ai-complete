@@ -356,8 +356,7 @@ Return as JSON with this EXACT structure:
   }
 }
 
-The full HTML is provided separately as input_text in this same request.
-Return ONLY valid JSON. No explanations/markdown.`;
+The HTML content is provided in the next message. Return ONLY valid JSON. No explanations or markdown.`;
             
         } else if (inputData.data || inputData.results) {
             inputType = 'JSON Data';
@@ -375,9 +374,11 @@ CRITICAL REQUIREMENTS:
 4. Use the exact structure provided
 5. Extract ALL available data thoroughly from every section`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode}. The source data is provided in the next message.
 
-${JSON.stringify(jsonData, null, 2)}`;
+Return as structured JSON with the same format as specified above for HTML processing. Extract ALL available data thoroughly from every section.`;
+
+            preprocessedHtml = JSON.stringify(jsonData, null, 2);  // Send JSON as "HTML" for consistency
             
         } else {
             return { 
@@ -390,6 +391,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
         console.log(`📏 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        console.log(`📏 Content length: ${(preprocessedHtml || '').length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
@@ -402,7 +404,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 'https://api.openai.com/v1/responses',
                 {
                     model: 'gpt-5-nano',
-                    text: { format: { type: 'json' } },   // enforce JSON on Responses API
+                    text: { format: { type: 'json_object' } },   // ✅ Correct Responses API format
                     temperature: 0,
                     max_output_tokens: 12000,
                     input: [
