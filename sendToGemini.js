@@ -356,8 +356,8 @@ Return as JSON with this EXACT structure:
   }
 }
 
-HTML Content:
-${preprocessedHtml}`;
+The full HTML is provided separately as input_text in this same request.
+Return ONLY valid JSON. No explanations/markdown.`;
             
         } else if (inputData.data || inputData.results) {
             inputType = 'JSON Data';
@@ -521,6 +521,11 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
         console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
+        
+        // Improved error logging - print the response body
+        if (error.response?.data) {
+            console.error('OpenAI error body:', JSON.stringify(error.response.data));
+        }
         
         // Handle specific OpenAI error types with structured transient response
         let userFriendlyMessage = 'Failed to process profile data';
