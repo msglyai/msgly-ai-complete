@@ -198,7 +198,7 @@ async function sendToGemini(inputData) {
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
             console.log(`📄 Input type: ${inputType}`);
-            console.log(`🔍 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
+            console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
             const htmlSizeKB = inputData.html.length / 1024;
             if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
@@ -389,46 +389,36 @@ ${JSON.stringify(jsonData, null, 2)}`;
         }
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
-        console.log(`🔍 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        console.log(`📏 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5-nano using Responses API (to get GPT-5 features)
+        // Make request to OpenAI GPT-5-nano using Responses API with exact user specifications
         const openaiResponse = await retryWithBackoff(async () => {
             console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
             
             const response = await axios.post(
                 `https://api.openai.com/v1/responses`,
                 {
-                    model: "gpt-5-nano",
-                    input: [
-                        { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
-                        { role: "user", content: [{ type: "input_text", text: userPrompt }] }
-                    ],
+                    model: 'gpt-5-nano',
+                    response_format: { type: 'json_object' },
+                    temperature: 0,
                     max_output_tokens: 12000,
-                    reasoning: { effort: "medium" },
-                    verbosity: "medium",
-                    text: {
-                        format: {
-                            type: "json_schema",
-                            schema: {
-                                type: "object",
-                                properties: {
-                                    profile: { type: "object" },
-                                    experience: { type: "array" },
-                                    education: { type: "array" }
-                                }
-                            }
-                        }
-                    },
-                    temperature: 0
+                    input: [
+                        { role: 'system', content: [{ type: 'text', text: systemPrompt ?? '' }] },
+                        { role: 'user', content: [
+                            { type: 'text', text: userPrompt ?? '' },
+                            { type: 'input_text', text: preprocessedHtml ?? '' }
+                        ]}
+                    ]
                 },
                 {
                     timeout: 60000,
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        'Authorization': `Bearer ${apiKey}`,
+                        'OpenAI-Beta': 'responses-2024-12-17'
                     }
                 }
             );
@@ -436,10 +426,19 @@ ${JSON.stringify(jsonData, null, 2)}`;
             return response;
         });
         
-        console.log('🔥 OpenAI API response received');
+        console.log('📥 OpenAI API response received');
         console.log(`📊 Response status: ${openaiResponse.status}`);
         
-        if (!openaiResponse.data?.output?.[0]?.content?.[0]?.text) {
+        // Parse response using user's specified robust format
+        const data = openaiResponse.data;
+        const rawResponse = data.output_text ?? 
+            (Array.isArray(data.output)
+                ? data.output
+                    .map(p => Array.isArray(p.content) ? p.content.map(c => c.text || '').join('') : '')
+                    .join('')
+                : '');
+        
+        if (!rawResponse) {
             return { 
                 success: false, 
                 status: 500, 
@@ -448,8 +447,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        const rawResponse = openaiResponse.data.output[0].content[0].text;
-        console.log(`🔍 Raw response length: ${rawResponse.length} characters`);
+        console.log(`📏 Raw response length: ${rawResponse.length} characters`);
         
         // Enhanced token usage extraction from Responses API
         const usageMetadata = openaiResponse.data.usage;
@@ -467,13 +465,13 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        // Parse JSON response
+        // Parse JSON response with robust error handling
         let parsedData;
         try {
             parsedData = JSON.parse(rawResponse.trim());
         } catch (parseError) {
             console.error('❌ JSON parsing failed:', parseError);
-            console.log('🔍 Raw response preview:', rawResponse.substring(0, 500) + '...');
+            console.log('📏 Raw response preview:', rawResponse.substring(0, 500) + '...');
             return { 
                 success: false, 
                 status: 500, 
@@ -521,6 +519,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
+        console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
         
         // Handle specific OpenAI error types with structured transient response
@@ -558,7 +557,8 @@ ${JSON.stringify(jsonData, null, 2)}`;
             details: {
                 type: error.name,
                 timestamp: new Date().toISOString(),
-                optimizationMode: 'unknown'
+                optimizationMode: 'unknown',
+                requestId: error.response?.headers?.['x-request-id'] || null
             },
             usage: null
         };
