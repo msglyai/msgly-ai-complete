@@ -402,15 +402,14 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 `https://api.openai.com/v1/responses`,
                 {
                     model: 'gpt-5-nano',
-                    // ✅ Responses API wants text.format instead of response_format
-                    text: { format: 'json' },       // if later we add a schema, we'll switch to 'json_schema'
+                    text: { format: 'json' },
                     temperature: 0,
                     max_output_tokens: 12000,
                     input: [
-                        { role: 'system', content: [{ type: 'text', text: systemPrompt ?? '' }] },
+                        { role: 'system', content: [{ type: 'input_text', text: systemPrompt ?? '' }] },
                         { role: 'user', content: [
-                            { type: 'text', text: userPrompt ?? '' },       // keep instructions/schema only
-                            { type: 'input_text', text: preprocessedHtml ?? '' }  // the full HTML once
+                            { type: 'input_text', text: userPrompt ?? '' },    // instructions/schema only
+                            { type: 'input_text', text: preprocessedHtml ?? '' }  // full HTML once
                         ]}
                     ]
                 },
