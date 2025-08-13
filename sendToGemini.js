@@ -402,14 +402,15 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 `https://api.openai.com/v1/responses`,
                 {
                     model: 'gpt-5-nano',
-                    response_format: { type: 'json_object' },
+                    // ✅ Responses API wants text.format instead of response_format
+                    text: { format: 'json' },       // if later we add a schema, we'll switch to 'json_schema'
                     temperature: 0,
                     max_output_tokens: 12000,
                     input: [
                         { role: 'system', content: [{ type: 'text', text: systemPrompt ?? '' }] },
                         { role: 'user', content: [
-                            { type: 'text', text: userPrompt ?? '' },
-                            { type: 'input_text', text: preprocessedHtml ?? '' }
+                            { type: 'text', text: userPrompt ?? '' },       // keep instructions/schema only
+                            { type: 'input_text', text: preprocessedHtml ?? '' }  // the full HTML once
                         ]}
                     ]
                 },
@@ -522,7 +523,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
         
-        // Improved error logging - print the response body
+        // Enhanced error logging - print the response body
         if (error.response?.data) {
             console.error('OpenAI error body:', JSON.stringify(error.response.data));
         }
