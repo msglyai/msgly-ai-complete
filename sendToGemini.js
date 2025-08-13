@@ -2,7 +2,7 @@
 // Enhanced sendToGemini.js - Support optimization.mode + structured transient returns
 const axios = require('axios');
 
-// ✅ Rate limiting configuration (OpenAI GPT-5 nano)
+// ✅ Rate limiting configuration (OpenAI GPT-5-nano)
 const RATE_LIMIT = {
     DELAY_BETWEEN_REQUESTS: 1000,    // 1 second between requests
     MAX_RETRIES: 3,                  // Maximum retry attempts
@@ -173,7 +173,7 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ MAIN function to send data to OpenAI GPT-5 nano with optimization mode support
+// ✅ MAIN function to send data to OpenAI GPT-5-nano with optimization mode support
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -182,7 +182,7 @@ async function sendToGemini(inputData) {
             return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
         }
         
-        console.log('🤖 === OPENAI GPT-5 NANO WITH STAGE G OPTIMIZATION ===');
+        console.log('🤖 === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -394,9 +394,9 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5 nano with retry logic
+        // Make request to OpenAI GPT-5-nano with retry logic
         const openaiResponse = await retryWithBackoff(async () => {
-            console.log('📤 Sending request to OpenAI GPT-5 nano API...');
+            console.log('📤 Sending request to OpenAI GPT-5-nano API...');
             
             const response = await axios.post(
                 `https://api.openai.com/v1/chat/completions`,
@@ -409,7 +409,8 @@ ${JSON.stringify(jsonData, null, 2)}`;
                     temperature: 0,
                     max_tokens: 12000,
                     response_format: { type: "json_object" },
-                    reasoning_effort: "medium"
+                    reasoning_effort: "medium",
+                    verbosity: "medium"
                 },
                 {
                     timeout: 60000,
@@ -474,7 +475,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
         const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
         
-        console.log('✅ === OPENAI GPT-5 NANO WITH STAGE G OPTIMIZATION COMPLETED ===');
+        console.log('✅ === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION COMPLETED ===');
         console.log(`📊 Extraction Results:`);
         console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
         console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
@@ -504,7 +505,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         };
         
     } catch (error) {
-        console.error('❌ === OPENAI GPT-5 NANO FAILED ===');
+        console.error('❌ === OPENAI GPT-5-NANO FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
