@@ -394,23 +394,52 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5-nano with retry logic
+        // Make request to OpenAI GPT-5-nano using Responses API (correct for GPT-5)
         const openaiResponse = await retryWithBackoff(async () => {
-            console.log('📤 Sending request to OpenAI GPT-5-nano API...');
+            console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
             
             const response = await axios.post(
-                `https://api.openai.com/v1/chat/completions`,
+                `https://api.openai.com/v1/responses`,
                 {
                     model: "gpt-5-nano",
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: userPrompt }
+                    input: [
+                        { 
+                            role: "system", 
+                            content: [{ type: "input_text", text: systemPrompt }] 
+                        },
+                        { 
+                            role: "user", 
+                            content: [{ type: "input_text", text: userPrompt }] 
+                        }
                     ],
-                    temperature: 0,
-                    max_tokens: 12000,
-                    response_format: { type: "json_object" },
-                    reasoning_effort: "medium",
-                    verbosity: "medium"
+                    max_output_tokens: 12000,
+                    reasoning: {
+                        effort: "medium"
+                    },
+                    verbosity: "medium",
+                    text: {
+                        format: {
+                            type: "json_schema",
+                            schema: {
+                                type: "object",
+                                properties: {
+                                    profile: { type: "object" },
+                                    experience: { type: "array" },
+                                    education: { type: "array" },
+                                    awards: { type: "array" },
+                                    certifications: { type: "array" },
+                                    volunteer: { type: "array" },
+                                    followingCompanies: { type: "array" },
+                                    followingPeople: { type: "array" },
+                                    activity: { type: "array" },
+                                    skills: { type: "array" },
+                                    engagement: { type: "object" }
+                                },
+                                required: ["profile", "experience", "education"]
+                            }
+                        }
+                    },
+                    temperature: 0
                 },
                 {
                     timeout: 60000,
@@ -427,7 +456,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         console.log('🔥 OpenAI API response received');
         console.log(`📊 Response status: ${openaiResponse.status}`);
         
-        if (!openaiResponse.data?.choices?.[0]?.message?.content) {
+        if (!openaiResponse.data?.output?.[0]?.content?.[0]?.text) {
             return { 
                 success: false, 
                 status: 500, 
@@ -436,19 +465,19 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        const rawResponse = openaiResponse.data.choices[0].message.content;
+        const rawResponse = openaiResponse.data.output[0].content[0].text;
         console.log(`🔍 Raw response length: ${rawResponse.length} characters`);
         
-        // Enhanced token usage extraction
+        // Enhanced token usage extraction  
         const usageMetadata = openaiResponse.data.usage;
         let tokenUsage = null;
         
         if (usageMetadata) {
-            console.log(`💰 Usage - Prompt tokens: ${usageMetadata.prompt_tokens}, Completion tokens: ${usageMetadata.completion_tokens}, Total: ${usageMetadata.total_tokens}`);
+            console.log(`💰 Usage - Input tokens: ${usageMetadata.input_tokens}, Output tokens: ${usageMetadata.output_tokens}, Total: ${usageMetadata.total_tokens}`);
             
             tokenUsage = {
-                input_tokens: usageMetadata.prompt_tokens || 0,
-                output_tokens: usageMetadata.completion_tokens || 0,
+                input_tokens: usageMetadata.input_tokens || 0,
+                output_tokens: usageMetadata.output_tokens || 0,
                 total_tokens: usageMetadata.total_tokens || 0,
                 model: 'gpt-5-nano',
                 timestamp: new Date().toISOString()
