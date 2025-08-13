@@ -396,7 +396,7 @@ Return as structured JSON with the same format as specified above for HTML proce
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5-nano using Responses API
+        // Make request to OpenAI GPT-5-nano using Responses API (NO TEMPERATURE PARAMETER)
         const openaiResponse = await retryWithBackoff(async () => {
             console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
             
@@ -404,15 +404,12 @@ Return as structured JSON with the same format as specified above for HTML proce
                 'https://api.openai.com/v1/responses',
                 {
                     model: 'gpt-5-nano',
-                    text: { format: { type: 'json_object' } },   // ✅ Correct Responses API format
-                    temperature: 0,
+                    text: { format: { type: 'json_object' } },
                     max_output_tokens: 12000,
                     input: [
-                        { role: 'system', content: [{ type: 'input_text', text: systemPrompt ?? '' }] },
-                        { role: 'user', content: [
-                            { type: 'input_text', text: userPrompt ?? '' },       // schema/instructions only
-                            { type: 'input_text', text: preprocessedHtml ?? '' }  // the full HTML blob (once)
-                        ]}
+                        { role: 'system', content: systemPrompt ?? '' },
+                        { role: 'user', content: userPrompt ?? '' },
+                        { role: 'user', content: preprocessedHtml ?? '' }
                     ]
                 },
                 {
@@ -534,7 +531,6 @@ Return as structured JSON with the same format as specified above for HTML proce
         console.error(`   - Status: ${resp?.status || 'N/A'}`);
         console.error(`   - Request ID: ${resp?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
-        
         
         // Handle specific OpenAI error types with structured transient response
         let userFriendlyMessage = 'Failed to process profile data';
