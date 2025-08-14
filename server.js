@@ -1,6 +1,5 @@
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
-// UPDATED: Enhanced Experience extraction with completeness focus and improved prompt
 // Msgly.AI Server - Complete with Traffic Light System Integrated
 
 const express = require('express');
@@ -126,125 +125,14 @@ function normalizeLinkedInUrl(url = '') {
   } catch { return ''; }
 }
 
-// ✅ ENHANCED: Improved extraction prompt for completeness over verbosity
-function buildEnhancedExtractionPrompt() {
-    return `
-Extract comprehensive LinkedIn profile data with focus on completeness over detail.
-
-EXTRACTION RULES:
-- Return JSON object only (no prose/markdown)
-- About: return full text if present (do not summarize)
-- Experiences: return all roles you can see up to 12 items. Prefer completeness over detail.
-- Each role is a separate item, even when multiple roles are grouped under the same company
-- For each role: title, company, dateRange, location, summary (≤ 800 chars)
-- If token budget is tight, include short entries for the remaining roles (just title, company, dateRange) rather than skipping
-- Do not merge distinct roles at the same company; different dateRange = different item
-- Order: most recent first
-- Honors & Awards: up to 15 items (title, issuer, date, description ≤ 400 chars)
-- Education: up to 3 entries
-- No skills field. No HTML, no duplicates.
-- Include counters: "extractedCounts": { "experiences": <number>, "honors": <number>, "education": <number> }
-- Overflow signal: if you see more than the caps, set "has_more": true
-- Consistency: if the current role/company in profile is not present in experiences, add: "consistency_warnings": ["current role not found in experiences"]
-
-REQUIRED JSON SCHEMA:
-{
-  "profile": {
-    "name": "string",
-    "firstName": "string", 
-    "lastName": "string",
-    "headline": "string",
-    "location": "string",
-    "about": "string",
-    "currentRole": "string",
-    "currentCompany": "string"
-  },
-  "experiences": [
-    { "title": "string", "company": "string", "dateRange": "string", "location": "string", "summary": "string" }
-  ],
-  "honorsAwards": [
-    { "title": "string", "issuer": "string", "date": "string", "description": "string" }
-  ],
-  "education": [
-    { "school": "string", "degree": "string", "dateRange": "string" }
-  ],
-  "extractedCounts": { "experiences": 0, "honors": 0, "education": 0 },
-  "has_more": false,
-  "consistency_warnings": []
-}
-
-Focus on extracting ALL visible roles and experiences completely rather than detailed descriptions.
-`.trim();
-}
-
-// ✅ ENHANCED: Completeness check and flags function
-function addCompletenessCheckAndFlags(parsedOutput, domCounts) {
-    const out = parsedOutput;
-    const dom = domCounts || {};
-    const CAP_EXP = 12, CAP_HON = 15, CAP_EDU = 3;
-
-    const expCount = Array.isArray(out.experiences) ? out.experiences.length : 0;
-    const honCount = Array.isArray(out.honorsAwards) ? out.honorsAwards.length : 0;
-    const eduCount = Array.isArray(out.education) ? out.education.length : 0;
-
-    const domExp = Math.min(Number(dom.experiences_dom || 0), CAP_EXP);
-    const domHon = Math.min(Number(dom.honors_dom || 0), CAP_HON);
-    const domEdu = Math.min(Number(dom.education_dom || 0), CAP_EDU);
-
-    // Ensure extractedCounts exists
-    out.extractedCounts = out.extractedCounts || {
-        experiences: expCount, 
-        honors: honCount, 
-        education: eduCount
-    };
-
-    // Add flags
-    out.flags = out.flags || {};
-    out.flags.needs_enrichment =
-        (domExp > 0 && expCount < domExp) ||
-        (domHon > 0 && honCount < domHon) ||
-        (domEdu > 0 && eduCount < domEdu);
-
-    return out;
-}
-
-// ✅ ENHANCED: Dedupe function with role-specific key to avoid merging distinct roles
-function createRoleDedupeKey(experience) {
-    if (!experience || typeof experience !== 'object') return null;
-    
-    const titleN = (experience.title || '').trim().toLowerCase();
-    const companyN = (experience.company || '').trim().toLowerCase();
-    const rangeN = (experience.dateRange || '').trim();
-    
-    return `${titleN}|${companyN}|${rangeN}`;
-}
-
-function dedupeExperiencesByRole(experiences) {
-    if (!Array.isArray(experiences)) return experiences;
-    
-    const seen = new Set();
-    const dedupedExperiences = [];
-    
-    for (const exp of experiences) {
-        const key = createRoleDedupeKey(exp);
-        if (key && !seen.has(key)) {
-            seen.add(key);
-            dedupedExperiences.push(exp);
-        }
-    }
-    
-    console.log(`[Server] 🔄 Deduped experiences: ${experiences.length} → ${dedupedExperiences.length}`);
-    return dedupedExperiences;
-}
-
-// ✅ USER PROFILE HANDLER: Enhanced with new prompt and completeness checks
+// ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
 async function handleUserProfile(req, res) {
     try {
         console.log('🔵 === USER PROFILE PROCESSING ===');
         console.log(`👤 User ID: ${req.user.id}`);
         console.log(`🔗 URL: ${req.body.profileUrl}`);
         
-        const { html, profileUrl, domCounts } = req.body;
+        const { html, profileUrl } = req.body;
         const userId = req.user.id;
         
         if (!html || !profileUrl) {
@@ -257,14 +145,13 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('🤖 Processing HTML with Gemini for USER profile using enhanced prompt...');
+        console.log('🤖 Processing HTML with Gemini for USER profile...');
         
-        // ✅ ENHANCED: Process HTML with Gemini using enhanced prompt
+        // Process HTML with Gemini
         const geminiResult = await sendToGemini({
             html: html,
             url: cleanProfileUrl,
-            isUserProfile: true,
-            enhancedPrompt: buildEnhancedExtractionPrompt() // ✅ NEW: Enhanced prompt
+            isUserProfile: true
         });
         
         if (!geminiResult.success) {
@@ -277,20 +164,8 @@ async function handleUserProfile(req, res) {
         
         console.log('✅ Gemini processing successful for USER profile');
         
-        // ✅ ENHANCED: Add completeness check and flags
-        let processedData = geminiResult.data || {};
-        processedData = addCompletenessCheckAndFlags(processedData, domCounts);
-        
-        // ✅ ENHANCED: Apply role-based deduplication
-        if (processedData.experiences) {
-            processedData.experiences = dedupeExperiencesByRole(processedData.experiences);
-        }
-        
         // Process Gemini data for USER profile
-        const processedProfile = processGeminiData({ 
-            success: true, 
-            data: processedData 
-        }, cleanProfileUrl);
+        const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
         
         // Save to user_profiles table only
         const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
@@ -340,15 +215,6 @@ async function handleUserProfile(req, res) {
             userId
         ]);
         
-        // ✅ ENHANCED: Log completeness metrics
-        console.log('📊 extract_coverage', {
-            domCounts: domCounts || {},
-            extractedCounts: processedData.extractedCounts || {},
-            has_more: !!processedData.has_more,
-            needs_enrichment: processedData.flags?.needs_enrichment === true,
-            consistency_warnings: processedData.consistency_warnings || []
-        });
-        
         console.log('✅ USER profile saved to user_profiles table successfully');
         
         res.json({
@@ -361,11 +227,7 @@ async function handleUserProfile(req, res) {
                 experienceCount: processedProfile.experience?.length || 0,
                 educationCount: processedProfile.education?.length || 0,
                 hasExperience: processedProfile.hasExperience
-            },
-            // ✅ ENHANCED: Include completeness metrics in response
-            extractedCounts: processedData.extractedCounts,
-            flags: processedData.flags,
-            consistency_warnings: processedData.consistency_warnings
+            }
         });
         
     } catch (error) {
@@ -379,13 +241,13 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// ✅ TARGET PROFILE HANDLER: Enhanced with new prompt and completeness checks
+// ✅ TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
 async function handleAnalyzeTarget(req, res) {
     try {
         console.log('🎯 Target profile analysis request received');
         console.log(`👤 User ID: ${req.user.id}`);
         
-        const { html, profileUrl, normalizedUrl, domCounts } = req.body;
+        const { html, profileUrl, normalizedUrl } = req.body;
         const userId = req.user.id;
         
         if (!html || !profileUrl) {
@@ -418,14 +280,12 @@ async function handleAnalyzeTarget(req, res) {
         console.log('✅ Target is new, processing...');
         
         // Process HTML with Gemini for TARGET profile
-        console.log('🤖 Processing HTML with Gemini for TARGET profile using enhanced prompt...');
+        console.log('🤖 Processing HTML with Gemini for TARGET profile...');
         
-        // ✅ ENHANCED: Process HTML with Gemini using enhanced prompt
         const geminiResult = await sendToGemini({
             html: html,
             url: profileUrl,
-            isUserProfile: false,
-            enhancedPrompt: buildEnhancedExtractionPrompt() // ✅ NEW: Enhanced prompt
+            isUserProfile: false
         });
         
         if (!geminiResult.success) {
@@ -438,20 +298,8 @@ async function handleAnalyzeTarget(req, res) {
         
         console.log('✅ Gemini processing successful for TARGET profile');
         
-        // ✅ ENHANCED: Add completeness check and flags
-        let processedData = geminiResult.data || {};
-        processedData = addCompletenessCheckAndFlags(processedData, domCounts);
-        
-        // ✅ ENHANCED: Apply role-based deduplication
-        if (processedData.experiences) {
-            processedData.experiences = dedupeExperiencesByRole(processedData.experiences);
-        }
-        
         // Process Gemini data for TARGET profile
-        const processedProfile = processGeminiData({ 
-            success: true, 
-            data: processedData 
-        }, profileUrl);
+        const processedProfile = processGeminiData(geminiResult, profileUrl);
         
         // ✅ NEW: UPSERT pattern with column count guard
         console.log('💾 Inserting/updating target profile using UPSERT pattern...');
@@ -516,15 +364,6 @@ async function handleAnalyzeTarget(req, res) {
             throw e;
         }
         
-        // ✅ ENHANCED: Log completeness metrics
-        console.log('📊 extract_coverage', {
-            domCounts: domCounts || {},
-            extractedCounts: processedData.extractedCounts || {},
-            has_more: !!processedData.has_more,
-            needs_enrichment: processedData.flags?.needs_enrichment === true,
-            consistency_warnings: processedData.consistency_warnings || []
-        });
-        
         // A.4 Response (no credit charging)
         console.log('📤 Returning success response...');
         
@@ -541,11 +380,7 @@ async function handleAnalyzeTarget(req, res) {
                 token_usage: geminiResult.metadata?.tokenUsage || {}
             },
             alreadyExists: false,
-            message: 'Target profile analyzed successfully - no credits charged',
-            // ✅ ENHANCED: Include completeness metrics in response
-            extractedCounts: processedData.extractedCounts,
-            flags: processedData.flags,
-            consistency_warnings: processedData.consistency_warnings
+            message: 'Target profile analyzed successfully - no credits charged'
         });
         
     } catch (error) {
@@ -868,7 +703,6 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
     // ✅ REQUIRED LOGGING: Route entry
     console.log('🔍 route=/scrape-html');
     console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
-    console.log(`🔍 domCounts=${JSON.stringify(req.body.domCounts || {})}`);
     
     // ✅ HARD GUARD: Check isUserProfile at the very top
     if (req.body.isUserProfile === true) {
@@ -922,7 +756,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`🔐 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -1052,7 +886,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 // 🔧 FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔐 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1206,7 +1040,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
 // 🔧 FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔍 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔐 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1398,7 +1232,7 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /profile/user',
-            'POST /scrape-html (Enhanced with Experience extraction)',
+            'POST /scrape-html (Target ingestion now behaves like User)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -1425,20 +1259,21 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - ENHANCED EXPERIENCE EXTRACTION!');
+            console.log('🚀 Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION!');
             console.log(`🔍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL with UPSERT pattern`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ ENHANCED EXPERIENCE EXTRACTION:`);
-            console.log(`   📋 Improved prompt: completeness over verbosity`);
-            console.log(`   🔍 Experience expansion: grouped roles, lazy-loading, item counting`);
-            console.log(`   📊 DOM counting: experiences_dom, honors_dom, education_dom`);
-            console.log(`   🎯 Completeness checks: needs_enrichment flags`);
-            console.log(`   🔄 Role-based deduplication: title + company + dateRange`);
-            console.log(`   ⚡ Ready gate: DOM stability before extraction`);
-            console.log(`   🏆 Honors & Awards: limited safe expansion (max 2 clicks)`);
-            console.log(`   ✅ Up to 12 experiences, 15 honors/awards, 3 education entries`);
+            console.log(`✅ TARGET INGESTION IMPROVEMENTS:`);
+            console.log(`   🔄 UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
+            console.log(`   🛡️ Column count guard prevents INSERT mismatch errors`);
+            console.log(`   💰 No credit charging on Analyze`);
+            console.log(`   🗄️ Database schema changes via startup guard (no migrations)`);
+            console.log(`✅ "SEE MORE" EXPANSION:`);
+            console.log(`   📋 Experience section: max 2 clicks with DOM change detection`);
+            console.log(`   🏆 Honors & Awards section: max 2 clicks with DOM change detection`);
+            console.log(`   ⏱️ Randomized delays and proper waiting for content load`);
+            console.log(`   🔍 Called before HTML capture in both User & Target flows`);
             console.log(`✅ READY FOR PRODUCTION!`);
         });
         
