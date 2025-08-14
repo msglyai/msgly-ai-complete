@@ -368,9 +368,16 @@ async function sendToGemini(inputData) {
         let userPrompt;
         let preprocessedHtml;
         
-        // Extract optimization mode from input
-        const optimizationMode = inputData.optimization?.mode || 'less_aggressive';
-        console.log(`📊 Optimization mode: ${optimizationMode}`);
+        // Extract optimization mode from input - force aggressive mode for target profiles
+        let optimizationMode;
+        if (inputData.isUserProfile) {
+            // User profiles: respect their optimization preference
+            optimizationMode = inputData.optimization?.mode || 'less_aggressive';
+        } else {
+            // Target profiles: force aggressive preprocessing to avoid truncation
+            optimizationMode = 'standard';
+        }
+        console.log(`📊 Optimization mode: ${optimizationMode} (${inputData.isUserProfile ? 'USER' : 'TARGET'} profile)`);
         
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
