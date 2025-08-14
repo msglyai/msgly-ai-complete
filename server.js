@@ -1,5 +1,6 @@
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
+// ✅ NEW: Added Credits System Endpoints (Server-Only) + Target Status Check
 // Msgly.AI Server - Complete with Traffic Light System Integrated
 
 const express = require('express');
@@ -123,6 +124,46 @@ function normalizeLinkedInUrl(url = '') {
       .replace(/[?#].*$/, '')
       .replace(/\/$/, '');
   } catch { return ''; }
+}
+
+// ✅ NEW: CREDITS HELPER FUNCTIONS
+function calculateRenewalDate(userCreatedAt, billingModel) {
+    if (billingModel !== 'monthly') return null;
+    
+    const createdDate = new Date(userCreatedAt);
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Calculate next renewal date based on registration day
+    const renewalDate = new Date(currentYear, currentMonth, createdDate.getDate());
+    
+    // If renewal date has passed this month, move to next month
+    if (renewalDate <= now) {
+        renewalDate.setMonth(renewalDate.getMonth() + 1);
+    }
+    
+    return renewalDate.toISOString();
+}
+
+function getPlanDisplayName(packageType) {
+    const planNames = {
+        'free': 'Free',
+        'silver': 'Silver', 
+        'gold': 'Gold',
+        'platinum': 'Platinum'
+    };
+    return planNames[packageType] || 'Free';
+}
+
+function getPlanCredits(packageType) {
+    const planCredits = {
+        'free': 7,
+        'silver': 30,
+        'gold': 100, 
+        'platinum': 250
+    };
+    return planCredits[packageType] || 7;
 }
 
 // ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
@@ -437,6 +478,100 @@ const authenticateDual = async (req, res, next) => {
     });
 };
 
+// ✅ NEW: CREDITS VALIDATION MIDDLEWARE
+const validateCredits = (requiredCredits = 1) => {
+    return async (req, res, next) => {
+        try {
+            console.log(`💰 Validating ${requiredCredits} credits for user ${req.user.id}`);
+            
+            // Get current user credits
+            const userResult = await pool.query(
+                'SELECT credits_remaining, package_type FROM users WHERE id = $1',
+                [req.user.id]
+            );
+            
+            if (userResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+            
+            const user = userResult.rows[0];
+            const currentCredits = user.credits_remaining || 0;
+            
+            if (currentCredits < requiredCredits) {
+                console.log(`❌ Insufficient credits: ${currentCredits} < ${requiredCredits}`);
+                return res.status(402).json({
+                    success: false,
+                    error: 'Insufficient credits',
+                    data: {
+                        required: requiredCredits,
+                        available: currentCredits,
+                        plan: user.package_type,
+                        needsUpgrade: true
+                    }
+                });
+            }
+            
+            console.log(`✅ Credits validation passed: ${currentCredits} >= ${requiredCredits}`);
+            req.creditsInfo = {
+                available: currentCredits,
+                required: requiredCredits,
+                plan: user.package_type
+            };
+            
+            next();
+            
+        } catch (error) {
+            console.error('❌ Credits validation error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Credits validation failed'
+            });
+        }
+    };
+};
+
+// ✅ NEW: DEDUCT CREDITS HELPER
+async function deductCredits(userId, amount, action) {
+    try {
+        console.log(`💳 Deducting ${amount} credits from user ${userId} for ${action}`);
+        
+        const result = await pool.query(`
+            UPDATE users 
+            SET credits_remaining = GREATEST(credits_remaining - $1, 0),
+                updated_at = NOW()
+            WHERE id = $2
+            RETURNING credits_remaining, package_type
+        `, [amount, userId]);
+        
+        if (result.rows.length === 0) {
+            throw new Error('User not found for credit deduction');
+        }
+        
+        const newBalance = result.rows[0].credits_remaining;
+        console.log(`✅ Credits deducted. New balance: ${newBalance}`);
+        
+        // Log credit usage (optional - add credits_history table if needed)
+        await pool.query(`
+            INSERT INTO credits_history (user_id, action, credits_used, credits_remaining, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT DO NOTHING
+        `, [userId, action, amount, newBalance]);
+        
+        return {
+            newBalance,
+            creditsUsed: amount,
+            action
+        };
+        
+    } catch (error) {
+        console.error('❌ Error deducting credits:', error);
+        throw error;
+    }
+}
+
 // ✅ STEP 2E: Initialize user routes with dependencies and get router
 const userRoutes = initUserRoutes({
     pool,
@@ -583,10 +718,172 @@ app.use('/', userRoutes);
 // ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
 app.use('/', profileRoutes);
 
+// ==================== ✅ NEW: CREDITS SYSTEM ENDPOINTS ====================
+
+// 💎 GET CREDITS STATUS
+app.get('/api/credits/status', authenticateToken, async (req, res) => {
+    try {
+        console.log(`💎 Credits status request from user ${req.user.id}`);
+        
+        const userResult = await pool.query(`
+            SELECT 
+                credits_remaining,
+                package_type,
+                billing_model,
+                created_at,
+                subscription_status
+            FROM users 
+            WHERE id = $1
+        `, [req.user.id]);
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const user = userResult.rows[0];
+        const remaining = user.credits_remaining || 0;
+        const plan = user.package_type || 'free';
+        const total = getPlanCredits(plan);
+        const renewalDate = calculateRenewalDate(user.created_at, user.billing_model);
+        
+        const creditsData = {
+            remaining,
+            total,
+            plan: getPlanDisplayName(plan),
+            planId: plan,
+            billingModel: user.billing_model || 'monthly',
+            renewalDate,
+            subscriptionStatus: user.subscription_status || 'active',
+            usage: {
+                used: Math.max(0, total - remaining),
+                percentage: Math.round((Math.max(0, total - remaining) / total) * 100)
+            }
+        };
+        
+        console.log(`✅ Credits status: ${remaining}/${total} (${plan})`);
+        
+        res.json({
+            success: true,
+            data: creditsData
+        });
+        
+    } catch (error) {
+        console.error('❌ Credits status error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch credits status'
+        });
+    }
+});
+
+// 🎯 CHECK TARGET STATUS
+app.get('/api/target/check', authenticateToken, async (req, res) => {
+    try {
+        const { url } = req.query;
+        const userId = req.user.id;
+        
+        if (!url) {
+            return res.status(400).json({
+                success: false,
+                error: 'URL parameter is required'
+            });
+        }
+        
+        const normalizedUrl = normalizeLinkedInUrl(url);
+        console.log(`🎯 Checking target status for user ${userId}, URL: ${normalizedUrl}`);
+        
+        const result = await pool.query(
+            'SELECT id, created_at FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
+            [userId, normalizedUrl]
+        );
+        
+        const exists = result.rows.length > 0;
+        
+        console.log(`✅ Target status: ${exists ? 'EXISTS' : 'NEW'}`);
+        
+        res.json({
+            success: true,
+            data: {
+                exists,
+                isNew: !exists,
+                normalizedUrl,
+                analyzedAt: exists ? result.rows[0].created_at : null
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Target status check error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check target status'
+        });
+    }
+});
+
+// 💰 VALIDATE CREDITS FOR ACTION
+app.post('/api/credits/validate', authenticateToken, async (req, res) => {
+    try {
+        const { action } = req.body;
+        const userId = req.user.id;
+        
+        console.log(`💰 Credits validation request for action: ${action}`);
+        
+        // Define credit requirements
+        const creditRequirements = {
+            'generate_message': 1,
+            'generate_connection': 1,
+            'analyze_profile': 0  // Free action
+        };
+        
+        const requiredCredits = creditRequirements[action] || 1;
+        
+        // Get current user credits
+        const userResult = await pool.query(
+            'SELECT credits_remaining, package_type FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const user = userResult.rows[0];
+        const currentCredits = user.credits_remaining || 0;
+        const hasEnoughCredits = currentCredits >= requiredCredits;
+        
+        console.log(`✅ Credits validation: ${currentCredits} >= ${requiredCredits} = ${hasEnoughCredits}`);
+        
+        res.json({
+            success: true,
+            data: {
+                hasEnoughCredits,
+                requiredCredits,
+                availableCredits: currentCredits,
+                action,
+                plan: user.package_type,
+                canProceed: hasEnoughCredits
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Credits validation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Credits validation failed'
+        });
+    }
+});
+
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension Auth Request:', {
+    console.log('🔍 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -610,7 +907,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('🔐 Verifying Google token...');
+        console.log('🔍 Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -701,7 +998,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
 // ✅ REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
 app.post('/scrape-html', authenticateToken, (req, res) => {
     // ✅ REQUIRED LOGGING: Route entry
-    console.log('🔍 route=/scrape-html');
+    console.log('🚪 route=/scrape-html');
     console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
     
     // ✅ HARD GUARD: Check isUserProfile at the very top
@@ -721,6 +1018,165 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
         
         // Route to Target handler
         return handleAnalyzeTarget(req, res);
+    }
+});
+
+// ==================== ✅ NEW: ENHANCED MESSAGE GENERATION WITH CREDITS ====================
+
+// 💬 GENERATE LINKEDIN MESSAGE (WITH CREDITS)
+app.post('/generate-message', authenticateToken, validateCredits(1), async (req, res) => {
+    try {
+        console.log(`💬 Message generation request from user ${req.user.id}`);
+        
+        const { targetProfileUrl, context, messageType } = req.body;
+        
+        if (!targetProfileUrl || !context) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and context are required'
+            });
+        }
+        
+        // Get target profile data
+        const normalizedUrl = normalizeLinkedInUrl(targetProfileUrl);
+        const targetResult = await pool.query(
+            'SELECT data_json FROM target_profiles WHERE user_id = $1 AND normalized_url = $2',
+            [req.user.id, normalizedUrl]
+        );
+        
+        if (targetResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the profile first.'
+            });
+        }
+        
+        // Get user profile data
+        const userResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+        
+        const targetProfile = targetResult.rows[0].data_json;
+        const userProfile = userResult.rows[0];
+        
+        // Deduct credits BEFORE generation
+        const creditResult = await deductCredits(req.user.id, 1, 'generate_message');
+        
+        // Generate message using AI (simplified for demo)
+        const generatedMessage = `Hi ${targetProfile.fullName || 'there'},
+
+I noticed your background in ${targetProfile.headline || 'your field'} and thought it would be valuable to connect. ${context}
+
+I'm currently ${userProfile.current_role || userProfile.headline || 'working in my field'} at ${userProfile.current_company || 'my company'} and would love to exchange insights about the industry.
+
+Looking forward to connecting!
+
+Best regards,
+${userProfile.full_name || 'Your name'}`;
+        
+        console.log('✅ Message generated successfully');
+        
+        res.json({
+            success: true,
+            data: {
+                message: generatedMessage,
+                creditsUsed: 1,
+                creditsRemaining: creditResult.newBalance,
+                targetProfile: {
+                    name: targetProfile.fullName,
+                    headline: targetProfile.headline
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Message generation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Message generation failed'
+        });
+    }
+});
+
+// 🤝 GENERATE CONNECTION REQUEST (WITH CREDITS)
+app.post('/generate-connection', authenticateToken, validateCredits(1), async (req, res) => {
+    try {
+        console.log(`🤝 Connection request generation from user ${req.user.id}`);
+        
+        const { targetProfileUrl, context, messageType } = req.body;
+        
+        if (!targetProfileUrl || !context) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and context are required'
+            });
+        }
+        
+        // Get target profile data
+        const normalizedUrl = normalizeLinkedInUrl(targetProfileUrl);
+        const targetResult = await pool.query(
+            'SELECT data_json FROM target_profiles WHERE user_id = $1 AND normalized_url = $2',
+            [req.user.id, normalizedUrl]
+        );
+        
+        if (targetResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the profile first.'
+            });
+        }
+        
+        // Get user profile data
+        const userResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+        
+        const targetProfile = targetResult.rows[0].data_json;
+        const userProfile = userResult.rows[0];
+        
+        // Deduct credits BEFORE generation
+        const creditResult = await deductCredits(req.user.id, 1, 'generate_connection');
+        
+        // Generate connection message (simplified for demo)
+        const generatedMessage = `Hi ${targetProfile.fullName || 'there'}, I'd love to connect. ${context.substring(0, 200)}`;
+        
+        console.log('✅ Connection message generated successfully');
+        
+        res.json({
+            success: true,
+            data: {
+                message: generatedMessage,
+                creditsUsed: 1,
+                creditsRemaining: creditResult.newBalance,
+                targetProfile: {
+                    name: targetProfile.fullName,
+                    headline: targetProfile.headline
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Connection generation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Connection generation failed'
+        });
     }
 });
 
@@ -756,7 +1212,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`🔐 OAuth callback - User: ${req.user.email}`);
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -886,7 +1342,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 // 🔧 FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔐 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1040,7 +1496,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
 // 🔧 FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔐 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔍 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1238,6 +1694,10 @@ app.use((req, res, next) => {
             'GET /user/stats',
             'PUT /user/settings',
             'POST /generate-message',
+            'POST /generate-connection',
+            '✅ NEW: GET /api/credits/status',
+            '✅ NEW: GET /api/target/check',
+            '✅ NEW: POST /api/credits/validate',
             'GET /message-history',
             'GET /credits-history',
             'POST /retry-extraction',
@@ -1259,22 +1719,30 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION!');
+            console.log('🚀 Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION + CREDITS SYSTEM!');
             console.log(`🔍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL with UPSERT pattern`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`✅ TARGET INGESTION IMPROVEMENTS:`);
-            console.log(`   🔄 UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
+            console.log(`   📄 UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
             console.log(`   🛡️ Column count guard prevents INSERT mismatch errors`);
             console.log(`   💰 No credit charging on Analyze`);
             console.log(`   🗄️ Database schema changes via startup guard (no migrations)`);
             console.log(`✅ "SEE MORE" EXPANSION:`);
             console.log(`   📋 Experience section: max 2 clicks with DOM change detection`);
             console.log(`   🏆 Honors & Awards section: max 2 clicks with DOM change detection`);
-            console.log(`   ⏱️ Randomized delays and proper waiting for content load`);
+            console.log(`   ⏰ Randomized delays and proper waiting for content load`);
             console.log(`   🔍 Called before HTML capture in both User & Target flows`);
-            console.log(`✅ READY FOR PRODUCTION!`);
+            console.log(`✅ NEW: CREDITS SYSTEM (SERVER-ONLY):`);
+            console.log(`   💎 GET /api/credits/status - Fetch current credits & plan info`);
+            console.log(`   🎯 GET /api/target/check - Check if target exists in DB`);
+            console.log(`   💰 POST /api/credits/validate - Pre-validate credits for actions`);
+            console.log(`   🔒 Credits validation middleware for message generation`);
+            console.log(`   📊 Plan management: Free(7), Silver(30), Gold(100), Platinum(250)`);
+            console.log(`   📅 Monthly renewal calculation for Free plan`);
+            console.log(`   🚫 No localStorage - 100% server-side credits management`);
+            console.log(`✅ READY FOR PRODUCTION WITH CREDITS!`);
         });
         
     } catch (error) {
