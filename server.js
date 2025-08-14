@@ -1,5 +1,6 @@
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
+// ✅ NEW: Added Credits System Endpoints (Server-Only) + Target Status Check
 // Msgly.AI Server - Complete with Traffic Light System Integrated
 
 const express = require('express');
@@ -13,14 +14,14 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
 
-// âœ… FIXED: Import sendToGemini from correct path (project root)
+// ✅ FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
 
-// âœ… FEATURE FLAG: Disable Target processing
+// ✅ FEATURE FLAG: Disable Target processing
 const ENABLE_TARGET = false; // Set to false to quarantine Target routes
 
-// âœ… STEP 2A: Import all database functions from utils/database.js
+// ✅ STEP 2A: Import all database functions from utils/database.js
 const {
     pool,
     initDB,
@@ -35,13 +36,13 @@ const {
     ensureValidJSONArray,
     parseLinkedInNumber,
     processScrapedProfileData,
-    processGeminiData  // âœ… Import processGeminiData for User processing
+    processGeminiData  // ✅ Import processGeminiData for User processing
 } = require('./utils/database');
 
-// âœ… STAGE G: Import LLM orchestrator
+// ✅ STAGE G: Import LLM orchestrator
 const { processProfileWithLLM } = require('./utils/llmOrchestrator');
 
-// âœ… STEP 2B: Import all utility functions from utils/helpers.js
+// ✅ STEP 2B: Import all utility functions from utils/helpers.js
 const {
     cleanLinkedInUrl,
     isValidLinkedInUrl,
@@ -62,7 +63,7 @@ const {
     logWithEmoji
 } = require('./utils/helpers');
 
-// âœ… STEP 2D: Import authentication middleware
+// ✅ STEP 2D: Import authentication middleware
 const {
     initAuthMiddleware,
     authenticateToken,
@@ -70,17 +71,17 @@ const {
     requireAdmin
 } = require('./middleware/auth');
 
-// âœ… STEP 2E: Import user routes initialization function
+// ✅ STEP 2E: Import user routes initialization function
 const { initUserRoutes } = require('./routes/users');
 
-// âœ… STEP 2F: Import JWT-only profile & API routes initialization function
+// ✅ STEP 2F: Import JWT-only profile & API routes initialization function
 const { initProfileRoutes } = require('./routes/profiles');
 
-// âœ… STEP 2C: Import modularized routes
+// ✅ STEP 2C: Import modularized routes
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G â€“ numeric sanitizers
+// What changed in Stage G – numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -125,12 +126,52 @@ function normalizeLinkedInUrl(url = '') {
   } catch { return ''; }
 }
 
-// âœ… USER PROFILE HANDLER: Restored exact User flow that was working before
+// ✅ NEW: CREDITS HELPER FUNCTIONS
+function calculateRenewalDate(userCreatedAt, billingModel) {
+    if (billingModel !== 'monthly') return null;
+    
+    const createdDate = new Date(userCreatedAt);
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Calculate next renewal date based on registration day
+    const renewalDate = new Date(currentYear, currentMonth, createdDate.getDate());
+    
+    // If renewal date has passed this month, move to next month
+    if (renewalDate <= now) {
+        renewalDate.setMonth(renewalDate.getMonth() + 1);
+    }
+    
+    return renewalDate.toISOString();
+}
+
+function getPlanDisplayName(packageType) {
+    const planNames = {
+        'free': 'Free',
+        'silver': 'Silver', 
+        'gold': 'Gold',
+        'platinum': 'Platinum'
+    };
+    return planNames[packageType] || 'Free';
+}
+
+function getPlanCredits(packageType) {
+    const planCredits = {
+        'free': 7,
+        'silver': 30,
+        'gold': 100, 
+        'platinum': 250
+    };
+    return planCredits[packageType] || 7;
+}
+
+// ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
 async function handleUserProfile(req, res) {
     try {
-        console.log('ðŸ”µ === USER PROFILE PROCESSING ===');
-        console.log(`ðŸ‘¤ User ID: ${req.user.id}`);
-        console.log(`ðŸ”— URL: ${req.body.profileUrl}`);
+        console.log('🔵 === USER PROFILE PROCESSING ===');
+        console.log(`👤 User ID: ${req.user.id}`);
+        console.log(`🔗 URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -145,7 +186,7 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('ðŸ¤– Processing HTML with Gemini for USER profile...');
+        console.log('🤖 Processing HTML with Gemini for USER profile...');
         
         // Process HTML with Gemini
         const geminiResult = await sendToGemini({
@@ -155,14 +196,14 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('âŒ Gemini processing failed for USER profile:', geminiResult.error);
+            console.error('❌ Gemini processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
             });
         }
         
-        console.log('âœ… Gemini processing successful for USER profile');
+        console.log('✅ Gemini processing successful for USER profile');
         
         // Process Gemini data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -170,7 +211,7 @@ async function handleUserProfile(req, res) {
         // Save to user_profiles table only
         const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
         
-        // Update user_profiles with processed data (âœ… FIXED: Escape current_role reserved word)
+        // Update user_profiles with processed data (✅ FIXED: Escape current_role reserved word)
         await pool.query(`
             UPDATE user_profiles SET 
                 full_name = $1,
@@ -215,7 +256,7 @@ async function handleUserProfile(req, res) {
             userId
         ]);
         
-        console.log('âœ… USER profile saved to user_profiles table successfully');
+        console.log('✅ USER profile saved to user_profiles table successfully');
         
         res.json({
             success: true,
@@ -231,7 +272,7 @@ async function handleUserProfile(req, res) {
         });
         
     } catch (error) {
-        console.error('âŒ USER profile processing error:', error);
+        console.error('❌ USER profile processing error:', error);
         
         res.status(500).json({
             success: false,
@@ -241,11 +282,11 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// âœ… TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
+// ✅ TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
 async function handleAnalyzeTarget(req, res) {
     try {
-        console.log('ðŸŽ¯ Target profile analysis request received');
-        console.log(`ðŸ‘¤ User ID: ${req.user.id}`);
+        console.log('🎯 Target profile analysis request received');
+        console.log(`👤 User ID: ${req.user.id}`);
         
         const { html, profileUrl, normalizedUrl } = req.body;
         const userId = req.user.id;
@@ -259,8 +300,8 @@ async function handleAnalyzeTarget(req, res) {
         
         // A.1 Normalize URL (server)
         const normalizedUrlFinal = normalizeLinkedInUrl(normalizedUrl || profileUrl);
-        console.log(`ðŸ”— Original URL: ${profileUrl}`);
-        console.log(`ðŸ”— Normalized URL: ${normalizedUrlFinal}`);
+        console.log(`🔗 Original URL: ${profileUrl}`);
+        console.log(`🔗 Normalized URL: ${normalizedUrlFinal}`);
         
         // A.2 Dedupe before heavy work
         const { rows: existing } = await pool.query(
@@ -269,7 +310,7 @@ async function handleAnalyzeTarget(req, res) {
         );
         
         if (existing.length) {
-            console.log(`âš ï¸ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
+            console.log(`⚠️ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
             return res.status(200).json({
                 success: true,
                 alreadyExists: true,
@@ -277,10 +318,10 @@ async function handleAnalyzeTarget(req, res) {
             });
         }
         
-        console.log('âœ… Target is new, processing...');
+        console.log('✅ Target is new, processing...');
         
         // Process HTML with Gemini for TARGET profile
-        console.log('ðŸ¤– Processing HTML with Gemini for TARGET profile...');
+        console.log('🤖 Processing HTML with Gemini for TARGET profile...');
         
         const geminiResult = await sendToGemini({
             html: html,
@@ -289,22 +330,22 @@ async function handleAnalyzeTarget(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('âŒ Gemini processing failed for TARGET profile:', geminiResult.error);
+            console.error('❌ Gemini processing failed for TARGET profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
             });
         }
         
-        console.log('âœ… Gemini processing successful for TARGET profile');
+        console.log('✅ Gemini processing successful for TARGET profile');
         
         // Process Gemini data for TARGET profile
         const processedProfile = processGeminiData(geminiResult, profileUrl);
         
-        // âœ… NEW: UPSERT pattern with column count guard
-        console.log('ðŸ’¾ Inserting/updating target profile using UPSERT pattern...');
+        // ✅ NEW: UPSERT pattern with column count guard
+        console.log('💾 Inserting/updating target profile using UPSERT pattern...');
         
-        // âœ… NEW: Pre-query guard for column count mismatch
+        // ✅ NEW: Pre-query guard for column count mismatch
         const expectedColumns = [
             'user_id', 'normalized_url', 'data_json', 'raw_html', 'token_usage', 
             'artifacts', 'updated_at'
@@ -320,7 +361,7 @@ async function handleAnalyzeTarget(req, res) {
         ];
         
         if (expectedColumns.length !== values.length) {
-            console.error('âŒ Column count mismatch!');
+            console.error('❌ Column count mismatch!');
             console.error(`Expected columns (${expectedColumns.length}):`, expectedColumns);
             console.error(`Provided values (${values.length}):`, values.map((v, i) => `${i}: ${typeof v}`));
             return res.status(500).json({
@@ -330,7 +371,7 @@ async function handleAnalyzeTarget(req, res) {
             });
         }
         
-        // âœ… NEW: UPSERT with conflict resolution
+        // ✅ NEW: UPSERT with conflict resolution
         const upsertQuery = `
             INSERT INTO target_profiles ( 
                 user_id, normalized_url, data_json, raw_html, token_usage, artifacts, updated_at 
@@ -357,15 +398,15 @@ async function handleAnalyzeTarget(req, res) {
                 JSON.stringify({})
             ]);
             
-            console.log(`âœ… Target profile upserted successfully for user ${userId}`);
+            console.log(`✅ Target profile upserted successfully for user ${userId}`);
             
         } catch (e) {
-            console.error('âŒ Database upsert failed:', e);
+            console.error('❌ Database upsert failed:', e);
             throw e;
         }
         
         // A.4 Response (no credit charging)
-        console.log('ðŸ“¤ Returning success response...');
+        console.log('📤 Returning success response...');
         
         return res.status(200).json({
             success: true,
@@ -384,7 +425,7 @@ async function handleAnalyzeTarget(req, res) {
         });
         
     } catch (error) {
-        console.error('âŒ Target profile analysis error:', error);
+        console.error('❌ Target profile analysis error:', error);
         
         return res.status(500).json({
             success: false,
@@ -402,10 +443,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
-// âœ… STEP 2D: Initialize authentication middleware with database functions
+// ✅ STEP 2D: Initialize authentication middleware with database functions
 initAuthMiddleware({ getUserById });
 
-// ðŸ”§ DUAL AUTHENTICATION HELPER FUNCTION
+// 🔧 DUAL AUTHENTICATION HELPER FUNCTION
 const authenticateDual = async (req, res, next) => {
     // First try JWT authentication
     const authHeader = req.headers.authorization;
@@ -437,7 +478,101 @@ const authenticateDual = async (req, res, next) => {
     });
 };
 
-// âœ… STEP 2E: Initialize user routes with dependencies and get router
+// ✅ NEW: CREDITS VALIDATION MIDDLEWARE
+const validateCredits = (requiredCredits = 1) => {
+    return async (req, res, next) => {
+        try {
+            console.log(`💰 Validating ${requiredCredits} credits for user ${req.user.id}`);
+            
+            // Get current user credits
+            const userResult = await pool.query(
+                'SELECT credits_remaining, package_type FROM users WHERE id = $1',
+                [req.user.id]
+            );
+            
+            if (userResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+            
+            const user = userResult.rows[0];
+            const currentCredits = user.credits_remaining || 0;
+            
+            if (currentCredits < requiredCredits) {
+                console.log(`❌ Insufficient credits: ${currentCredits} < ${requiredCredits}`);
+                return res.status(402).json({
+                    success: false,
+                    error: 'Insufficient credits',
+                    data: {
+                        required: requiredCredits,
+                        available: currentCredits,
+                        plan: user.package_type,
+                        needsUpgrade: true
+                    }
+                });
+            }
+            
+            console.log(`✅ Credits validation passed: ${currentCredits} >= ${requiredCredits}`);
+            req.creditsInfo = {
+                available: currentCredits,
+                required: requiredCredits,
+                plan: user.package_type
+            };
+            
+            next();
+            
+        } catch (error) {
+            console.error('❌ Credits validation error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Credits validation failed'
+            });
+        }
+    };
+};
+
+// ✅ NEW: DEDUCT CREDITS HELPER
+async function deductCredits(userId, amount, action) {
+    try {
+        console.log(`💳 Deducting ${amount} credits from user ${userId} for ${action}`);
+        
+        const result = await pool.query(`
+            UPDATE users 
+            SET credits_remaining = GREATEST(credits_remaining - $1, 0),
+                updated_at = NOW()
+            WHERE id = $2
+            RETURNING credits_remaining, package_type
+        `, [amount, userId]);
+        
+        if (result.rows.length === 0) {
+            throw new Error('User not found for credit deduction');
+        }
+        
+        const newBalance = result.rows[0].credits_remaining;
+        console.log(`✅ Credits deducted. New balance: ${newBalance}`);
+        
+        // Log credit usage (optional - add credits_history table if needed)
+        await pool.query(`
+            INSERT INTO credits_history (user_id, action, credits_used, credits_remaining, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT DO NOTHING
+        `, [userId, action, amount, newBalance]);
+        
+        return {
+            newBalance,
+            creditsUsed: amount,
+            action
+        };
+        
+    } catch (error) {
+        console.error('❌ Error deducting credits:', error);
+        throw error;
+    }
+}
+
+// ✅ STEP 2E: Initialize user routes with dependencies and get router
 const userRoutes = initUserRoutes({
     pool,
     authenticateToken,
@@ -448,7 +583,7 @@ const userRoutes = initUserRoutes({
     getSetupStatusMessage
 });
 
-// âœ… STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
+// ✅ STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
 const profileRoutes = initProfileRoutes({
     pool,
     authenticateToken,
@@ -458,7 +593,7 @@ const profileRoutes = initProfileRoutes({
     cleanLinkedInUrl,
     getStatusMessage,
     sendToGemini,
-    // âœ… STAGE G: Add orchestrator and numeric helpers
+    // ✅ STAGE G: Add orchestrator and numeric helpers
     processProfileWithLLM,
     toIntSafe,
     toFloatSafe
@@ -494,7 +629,7 @@ const corsOptions = {
     credentials: true
 };
 
-// âœ… MIDDLEWARE SETUP - PROPERLY POSITIONED
+// ✅ MIDDLEWARE SETUP - PROPERLY POSITIONED
 app.use(cors(corsOptions));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
@@ -571,22 +706,184 @@ app.use((req, res, next) => {
     next();
 });
 
-// âœ… STEP 2C: Mount static routes FIRST (before other routes)
+// ✅ STEP 2C: Mount static routes FIRST (before other routes)
 app.use('/', staticRoutes);
 
-// âœ… MODULARIZATION: Mount health routes
+// ✅ MODULARIZATION: Mount health routes
 app.use('/', healthRoutes);
 
-// âœ… STEP 2E: Mount user routes
+// ✅ STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// âœ… STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
+// ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
 app.use('/', profileRoutes);
+
+// ==================== ✅ NEW: CREDITS SYSTEM ENDPOINTS ====================
+
+// 💎 GET CREDITS STATUS
+app.get('/api/credits/status', authenticateToken, async (req, res) => {
+    try {
+        console.log(`💎 Credits status request from user ${req.user.id}`);
+        
+        const userResult = await pool.query(`
+            SELECT 
+                credits_remaining,
+                package_type,
+                billing_model,
+                created_at,
+                subscription_status
+            FROM users 
+            WHERE id = $1
+        `, [req.user.id]);
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const user = userResult.rows[0];
+        const remaining = user.credits_remaining || 0;
+        const plan = user.package_type || 'free';
+        const total = getPlanCredits(plan);
+        const renewalDate = calculateRenewalDate(user.created_at, user.billing_model);
+        
+        const creditsData = {
+            remaining,
+            total,
+            plan: getPlanDisplayName(plan),
+            planId: plan,
+            billingModel: user.billing_model || 'monthly',
+            renewalDate,
+            subscriptionStatus: user.subscription_status || 'active',
+            usage: {
+                used: Math.max(0, total - remaining),
+                percentage: Math.round((Math.max(0, total - remaining) / total) * 100)
+            }
+        };
+        
+        console.log(`✅ Credits status: ${remaining}/${total} (${plan})`);
+        
+        res.json({
+            success: true,
+            data: creditsData
+        });
+        
+    } catch (error) {
+        console.error('❌ Credits status error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch credits status'
+        });
+    }
+});
+
+// 🎯 CHECK TARGET STATUS
+app.get('/api/target/check', authenticateToken, async (req, res) => {
+    try {
+        const { url } = req.query;
+        const userId = req.user.id;
+        
+        if (!url) {
+            return res.status(400).json({
+                success: false,
+                error: 'URL parameter is required'
+            });
+        }
+        
+        const normalizedUrl = normalizeLinkedInUrl(url);
+        console.log(`🎯 Checking target status for user ${userId}, URL: ${normalizedUrl}`);
+        
+        const result = await pool.query(
+            'SELECT id, created_at FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
+            [userId, normalizedUrl]
+        );
+        
+        const exists = result.rows.length > 0;
+        
+        console.log(`✅ Target status: ${exists ? 'EXISTS' : 'NEW'}`);
+        
+        res.json({
+            success: true,
+            data: {
+                exists,
+                isNew: !exists,
+                normalizedUrl,
+                analyzedAt: exists ? result.rows[0].created_at : null
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Target status check error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check target status'
+        });
+    }
+});
+
+// 💰 VALIDATE CREDITS FOR ACTION
+app.post('/api/credits/validate', authenticateToken, async (req, res) => {
+    try {
+        const { action } = req.body;
+        const userId = req.user.id;
+        
+        console.log(`💰 Credits validation request for action: ${action}`);
+        
+        // Define credit requirements
+        const creditRequirements = {
+            'generate_message': 1,
+            'generate_connection': 1,
+            'analyze_profile': 0  // Free action
+        };
+        
+        const requiredCredits = creditRequirements[action] || 1;
+        
+        // Get current user credits
+        const userResult = await pool.query(
+            'SELECT credits_remaining, package_type FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const user = userResult.rows[0];
+        const currentCredits = user.credits_remaining || 0;
+        const hasEnoughCredits = currentCredits >= requiredCredits;
+        
+        console.log(`✅ Credits validation: ${currentCredits} >= ${requiredCredits} = ${hasEnoughCredits}`);
+        
+        res.json({
+            success: true,
+            data: {
+                hasEnoughCredits,
+                requiredCredits,
+                availableCredits: currentCredits,
+                action,
+                plan: user.package_type,
+                canProceed: hasEnoughCredits
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Credits validation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Credits validation failed'
+        });
+    }
+});
 
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('ðŸ” Chrome Extension Auth Request:', {
+    console.log('🔍 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -610,7 +907,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('ðŸ” Verifying Google token...');
+        console.log('🔍 Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -623,7 +920,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         const googleUser = googleResponse.data;
-        console.log('âœ… Google user verified:', {
+        console.log('✅ Google user verified:', {
             email: googleUser.email,
             name: googleUser.name,
             verified: googleUser.verified_email
@@ -634,7 +931,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         let isNewUser = false;
         
         if (!user) {
-            console.log('ðŸ‘¤ Creating new user...');
+            console.log('👤 Creating new user...');
             user = await createGoogleUser(
                 googleUser.email,
                 googleUser.name,
@@ -643,7 +940,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             );
             isNewUser = true;
         } else if (!user.google_id) {
-            console.log('ðŸ”— Linking Google account to existing user...');
+            console.log('🔗 Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
         }
@@ -657,7 +954,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             { expiresIn: '30d' }
         );
         
-        console.log('âœ… Chrome extension authentication successful');
+        console.log('✅ Chrome extension authentication successful');
         
         res.json({
             success: true,
@@ -679,7 +976,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('âŒ Chrome extension auth error:', error);
+        console.error('❌ Chrome extension auth error:', error);
         
         if (error.response && error.response.status === 401) {
             return res.status(401).json({
@@ -698,35 +995,194 @@ app.post('/auth/chrome-extension', async (req, res) => {
 
 // ==================== FIXED /scrape-html ROUTE WITH PROPER ROUTING ====================
 
-// âœ… REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
+// ✅ REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
 app.post('/scrape-html', authenticateToken, (req, res) => {
-    // âœ… REQUIRED LOGGING: Route entry
-    console.log('ðŸ” route=/scrape-html');
-    console.log(`ðŸ” isUserProfile=${req.body.isUserProfile}`);
+    // ✅ REQUIRED LOGGING: Route entry
+    console.log('🚪 route=/scrape-html');
+    console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
     
-    // âœ… HARD GUARD: Check isUserProfile at the very top
+    // ✅ HARD GUARD: Check isUserProfile at the very top
     if (req.body.isUserProfile === true) {
-        console.log('ðŸ” selectedHandler=USER');
-        console.log('ðŸ”µ USER handler start');
-        console.log(`ðŸ” userId=${req.user.id}`);
-        console.log(`ðŸ” truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('🔍 selectedHandler=USER');
+        console.log('🔵 USER handler start');
+        console.log(`🔍 userId=${req.user.id}`);
+        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         // Route to User handler
         return handleUserProfile(req, res);
     } else {
-        console.log('ðŸ” selectedHandler=TARGET');
-        console.log('ðŸŽ¯ TARGET handler start');
-        console.log(`ðŸ” userId=${req.user.id}`);
-        console.log(`ðŸ” truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('🔍 selectedHandler=TARGET');
+        console.log('🎯 TARGET handler start');
+        console.log(`🔍 userId=${req.user.id}`);
+        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         // Route to Target handler
         return handleAnalyzeTarget(req, res);
     }
 });
 
+// ==================== ✅ NEW: ENHANCED MESSAGE GENERATION WITH CREDITS ====================
+
+// 💬 GENERATE LINKEDIN MESSAGE (WITH CREDITS)
+app.post('/generate-message', authenticateToken, validateCredits(1), async (req, res) => {
+    try {
+        console.log(`💬 Message generation request from user ${req.user.id}`);
+        
+        const { targetProfileUrl, context, messageType } = req.body;
+        
+        if (!targetProfileUrl || !context) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and context are required'
+            });
+        }
+        
+        // Get target profile data
+        const normalizedUrl = normalizeLinkedInUrl(targetProfileUrl);
+        const targetResult = await pool.query(
+            'SELECT data_json FROM target_profiles WHERE user_id = $1 AND normalized_url = $2',
+            [req.user.id, normalizedUrl]
+        );
+        
+        if (targetResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the profile first.'
+            });
+        }
+        
+        // Get user profile data
+        const userResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+        
+        const targetProfile = targetResult.rows[0].data_json;
+        const userProfile = userResult.rows[0];
+        
+        // Deduct credits BEFORE generation
+        const creditResult = await deductCredits(req.user.id, 1, 'generate_message');
+        
+        // Generate message using AI (simplified for demo)
+        const generatedMessage = `Hi ${targetProfile.fullName || 'there'},
+
+I noticed your background in ${targetProfile.headline || 'your field'} and thought it would be valuable to connect. ${context}
+
+I'm currently ${userProfile.current_role || userProfile.headline || 'working in my field'} at ${userProfile.current_company || 'my company'} and would love to exchange insights about the industry.
+
+Looking forward to connecting!
+
+Best regards,
+${userProfile.full_name || 'Your name'}`;
+        
+        console.log('✅ Message generated successfully');
+        
+        res.json({
+            success: true,
+            data: {
+                message: generatedMessage,
+                creditsUsed: 1,
+                creditsRemaining: creditResult.newBalance,
+                targetProfile: {
+                    name: targetProfile.fullName,
+                    headline: targetProfile.headline
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Message generation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Message generation failed'
+        });
+    }
+});
+
+// 🤝 GENERATE CONNECTION REQUEST (WITH CREDITS)
+app.post('/generate-connection', authenticateToken, validateCredits(1), async (req, res) => {
+    try {
+        console.log(`🤝 Connection request generation from user ${req.user.id}`);
+        
+        const { targetProfileUrl, context, messageType } = req.body;
+        
+        if (!targetProfileUrl || !context) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and context are required'
+            });
+        }
+        
+        // Get target profile data
+        const normalizedUrl = normalizeLinkedInUrl(targetProfileUrl);
+        const targetResult = await pool.query(
+            'SELECT data_json FROM target_profiles WHERE user_id = $1 AND normalized_url = $2',
+            [req.user.id, normalizedUrl]
+        );
+        
+        if (targetResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the profile first.'
+            });
+        }
+        
+        // Get user profile data
+        const userResult = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [req.user.id]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+        
+        const targetProfile = targetResult.rows[0].data_json;
+        const userProfile = userResult.rows[0];
+        
+        // Deduct credits BEFORE generation
+        const creditResult = await deductCredits(req.user.id, 1, 'generate_connection');
+        
+        // Generate connection message (simplified for demo)
+        const generatedMessage = `Hi ${targetProfile.fullName || 'there'}, I'd love to connect. ${context.substring(0, 200)}`;
+        
+        console.log('✅ Connection message generated successfully');
+        
+        res.json({
+            success: true,
+            data: {
+                message: generatedMessage,
+                creditsUsed: 1,
+                creditsRemaining: creditResult.newBalance,
+                targetProfile: {
+                    name: targetProfile.fullName,
+                    headline: targetProfile.headline
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Connection generation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Connection generation failed'
+        });
+    }
+});
+
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
 
-// âœ… KEPT IN SERVER: Google OAuth Routes (Session creation/management)
+// ✅ KEPT IN SERVER: Google OAuth Routes (Session creation/management)
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
@@ -756,7 +1212,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`ðŸ” OAuth callback - User: ${req.user.email}`);
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -764,10 +1220,10 @@ app.get('/auth/google/callback',
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
             if (needsOnboarding) {
-                console.log(`âž¡ï¸ Redirecting to sign-up for onboarding`);
+                console.log(`➡️ Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                console.log(`âž¡ï¸ Redirecting to dashboard`);
+                console.log(`➡️ Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
@@ -782,10 +1238,10 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// ðŸš¦ TRAFFIC LIGHT STATUS ENDPOINT - NEW ENDPOINT FOR DASHBOARD
+// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - NEW ENDPOINT FOR DASHBOARD
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸš¦ Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🚦 Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -814,7 +1270,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             });
         }
 
-        // ðŸš¦ DETERMINE TRAFFIC LIGHT STATUS
+        // 🚦 DETERMINE TRAFFIC LIGHT STATUS
         const isRegistrationComplete = data.registration_completed || false;
         const isInitialScrapingDone = data.initial_scraping_done || false;
         const extractionStatus = data.data_extraction_status || 'pending';
@@ -842,7 +1298,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             actionRequired = 'COMPLETE_REGISTRATION';
         }
 
-        console.log(`ðŸš¦ User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
+        console.log(`🚦 User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
         console.log(`   - Registration Complete: ${isRegistrationComplete}`);
         console.log(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
         console.log(`   - Extraction Status: ${extractionStatus}`);
@@ -875,7 +1331,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('âŒ Traffic light status error:', error);
+        console.error('❌ Traffic light status error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to check traffic light status'
@@ -883,10 +1339,10 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// ðŸ”§ FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
+// 🔧 FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸ” Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1029,7 +1485,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('âŒ Enhanced profile fetch error:', error);
+        console.error('❌ Enhanced profile fetch error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch profile'
@@ -1037,10 +1493,10 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// ðŸ”§ FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
+// 🔧 FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸ” Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔍 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1200,7 +1656,7 @@ app.get('/packages', (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-    console.error('âŒ Unhandled Error:', error);
+    console.error('❌ Unhandled Error:', error);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -1238,6 +1694,10 @@ app.use((req, res, next) => {
             'GET /user/stats',
             'PUT /user/settings',
             'POST /generate-message',
+            'POST /generate-connection',
+            '✅ NEW: GET /api/credits/status',
+            '✅ NEW: GET /api/target/check',
+            '✅ NEW: POST /api/credits/validate',
             'GET /message-history',
             'GET /credits-history',
             'POST /retry-extraction',
@@ -1254,44 +1714,52 @@ const startServer = async () => {
         
         const dbOk = await testDatabase();
         if (!dbOk) {
-            console.error('âŒ Cannot start server without database');
+            console.error('❌ Cannot start server without database');
             process.exit(1);
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('ðŸš€ Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION!');
-            console.log(`ðŸ” Port: ${PORT}`);
-            console.log(`ðŸ—ƒï¸ Database: Enhanced PostgreSQL with UPSERT pattern`);
-            console.log(`ðŸ” Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
-            console.log(`ðŸš¦ TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`âœ… TARGET INGESTION IMPROVEMENTS:`);
-            console.log(`   ðŸ”„ UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
-            console.log(`   ðŸ›¡ï¸ Column count guard prevents INSERT mismatch errors`);
-            console.log(`   ðŸ’° No credit charging on Analyze`);
-            console.log(`   ðŸ—„ï¸ Database schema changes via startup guard (no migrations)`);
-            console.log(`âœ… "SEE MORE" EXPANSION:`);
-            console.log(`   ðŸ“‹ Experience section: max 2 clicks with DOM change detection`);
-            console.log(`   ðŸ† Honors & Awards section: max 2 clicks with DOM change detection`);
-            console.log(`   â±ï¸ Randomized delays and proper waiting for content load`);
-            console.log(`   ðŸ” Called before HTML capture in both User & Target flows`);
-            console.log(`âœ… READY FOR PRODUCTION!`);
+            console.log('🚀 Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION + CREDITS SYSTEM!');
+            console.log(`🔍 Port: ${PORT}`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL with UPSERT pattern`);
+            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
+            console.log(`✅ TARGET INGESTION IMPROVEMENTS:`);
+            console.log(`   📄 UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
+            console.log(`   🛡️ Column count guard prevents INSERT mismatch errors`);
+            console.log(`   💰 No credit charging on Analyze`);
+            console.log(`   🗄️ Database schema changes via startup guard (no migrations)`);
+            console.log(`✅ "SEE MORE" EXPANSION:`);
+            console.log(`   📋 Experience section: max 2 clicks with DOM change detection`);
+            console.log(`   🏆 Honors & Awards section: max 2 clicks with DOM change detection`);
+            console.log(`   ⏰ Randomized delays and proper waiting for content load`);
+            console.log(`   🔍 Called before HTML capture in both User & Target flows`);
+            console.log(`✅ NEW: CREDITS SYSTEM (SERVER-ONLY):`);
+            console.log(`   💎 GET /api/credits/status - Fetch current credits & plan info`);
+            console.log(`   🎯 GET /api/target/check - Check if target exists in DB`);
+            console.log(`   💰 POST /api/credits/validate - Pre-validate credits for actions`);
+            console.log(`   🔒 Credits validation middleware for message generation`);
+            console.log(`   📊 Plan management: Free(7), Silver(30), Gold(100), Platinum(250)`);
+            console.log(`   📅 Monthly renewal calculation for Free plan`);
+            console.log(`   🚫 No localStorage - 100% server-side credits management`);
+            console.log(`✅ READY FOR PRODUCTION WITH CREDITS!`);
         });
         
     } catch (error) {
-        console.error('âŒ Startup failed:', error);
+        console.error('❌ Startup failed:', error);
         process.exit(1);
     }
 };
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('ðŸ›‘ Gracefully shutting down...');
+    console.log('🛑 Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('ðŸ›‘ Gracefully shutting down...');
+    console.log('🛑 Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
