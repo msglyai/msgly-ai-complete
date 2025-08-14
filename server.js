@@ -1,11 +1,5 @@
-// ⚠️ MODIFIED FILE: server.js 
-// ONLY the handleAnalyzeTarget function has been updated to use comprehensive saving
-// All other code remains exactly the same
-
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
-// ✅ NEW: Added Credits System Endpoints (Server-Only) + Target Status Check
-// CREDITS UPDATE: Added fractional credits system with points
 // Msgly.AI Server - Complete with Traffic Light System Integrated
 
 const express = require('express');
@@ -19,14 +13,14 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
 
-// ✅ FIXED: Import sendToGemini from correct path (project root)
+// âœ… FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
 
-// ✅ FEATURE FLAG: Disable Target processing
+// âœ… FEATURE FLAG: Disable Target processing
 const ENABLE_TARGET = false; // Set to false to quarantine Target routes
 
-// ✅ STEP 2A: Import all database functions from utils/database.js
+// âœ… STEP 2A: Import all database functions from utils/database.js
 const {
     pool,
     initDB,
@@ -41,14 +35,13 @@ const {
     ensureValidJSONArray,
     parseLinkedInNumber,
     processScrapedProfileData,
-    processGeminiData,  // ✅ Import processGeminiData for User processing
-    CREDITS_FACTOR      // CREDITS UPDATE: Import credits factor
+    processGeminiData  // âœ… Import processGeminiData for User processing
 } = require('./utils/database');
 
-// ✅ STAGE G: Import LLM orchestrator
+// âœ… STAGE G: Import LLM orchestrator
 const { processProfileWithLLM } = require('./utils/llmOrchestrator');
 
-// ✅ STEP 2B: Import all utility functions from utils/helpers.js
+// âœ… STEP 2B: Import all utility functions from utils/helpers.js
 const {
     cleanLinkedInUrl,
     isValidLinkedInUrl,
@@ -69,7 +62,7 @@ const {
     logWithEmoji
 } = require('./utils/helpers');
 
-// ✅ STEP 2D: Import authentication middleware
+// âœ… STEP 2D: Import authentication middleware
 const {
     initAuthMiddleware,
     authenticateToken,
@@ -77,17 +70,17 @@ const {
     requireAdmin
 } = require('./middleware/auth');
 
-// ✅ STEP 2E: Import user routes initialization function
+// âœ… STEP 2E: Import user routes initialization function
 const { initUserRoutes } = require('./routes/users');
 
-// ✅ STEP 2F: Import JWT-only profile & API routes initialization function
+// âœ… STEP 2F: Import JWT-only profile & API routes initialization function
 const { initProfileRoutes } = require('./routes/profiles');
 
-// ✅ STEP 2C: Import modularized routes
+// âœ… STEP 2C: Import modularized routes
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G — numeric sanitizers
+// What changed in Stage G â€“ numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -132,52 +125,12 @@ function normalizeLinkedInUrl(url = '') {
   } catch { return ''; }
 }
 
-// ✅ NEW: CREDITS HELPER FUNCTIONS
-function calculateRenewalDate(userCreatedAt, billingModel) {
-    if (billingModel !== 'monthly') return null;
-    
-    const createdDate = new Date(userCreatedAt);
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    // Calculate next renewal date based on registration day
-    const renewalDate = new Date(currentYear, currentMonth, createdDate.getDate());
-    
-    // If renewal date has passed this month, move to next month
-    if (renewalDate <= now) {
-        renewalDate.setMonth(renewalDate.getMonth() + 1);
-    }
-    
-    return renewalDate.toISOString();
-}
-
-function getPlanDisplayName(packageType) {
-    const planNames = {
-        'free': 'Free',
-        'silver': 'Silver', 
-        'gold': 'Gold',
-        'platinum': 'Platinum'
-    };
-    return planNames[packageType] || 'Free';
-}
-
-function getPlanCredits(packageType) {
-    const planCredits = {
-        'free': 7,
-        'silver': 30,
-        'gold': 100, 
-        'platinum': 250
-    };
-    return planCredits[packageType] || 7;
-}
-
-// ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
+// âœ… USER PROFILE HANDLER: Restored exact User flow that was working before
 async function handleUserProfile(req, res) {
     try {
-        console.log('📵 === USER PROFILE PROCESSING ===');
-        console.log(`👤 User ID: ${req.user.id}`);
-        console.log(`🔗 URL: ${req.body.profileUrl}`);
+        console.log('ðŸ”µ === USER PROFILE PROCESSING ===');
+        console.log(`ðŸ‘¤ User ID: ${req.user.id}`);
+        console.log(`ðŸ”— URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -192,7 +145,7 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('🤖 Processing HTML with Gemini for USER profile...');
+        console.log('ðŸ¤– Processing HTML with Gemini for USER profile...');
         
         // Process HTML with Gemini
         const geminiResult = await sendToGemini({
@@ -202,14 +155,14 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('❌ Gemini processing failed for USER profile:', geminiResult.error);
+            console.error('âŒ Gemini processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
             });
         }
         
-        console.log('✅ Gemini processing successful for USER profile');
+        console.log('âœ… Gemini processing successful for USER profile');
         
         // Process Gemini data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -217,7 +170,7 @@ async function handleUserProfile(req, res) {
         // Save to user_profiles table only
         const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
         
-        // Update user_profiles with processed data (✅ FIXED: Escape current_role reserved word)
+        // Update user_profiles with processed data (âœ… FIXED: Escape current_role reserved word)
         await pool.query(`
             UPDATE user_profiles SET 
                 full_name = $1,
@@ -262,7 +215,7 @@ async function handleUserProfile(req, res) {
             userId
         ]);
         
-        console.log('✅ USER profile saved to user_profiles table successfully');
+        console.log('âœ… USER profile saved to user_profiles table successfully');
         
         res.json({
             success: true,
@@ -278,7 +231,7 @@ async function handleUserProfile(req, res) {
         });
         
     } catch (error) {
-        console.error('❌ USER profile processing error:', error);
+        console.error('âŒ USER profile processing error:', error);
         
         res.status(500).json({
             success: false,
@@ -288,11 +241,11 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// ✅ TARGET PROFILE HANDLER: UPDATED TO USE COMPREHENSIVE SAVING LIKE USER PROFILE
+// âœ… TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
 async function handleAnalyzeTarget(req, res) {
     try {
-        console.log('🎯 Target profile analysis request received');
-        console.log(`👤 User ID: ${req.user.id}`);
+        console.log('ðŸŽ¯ Target profile analysis request received');
+        console.log(`ðŸ‘¤ User ID: ${req.user.id}`);
         
         const { html, profileUrl, normalizedUrl } = req.body;
         const userId = req.user.id;
@@ -306,8 +259,8 @@ async function handleAnalyzeTarget(req, res) {
         
         // A.1 Normalize URL (server)
         const normalizedUrlFinal = normalizeLinkedInUrl(normalizedUrl || profileUrl);
-        console.log(`🔗 Original URL: ${profileUrl}`);
-        console.log(`🔗 Normalized URL: ${normalizedUrlFinal}`);
+        console.log(`ðŸ”— Original URL: ${profileUrl}`);
+        console.log(`ðŸ”— Normalized URL: ${normalizedUrlFinal}`);
         
         // A.2 Dedupe before heavy work
         const { rows: existing } = await pool.query(
@@ -316,7 +269,7 @@ async function handleAnalyzeTarget(req, res) {
         );
         
         if (existing.length) {
-            console.log(`💡 Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
+            console.log(`âš ï¸ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
             return res.status(200).json({
                 success: true,
                 alreadyExists: true,
@@ -324,10 +277,10 @@ async function handleAnalyzeTarget(req, res) {
             });
         }
         
-        console.log('✨ Target is new, processing...');
+        console.log('âœ… Target is new, processing...');
         
         // Process HTML with Gemini for TARGET profile
-        console.log('🤖 Processing HTML with Gemini for TARGET profile...');
+        console.log('ðŸ¤– Processing HTML with Gemini for TARGET profile...');
         
         const geminiResult = await sendToGemini({
             html: html,
@@ -336,153 +289,102 @@ async function handleAnalyzeTarget(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('❌ Gemini processing failed for TARGET profile:', geminiResult.error);
+            console.error('âŒ Gemini processing failed for TARGET profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
             });
         }
         
-        console.log('✅ Gemini processing successful for TARGET profile');
+        console.log('âœ… Gemini processing successful for TARGET profile');
         
         // Process Gemini data for TARGET profile
         const processedProfile = processGeminiData(geminiResult, profileUrl);
-        const p = processedProfile; // For easier access
         
-        // ✅ NEW: Apply numeric sanitization like User Profile
-        const numeric = {
-            followers_count: toIntSafe(p?.followersCount || p?.profile?.followersCount),
-            connections_count: toIntSafe(p?.connectionsCount || p?.profile?.connectionsCount),
-            total_likes: toIntSafe(p?.totalLikes || p?.engagement?.totalLikes),
-            total_comments: toIntSafe(p?.totalComments || p?.engagement?.totalComments),
-            total_shares: toIntSafe(p?.totalShares || p?.engagement?.totalShares),
-            average_likes: toFloatSafe(p?.averageLikes || p?.engagement?.averageLikes)
-        };
+        // âœ… NEW: UPSERT pattern with column count guard
+        console.log('ðŸ’¾ Inserting/updating target profile using UPSERT pattern...');
         
-        console.log('[DB-INSERT] target numeric sanitized:', numeric);
+        // âœ… NEW: Pre-query guard for column count mismatch
+        const expectedColumns = [
+            'user_id', 'normalized_url', 'data_json', 'raw_html', 'token_usage', 
+            'artifacts', 'updated_at'
+        ];
+        const values = [
+            userId,
+            normalizedUrlFinal, 
+            processedProfile,
+            html,
+            geminiResult.metadata?.tokenUsage || {},
+            {},
+            new Date()
+        ];
         
-        // ✅ NEW: COMPREHENSIVE SAVING - DUPLICATE USER PROFILE SAVING METHOD
-        console.log('💾 Inserting/updating target profile using COMPREHENSIVE structure like User Profile...');
+        if (expectedColumns.length !== values.length) {
+            console.error('âŒ Column count mismatch!');
+            console.error(`Expected columns (${expectedColumns.length}):`, expectedColumns);
+            console.error(`Provided values (${values.length}):`, values.map((v, i) => `${i}: ${typeof v}`));
+            return res.status(500).json({
+                success: false,
+                error: `Column count mismatch: expected ${expectedColumns.length}, got ${values.length}`,
+                details: 'INSERT has more target columns than expressions'
+            });
+        }
         
-        // ✅ COMPREHENSIVE UPSERT with all User Profile columns
-        const comprehensiveUpsertQuery = `
+        // âœ… NEW: UPSERT with conflict resolution
+        const upsertQuery = `
             INSERT INTO target_profiles ( 
-                user_id, normalized_url, linkedin_url, full_name, headline, "current_role",
-                current_company, location, about, connections_count, followers_count,
-                total_likes, total_comments, total_shares, average_likes,
-                experience, education, skills, certifications, awards, volunteer_experience,
-                data_json, raw_html, ai_provider, ai_model, input_tokens, output_tokens, total_tokens,
-                scraped_at, updated_at
+                user_id, normalized_url, data_json, raw_html, token_usage, artifacts, updated_at 
             ) VALUES ( 
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                $1, $2, $3::jsonb, $4, $5::jsonb, $6::jsonb, NOW() 
             ) 
             ON CONFLICT (user_id, normalized_url) 
             DO UPDATE SET 
-                linkedin_url = EXCLUDED.linkedin_url,
-                full_name = EXCLUDED.full_name,
-                headline = EXCLUDED.headline,
-                "current_role" = EXCLUDED."current_role",
-                current_company = EXCLUDED.current_company,
-                location = EXCLUDED.location,
-                about = EXCLUDED.about,
-                connections_count = EXCLUDED.connections_count,
-                followers_count = EXCLUDED.followers_count,
-                total_likes = EXCLUDED.total_likes,
-                total_comments = EXCLUDED.total_comments,
-                total_shares = EXCLUDED.total_shares,
-                average_likes = EXCLUDED.average_likes,
-                experience = EXCLUDED.experience,
-                education = EXCLUDED.education,
-                skills = EXCLUDED.skills,
-                certifications = EXCLUDED.certifications,
-                awards = EXCLUDED.awards,
-                volunteer_experience = EXCLUDED.volunteer_experience,
-                data_json = EXCLUDED.data_json,
-                raw_html = EXCLUDED.raw_html,
-                ai_provider = EXCLUDED.ai_provider,
-                ai_model = EXCLUDED.ai_model,
-                input_tokens = EXCLUDED.input_tokens,
-                output_tokens = EXCLUDED.output_tokens,
-                total_tokens = EXCLUDED.total_tokens,
-                scraped_at = EXCLUDED.scraped_at,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING *
+                data_json = EXCLUDED.data_json, 
+                raw_html = EXCLUDED.raw_html, 
+                token_usage = EXCLUDED.token_usage, 
+                artifacts = EXCLUDED.artifacts, 
+                updated_at = NOW()
         `;
         
+        let inserted;
         try {
-            const { rows } = await pool.query(comprehensiveUpsertQuery, [
-                userId,                                                    // $1
-                normalizedUrlFinal,                                       // $2  
-                profileUrl,                                               // $3
-                p?.fullName || p?.name || '',                            // $4
-                p?.headline || '',                                        // $5
-                p?.currentRole || p?.currentPosition || '',              // $6
-                p?.currentCompany || p?.company || '',                   // $7
-                p?.location || '',                                        // $8
-                p?.about || p?.summary || '',                            // $9
-                numeric.connections_count,                                // $10
-                numeric.followers_count,                                  // $11
-                numeric.total_likes,                                      // $12
-                numeric.total_comments,                                   // $13
-                numeric.total_shares,                                     // $14
-                numeric.average_likes,                                    // $15
-                JSON.stringify(p?.experience || []),                      // $16
-                JSON.stringify(p?.education || []),                       // $17
-                JSON.stringify(p?.skills || []),                          // $18
-                JSON.stringify(p?.certifications || []),                  // $19
-                JSON.stringify(p?.awards || []),                          // $20
-                JSON.stringify(p?.volunteerExperience || p?.volunteer || []), // $21
-                JSON.stringify(processedProfile),                         // $22 - Full AI output
-                html,                                                     // $23 - Raw HTML
-                geminiResult.provider || 'gemini',                       // $24
-                geminiResult.model || 'gemini-1.5-flash',               // $25
-                geminiResult.usage?.input_tokens || geminiResult.metadata?.tokenUsage?.input || 0,  // $26
-                geminiResult.usage?.output_tokens || geminiResult.metadata?.tokenUsage?.output || 0, // $27
-                geminiResult.usage?.total_tokens || geminiResult.metadata?.tokenUsage?.total || 0    // $28
+            const { rows } = await pool.query(upsertQuery, [
+                userId,
+                normalizedUrlFinal,
+                JSON.stringify(processedProfile),
+                html,
+                JSON.stringify(geminiResult.metadata?.tokenUsage || {}),
+                JSON.stringify({})
             ]);
             
-            console.log(`✅ Target profile comprehensively saved for user ${userId} using User Profile structure!`);
+            console.log(`âœ… Target profile upserted successfully for user ${userId}`);
             
         } catch (e) {
-            console.error('❌ Database comprehensive upsert failed:', e);
+            console.error('âŒ Database upsert failed:', e);
             throw e;
         }
         
         // A.4 Response (no credit charging)
-        console.log('📤 Returning success response...');
+        console.log('ðŸ“¤ Returning success response...');
         
         return res.status(200).json({
             success: true,
-            data: {
-                // Return structured data like User Profile
-                fullName: p?.fullName || p?.name || '',
-                headline: p?.headline || '',
-                currentRole: p?.currentRole || p?.currentPosition || '',
-                currentCompany: p?.currentCompany || p?.company || '',
-                location: p?.location || '',
-                about: p?.about || p?.summary || '',
-                experienceCount: p?.experience?.length || 0,
-                educationCount: p?.education?.length || 0,
-                skillsCount: p?.skills?.length || 0,
-                numericData: numeric
-            },
+            data: processedProfile,
             storage: {
-                comprehensive_structure_saved: true,
                 raw_html_saved: true,
-                parsed_json_saved: true,
-                saving_method: 'comprehensive_like_user_profile'
+                parsed_json_saved: true
             },
             processing: {
-                provider: geminiResult.provider || 'gemini',
-                model: geminiResult.model || 'gemini-1.5-flash',
-                token_usage: geminiResult.usage || geminiResult.metadata?.tokenUsage || {}
+                provider: 'gemini',
+                model: 'gemini-pro',
+                token_usage: geminiResult.metadata?.tokenUsage || {}
             },
             alreadyExists: false,
-            message: 'Target profile analyzed and saved with comprehensive structure - no credits charged'
+            message: 'Target profile analyzed successfully - no credits charged'
         });
         
     } catch (error) {
-        console.error('❌ Target profile analysis error:', error);
+        console.error('âŒ Target profile analysis error:', error);
         
         return res.status(500).json({
             success: false,
@@ -500,10 +402,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
-// ✅ STEP 2D: Initialize authentication middleware with database functions
+// âœ… STEP 2D: Initialize authentication middleware with database functions
 initAuthMiddleware({ getUserById });
 
-// 🔧 DUAL AUTHENTICATION HELPER FUNCTION
+// ðŸ”§ DUAL AUTHENTICATION HELPER FUNCTION
 const authenticateDual = async (req, res, next) => {
     // First try JWT authentication
     const authHeader = req.headers.authorization;
@@ -535,108 +437,7 @@ const authenticateDual = async (req, res, next) => {
     });
 };
 
-// CREDITS UPDATE: Enhanced credits validation middleware using points
-const validateCredits = (requiredCredits = 1) => {
-    return async (req, res, next) => {
-        try {
-            const requiredPoints = requiredCredits * CREDITS_FACTOR;
-            console.log(`💰 Validating ${requiredPoints} points (${requiredCredits} credits) for user ${req.user.id}`);
-            
-            // Get current user credits_points
-            const userResult = await pool.query(
-                'SELECT credits_points, credits_remaining, package_type FROM users WHERE id = $1',
-                [req.user.id]
-            );
-            
-            if (userResult.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'User not found'
-                });
-            }
-            
-            const user = userResult.rows[0];
-            const currentPoints = user.credits_points || 0;
-            
-            if (currentPoints < requiredPoints) {
-                console.log(`❌ Insufficient credits: ${currentPoints} points < ${requiredPoints} points`);
-                return res.status(402).json({
-                    success: false,
-                    error: 'Insufficient credits',
-                    data: {
-                        required: requiredCredits,
-                        available: currentPoints / CREDITS_FACTOR,
-                        plan: user.package_type,
-                        needsUpgrade: true
-                    }
-                });
-            }
-            
-            console.log(`✅ Credits validation passed: ${currentPoints} points >= ${requiredPoints} points`);
-            req.creditsInfo = {
-                availablePoints: currentPoints,
-                availableCredits: currentPoints / CREDITS_FACTOR,
-                requiredPoints: requiredPoints,
-                requiredCredits: requiredCredits,
-                plan: user.package_type
-            };
-            
-            next();
-            
-        } catch (error) {
-            console.error('❌ Credits validation error:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Credits validation failed'
-            });
-        }
-    };
-};
-
-// CREDITS UPDATE: Enhanced deduct credits helper using points
-async function deductCredits(userId, creditAmount, action) {
-    try {
-        const pointsAmount = creditAmount * CREDITS_FACTOR;
-        console.log(`💳 Deducting ${pointsAmount} points (${creditAmount} credits) from user ${userId} for ${action}`);
-        
-        const result = await pool.query(`
-            UPDATE users 
-            SET credits_points = GREATEST(credits_points - $1, 0),
-                credits_remaining = GREATEST((credits_points - $1) / $2, 0),
-                updated_at = NOW()
-            WHERE id = $3
-            RETURNING credits_points, credits_remaining, package_type
-        `, [pointsAmount, CREDITS_FACTOR, userId]);
-        
-        if (result.rows.length === 0) {
-            throw new Error('User not found for credit deduction');
-        }
-        
-        const newPoints = result.rows[0].credits_points;
-        const newCredits = result.rows[0].credits_remaining;
-        console.log(`✅ Credits deducted. New balance: ${newPoints} points (${newCredits} credits)`);
-        
-        // Log credit usage in credits_history
-        await pool.query(`
-            INSERT INTO credits_history (user_id, action, points_used, credits_used, points_remaining, credits_remaining)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [userId, action, pointsAmount, creditAmount, newPoints, newCredits]);
-        
-        return {
-            newBalance: newCredits,
-            newPoints: newPoints,
-            creditsUsed: creditAmount,
-            pointsUsed: pointsAmount,
-            action
-        };
-        
-    } catch (error) {
-        console.error('❌ Error deducting credits:', error);
-        throw error;
-    }
-}
-
-// ✅ STEP 2E: Initialize user routes with dependencies and get router
+// âœ… STEP 2E: Initialize user routes with dependencies and get router
 const userRoutes = initUserRoutes({
     pool,
     authenticateToken,
@@ -647,7 +448,7 @@ const userRoutes = initUserRoutes({
     getSetupStatusMessage
 });
 
-// ✅ STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
+// âœ… STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
 const profileRoutes = initProfileRoutes({
     pool,
     authenticateToken,
@@ -657,7 +458,7 @@ const profileRoutes = initProfileRoutes({
     cleanLinkedInUrl,
     getStatusMessage,
     sendToGemini,
-    // ✅ STAGE G: Add orchestrator and numeric helpers
+    // âœ… STAGE G: Add orchestrator and numeric helpers
     processProfileWithLLM,
     toIntSafe,
     toFloatSafe
@@ -693,7 +494,7 @@ const corsOptions = {
     credentials: true
 };
 
-// ✅ MIDDLEWARE SETUP - PROPERLY POSITIONED
+// âœ… MIDDLEWARE SETUP - PROPERLY POSITIONED
 app.use(cors(corsOptions));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
@@ -770,308 +571,22 @@ app.use((req, res, next) => {
     next();
 });
 
-// ✅ STEP 2C: Mount static routes FIRST (before other routes)
+// âœ… STEP 2C: Mount static routes FIRST (before other routes)
 app.use('/', staticRoutes);
 
-// ✅ MODULARIZATION: Mount health routes
+// âœ… MODULARIZATION: Mount health routes
 app.use('/', healthRoutes);
 
-// ✅ STEP 2E: Mount user routes
+// âœ… STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
+// âœ… STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
 app.use('/', profileRoutes);
-
-// ==================== CREDITS UPDATE: ENHANCED CREDITS SYSTEM ENDPOINTS ====================
-
-// 💽 GET CREDITS STATUS - UPDATED WITH POINTS AND RENEWAL DATE
-app.get('/api/credits/status', authenticateToken, async (req, res) => {
-    try {
-        console.log(`💽 Credits status request from user ${req.user.id}`);
-        
-        const userResult = await pool.query(`
-            SELECT 
-                credits_points,
-                credits_remaining,
-                package_type,
-                billing_model,
-                created_at,
-                subscription_status
-            FROM users 
-            WHERE id = $1
-        `, [req.user.id]);
-        
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
-        }
-        
-        const user = userResult.rows[0];
-        const creditsPoints = user.credits_points || 0;
-        const remaining = creditsPoints / CREDITS_FACTOR; // Convert points to credits
-        const plan = user.package_type || 'free';
-        const total = getPlanCredits(plan);
-        const renewalDate = calculateRenewalDate(user.created_at, user.billing_model);
-        
-        const creditsData = {
-            remaining,
-            total,
-            plan: getPlanDisplayName(plan),
-            planId: plan,
-            billingModel: user.billing_model || 'monthly',
-            renewalDate,
-            subscriptionStatus: user.subscription_status || 'active',
-            granularity: 0.25, // CREDITS UPDATE: Expose granularity
-            usage: {
-                used: Math.max(0, total - remaining),
-                percentage: Math.round((Math.max(0, total - remaining) / total) * 100)
-            },
-            // CREDITS UPDATE: Include points for internal tracking
-            _internal: {
-                points: creditsPoints,
-                totalPoints: total * CREDITS_FACTOR
-            }
-        };
-        
-        console.log(`✅ Credits status: ${remaining}/${total} (${plan}) - ${creditsPoints} points`);
-        
-        res.json({
-            success: true,
-            data: creditsData
-        });
-        
-    } catch (error) {
-        console.error('❌ Credits status error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch credits status'
-        });
-    }
-});
-
-// 🎯 CHECK TARGET STATUS
-app.get('/api/target/check', authenticateToken, async (req, res) => {
-    try {
-        const { url } = req.query;
-        const userId = req.user.id;
-        
-        if (!url) {
-            return res.status(400).json({
-                success: false,
-                error: 'URL parameter is required'
-            });
-        }
-        
-        const normalizedUrl = normalizeLinkedInUrl(url);
-        console.log(`🎯 Checking target status for user ${userId}, URL: ${normalizedUrl}`);
-        
-        const result = await pool.query(
-            'SELECT id, created_at FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
-            [userId, normalizedUrl]
-        );
-        
-        const exists = result.rows.length > 0;
-        
-        console.log(`✅ Target status: ${exists ? 'EXISTS' : 'NEW'}`);
-        
-        res.json({
-            success: true,
-            data: {
-                exists,
-                isNew: !exists,
-                normalizedUrl,
-                analyzedAt: exists ? result.rows[0].created_at : null
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Target status check error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to check target status'
-        });
-    }
-});
-
-// CREDITS UPDATE: Enhanced validate credits endpoint using points
-app.post('/api/credits/validate', authenticateToken, async (req, res) => {
-    try {
-        const { action } = req.body;
-        const userId = req.user.id;
-        
-        console.log(`💰 Credits validation request for action: ${action}`);
-        
-        // CREDITS UPDATE: Define credit requirements in points
-        const creditRequirements = {
-            'analyze_profile': 0.25,    // 1 point
-            'generate_message': 1.00,   // 4 points
-            'generate_connection': 1.00 // 4 points
-        };
-        
-        const requiredCredits = creditRequirements[action] || 1;
-        const requiredPoints = requiredCredits * CREDITS_FACTOR;
-        
-        // Get current user credits_points
-        const userResult = await pool.query(
-            'SELECT credits_points, credits_remaining, package_type FROM users WHERE id = $1',
-            [userId]
-        );
-        
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
-        }
-        
-        const user = userResult.rows[0];
-        const currentPoints = user.credits_points || 0;
-        const currentCredits = currentPoints / CREDITS_FACTOR;
-        const hasEnoughCredits = currentPoints >= requiredPoints;
-        
-        console.log(`✅ Credits validation: ${currentPoints} points (${currentCredits} credits) >= ${requiredPoints} points (${requiredCredits} credits) = ${hasEnoughCredits}`);
-        
-        res.json({
-            success: true,
-            data: {
-                hasEnoughCredits,
-                requiredCredits,
-                availableCredits: currentCredits,
-                action,
-                plan: user.package_type,
-                canProceed: hasEnoughCredits,
-                granularity: 0.25
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Credits validation error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Credits validation failed'
-        });
-    }
-});
-
-// CREDITS UPDATE: NEW - Charge credits endpoint
-app.post('/api/credits/charge', authenticateToken, async (req, res) => {
-    const client = await pool.connect();
-    
-    try {
-        const { action } = req.body;
-        const userId = req.user.id;
-        
-        console.log(`💳 Credits charge request for action: ${action} from user ${userId}`);
-        
-        // Define action to points mapping
-        const actionPoints = {
-            'analyze_profile': 1,    // 0.25 credits
-            'generate_message': 4,   // 1.00 credit
-            'generate_connection': 4 // 1.00 credit
-        };
-        
-        const requiredPoints = actionPoints[action];
-        if (!requiredPoints) {
-            return res.status(400).json({
-                success: false,
-                error: `Unknown action: ${action}`
-            });
-        }
-        
-        const requiredCredits = requiredPoints / CREDITS_FACTOR;
-        
-        // Start transaction
-        await client.query('BEGIN');
-        
-        // Get current credits_points with lock
-        const userResult = await client.query(
-            'SELECT credits_points, credits_remaining, package_type FROM users WHERE id = $1 FOR UPDATE',
-            [userId]
-        );
-        
-        if (userResult.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
-        }
-        
-        const currentPoints = userResult.rows[0].credits_points || 0;
-        
-        // Check if sufficient credits
-        if (currentPoints < requiredPoints) {
-            await client.query('ROLLBACK');
-            console.log(`❌ Insufficient credits: ${currentPoints} points < ${requiredPoints} points`);
-            return res.status(402).json({
-                success: false,
-                error: 'Insufficient credits',
-                needsUpgrade: true,
-                data: {
-                    required: requiredCredits,
-                    available: currentPoints / CREDITS_FACTOR,
-                    action
-                }
-            });
-        }
-        
-        // Deduct points
-        const newPoints = currentPoints - requiredPoints;
-        const newCredits = newPoints / CREDITS_FACTOR;
-        
-        await client.query(
-            'UPDATE users SET credits_points = $1, credits_remaining = $2, updated_at = NOW() WHERE id = $3',
-            [newPoints, Math.floor(newCredits), userId]
-        );
-        
-        // Insert history record
-        await client.query(`
-            INSERT INTO credits_history (user_id, action, points_used, credits_used, points_remaining, credits_remaining)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [userId, action, requiredPoints, requiredCredits, newPoints, newCredits]);
-        
-        // Commit transaction
-        await client.query('COMMIT');
-        
-        console.log(`✅ Credits charged: ${currentPoints} → ${newPoints} points (${requiredCredits} credits)`);
-        
-        res.json({
-            success: true,
-            data: {
-                action,
-                charged: {
-                    credits: requiredCredits,
-                    points: requiredPoints
-                },
-                balance: {
-                    credits: newCredits,
-                    points: newPoints
-                },
-                previous: {
-                    credits: currentPoints / CREDITS_FACTOR,
-                    points: currentPoints
-                }
-            }
-        });
-        
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('❌ Credits charge error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Credits charge failed'
-        });
-    } finally {
-        client.release();
-    }
-});
 
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension Auth Request:', {
+    console.log('ðŸ” Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -1095,7 +610,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('🔐 Verifying Google token...');
+        console.log('ðŸ” Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -1108,7 +623,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         const googleUser = googleResponse.data;
-        console.log('✅ Google user verified:', {
+        console.log('âœ… Google user verified:', {
             email: googleUser.email,
             name: googleUser.name,
             verified: googleUser.verified_email
@@ -1119,7 +634,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         let isNewUser = false;
         
         if (!user) {
-            console.log('👤 Creating new user...');
+            console.log('ðŸ‘¤ Creating new user...');
             user = await createGoogleUser(
                 googleUser.email,
                 googleUser.name,
@@ -1128,7 +643,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             );
             isNewUser = true;
         } else if (!user.google_id) {
-            console.log('🔗 Linking Google account to existing user...');
+            console.log('ðŸ”— Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
         }
@@ -1142,7 +657,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             { expiresIn: '30d' }
         );
         
-        console.log('✅ Chrome extension authentication successful');
+        console.log('âœ… Chrome extension authentication successful');
         
         res.json({
             success: true,
@@ -1155,7 +670,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     displayName: user.display_name,
                     profilePicture: user.profile_picture,
                     packageType: user.package_type,
-                    credits: (user.credits_points || 0) / CREDITS_FACTOR, // CREDITS UPDATE: Convert points to credits
+                    credits: user.credits_remaining || 10,
                     linkedinUrl: user.linkedin_url,
                     registrationCompleted: user.registration_completed
                 },
@@ -1164,7 +679,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Chrome extension auth error:', error);
+        console.error('âŒ Chrome extension auth error:', error);
         
         if (error.response && error.response.status === 401) {
             return res.status(401).json({
@@ -1183,194 +698,35 @@ app.post('/auth/chrome-extension', async (req, res) => {
 
 // ==================== FIXED /scrape-html ROUTE WITH PROPER ROUTING ====================
 
-// ✅ REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
+// âœ… REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
 app.post('/scrape-html', authenticateToken, (req, res) => {
-    // ✅ REQUIRED LOGGING: Route entry
-    console.log('🚪 route=/scrape-html');
-    console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
+    // âœ… REQUIRED LOGGING: Route entry
+    console.log('ðŸ” route=/scrape-html');
+    console.log(`ðŸ” isUserProfile=${req.body.isUserProfile}`);
     
-    // ✅ HARD GUARD: Check isUserProfile at the very top
+    // âœ… HARD GUARD: Check isUserProfile at the very top
     if (req.body.isUserProfile === true) {
-        console.log('🔍 selectedHandler=USER');
-        console.log('📵 USER handler start');
-        console.log(`🔍 userId=${req.user.id}`);
-        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('ðŸ” selectedHandler=USER');
+        console.log('ðŸ”µ USER handler start');
+        console.log(`ðŸ” userId=${req.user.id}`);
+        console.log(`ðŸ” truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         // Route to User handler
         return handleUserProfile(req, res);
     } else {
-        console.log('🔍 selectedHandler=TARGET');
-        console.log('🎯 TARGET handler start');
-        console.log(`🔍 userId=${req.user.id}`);
-        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('ðŸ” selectedHandler=TARGET');
+        console.log('ðŸŽ¯ TARGET handler start');
+        console.log(`ðŸ” userId=${req.user.id}`);
+        console.log(`ðŸ” truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
-        // Route to Target handler (now uses comprehensive saving)
+        // Route to Target handler
         return handleAnalyzeTarget(req, res);
-    }
-});
-
-// ==================== CREDITS UPDATE: ENHANCED MESSAGE GENERATION WITH FRACTIONAL CREDITS ====================
-
-// 💬 GENERATE LINKEDIN MESSAGE (WITH FRACTIONAL CREDITS)
-app.post('/generate-message', authenticateToken, validateCredits(1), async (req, res) => {
-    try {
-        console.log(`💬 Message generation request from user ${req.user.id}`);
-        
-        const { targetProfileUrl, context, messageType } = req.body;
-        
-        if (!targetProfileUrl || !context) {
-            return res.status(400).json({
-                success: false,
-                error: 'Target profile URL and context are required'
-            });
-        }
-        
-        // Get target profile data
-        const normalizedUrl = normalizeLinkedInUrl(targetProfileUrl);
-        const targetResult = await pool.query(
-            'SELECT data_json FROM target_profiles WHERE user_id = $1 AND normalized_url = $2',
-            [req.user.id, normalizedUrl]
-        );
-        
-        if (targetResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'Target profile not found. Please analyze the profile first.'
-            });
-        }
-        
-        // Get user profile data
-        const userResult = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [req.user.id]
-        );
-        
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'User profile not found. Please complete your profile setup first.'
-            });
-        }
-        
-        const targetProfile = targetResult.rows[0].data_json;
-        const userProfile = userResult.rows[0];
-        
-        // CREDITS UPDATE: Deduct 1.00 credit (4 points) BEFORE generation
-        const creditResult = await deductCredits(req.user.id, 1, 'generate_message');
-        
-        // Generate message using AI (simplified for demo)
-        const generatedMessage = `Hi ${targetProfile.fullName || 'there'},
-
-I noticed your background in ${targetProfile.headline || 'your field'} and thought it would be valuable to connect. ${context}
-
-I'm currently ${userProfile.current_role || userProfile.headline || 'working in my field'} at ${userProfile.current_company || 'my company'} and would love to exchange insights about the industry.
-
-Looking forward to connecting!
-
-Best regards,
-${userProfile.full_name || 'Your name'}`;
-        
-        console.log('✅ Message generated successfully');
-        
-        res.json({
-            success: true,
-            data: {
-                message: generatedMessage,
-                creditsUsed: 1,
-                creditsRemaining: creditResult.newBalance,
-                targetProfile: {
-                    name: targetProfile.fullName,
-                    headline: targetProfile.headline
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Message generation error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Message generation failed'
-        });
-    }
-});
-
-// 🤝 GENERATE CONNECTION REQUEST (WITH FRACTIONAL CREDITS)
-app.post('/generate-connection', authenticateToken, validateCredits(1), async (req, res) => {
-    try {
-        console.log(`🤝 Connection request generation from user ${req.user.id}`);
-        
-        const { targetProfileUrl, context, messageType } = req.body;
-        
-        if (!targetProfileUrl || !context) {
-            return res.status(400).json({
-                success: false,
-                error: 'Target profile URL and context are required'
-            });
-        }
-        
-        // Get target profile data
-        const normalizedUrl = normalizeLinkedInUrl(targetProfileUrl);
-        const targetResult = await pool.query(
-            'SELECT data_json FROM target_profiles WHERE user_id = $1 AND normalized_url = $2',
-            [req.user.id, normalizedUrl]
-        );
-        
-        if (targetResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'Target profile not found. Please analyze the profile first.'
-            });
-        }
-        
-        // Get user profile data
-        const userResult = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [req.user.id]
-        );
-        
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'User profile not found. Please complete your profile setup first.'
-            });
-        }
-        
-        const targetProfile = targetResult.rows[0].data_json;
-        const userProfile = userResult.rows[0];
-        
-        // CREDITS UPDATE: Deduct 1.00 credit (4 points) BEFORE generation
-        const creditResult = await deductCredits(req.user.id, 1, 'generate_connection');
-        
-        // Generate connection message (simplified for demo)
-        const generatedMessage = `Hi ${targetProfile.fullName || 'there'}, I'd love to connect. ${context.substring(0, 200)}`;
-        
-        console.log('✅ Connection message generated successfully');
-        
-        res.json({
-            success: true,
-            data: {
-                message: generatedMessage,
-                creditsUsed: 1,
-                creditsRemaining: creditResult.newBalance,
-                targetProfile: {
-                    name: targetProfile.fullName,
-                    headline: targetProfile.headline
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Connection generation error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Connection generation failed'
-        });
     }
 });
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
 
-// ✅ KEPT IN SERVER: Google OAuth Routes (Session creation/management)
+// âœ… KEPT IN SERVER: Google OAuth Routes (Session creation/management)
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
@@ -1400,7 +756,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
+            console.log(`ðŸ” OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -1408,10 +764,10 @@ app.get('/auth/google/callback',
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
             if (needsOnboarding) {
-                console.log(`🎯 Redirecting to sign-up for onboarding`);
+                console.log(`âž¡ï¸ Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                console.log(`🎯 Redirecting to dashboard`);
+                console.log(`âž¡ï¸ Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
@@ -1426,10 +782,10 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - NEW ENDPOINT FOR DASHBOARD
+// ðŸš¦ TRAFFIC LIGHT STATUS ENDPOINT - NEW ENDPOINT FOR DASHBOARD
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`🚦 Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`ðŸš¦ Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1458,7 +814,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             });
         }
 
-        // 🚦 DETERMINE TRAFFIC LIGHT STATUS
+        // ðŸš¦ DETERMINE TRAFFIC LIGHT STATUS
         const isRegistrationComplete = data.registration_completed || false;
         const isInitialScrapingDone = data.initial_scraping_done || false;
         const extractionStatus = data.data_extraction_status || 'pending';
@@ -1486,7 +842,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             actionRequired = 'COMPLETE_REGISTRATION';
         }
 
-        console.log(`🚦 User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
+        console.log(`ðŸš¦ User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
         console.log(`   - Registration Complete: ${isRegistrationComplete}`);
         console.log(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
         console.log(`   - Extraction Status: ${extractionStatus}`);
@@ -1519,7 +875,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Traffic light status error:', error);
+        console.error('âŒ Traffic light status error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to check traffic light status'
@@ -1527,10 +883,10 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
+// ðŸ”§ FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`ðŸ” Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1600,7 +956,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     profilePicture: req.user.profile_picture,
                     packageType: req.user.package_type,
                     billingModel: req.user.billing_model,
-                    credits: (req.user.credits_points || 0) / CREDITS_FACTOR, // CREDITS UPDATE: Convert points to credits
+                    credits: req.user.credits_remaining,
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at,
@@ -1673,7 +1029,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('❌ Enhanced profile fetch error:', error);
+        console.error('âŒ Enhanced profile fetch error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch profile'
@@ -1681,10 +1037,10 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
+// ðŸ”§ FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔍 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`ðŸ” Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1844,7 +1200,7 @@ app.get('/packages', (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-    console.error('❌ Unhandled Error:', error);
+    console.error('âŒ Unhandled Error:', error);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -1876,17 +1232,12 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /profile/user',
-            'POST /scrape-html (Target ingestion now behaves like User with comprehensive saving)',
+            'POST /scrape-html (Target ingestion now behaves like User)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
             'PUT /user/settings',
             'POST /generate-message',
-            'POST /generate-connection',
-            '✅ NEW: GET /api/credits/status (with renewalDate and fractional credits)',
-            '✅ NEW: GET /api/target/check (dedupe check)',
-            '✅ NEW: POST /api/credits/validate (fractional credits validation)',
-            '✅ NEW: POST /api/credits/charge (fractional credits charging)',
             'GET /message-history',
             'GET /credits-history',
             'POST /retry-extraction',
@@ -1903,58 +1254,44 @@ const startServer = async () => {
         
         const dbOk = await testDatabase();
         if (!dbOk) {
-            console.error('❌ Cannot start server without database');
+            console.error('âŒ Cannot start server without database');
             process.exit(1);
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - FRACTIONAL CREDITS SYSTEM ACTIVE!');
-            console.log(`🔍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with fractional credits support`);
-            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
-            console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ TARGET PROFILE COMPREHENSIVE SAVING:`);
-            console.log(`   📄 Target Profiles use SAME structure as User Profiles`);
-            console.log(`   💾 Comprehensive columns: full_name, headline, current_role, experience[], etc.`);
-            console.log(`   🔢 Numeric sanitization: toIntSafe, toFloatSafe applied to engagement metrics`);
-            console.log(`   📊 Individual columns + JSON arrays (identical to User Profile saving)`);
-            console.log(`   🗄️ No more simplified storage - everything uses comprehensive structure`);
-            console.log(`   🔍 UPSERT pattern with comprehensive conflict resolution`);
-            console.log(`   💰 No credit charging on Target Profile analysis (Free action)`);
-            console.log(`✅ FRACTIONAL CREDITS SYSTEM:`);
-            console.log(`   💽 GET /api/credits/status - Fetch credits, plan info & renewalDate`);
-            console.log(`   🎯 GET /api/target/check - Check if target exists (dedupe)`);
-            console.log(`   💰 POST /api/credits/validate - Pre-validate fractional credits`);
-            console.log(`   💳 POST /api/credits/charge - Charge fractional credits (NEW)`);
-            console.log(`   📊 Credits granularity: 0.25 (analyze=0.25, messages/connections=1.00)`);
-            console.log(`   🔢 Internal points system: 1 credit = ${CREDITS_FACTOR} points (no floats)`);
-            console.log(`   📅 Monthly renewalDate calculation for Free plan`);
-            console.log(`   🛡️ Transaction-safe charging with refund on LLM failure`);
-            console.log(`   ⚡ Server-side only - no localStorage dependency`);
-            console.log(`✅ TARGET ANALYZE FLOW:`);
-            console.log(`   1️⃣ Normalize URL + dedupe check (user_id, normalized_url)`);
-            console.log(`   2️⃣ If exists → return alreadyExists: true (no charge, no LLM)`);
-            console.log(`   3️⃣ If new → charge 1 point (0.25 credits) before LLM`);
-            console.log(`   4️⃣ Process with LLM + save with full User Profile parity`);
-            console.log(`   5️⃣ Auto-refund on hard LLM failures`);
-            console.log(`✅ FRACTIONAL CREDITS = TARGET PROFILES PARITY IMPLEMENTED!`);
+            console.log('ðŸš€ Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION!');
+            console.log(`ðŸ” Port: ${PORT}`);
+            console.log(`ðŸ—ƒï¸ Database: Enhanced PostgreSQL with UPSERT pattern`);
+            console.log(`ðŸ” Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`ðŸš¦ TRAFFIC LIGHT SYSTEM ACTIVE`);
+            console.log(`âœ… TARGET INGESTION IMPROVEMENTS:`);
+            console.log(`   ðŸ”„ UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
+            console.log(`   ðŸ›¡ï¸ Column count guard prevents INSERT mismatch errors`);
+            console.log(`   ðŸ’° No credit charging on Analyze`);
+            console.log(`   ðŸ—„ï¸ Database schema changes via startup guard (no migrations)`);
+            console.log(`âœ… "SEE MORE" EXPANSION:`);
+            console.log(`   ðŸ“‹ Experience section: max 2 clicks with DOM change detection`);
+            console.log(`   ðŸ† Honors & Awards section: max 2 clicks with DOM change detection`);
+            console.log(`   â±ï¸ Randomized delays and proper waiting for content load`);
+            console.log(`   ðŸ” Called before HTML capture in both User & Target flows`);
+            console.log(`âœ… READY FOR PRODUCTION!`);
         });
         
     } catch (error) {
-        console.error('❌ Startup failed:', error);
+        console.error('âŒ Startup failed:', error);
         process.exit(1);
     }
 };
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('🔻 Gracefully shutting down...');
+    console.log('ðŸ›‘ Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('🔻 Gracefully shutting down...');
+    console.log('ðŸ›‘ Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
