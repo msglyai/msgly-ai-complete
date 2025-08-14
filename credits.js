@@ -39,15 +39,19 @@ async function makeCreditsRequest(endpoint, options = {}) {
     return response.json();
 }
 
+// ✅ FIXED: Get Real Auth Token (from content.js global variable)
 function getAuthToken() {
-    // Try to get token from content script context
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-        return new Promise((resolve) => {
-            chrome.runtime.sendMessage({ type: 'GET_AUTH_TOKEN' }, (response) => {
-                resolve(response?.token || null);
-            });
-        });
+    // Try to get from global variable set by content.js
+    if (typeof window.msglyAuthToken !== 'undefined' && window.msglyAuthToken) {
+        return window.msglyAuthToken;
     }
+    
+    // Fallback: try other possible sources
+    if (typeof authToken !== 'undefined' && authToken) {
+        return authToken;
+    }
+    
+    console.log('[Credits] ❌ Auth token not found');
     return null;
 }
 
@@ -149,8 +153,8 @@ function updateCreditsDisplay(creditsData) {
     console.log('[Credits] 🎨 Updating credits display:', creditsData);
     
     // Call UI module if available
-    if (window.MsglyUI && typeof window.MsglyUI.updateCreditsSection === 'function') {
-        window.MsglyUI.updateCreditsSection(creditsData);
+    if (window.MsglyUI && typeof window.MsglyUI.setCreditsDisplay === 'function') {
+        window.MsglyUI.setCreditsDisplay(creditsData);
     }
     
     // Update existing credits badge
@@ -165,8 +169,11 @@ function updateTargetBorderState(exists, profileUrl) {
     console.log(`[Credits] 🎯 Updating target border state: ${exists ? 'GREEN' : 'RED'}`);
     
     // Call UI module if available
-    if (window.MsglyUI && typeof window.MsglyUI.setTargetBorderState === 'function') {
-        window.MsglyUI.setTargetBorderState(exists, profileUrl);
+    if (window.MsglyUI && typeof window.MsglyUI.setTargetProfileState === 'function') {
+        window.MsglyUI.setTargetProfileState({
+            exists: exists,
+            url: profileUrl
+        });
     }
     
     // Update target card border
@@ -202,6 +209,13 @@ function updateTargetBorderState(exists, profileUrl) {
 async function initializeCreditsSystem() {
     try {
         console.log('[Credits] 🚀 Initializing credits system...');
+        
+        // Check if we have auth token
+        const authToken = getAuthToken();
+        if (!authToken) {
+            console.log('[Credits] ⚠️ No auth token available, skipping credits initialization');
+            return;
+        }
         
         // Fetch current credits status
         const creditsData = await fetchCreditsStatus();
@@ -275,3 +289,5 @@ window.MsglyCredits = {
 };
 
 console.log('💎 Msgly Credits System loaded and ready!');
+console.log('🔗 Connected to real authentication system');
+console.log('🎯 Ready for server-side credit validation');
