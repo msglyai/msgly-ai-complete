@@ -2,11 +2,15 @@
 // All database functions, helpers, and utilities extracted from server.js
 // G2A UPDATE: Added missing columns to user_profiles for parity with target_profiles
 // ✅ NEW: Added startup schema guard for target_profiles columns
+// CREDITS UPDATE: Added credits_points column for fractional credits
 
 // ==================== DATABASE CONNECTION & SETUP ====================
 
 const { Pool } = require('pg');
 require('dotenv').config();
+
+// CREDITS UPDATE: Define credits factor for fractional credits
+const CREDITS_FACTOR = 4; // 1 credit = 4 points
 
 // Database connection pool
 const pool = new Pool({
@@ -46,6 +50,32 @@ async function ensureTargetProfilesSchema(db) {
     }
 }
 
+// CREDITS UPDATE: Ensure credits_points column exists and backfill
+async function ensureCreditsPointsSchema(db) {
+    try {
+        console.log('🔧 Ensuring credits_points schema...');
+        
+        // Add credits_points column if it doesn't exist
+        await db.query(`
+            ALTER TABLE users 
+            ADD COLUMN IF NOT EXISTS credits_points INTEGER DEFAULT 0;
+        `);
+        
+        // Backfill credits_points from credits_remaining where null
+        const result = await db.query(`
+            UPDATE users 
+            SET credits_points = COALESCE(credits_remaining, 0) * $1
+            WHERE credits_points = 0 OR credits_points IS NULL;
+        `, [CREDITS_FACTOR]);
+        
+        console.log(`✅ Credits points schema ensured, backfilled ${result.rowCount} users`);
+        
+    } catch (error) {
+        console.error('❌ Error ensuring credits_points schema:', error);
+        throw error;
+    }
+}
+
 // ==================== DATABASE INITIALIZATION ====================
 
 const initDB = async () => {
@@ -65,6 +95,7 @@ const initDB = async () => {
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 credits_remaining INTEGER DEFAULT 10,
+                credits_points INTEGER DEFAULT 40,
                 subscription_status VARCHAR(50) DEFAULT 'active',
                 linkedin_url TEXT,
                 profile_data JSONB,
@@ -346,6 +377,20 @@ const initDB = async () => {
             );
         `);
 
+        // CREDITS UPDATE: Add credits_history table for points tracking
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS credits_history (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                action VARCHAR(50) NOT NULL,
+                points_used INTEGER NOT NULL,
+                credits_used DECIMAL(10,2) NOT NULL,
+                points_remaining INTEGER NOT NULL,
+                credits_remaining DECIMAL(10,2) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
         // ✅ G2A: Add missing columns one by one to avoid PostgreSQL syntax errors
         try {
             // Fix users table columns
@@ -359,7 +404,9 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_data JSONB',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT \'not_started\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false'
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
+                // CREDITS UPDATE: Add credits_points column
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_points INTEGER DEFAULT 40'
             ];
             
             for (const columnQuery of userColumns) {
@@ -494,6 +541,9 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_total_tokens ON user_profiles(total_tokens);
                 -- ✅ NEW: Index for normalized_url deduplication
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_normalized_url ON target_profiles(normalized_url);
+                -- CREDITS UPDATE: Index for credits_history
+                CREATE INDEX IF NOT EXISTS idx_credits_history_user_id ON credits_history(user_id);
+                CREATE INDEX IF NOT EXISTS idx_credits_history_created_at ON credits_history(created_at);
             `);
             console.log('✅ Created enhanced database indexes');
         } catch (err) {
@@ -502,6 +552,9 @@ const initDB = async () => {
 
         // ✅ NEW: Call startup schema guard after initial setup
         await ensureTargetProfilesSchema(pool);
+        
+        // CREDITS UPDATE: Ensure credits_points schema
+        await ensureCreditsPointsSchema(pool);
 
         console.log('✅ G2A: Enhanced database tables created successfully - user_profiles has full parity with target_profiles!');
     } catch (error) {
@@ -801,10 +854,12 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     };
     
     const credits = creditsMap[packageType] || 10;
+    // CREDITS UPDATE: Set credits_points based on credits
+    const creditsPoints = credits * CREDITS_FACTOR;
     
     const result = await pool.query(
-        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [email, passwordHash, packageType, billingModel, credits]
+        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining, credits_points) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [email, passwordHash, packageType, billingModel, credits, creditsPoints]
     );
     return result.rows[0];
 };
@@ -818,11 +873,13 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     };
     
     const credits = creditsMap[packageType] || 10;
+    // CREDITS UPDATE: Set credits_points based on credits
+    const creditsPoints = credits * CREDITS_FACTOR;
     
     const result = await pool.query(
-        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
+        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining, credits_points) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [email, googleId, displayName, profilePicture, packageType, billingModel, credits, creditsPoints]
     );
     return result.rows[0];
 };
@@ -910,6 +967,10 @@ module.exports = {
     initDB,
     testDatabase,
     ensureTargetProfilesSchema,  // ✅ NEW: Export schema guard function
+    ensureCreditsPointsSchema,   // CREDITS UPDATE: Export credits schema guard
+    
+    // Credits constants and functions
+    CREDITS_FACTOR,              // CREDITS UPDATE: Export credits factor
     
     // User management
     createUser,
