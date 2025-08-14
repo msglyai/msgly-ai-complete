@@ -215,40 +215,41 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ Send to OpenAI GPT-5-nano (default path)
+// ✅ Send to OpenAI GPT-5-nano (default path) - keep original call structure exactly
 async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
+  const apiKey = process.env.OPENAI_API_KEY;
   const url = 'https://api.openai.com/v1/responses';
-  const headers = {
-    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    'Content-Type': 'application/json',
-    'OpenAI-Beta': 'responses-2024-12-17'
-  };
-  const body = {
+  
+  // Use original request structure exactly as it was
+  const requestBody = {
     model: 'gpt-5-nano',
-    text: { format: { type: 'json_object' } },
-    temperature: 0,
+    text: { format: 'json' },
     max_output_tokens: 12000,
     input: [
-      { role: 'system', content: [{ type: 'input_text', text: String(systemPrompt ?? '') }] },
+      { role: 'system', content: [{ type: 'text', text: systemPrompt ?? '' }] },
       { role: 'user', content: [
-          { type: 'input_text', text: String(userPrompt ?? '') },       // instructions/schema only
-          { type: 'input_text', text: String(preprocessedHtml ?? '') }  // full HTML once
+        { type: 'text', text: userPrompt ?? '' },
+        { type: 'input_text', text: preprocessedHtml ?? '' }
       ]}
     ]
   };
 
-  const res = await callOpenAIWithResilience(url, body, headers);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+    'OpenAI-Beta': 'responses-2024-12-17'
+  };
+
+  const res = await callOpenAIWithResilience(url, requestBody, headers);
   const data = res.data;
-  const text =
-    data.output_text ??
+  const rawResponse = data.output_text ?? 
     (Array.isArray(data.output)
       ? data.output
-          .map(p => Array.isArray(p.content)
-            ? p.content.map(c => (typeof c.text === 'string' ? c.text : '')).join('')
-            : '')
+          .map(p => Array.isArray(p.content) ? p.content.map(c => c.text || '').join('') : '')
           .join('')
       : '');
-  return text; // plain JSON string
+  
+  return rawResponse; // plain JSON string
 }
 
 // ✅ Gemini 1.5 Flash fallback (safe for its limits)
