@@ -1,5 +1,5 @@
 // What changed in Stage G + Gemini Fallback
-// Enhanced sendToGemini.js - Support optimization.mode + structured transient returns + Gemini 1.5 Flash fallback
+// Enhanced sendToGemini.js - Support optimization.mode + structured transient returns + Gemini 1.5 Flash fallback on timeouts/429/5xx
 const axios = require('axios');
 const https = require('https');
 
@@ -35,9 +35,12 @@ async function callOpenAIWithResilience(url, body, headers) {
     const started = Date.now();
     try {
       const res = await axios.post(url, body, {
-        headers, timeout,
-        httpAgent: keepAliveAgent, httpsAgent: keepAliveAgent,
-        maxBodyLength: Infinity, maxContentLength: Infinity,
+        headers, 
+        timeout,
+        httpAgent: keepAliveAgent, 
+        httpsAgent: keepAliveAgent,
+        maxBodyLength: Infinity, 
+        maxContentLength: Infinity,
         validateStatus: s => (s >= 200 && s < 300) || s === 429
       });
       console.log('[OpenAI] ok', { ms: Date.now() - started, status: res.status });
@@ -215,41 +218,47 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ Send to OpenAI GPT-5-nano (default path) - keep original call structure exactly
+// ✅ Send to OpenAI GPT-5-nano (keep EXACT original call structure)
 async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   const apiKey = process.env.OPENAI_API_KEY;
-  const url = 'https://api.openai.com/v1/responses';
   
-  // Use original request structure exactly as it was
-  const requestBody = {
-    model: 'gpt-5-nano',
-    text: { format: 'json' },
-    max_output_tokens: 12000,
-    input: [
-      { role: 'system', content: [{ type: 'text', text: systemPrompt ?? '' }] },
-      { role: 'user', content: [
-        { type: 'text', text: userPrompt ?? '' },
-        { type: 'input_text', text: preprocessedHtml ?? '' }
-      ]}
-    ]
-  };
-
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`,
-    'OpenAI-Beta': 'responses-2024-12-17'
-  };
-
-  const res = await callOpenAIWithResilience(url, requestBody, headers);
-  const data = res.data;
+  console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
+  
+  // EXACT original request structure from your working code
+  const response = await callOpenAIWithResilience(
+    'https://api.openai.com/v1/responses',
+    {
+      model: 'gpt-5-nano',
+      text: { format: { type: 'json_object' } },
+      max_output_tokens: 12000,
+      input: [
+        { role: 'system', content: systemPrompt ?? '' },
+        { role: 'user', content: userPrompt ?? '' },
+        { role: 'user', content: preprocessedHtml ?? '' }
+      ]
+    },
+    {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'responses-2024-12-17'
+    }
+  );
+  
+  console.log('📥 OpenAI API response received');
+  console.log(`📊 Response status: ${response.status}`);
+  
+  // EXACT original response parsing
+  const data = response.data;
   const rawResponse = data.output_text ?? 
     (Array.isArray(data.output)
       ? data.output
-          .map(p => Array.isArray(p.content) ? p.content.map(c => c.text || '').join('') : '')
+          .map(p => Array.isArray(p.content) 
+            ? p.content.map(c => c.text || '').join('')
+            : '')
           .join('')
       : '');
   
-  return rawResponse; // plain JSON string
+  return rawResponse;
 }
 
 // ✅ Gemini 1.5 Flash fallback (safe for its limits)
