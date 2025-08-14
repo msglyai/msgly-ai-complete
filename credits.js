@@ -15,15 +15,15 @@ const CREDITS_API_BASE = 'https://api.msgly.ai';
 
 // Credits API Helper Functions
 async function makeCreditsRequest(endpoint, options = {}) {
-    const authToken = getAuthToken();
-    if (!authToken) {
-        throw new Error('Authentication required');
-    }
+    // AUTH FIX
+    const authToken = await getAuthToken();
+    if (!authToken) throw new Error('Authentication required');
 
     const response = await fetch(`${CREDITS_API_BASE}${endpoint}`, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
+            // AUTH FIX
             'Authorization': `Bearer ${authToken}`,
             ...options.headers
         }
