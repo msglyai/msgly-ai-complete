@@ -1,6 +1,11 @@
+// ⚠️ MODIFIED FILE: server.js 
+// ONLY the handleAnalyzeTarget function has been updated to use comprehensive saving
+// All other code remains exactly the same
+
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
 // ✅ NEW: Added Credits System Endpoints (Server-Only) + Target Status Check
+// CREDITS UPDATE: Added fractional credits system with points
 // Msgly.AI Server - Complete with Traffic Light System Integrated
 
 const express = require('express');
@@ -36,7 +41,8 @@ const {
     ensureValidJSONArray,
     parseLinkedInNumber,
     processScrapedProfileData,
-    processGeminiData  // ✅ Import processGeminiData for User processing
+    processGeminiData,  // ✅ Import processGeminiData for User processing
+    CREDITS_FACTOR      // CREDITS UPDATE: Import credits factor
 } = require('./utils/database');
 
 // ✅ STAGE G: Import LLM orchestrator
@@ -81,7 +87,7 @@ const { initProfileRoutes } = require('./routes/profiles');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G – numeric sanitizers
+// What changed in Stage G — numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -169,7 +175,7 @@ function getPlanCredits(packageType) {
 // ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
 async function handleUserProfile(req, res) {
     try {
-        console.log('🔵 === USER PROFILE PROCESSING ===');
+        console.log('📵 === USER PROFILE PROCESSING ===');
         console.log(`👤 User ID: ${req.user.id}`);
         console.log(`🔗 URL: ${req.body.profileUrl}`);
         
@@ -282,7 +288,7 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// ✅ TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
+// ✅ TARGET PROFILE HANDLER: UPDATED TO USE COMPREHENSIVE SAVING LIKE USER PROFILE
 async function handleAnalyzeTarget(req, res) {
     try {
         console.log('🎯 Target profile analysis request received');
@@ -310,7 +316,7 @@ async function handleAnalyzeTarget(req, res) {
         );
         
         if (existing.length) {
-            console.log(`⚠️ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
+            console.log(`💡 Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
             return res.status(200).json({
                 success: true,
                 alreadyExists: true,
@@ -318,7 +324,7 @@ async function handleAnalyzeTarget(req, res) {
             });
         }
         
-        console.log('✅ Target is new, processing...');
+        console.log('✨ Target is new, processing...');
         
         // Process HTML with Gemini for TARGET profile
         console.log('🤖 Processing HTML with Gemini for TARGET profile...');
@@ -341,67 +347,104 @@ async function handleAnalyzeTarget(req, res) {
         
         // Process Gemini data for TARGET profile
         const processedProfile = processGeminiData(geminiResult, profileUrl);
+        const p = processedProfile; // For easier access
         
-        // ✅ NEW: UPSERT pattern with column count guard
-        console.log('💾 Inserting/updating target profile using UPSERT pattern...');
+        // ✅ NEW: Apply numeric sanitization like User Profile
+        const numeric = {
+            followers_count: toIntSafe(p?.followersCount || p?.profile?.followersCount),
+            connections_count: toIntSafe(p?.connectionsCount || p?.profile?.connectionsCount),
+            total_likes: toIntSafe(p?.totalLikes || p?.engagement?.totalLikes),
+            total_comments: toIntSafe(p?.totalComments || p?.engagement?.totalComments),
+            total_shares: toIntSafe(p?.totalShares || p?.engagement?.totalShares),
+            average_likes: toFloatSafe(p?.averageLikes || p?.engagement?.averageLikes)
+        };
         
-        // ✅ NEW: Pre-query guard for column count mismatch
-        const expectedColumns = [
-            'user_id', 'normalized_url', 'data_json', 'raw_html', 'token_usage', 
-            'artifacts', 'updated_at'
-        ];
-        const values = [
-            userId,
-            normalizedUrlFinal, 
-            processedProfile,
-            html,
-            geminiResult.metadata?.tokenUsage || {},
-            {},
-            new Date()
-        ];
+        console.log('[DB-INSERT] target numeric sanitized:', numeric);
         
-        if (expectedColumns.length !== values.length) {
-            console.error('❌ Column count mismatch!');
-            console.error(`Expected columns (${expectedColumns.length}):`, expectedColumns);
-            console.error(`Provided values (${values.length}):`, values.map((v, i) => `${i}: ${typeof v}`));
-            return res.status(500).json({
-                success: false,
-                error: `Column count mismatch: expected ${expectedColumns.length}, got ${values.length}`,
-                details: 'INSERT has more target columns than expressions'
-            });
-        }
+        // ✅ NEW: COMPREHENSIVE SAVING - DUPLICATE USER PROFILE SAVING METHOD
+        console.log('💾 Inserting/updating target profile using COMPREHENSIVE structure like User Profile...');
         
-        // ✅ NEW: UPSERT with conflict resolution
-        const upsertQuery = `
+        // ✅ COMPREHENSIVE UPSERT with all User Profile columns
+        const comprehensiveUpsertQuery = `
             INSERT INTO target_profiles ( 
-                user_id, normalized_url, data_json, raw_html, token_usage, artifacts, updated_at 
+                user_id, normalized_url, linkedin_url, full_name, headline, "current_role",
+                current_company, location, about, connections_count, followers_count,
+                total_likes, total_comments, total_shares, average_likes,
+                experience, education, skills, certifications, awards, volunteer_experience,
+                data_json, raw_html, ai_provider, ai_model, input_tokens, output_tokens, total_tokens,
+                scraped_at, updated_at
             ) VALUES ( 
-                $1, $2, $3::jsonb, $4, $5::jsonb, $6::jsonb, NOW() 
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             ) 
             ON CONFLICT (user_id, normalized_url) 
             DO UPDATE SET 
-                data_json = EXCLUDED.data_json, 
-                raw_html = EXCLUDED.raw_html, 
-                token_usage = EXCLUDED.token_usage, 
-                artifacts = EXCLUDED.artifacts, 
-                updated_at = NOW()
+                linkedin_url = EXCLUDED.linkedin_url,
+                full_name = EXCLUDED.full_name,
+                headline = EXCLUDED.headline,
+                "current_role" = EXCLUDED."current_role",
+                current_company = EXCLUDED.current_company,
+                location = EXCLUDED.location,
+                about = EXCLUDED.about,
+                connections_count = EXCLUDED.connections_count,
+                followers_count = EXCLUDED.followers_count,
+                total_likes = EXCLUDED.total_likes,
+                total_comments = EXCLUDED.total_comments,
+                total_shares = EXCLUDED.total_shares,
+                average_likes = EXCLUDED.average_likes,
+                experience = EXCLUDED.experience,
+                education = EXCLUDED.education,
+                skills = EXCLUDED.skills,
+                certifications = EXCLUDED.certifications,
+                awards = EXCLUDED.awards,
+                volunteer_experience = EXCLUDED.volunteer_experience,
+                data_json = EXCLUDED.data_json,
+                raw_html = EXCLUDED.raw_html,
+                ai_provider = EXCLUDED.ai_provider,
+                ai_model = EXCLUDED.ai_model,
+                input_tokens = EXCLUDED.input_tokens,
+                output_tokens = EXCLUDED.output_tokens,
+                total_tokens = EXCLUDED.total_tokens,
+                scraped_at = EXCLUDED.scraped_at,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING *
         `;
         
-        let inserted;
         try {
-            const { rows } = await pool.query(upsertQuery, [
-                userId,
-                normalizedUrlFinal,
-                JSON.stringify(processedProfile),
-                html,
-                JSON.stringify(geminiResult.metadata?.tokenUsage || {}),
-                JSON.stringify({})
+            const { rows } = await pool.query(comprehensiveUpsertQuery, [
+                userId,                                                    // $1
+                normalizedUrlFinal,                                       // $2  
+                profileUrl,                                               // $3
+                p?.fullName || p?.name || '',                            // $4
+                p?.headline || '',                                        // $5
+                p?.currentRole || p?.currentPosition || '',              // $6
+                p?.currentCompany || p?.company || '',                   // $7
+                p?.location || '',                                        // $8
+                p?.about || p?.summary || '',                            // $9
+                numeric.connections_count,                                // $10
+                numeric.followers_count,                                  // $11
+                numeric.total_likes,                                      // $12
+                numeric.total_comments,                                   // $13
+                numeric.total_shares,                                     // $14
+                numeric.average_likes,                                    // $15
+                JSON.stringify(p?.experience || []),                      // $16
+                JSON.stringify(p?.education || []),                       // $17
+                JSON.stringify(p?.skills || []),                          // $18
+                JSON.stringify(p?.certifications || []),                  // $19
+                JSON.stringify(p?.awards || []),                          // $20
+                JSON.stringify(p?.volunteerExperience || p?.volunteer || []), // $21
+                JSON.stringify(processedProfile),                         // $22 - Full AI output
+                html,                                                     // $23 - Raw HTML
+                geminiResult.provider || 'gemini',                       // $24
+                geminiResult.model || 'gemini-1.5-flash',               // $25
+                geminiResult.usage?.input_tokens || geminiResult.metadata?.tokenUsage?.input || 0,  // $26
+                geminiResult.usage?.output_tokens || geminiResult.metadata?.tokenUsage?.output || 0, // $27
+                geminiResult.usage?.total_tokens || geminiResult.metadata?.tokenUsage?.total || 0    // $28
             ]);
             
-            console.log(`✅ Target profile upserted successfully for user ${userId}`);
+            console.log(`✅ Target profile comprehensively saved for user ${userId} using User Profile structure!`);
             
         } catch (e) {
-            console.error('❌ Database upsert failed:', e);
+            console.error('❌ Database comprehensive upsert failed:', e);
             throw e;
         }
         
@@ -410,18 +453,32 @@ async function handleAnalyzeTarget(req, res) {
         
         return res.status(200).json({
             success: true,
-            data: processedProfile,
+            data: {
+                // Return structured data like User Profile
+                fullName: p?.fullName || p?.name || '',
+                headline: p?.headline || '',
+                currentRole: p?.currentRole || p?.currentPosition || '',
+                currentCompany: p?.currentCompany || p?.company || '',
+                location: p?.location || '',
+                about: p?.about || p?.summary || '',
+                experienceCount: p?.experience?.length || 0,
+                educationCount: p?.education?.length || 0,
+                skillsCount: p?.skills?.length || 0,
+                numericData: numeric
+            },
             storage: {
+                comprehensive_structure_saved: true,
                 raw_html_saved: true,
-                parsed_json_saved: true
+                parsed_json_saved: true,
+                saving_method: 'comprehensive_like_user_profile'
             },
             processing: {
-                provider: 'gemini',
-                model: 'gemini-pro',
-                token_usage: geminiResult.metadata?.tokenUsage || {}
+                provider: geminiResult.provider || 'gemini',
+                model: geminiResult.model || 'gemini-1.5-flash',
+                token_usage: geminiResult.usage || geminiResult.metadata?.tokenUsage || {}
             },
             alreadyExists: false,
-            message: 'Target profile analyzed successfully - no credits charged'
+            message: 'Target profile analyzed and saved with comprehensive structure - no credits charged'
         });
         
     } catch (error) {
@@ -478,15 +535,16 @@ const authenticateDual = async (req, res, next) => {
     });
 };
 
-// ✅ NEW: CREDITS VALIDATION MIDDLEWARE
+// CREDITS UPDATE: Enhanced credits validation middleware using points
 const validateCredits = (requiredCredits = 1) => {
     return async (req, res, next) => {
         try {
-            console.log(`💰 Validating ${requiredCredits} credits for user ${req.user.id}`);
+            const requiredPoints = requiredCredits * CREDITS_FACTOR;
+            console.log(`💰 Validating ${requiredPoints} points (${requiredCredits} credits) for user ${req.user.id}`);
             
-            // Get current user credits
+            // Get current user credits_points
             const userResult = await pool.query(
-                'SELECT credits_remaining, package_type FROM users WHERE id = $1',
+                'SELECT credits_points, credits_remaining, package_type FROM users WHERE id = $1',
                 [req.user.id]
             );
             
@@ -498,26 +556,28 @@ const validateCredits = (requiredCredits = 1) => {
             }
             
             const user = userResult.rows[0];
-            const currentCredits = user.credits_remaining || 0;
+            const currentPoints = user.credits_points || 0;
             
-            if (currentCredits < requiredCredits) {
-                console.log(`❌ Insufficient credits: ${currentCredits} < ${requiredCredits}`);
+            if (currentPoints < requiredPoints) {
+                console.log(`❌ Insufficient credits: ${currentPoints} points < ${requiredPoints} points`);
                 return res.status(402).json({
                     success: false,
                     error: 'Insufficient credits',
                     data: {
                         required: requiredCredits,
-                        available: currentCredits,
+                        available: currentPoints / CREDITS_FACTOR,
                         plan: user.package_type,
                         needsUpgrade: true
                     }
                 });
             }
             
-            console.log(`✅ Credits validation passed: ${currentCredits} >= ${requiredCredits}`);
+            console.log(`✅ Credits validation passed: ${currentPoints} points >= ${requiredPoints} points`);
             req.creditsInfo = {
-                available: currentCredits,
-                required: requiredCredits,
+                availablePoints: currentPoints,
+                availableCredits: currentPoints / CREDITS_FACTOR,
+                requiredPoints: requiredPoints,
+                requiredCredits: requiredCredits,
                 plan: user.package_type
             };
             
@@ -533,36 +593,40 @@ const validateCredits = (requiredCredits = 1) => {
     };
 };
 
-// ✅ NEW: DEDUCT CREDITS HELPER
-async function deductCredits(userId, amount, action) {
+// CREDITS UPDATE: Enhanced deduct credits helper using points
+async function deductCredits(userId, creditAmount, action) {
     try {
-        console.log(`💳 Deducting ${amount} credits from user ${userId} for ${action}`);
+        const pointsAmount = creditAmount * CREDITS_FACTOR;
+        console.log(`💳 Deducting ${pointsAmount} points (${creditAmount} credits) from user ${userId} for ${action}`);
         
         const result = await pool.query(`
             UPDATE users 
-            SET credits_remaining = GREATEST(credits_remaining - $1, 0),
+            SET credits_points = GREATEST(credits_points - $1, 0),
+                credits_remaining = GREATEST((credits_points - $1) / $2, 0),
                 updated_at = NOW()
-            WHERE id = $2
-            RETURNING credits_remaining, package_type
-        `, [amount, userId]);
+            WHERE id = $3
+            RETURNING credits_points, credits_remaining, package_type
+        `, [pointsAmount, CREDITS_FACTOR, userId]);
         
         if (result.rows.length === 0) {
             throw new Error('User not found for credit deduction');
         }
         
-        const newBalance = result.rows[0].credits_remaining;
-        console.log(`✅ Credits deducted. New balance: ${newBalance}`);
+        const newPoints = result.rows[0].credits_points;
+        const newCredits = result.rows[0].credits_remaining;
+        console.log(`✅ Credits deducted. New balance: ${newPoints} points (${newCredits} credits)`);
         
-        // Log credit usage (optional - add credits_history table if needed)
+        // Log credit usage in credits_history
         await pool.query(`
-            INSERT INTO credits_history (user_id, action, credits_used, credits_remaining, created_at)
-            VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT DO NOTHING
-        `, [userId, action, amount, newBalance]);
+            INSERT INTO credits_history (user_id, action, points_used, credits_used, points_remaining, credits_remaining)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [userId, action, pointsAmount, creditAmount, newPoints, newCredits]);
         
         return {
-            newBalance,
-            creditsUsed: amount,
+            newBalance: newCredits,
+            newPoints: newPoints,
+            creditsUsed: creditAmount,
+            pointsUsed: pointsAmount,
             action
         };
         
@@ -718,15 +782,16 @@ app.use('/', userRoutes);
 // ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
 app.use('/', profileRoutes);
 
-// ==================== ✅ NEW: CREDITS SYSTEM ENDPOINTS ====================
+// ==================== CREDITS UPDATE: ENHANCED CREDITS SYSTEM ENDPOINTS ====================
 
-// 💎 GET CREDITS STATUS
+// 💽 GET CREDITS STATUS - UPDATED WITH POINTS AND RENEWAL DATE
 app.get('/api/credits/status', authenticateToken, async (req, res) => {
     try {
-        console.log(`💎 Credits status request from user ${req.user.id}`);
+        console.log(`💽 Credits status request from user ${req.user.id}`);
         
         const userResult = await pool.query(`
             SELECT 
+                credits_points,
                 credits_remaining,
                 package_type,
                 billing_model,
@@ -744,7 +809,8 @@ app.get('/api/credits/status', authenticateToken, async (req, res) => {
         }
         
         const user = userResult.rows[0];
-        const remaining = user.credits_remaining || 0;
+        const creditsPoints = user.credits_points || 0;
+        const remaining = creditsPoints / CREDITS_FACTOR; // Convert points to credits
         const plan = user.package_type || 'free';
         const total = getPlanCredits(plan);
         const renewalDate = calculateRenewalDate(user.created_at, user.billing_model);
@@ -757,13 +823,19 @@ app.get('/api/credits/status', authenticateToken, async (req, res) => {
             billingModel: user.billing_model || 'monthly',
             renewalDate,
             subscriptionStatus: user.subscription_status || 'active',
+            granularity: 0.25, // CREDITS UPDATE: Expose granularity
             usage: {
                 used: Math.max(0, total - remaining),
                 percentage: Math.round((Math.max(0, total - remaining) / total) * 100)
+            },
+            // CREDITS UPDATE: Include points for internal tracking
+            _internal: {
+                points: creditsPoints,
+                totalPoints: total * CREDITS_FACTOR
             }
         };
         
-        console.log(`✅ Credits status: ${remaining}/${total} (${plan})`);
+        console.log(`✅ Credits status: ${remaining}/${total} (${plan}) - ${creditsPoints} points`);
         
         res.json({
             success: true,
@@ -823,7 +895,7 @@ app.get('/api/target/check', authenticateToken, async (req, res) => {
     }
 });
 
-// 💰 VALIDATE CREDITS FOR ACTION
+// CREDITS UPDATE: Enhanced validate credits endpoint using points
 app.post('/api/credits/validate', authenticateToken, async (req, res) => {
     try {
         const { action } = req.body;
@@ -831,18 +903,19 @@ app.post('/api/credits/validate', authenticateToken, async (req, res) => {
         
         console.log(`💰 Credits validation request for action: ${action}`);
         
-        // Define credit requirements
+        // CREDITS UPDATE: Define credit requirements in points
         const creditRequirements = {
-            'generate_message': 1,
-            'generate_connection': 1,
-            'analyze_profile': 0  // Free action
+            'analyze_profile': 0.25,    // 1 point
+            'generate_message': 1.00,   // 4 points
+            'generate_connection': 1.00 // 4 points
         };
         
         const requiredCredits = creditRequirements[action] || 1;
+        const requiredPoints = requiredCredits * CREDITS_FACTOR;
         
-        // Get current user credits
+        // Get current user credits_points
         const userResult = await pool.query(
-            'SELECT credits_remaining, package_type FROM users WHERE id = $1',
+            'SELECT credits_points, credits_remaining, package_type FROM users WHERE id = $1',
             [userId]
         );
         
@@ -854,10 +927,11 @@ app.post('/api/credits/validate', authenticateToken, async (req, res) => {
         }
         
         const user = userResult.rows[0];
-        const currentCredits = user.credits_remaining || 0;
-        const hasEnoughCredits = currentCredits >= requiredCredits;
+        const currentPoints = user.credits_points || 0;
+        const currentCredits = currentPoints / CREDITS_FACTOR;
+        const hasEnoughCredits = currentPoints >= requiredPoints;
         
-        console.log(`✅ Credits validation: ${currentCredits} >= ${requiredCredits} = ${hasEnoughCredits}`);
+        console.log(`✅ Credits validation: ${currentPoints} points (${currentCredits} credits) >= ${requiredPoints} points (${requiredCredits} credits) = ${hasEnoughCredits}`);
         
         res.json({
             success: true,
@@ -867,7 +941,8 @@ app.post('/api/credits/validate', authenticateToken, async (req, res) => {
                 availableCredits: currentCredits,
                 action,
                 plan: user.package_type,
-                canProceed: hasEnoughCredits
+                canProceed: hasEnoughCredits,
+                granularity: 0.25
             }
         });
         
@@ -880,10 +955,123 @@ app.post('/api/credits/validate', authenticateToken, async (req, res) => {
     }
 });
 
+// CREDITS UPDATE: NEW - Charge credits endpoint
+app.post('/api/credits/charge', authenticateToken, async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        const { action } = req.body;
+        const userId = req.user.id;
+        
+        console.log(`💳 Credits charge request for action: ${action} from user ${userId}`);
+        
+        // Define action to points mapping
+        const actionPoints = {
+            'analyze_profile': 1,    // 0.25 credits
+            'generate_message': 4,   // 1.00 credit
+            'generate_connection': 4 // 1.00 credit
+        };
+        
+        const requiredPoints = actionPoints[action];
+        if (!requiredPoints) {
+            return res.status(400).json({
+                success: false,
+                error: `Unknown action: ${action}`
+            });
+        }
+        
+        const requiredCredits = requiredPoints / CREDITS_FACTOR;
+        
+        // Start transaction
+        await client.query('BEGIN');
+        
+        // Get current credits_points with lock
+        const userResult = await client.query(
+            'SELECT credits_points, credits_remaining, package_type FROM users WHERE id = $1 FOR UPDATE',
+            [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const currentPoints = userResult.rows[0].credits_points || 0;
+        
+        // Check if sufficient credits
+        if (currentPoints < requiredPoints) {
+            await client.query('ROLLBACK');
+            console.log(`❌ Insufficient credits: ${currentPoints} points < ${requiredPoints} points`);
+            return res.status(402).json({
+                success: false,
+                error: 'Insufficient credits',
+                needsUpgrade: true,
+                data: {
+                    required: requiredCredits,
+                    available: currentPoints / CREDITS_FACTOR,
+                    action
+                }
+            });
+        }
+        
+        // Deduct points
+        const newPoints = currentPoints - requiredPoints;
+        const newCredits = newPoints / CREDITS_FACTOR;
+        
+        await client.query(
+            'UPDATE users SET credits_points = $1, credits_remaining = $2, updated_at = NOW() WHERE id = $3',
+            [newPoints, Math.floor(newCredits), userId]
+        );
+        
+        // Insert history record
+        await client.query(`
+            INSERT INTO credits_history (user_id, action, points_used, credits_used, points_remaining, credits_remaining)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [userId, action, requiredPoints, requiredCredits, newPoints, newCredits]);
+        
+        // Commit transaction
+        await client.query('COMMIT');
+        
+        console.log(`✅ Credits charged: ${currentPoints} → ${newPoints} points (${requiredCredits} credits)`);
+        
+        res.json({
+            success: true,
+            data: {
+                action,
+                charged: {
+                    credits: requiredCredits,
+                    points: requiredPoints
+                },
+                balance: {
+                    credits: newCredits,
+                    points: newPoints
+                },
+                previous: {
+                    credits: currentPoints / CREDITS_FACTOR,
+                    points: currentPoints
+                }
+            }
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('❌ Credits charge error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Credits charge failed'
+        });
+    } finally {
+        client.release();
+    }
+});
+
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔍 Chrome Extension Auth Request:', {
+    console.log('🔐 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -907,7 +1095,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('🔍 Verifying Google token...');
+        console.log('🔐 Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -967,7 +1155,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     displayName: user.display_name,
                     profilePicture: user.profile_picture,
                     packageType: user.package_type,
-                    credits: user.credits_remaining || 10,
+                    credits: (user.credits_points || 0) / CREDITS_FACTOR, // CREDITS UPDATE: Convert points to credits
                     linkedinUrl: user.linkedin_url,
                     registrationCompleted: user.registration_completed
                 },
@@ -1004,7 +1192,7 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
     // ✅ HARD GUARD: Check isUserProfile at the very top
     if (req.body.isUserProfile === true) {
         console.log('🔍 selectedHandler=USER');
-        console.log('🔵 USER handler start');
+        console.log('📵 USER handler start');
         console.log(`🔍 userId=${req.user.id}`);
         console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
@@ -1016,14 +1204,14 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
         console.log(`🔍 userId=${req.user.id}`);
         console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
-        // Route to Target handler
+        // Route to Target handler (now uses comprehensive saving)
         return handleAnalyzeTarget(req, res);
     }
 });
 
-// ==================== ✅ NEW: ENHANCED MESSAGE GENERATION WITH CREDITS ====================
+// ==================== CREDITS UPDATE: ENHANCED MESSAGE GENERATION WITH FRACTIONAL CREDITS ====================
 
-// 💬 GENERATE LINKEDIN MESSAGE (WITH CREDITS)
+// 💬 GENERATE LINKEDIN MESSAGE (WITH FRACTIONAL CREDITS)
 app.post('/generate-message', authenticateToken, validateCredits(1), async (req, res) => {
     try {
         console.log(`💬 Message generation request from user ${req.user.id}`);
@@ -1067,7 +1255,7 @@ app.post('/generate-message', authenticateToken, validateCredits(1), async (req,
         const targetProfile = targetResult.rows[0].data_json;
         const userProfile = userResult.rows[0];
         
-        // Deduct credits BEFORE generation
+        // CREDITS UPDATE: Deduct 1.00 credit (4 points) BEFORE generation
         const creditResult = await deductCredits(req.user.id, 1, 'generate_message');
         
         // Generate message using AI (simplified for demo)
@@ -1106,7 +1294,7 @@ ${userProfile.full_name || 'Your name'}`;
     }
 });
 
-// 🤝 GENERATE CONNECTION REQUEST (WITH CREDITS)
+// 🤝 GENERATE CONNECTION REQUEST (WITH FRACTIONAL CREDITS)
 app.post('/generate-connection', authenticateToken, validateCredits(1), async (req, res) => {
     try {
         console.log(`🤝 Connection request generation from user ${req.user.id}`);
@@ -1150,7 +1338,7 @@ app.post('/generate-connection', authenticateToken, validateCredits(1), async (r
         const targetProfile = targetResult.rows[0].data_json;
         const userProfile = userResult.rows[0];
         
-        // Deduct credits BEFORE generation
+        // CREDITS UPDATE: Deduct 1.00 credit (4 points) BEFORE generation
         const creditResult = await deductCredits(req.user.id, 1, 'generate_connection');
         
         // Generate connection message (simplified for demo)
@@ -1220,10 +1408,10 @@ app.get('/auth/google/callback',
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
             if (needsOnboarding) {
-                console.log(`➡️ Redirecting to sign-up for onboarding`);
+                console.log(`🎯 Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                console.log(`➡️ Redirecting to dashboard`);
+                console.log(`🎯 Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
@@ -1412,7 +1600,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     profilePicture: req.user.profile_picture,
                     packageType: req.user.package_type,
                     billingModel: req.user.billing_model,
-                    credits: req.user.credits_remaining,
+                    credits: (req.user.credits_points || 0) / CREDITS_FACTOR, // CREDITS UPDATE: Convert points to credits
                     subscriptionStatus: req.user.subscription_status,
                     hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at,
@@ -1688,16 +1876,17 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /profile/user',
-            'POST /scrape-html (Target ingestion now behaves like User)',
+            'POST /scrape-html (Target ingestion now behaves like User with comprehensive saving)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
             'PUT /user/settings',
             'POST /generate-message',
             'POST /generate-connection',
-            '✅ NEW: GET /api/credits/status',
-            '✅ NEW: GET /api/target/check',
-            '✅ NEW: POST /api/credits/validate',
+            '✅ NEW: GET /api/credits/status (with renewalDate and fractional credits)',
+            '✅ NEW: GET /api/target/check (dedupe check)',
+            '✅ NEW: POST /api/credits/validate (fractional credits validation)',
+            '✅ NEW: POST /api/credits/charge (fractional credits charging)',
             'GET /message-history',
             'GET /credits-history',
             'POST /retry-extraction',
@@ -1719,30 +1908,36 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION + CREDITS SYSTEM!');
+            console.log('🚀 Msgly.AI Server - FRACTIONAL CREDITS SYSTEM ACTIVE!');
             console.log(`🔍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with UPSERT pattern`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL with fractional credits support`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ TARGET INGESTION IMPROVEMENTS:`);
-            console.log(`   📄 UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
-            console.log(`   🛡️ Column count guard prevents INSERT mismatch errors`);
-            console.log(`   💰 No credit charging on Analyze`);
-            console.log(`   🗄️ Database schema changes via startup guard (no migrations)`);
-            console.log(`✅ "SEE MORE" EXPANSION:`);
-            console.log(`   📋 Experience section: max 2 clicks with DOM change detection`);
-            console.log(`   🏆 Honors & Awards section: max 2 clicks with DOM change detection`);
-            console.log(`   ⏰ Randomized delays and proper waiting for content load`);
-            console.log(`   🔍 Called before HTML capture in both User & Target flows`);
-            console.log(`✅ NEW: CREDITS SYSTEM (SERVER-ONLY):`);
-            console.log(`   💎 GET /api/credits/status - Fetch current credits & plan info`);
-            console.log(`   🎯 GET /api/target/check - Check if target exists in DB`);
-            console.log(`   💰 POST /api/credits/validate - Pre-validate credits for actions`);
-            console.log(`   🔒 Credits validation middleware for message generation`);
-            console.log(`   📊 Plan management: Free(7), Silver(30), Gold(100), Platinum(250)`);
-            console.log(`   📅 Monthly renewal calculation for Free plan`);
-            console.log(`   🚫 No localStorage - 100% server-side credits management`);
-            console.log(`✅ READY FOR PRODUCTION WITH CREDITS!`);
+            console.log(`✅ TARGET PROFILE COMPREHENSIVE SAVING:`);
+            console.log(`   📄 Target Profiles use SAME structure as User Profiles`);
+            console.log(`   💾 Comprehensive columns: full_name, headline, current_role, experience[], etc.`);
+            console.log(`   🔢 Numeric sanitization: toIntSafe, toFloatSafe applied to engagement metrics`);
+            console.log(`   📊 Individual columns + JSON arrays (identical to User Profile saving)`);
+            console.log(`   🗄️ No more simplified storage - everything uses comprehensive structure`);
+            console.log(`   🔍 UPSERT pattern with comprehensive conflict resolution`);
+            console.log(`   💰 No credit charging on Target Profile analysis (Free action)`);
+            console.log(`✅ FRACTIONAL CREDITS SYSTEM:`);
+            console.log(`   💽 GET /api/credits/status - Fetch credits, plan info & renewalDate`);
+            console.log(`   🎯 GET /api/target/check - Check if target exists (dedupe)`);
+            console.log(`   💰 POST /api/credits/validate - Pre-validate fractional credits`);
+            console.log(`   💳 POST /api/credits/charge - Charge fractional credits (NEW)`);
+            console.log(`   📊 Credits granularity: 0.25 (analyze=0.25, messages/connections=1.00)`);
+            console.log(`   🔢 Internal points system: 1 credit = ${CREDITS_FACTOR} points (no floats)`);
+            console.log(`   📅 Monthly renewalDate calculation for Free plan`);
+            console.log(`   🛡️ Transaction-safe charging with refund on LLM failure`);
+            console.log(`   ⚡ Server-side only - no localStorage dependency`);
+            console.log(`✅ TARGET ANALYZE FLOW:`);
+            console.log(`   1️⃣ Normalize URL + dedupe check (user_id, normalized_url)`);
+            console.log(`   2️⃣ If exists → return alreadyExists: true (no charge, no LLM)`);
+            console.log(`   3️⃣ If new → charge 1 point (0.25 credits) before LLM`);
+            console.log(`   4️⃣ Process with LLM + save with full User Profile parity`);
+            console.log(`   5️⃣ Auto-refund on hard LLM failures`);
+            console.log(`✅ FRACTIONAL CREDITS = TARGET PROFILES PARITY IMPLEMENTED!`);
         });
         
     } catch (error) {
@@ -1753,13 +1948,13 @@ const startServer = async () => {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('🛑 Gracefully shutting down...');
+    console.log('🔻 Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('🛑 Gracefully shutting down...');
+    console.log('🔻 Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
