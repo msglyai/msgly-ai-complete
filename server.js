@@ -1,7 +1,3 @@
-// ⚠️ MODIFIED FILE: server.js 
-// ONLY the handleAnalyzeTarget function has been updated to use comprehensive saving
-// All other code remains exactly the same
-
 // What changed in Stage G
 // Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
 // âœ… NEW: Added Credits System Endpoints (Server-Only) + Target Status Check
@@ -85,7 +81,7 @@ const { initProfileRoutes } = require('./routes/profiles');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G â€" numeric sanitizers
+// What changed in Stage G â€“ numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -173,9 +169,9 @@ function getPlanCredits(packageType) {
 // âœ… USER PROFILE HANDLER: Restored exact User flow that was working before
 async function handleUserProfile(req, res) {
     try {
-        console.log('ðŸ"µ === USER PROFILE PROCESSING ===');
-        console.log(`ðŸ'¤ User ID: ${req.user.id}`);
-        console.log(`ðŸ"— URL: ${req.body.profileUrl}`);
+        console.log('ðŸ”µ === USER PROFILE PROCESSING ===');
+        console.log(`ðŸ‘¤ User ID: ${req.user.id}`);
+        console.log(`ðŸ”— URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -200,7 +196,7 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('âŒ Gemini processing failed for USER profile:', geminiResult.error);
+            console.error('âŒ Gemini processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
@@ -276,7 +272,7 @@ async function handleUserProfile(req, res) {
         });
         
     } catch (error) {
-        console.error('âŒ USER profile processing error:', error);
+        console.error('âŒ USER profile processing error:', error);
         
         res.status(500).json({
             success: false,
@@ -286,11 +282,11 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// âœ… TARGET PROFILE HANDLER: UPDATED TO USE COMPREHENSIVE SAVING LIKE USER PROFILE
+// âœ… TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
 async function handleAnalyzeTarget(req, res) {
     try {
         console.log('ðŸŽ¯ Target profile analysis request received');
-        console.log(`ðŸ'¤ User ID: ${req.user.id}`);
+        console.log(`ðŸ‘¤ User ID: ${req.user.id}`);
         
         const { html, profileUrl, normalizedUrl } = req.body;
         const userId = req.user.id;
@@ -304,8 +300,8 @@ async function handleAnalyzeTarget(req, res) {
         
         // A.1 Normalize URL (server)
         const normalizedUrlFinal = normalizeLinkedInUrl(normalizedUrl || profileUrl);
-        console.log(`ðŸ"— Original URL: ${profileUrl}`);
-        console.log(`ðŸ"— Normalized URL: ${normalizedUrlFinal}`);
+        console.log(`ðŸ”— Original URL: ${profileUrl}`);
+        console.log(`ðŸ”— Normalized URL: ${normalizedUrlFinal}`);
         
         // A.2 Dedupe before heavy work
         const { rows: existing } = await pool.query(
@@ -314,7 +310,7 @@ async function handleAnalyzeTarget(req, res) {
         );
         
         if (existing.length) {
-            console.log(`âš ï¸ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
+            console.log(`âš ï¸ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
             return res.status(200).json({
                 success: true,
                 alreadyExists: true,
@@ -334,7 +330,7 @@ async function handleAnalyzeTarget(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('âŒ Gemini processing failed for TARGET profile:', geminiResult.error);
+            console.error('âŒ Gemini processing failed for TARGET profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini'
@@ -345,142 +341,91 @@ async function handleAnalyzeTarget(req, res) {
         
         // Process Gemini data for TARGET profile
         const processedProfile = processGeminiData(geminiResult, profileUrl);
-        const p = processedProfile; // For easier access
         
-        // âœ… NEW: Apply numeric sanitization like User Profile
-        const numeric = {
-            followers_count: toIntSafe(p?.followersCount || p?.profile?.followersCount),
-            connections_count: toIntSafe(p?.connectionsCount || p?.profile?.connectionsCount),
-            total_likes: toIntSafe(p?.totalLikes || p?.engagement?.totalLikes),
-            total_comments: toIntSafe(p?.totalComments || p?.engagement?.totalComments),
-            total_shares: toIntSafe(p?.totalShares || p?.engagement?.totalShares),
-            average_likes: toFloatSafe(p?.averageLikes || p?.engagement?.averageLikes)
-        };
+        // âœ… NEW: UPSERT pattern with column count guard
+        console.log('ðŸ’¾ Inserting/updating target profile using UPSERT pattern...');
         
-        console.log('[DB-INSERT] target numeric sanitized:', numeric);
+        // âœ… NEW: Pre-query guard for column count mismatch
+        const expectedColumns = [
+            'user_id', 'normalized_url', 'data_json', 'raw_html', 'token_usage', 
+            'artifacts', 'updated_at'
+        ];
+        const values = [
+            userId,
+            normalizedUrlFinal, 
+            processedProfile,
+            html,
+            geminiResult.metadata?.tokenUsage || {},
+            {},
+            new Date()
+        ];
         
-        // âœ… NEW: COMPREHENSIVE SAVING - DUPLICATE USER PROFILE SAVING METHOD
-        console.log('ðŸ'¾ Inserting/updating target profile using COMPREHENSIVE structure like User Profile...');
+        if (expectedColumns.length !== values.length) {
+            console.error('âŒ Column count mismatch!');
+            console.error(`Expected columns (${expectedColumns.length}):`, expectedColumns);
+            console.error(`Provided values (${values.length}):`, values.map((v, i) => `${i}: ${typeof v}`));
+            return res.status(500).json({
+                success: false,
+                error: `Column count mismatch: expected ${expectedColumns.length}, got ${values.length}`,
+                details: 'INSERT has more target columns than expressions'
+            });
+        }
         
-        // âœ… COMPREHENSIVE UPSERT with all User Profile columns
-        const comprehensiveUpsertQuery = `
+        // âœ… NEW: UPSERT with conflict resolution
+        const upsertQuery = `
             INSERT INTO target_profiles ( 
-                user_id, normalized_url, linkedin_url, full_name, headline, "current_role",
-                current_company, location, about, connections_count, followers_count,
-                total_likes, total_comments, total_shares, average_likes,
-                experience, education, skills, certifications, awards, volunteer_experience,
-                data_json, raw_html, ai_provider, ai_model, input_tokens, output_tokens, total_tokens,
-                scraped_at, updated_at
+                user_id, normalized_url, data_json, raw_html, token_usage, artifacts, updated_at 
             ) VALUES ( 
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                $1, $2, $3::jsonb, $4, $5::jsonb, $6::jsonb, NOW() 
             ) 
             ON CONFLICT (user_id, normalized_url) 
             DO UPDATE SET 
-                linkedin_url = EXCLUDED.linkedin_url,
-                full_name = EXCLUDED.full_name,
-                headline = EXCLUDED.headline,
-                "current_role" = EXCLUDED."current_role",
-                current_company = EXCLUDED.current_company,
-                location = EXCLUDED.location,
-                about = EXCLUDED.about,
-                connections_count = EXCLUDED.connections_count,
-                followers_count = EXCLUDED.followers_count,
-                total_likes = EXCLUDED.total_likes,
-                total_comments = EXCLUDED.total_comments,
-                total_shares = EXCLUDED.total_shares,
-                average_likes = EXCLUDED.average_likes,
-                experience = EXCLUDED.experience,
-                education = EXCLUDED.education,
-                skills = EXCLUDED.skills,
-                certifications = EXCLUDED.certifications,
-                awards = EXCLUDED.awards,
-                volunteer_experience = EXCLUDED.volunteer_experience,
-                data_json = EXCLUDED.data_json,
-                raw_html = EXCLUDED.raw_html,
-                ai_provider = EXCLUDED.ai_provider,
-                ai_model = EXCLUDED.ai_model,
-                input_tokens = EXCLUDED.input_tokens,
-                output_tokens = EXCLUDED.output_tokens,
-                total_tokens = EXCLUDED.total_tokens,
-                scraped_at = EXCLUDED.scraped_at,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING *
+                data_json = EXCLUDED.data_json, 
+                raw_html = EXCLUDED.raw_html, 
+                token_usage = EXCLUDED.token_usage, 
+                artifacts = EXCLUDED.artifacts, 
+                updated_at = NOW()
         `;
         
+        let inserted;
         try {
-            const { rows } = await pool.query(comprehensiveUpsertQuery, [
-                userId,                                                    // $1
-                normalizedUrlFinal,                                       // $2  
-                profileUrl,                                               // $3
-                p?.fullName || p?.name || '',                            // $4
-                p?.headline || '',                                        // $5
-                p?.currentRole || p?.currentPosition || '',              // $6
-                p?.currentCompany || p?.company || '',                   // $7
-                p?.location || '',                                        // $8
-                p?.about || p?.summary || '',                            // $9
-                numeric.connections_count,                                // $10
-                numeric.followers_count,                                  // $11
-                numeric.total_likes,                                      // $12
-                numeric.total_comments,                                   // $13
-                numeric.total_shares,                                     // $14
-                numeric.average_likes,                                    // $15
-                JSON.stringify(p?.experience || []),                      // $16
-                JSON.stringify(p?.education || []),                       // $17
-                JSON.stringify(p?.skills || []),                          // $18
-                JSON.stringify(p?.certifications || []),                  // $19
-                JSON.stringify(p?.awards || []),                          // $20
-                JSON.stringify(p?.volunteerExperience || p?.volunteer || []), // $21
-                JSON.stringify(processedProfile),                         // $22 - Full AI output
-                html,                                                     // $23 - Raw HTML
-                geminiResult.provider || 'gemini',                       // $24
-                geminiResult.model || 'gemini-1.5-flash',               // $25
-                geminiResult.usage?.input_tokens || geminiResult.metadata?.tokenUsage?.input || 0,  // $26
-                geminiResult.usage?.output_tokens || geminiResult.metadata?.tokenUsage?.output || 0, // $27
-                geminiResult.usage?.total_tokens || geminiResult.metadata?.tokenUsage?.total || 0    // $28
+            const { rows } = await pool.query(upsertQuery, [
+                userId,
+                normalizedUrlFinal,
+                JSON.stringify(processedProfile),
+                html,
+                JSON.stringify(geminiResult.metadata?.tokenUsage || {}),
+                JSON.stringify({})
             ]);
             
-            console.log(`âœ… Target profile comprehensively saved for user ${userId} using User Profile structure!`);
+            console.log(`âœ… Target profile upserted successfully for user ${userId}`);
             
         } catch (e) {
-            console.error('âŒ Database comprehensive upsert failed:', e);
+            console.error('âŒ Database upsert failed:', e);
             throw e;
         }
         
         // A.4 Response (no credit charging)
-        console.log('ðŸ"¤ Returning success response...');
+        console.log('ðŸ“¤ Returning success response...');
         
         return res.status(200).json({
             success: true,
-            data: {
-                // Return structured data like User Profile
-                fullName: p?.fullName || p?.name || '',
-                headline: p?.headline || '',
-                currentRole: p?.currentRole || p?.currentPosition || '',
-                currentCompany: p?.currentCompany || p?.company || '',
-                location: p?.location || '',
-                about: p?.about || p?.summary || '',
-                experienceCount: p?.experience?.length || 0,
-                educationCount: p?.education?.length || 0,
-                skillsCount: p?.skills?.length || 0,
-                numericData: numeric
-            },
+            data: processedProfile,
             storage: {
-                comprehensive_structure_saved: true,
                 raw_html_saved: true,
-                parsed_json_saved: true,
-                saving_method: 'comprehensive_like_user_profile'
+                parsed_json_saved: true
             },
             processing: {
-                provider: geminiResult.provider || 'gemini',
-                model: geminiResult.model || 'gemini-1.5-flash',
-                token_usage: geminiResult.usage || geminiResult.metadata?.tokenUsage || {}
+                provider: 'gemini',
+                model: 'gemini-pro',
+                token_usage: geminiResult.metadata?.tokenUsage || {}
             },
             alreadyExists: false,
-            message: 'Target profile analyzed and saved with comprehensive structure - no credits charged'
+            message: 'Target profile analyzed successfully - no credits charged'
         });
         
     } catch (error) {
-        console.error('âŒ Target profile analysis error:', error);
+        console.error('âŒ Target profile analysis error:', error);
         
         return res.status(500).json({
             success: false,
@@ -501,7 +446,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 // âœ… STEP 2D: Initialize authentication middleware with database functions
 initAuthMiddleware({ getUserById });
 
-// ðŸ"§ DUAL AUTHENTICATION HELPER FUNCTION
+// ðŸ”§ DUAL AUTHENTICATION HELPER FUNCTION
 const authenticateDual = async (req, res, next) => {
     // First try JWT authentication
     const authHeader = req.headers.authorization;
@@ -537,7 +482,7 @@ const authenticateDual = async (req, res, next) => {
 const validateCredits = (requiredCredits = 1) => {
     return async (req, res, next) => {
         try {
-            console.log(`ðŸ'° Validating ${requiredCredits} credits for user ${req.user.id}`);
+            console.log(`ðŸ’° Validating ${requiredCredits} credits for user ${req.user.id}`);
             
             // Get current user credits
             const userResult = await pool.query(
@@ -556,7 +501,7 @@ const validateCredits = (requiredCredits = 1) => {
             const currentCredits = user.credits_remaining || 0;
             
             if (currentCredits < requiredCredits) {
-                console.log(`âŒ Insufficient credits: ${currentCredits} < ${requiredCredits}`);
+                console.log(`âŒ Insufficient credits: ${currentCredits} < ${requiredCredits}`);
                 return res.status(402).json({
                     success: false,
                     error: 'Insufficient credits',
@@ -579,7 +524,7 @@ const validateCredits = (requiredCredits = 1) => {
             next();
             
         } catch (error) {
-            console.error('âŒ Credits validation error:', error);
+            console.error('âŒ Credits validation error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Credits validation failed'
@@ -591,7 +536,7 @@ const validateCredits = (requiredCredits = 1) => {
 // âœ… NEW: DEDUCT CREDITS HELPER
 async function deductCredits(userId, amount, action) {
     try {
-        console.log(`ðŸ'³ Deducting ${amount} credits from user ${userId} for ${action}`);
+        console.log(`ðŸ’³ Deducting ${amount} credits from user ${userId} for ${action}`);
         
         const result = await pool.query(`
             UPDATE users 
@@ -622,7 +567,7 @@ async function deductCredits(userId, amount, action) {
         };
         
     } catch (error) {
-        console.error('âŒ Error deducting credits:', error);
+        console.error('âŒ Error deducting credits:', error);
         throw error;
     }
 }
@@ -775,10 +720,10 @@ app.use('/', profileRoutes);
 
 // ==================== âœ… NEW: CREDITS SYSTEM ENDPOINTS ====================
 
-// ðŸ'Ž GET CREDITS STATUS
+// ðŸ’Ž GET CREDITS STATUS
 app.get('/api/credits/status', authenticateToken, async (req, res) => {
     try {
-        console.log(`ðŸ'Ž Credits status request from user ${req.user.id}`);
+        console.log(`ðŸ’Ž Credits status request from user ${req.user.id}`);
         
         const userResult = await pool.query(`
             SELECT 
@@ -826,7 +771,7 @@ app.get('/api/credits/status', authenticateToken, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('âŒ Credits status error:', error);
+        console.error('âŒ Credits status error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch credits status'
@@ -870,7 +815,7 @@ app.get('/api/target/check', authenticateToken, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('âŒ Target status check error:', error);
+        console.error('âŒ Target status check error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to check target status'
@@ -878,13 +823,13 @@ app.get('/api/target/check', authenticateToken, async (req, res) => {
     }
 });
 
-// ðŸ'° VALIDATE CREDITS FOR ACTION
+// ðŸ’° VALIDATE CREDITS FOR ACTION
 app.post('/api/credits/validate', authenticateToken, async (req, res) => {
     try {
         const { action } = req.body;
         const userId = req.user.id;
         
-        console.log(`ðŸ'° Credits validation request for action: ${action}`);
+        console.log(`ðŸ’° Credits validation request for action: ${action}`);
         
         // Define credit requirements
         const creditRequirements = {
@@ -927,7 +872,7 @@ app.post('/api/credits/validate', authenticateToken, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('âŒ Credits validation error:', error);
+        console.error('âŒ Credits validation error:', error);
         res.status(500).json({
             success: false,
             error: 'Credits validation failed'
@@ -938,7 +883,7 @@ app.post('/api/credits/validate', authenticateToken, async (req, res) => {
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('ðŸ" Chrome Extension Auth Request:', {
+    console.log('ðŸ” Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -962,7 +907,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('ðŸ" Verifying Google token...');
+        console.log('ðŸ” Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -986,7 +931,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         let isNewUser = false;
         
         if (!user) {
-            console.log('ðŸ'¤ Creating new user...');
+            console.log('ðŸ‘¤ Creating new user...');
             user = await createGoogleUser(
                 googleUser.email,
                 googleUser.name,
@@ -995,7 +940,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             );
             isNewUser = true;
         } else if (!user.google_id) {
-            console.log('ðŸ"— Linking Google account to existing user...');
+            console.log('ðŸ”— Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
         }
@@ -1031,7 +976,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('âŒ Chrome extension auth error:', error);
+        console.error('âŒ Chrome extension auth error:', error);
         
         if (error.response && error.response.status === 401) {
             return res.status(401).json({
@@ -1054,34 +999,34 @@ app.post('/auth/chrome-extension', async (req, res) => {
 app.post('/scrape-html', authenticateToken, (req, res) => {
     // âœ… REQUIRED LOGGING: Route entry
     console.log('ðŸšª route=/scrape-html');
-    console.log(`ðŸ" isUserProfile=${req.body.isUserProfile}`);
+    console.log(`ðŸ” isUserProfile=${req.body.isUserProfile}`);
     
     // âœ… HARD GUARD: Check isUserProfile at the very top
     if (req.body.isUserProfile === true) {
-        console.log('ðŸ" selectedHandler=USER');
-        console.log('ðŸ"µ USER handler start');
-        console.log(`ðŸ" userId=${req.user.id}`);
-        console.log(`ðŸ" truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('ðŸ” selectedHandler=USER');
+        console.log('ðŸ”µ USER handler start');
+        console.log(`ðŸ” userId=${req.user.id}`);
+        console.log(`ðŸ” truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         // Route to User handler
         return handleUserProfile(req, res);
     } else {
-        console.log('ðŸ" selectedHandler=TARGET');
+        console.log('ðŸ” selectedHandler=TARGET');
         console.log('ðŸŽ¯ TARGET handler start');
-        console.log(`ðŸ" userId=${req.user.id}`);
-        console.log(`ðŸ" truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log(`ðŸ” userId=${req.user.id}`);
+        console.log(`ðŸ” truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
-        // Route to Target handler (now uses comprehensive saving)
+        // Route to Target handler
         return handleAnalyzeTarget(req, res);
     }
 });
 
 // ==================== âœ… NEW: ENHANCED MESSAGE GENERATION WITH CREDITS ====================
 
-// ðŸ'¬ GENERATE LINKEDIN MESSAGE (WITH CREDITS)
+// ðŸ’¬ GENERATE LINKEDIN MESSAGE (WITH CREDITS)
 app.post('/generate-message', authenticateToken, validateCredits(1), async (req, res) => {
     try {
-        console.log(`ðŸ'¬ Message generation request from user ${req.user.id}`);
+        console.log(`ðŸ’¬ Message generation request from user ${req.user.id}`);
         
         const { targetProfileUrl, context, messageType } = req.body;
         
@@ -1153,7 +1098,7 @@ ${userProfile.full_name || 'Your name'}`;
         });
         
     } catch (error) {
-        console.error('âŒ Message generation error:', error);
+        console.error('âŒ Message generation error:', error);
         res.status(500).json({
             success: false,
             error: 'Message generation failed'
@@ -1161,10 +1106,10 @@ ${userProfile.full_name || 'Your name'}`;
     }
 });
 
-// ðŸ¤ GENERATE CONNECTION REQUEST (WITH CREDITS)
+// ðŸ¤ GENERATE CONNECTION REQUEST (WITH CREDITS)
 app.post('/generate-connection', authenticateToken, validateCredits(1), async (req, res) => {
     try {
-        console.log(`ðŸ¤ Connection request generation from user ${req.user.id}`);
+        console.log(`ðŸ¤ Connection request generation from user ${req.user.id}`);
         
         const { targetProfileUrl, context, messageType } = req.body;
         
@@ -1227,7 +1172,7 @@ app.post('/generate-connection', authenticateToken, validateCredits(1), async (r
         });
         
     } catch (error) {
-        console.error('âŒ Connection generation error:', error);
+        console.error('âŒ Connection generation error:', error);
         res.status(500).json({
             success: false,
             error: 'Connection generation failed'
@@ -1267,7 +1212,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`ðŸ" OAuth callback - User: ${req.user.email}`);
+            console.log(`ðŸ” OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -1275,10 +1220,10 @@ app.get('/auth/google/callback',
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
             if (needsOnboarding) {
-                console.log(`âž¡ï¸ Redirecting to sign-up for onboarding`);
+                console.log(`âž¡ï¸ Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                console.log(`âž¡ï¸ Redirecting to dashboard`);
+                console.log(`âž¡ï¸ Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
@@ -1386,7 +1331,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('âŒ Traffic light status error:', error);
+        console.error('âŒ Traffic light status error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to check traffic light status'
@@ -1394,10 +1339,10 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// ðŸ"§ FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
+// ðŸ”§ FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸ" Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`ðŸ” Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1540,7 +1485,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('âŒ Enhanced profile fetch error:', error);
+        console.error('âŒ Enhanced profile fetch error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch profile'
@@ -1548,10 +1493,10 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// ðŸ"§ FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
+// ðŸ”§ FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸ" Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`ðŸ” Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1711,7 +1656,7 @@ app.get('/packages', (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-    console.error('âŒ Unhandled Error:', error);
+    console.error('âŒ Unhandled Error:', error);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -1743,7 +1688,7 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /profile/user',
-            'POST /scrape-html (Target ingestion now behaves like User with comprehensive saving)',
+            'POST /scrape-html (Target ingestion now behaves like User)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -1769,50 +1714,52 @@ const startServer = async () => {
         
         const dbOk = await testDatabase();
         if (!dbOk) {
-            console.error('âŒ Cannot start server without database');
+            console.error('âŒ Cannot start server without database');
             process.exit(1);
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('ðŸš€ Msgly.AI Server - TARGET PROFILES NOW SAVE LIKE USER PROFILES!');
-            console.log(`ðŸ" Port: ${PORT}`);
-            console.log(`ðŸ—ƒï¸ Database: Enhanced PostgreSQL with comprehensive Target Profile structure`);
-            console.log(`ðŸ" Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log('ðŸš€ Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION + CREDITS SYSTEM!');
+            console.log(`ðŸ” Port: ${PORT}`);
+            console.log(`ðŸ—ƒï¸ Database: Enhanced PostgreSQL with UPSERT pattern`);
+            console.log(`ðŸ” Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`ðŸš¦ TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`âœ… TARGET PROFILE COMPREHENSIVE SAVING:`);
-            console.log(`   ðŸ"„ Target Profiles now use SAME structure as User Profiles`);
-            console.log(`   ðŸ'¾ Comprehensive columns: full_name, headline, current_role, experience[], etc.`);
-            console.log(`   ðŸ"' Numeric sanitization: toIntSafe, toFloatSafe applied to engagement metrics`);
-            console.log(`   ðŸ"Š Individual columns + JSON arrays (identical to User Profile saving)`);
-            console.log(`   ðŸš« No more simplified storage - everything uses comprehensive structure`);
-            console.log(`   ðŸ" UPSERT pattern with comprehensive conflict resolution`);
-            console.log(`   ðŸ'° No credit charging on Target Profile analysis (Free action)`);
-            console.log(`âœ… CREDITS SYSTEM (SERVER-ONLY):`);
-            console.log(`   ðŸ'Ž GET /api/credits/status - Fetch current credits & plan info`);
+            console.log(`âœ… TARGET INGESTION IMPROVEMENTS:`);
+            console.log(`   ðŸ“„ UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
+            console.log(`   ðŸ›¡ï¸ Column count guard prevents INSERT mismatch errors`);
+            console.log(`   ðŸ’° No credit charging on Analyze`);
+            console.log(`   ðŸ—„ï¸ Database schema changes via startup guard (no migrations)`);
+            console.log(`âœ… "SEE MORE" EXPANSION:`);
+            console.log(`   ðŸ“‹ Experience section: max 2 clicks with DOM change detection`);
+            console.log(`   ðŸ† Honors & Awards section: max 2 clicks with DOM change detection`);
+            console.log(`   â° Randomized delays and proper waiting for content load`);
+            console.log(`   ðŸ” Called before HTML capture in both User & Target flows`);
+            console.log(`âœ… NEW: CREDITS SYSTEM (SERVER-ONLY):`);
+            console.log(`   ðŸ’Ž GET /api/credits/status - Fetch current credits & plan info`);
             console.log(`   ðŸŽ¯ GET /api/target/check - Check if target exists in DB`);
-            console.log(`   ðŸ'° POST /api/credits/validate - Pre-validate credits for actions`);
-            console.log(`   ðŸ"' Credits validation middleware for message generation`);
-            console.log(`   ðŸ"Š Plan management: Free(7), Silver(30), Gold(100), Platinum(250)`);
-            console.log(`   ðŸ"… Monthly renewal calculation for Free plan`);
+            console.log(`   ðŸ’° POST /api/credits/validate - Pre-validate credits for actions`);
+            console.log(`   ðŸ”’ Credits validation middleware for message generation`);
+            console.log(`   ðŸ“Š Plan management: Free(7), Silver(30), Gold(100), Platinum(250)`);
+            console.log(`   ðŸ“… Monthly renewal calculation for Free plan`);
             console.log(`   ðŸš« No localStorage - 100% server-side credits management`);
-            console.log(`âœ… TARGET PROFILES = USER PROFILES (IDENTICAL SAVING METHOD)`);
+            console.log(`âœ… READY FOR PRODUCTION WITH CREDITS!`);
         });
         
     } catch (error) {
-        console.error('âŒ Startup failed:', error);
+        console.error('âŒ Startup failed:', error);
         process.exit(1);
     }
 };
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('ðŸ›' Gracefully shutting down...');
+    console.log('ðŸ›‘ Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('ðŸ›' Gracefully shutting down...');
+    console.log('ðŸ›‘ Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
