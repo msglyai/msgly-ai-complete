@@ -3,7 +3,7 @@
 const axios = require('axios');
 const https = require('https');
 
-// ✅ Rate limiting configuration (OpenAI GPT-5-nano)
+// âœ… Rate limiting configuration (OpenAI GPT-5-nano)
 const RATE_LIMIT = {
     DELAY_BETWEEN_REQUESTS: 1000,    // 1 second between requests
     MAX_RETRIES: 3,                  // Maximum retry attempts
@@ -11,23 +11,23 @@ const RATE_LIMIT = {
     MAX_RETRY_DELAY: 20000          // Maximum retry delay (20 seconds)
 };
 
-// 🚀 INCREASED limits for TESTING - Allow more content to preserve complete data
+// ðŸš€ AGGRESSIVE limits for consistent 95% reduction
 const OPENAI_LIMITS = {
     MAX_TOKENS_INPUT: 50000,         // Same (you have 28K headroom)
-    MAX_TOKENS_OUTPUT: 12000,        // INCREASED: 8000 → 12000 tokens
-    MAX_SIZE_KB: 4000               // INCREASED: 3000 → 4000 KB (more content preserved)
+    MAX_TOKENS_OUTPUT: 12000,        // INCREASED: 8000 â†' 12000 tokens
+    MAX_SIZE_KB: 3000               // AGGRESSIVE: 4000 â†' 3000 KB (ensures 95% reduction)
 };
 
-// ✅ Last request timestamp for rate limiting
+// âœ… Last request timestamp for rate limiting
 let lastRequestTime = 0;
 
-// ✅ Keep-alive agent for resilient OpenAI calls
+// âœ… Keep-alive agent for resilient OpenAI calls
 const keepAliveAgent = new https.Agent({ keepAlive: true });
 const TRY_TIMEOUTS_MS = process.env.MSGLY_OPENAI_TIMEOUTS_MS
   ? process.env.MSGLY_OPENAI_TIMEOUTS_MS.split(',').map(s => parseInt(s.trim(), 10)).filter(Boolean)
   : [90000, 150000]; // 90s then 150s
 
-// ✅ Resilient OpenAI call with keep-alive + longer timeouts + smart retries
+// âœ… Resilient OpenAI call with keep-alive + longer timeouts + smart retries
 async function callOpenAIWithResilience(url, body, headers) {
   let lastErr;
   for (let attempt = 0; attempt < TRY_TIMEOUTS_MS.length; attempt++) {
@@ -65,21 +65,21 @@ async function callOpenAIWithResilience(url, body, headers) {
   throw lastErr;
 }
 
-// ✅ Rate limiting delay function
+// âœ… Rate limiting delay function
 async function enforceRateLimit() {
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
     
     if (timeSinceLastRequest < RATE_LIMIT.DELAY_BETWEEN_REQUESTS) {
         const waitTime = RATE_LIMIT.DELAY_BETWEEN_REQUESTS - timeSinceLastRequest;
-        console.log(`⏰ Rate limiting: waiting ${waitTime}ms before next request`);
+        console.log(`â° Rate limiting: waiting ${waitTime}ms before next request`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
     lastRequestTime = Date.now();
 }
 
-// ✅ Enhanced retry logic with exponential backoff
+// âœ… Enhanced retry logic with exponential backoff
 async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     let lastError;
     
@@ -95,7 +95,7 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
             }
             
             if (attempt === maxRetries) {
-                console.error(`❌ All ${maxRetries} retry attempts failed`);
+                console.error(`âŒ All ${maxRetries} retry attempts failed`);
                 break;
             }
             
@@ -105,7 +105,7 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
             const jitteredDelay = exponentialDelay + (Math.random() * 1000); // Add jitter
             const finalDelay = Math.min(jitteredDelay, RATE_LIMIT.MAX_RETRY_DELAY);
             
-            console.log(`⏳ Attempt ${attempt} failed, retrying in ${Math.round(finalDelay)}ms...`);
+            console.log(`â³ Attempt ${attempt} failed, retrying in ${Math.round(finalDelay)}ms...`);
             console.log(`   Error: ${error.message}`);
             
             await new Promise(resolve => setTimeout(resolve, finalDelay));
@@ -115,85 +115,56 @@ async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
     throw lastError;
 }
 
-// 🚀 LESS AGGRESSIVE LinkedIn HTML Preprocessor based on optimization mode
-function preprocessHTMLForGemini(html, optimizationMode = 'less_aggressive') {
+// ðŸš€ AGGRESSIVE LinkedIn HTML Preprocessor - Always 95% reduction
+function preprocessHTMLForGemini(html, optimizationMode = 'aggressive') {
     try {
-        console.log(`🔥 Starting ${optimizationMode} HTML preprocessing (size: ${(html.length / 1024).toFixed(2)} KB)`);
+        console.log(`ðŸ"¥ Starting aggressive HTML preprocessing (size: ${(html.length / 1024).toFixed(2)} KB)`);
         
         let processedHtml = html;
         const originalSize = processedHtml.length;
         
-        // Different preprocessing based on mode
-        if (optimizationMode === 'standard') {
-            // More aggressive preprocessing for user profiles
-            console.log('🎯 Stage 1: Standard mode - more aggressive preprocessing...');
-            
-            // Remove larger sections for standard mode
-            processedHtml = processedHtml
-                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-                .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
-                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-                .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
-                .replace(/\s+class="[^"]*"/gi, '')
-                .replace(/\s+data-[^=]*="[^"]*"/gi, '')
-                .replace(/\s+on\w+="[^"]*"/gi, '')
-                .replace(/\s+style="[^"]*"/gi, '')
-                .replace(/\s{3,}/g, ' ')
-                .replace(/>\s+</g, '><')
-                .trim();
-        } else {
-            // Less aggressive preprocessing for target profiles
-            console.log('🎯 Stage 1: Less aggressive mode - preserving more content...');
-            
-            // Find and extract only the main profile content
-            const mainContentPatterns = [
-                /<main[^>]*>([\s\S]*?)<\/main>/i,
-                /<div[^>]*class="[^"]*profile[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-                /<section[^>]*class="[^"]*profile[^"]*"[^>]*>([\s\S]*?)<\/section>/i,
-                /<div[^>]*id="[^"]*profile[^"]*"[^>]*>([\s\S]*?)<\/div>/i
-            ];
-            
-            for (let pattern of mainContentPatterns) {
-                const match = processedHtml.match(pattern);
-                if (match && match[1].length > 1000) {
-                    processedHtml = match[1];
-                    console.log(`✅ Found main content: ${(processedHtml.length / 1024).toFixed(2)} KB`);
-                    break;
-                }
-            }
-            
-            // Remove scripts and styles but preserve more structure
-            processedHtml = processedHtml
-                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-                .replace(/<!--[\s\S]*?-->/g, '')
-                .replace(/<img[^>]*>/gi, '')
-                .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '')
-                .replace(/\s+style="[^"]*"/gi, '')
-                .replace(/\s+on\w+="[^"]*"/gi, '')
-                .replace(/\s{3,}/g, ' ')
-                .replace(/>\s+</g, '><')
-                .trim();
-        }
+        // Always use aggressive preprocessing for consistent 95% reduction
+        console.log('ðŸŽ¯ Stage 1: Aggressive mode - maximum reduction for optimal processing...');
+        
+        // Aggressive preprocessing - remove larger sections
+        processedHtml = processedHtml
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+            .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/\s+class="[^"]*"/gi, '')
+            .replace(/\s+data-[^=]*="[^"]*"/gi, '')
+            .replace(/\s+on\w+="[^"]*"/gi, '')
+            .replace(/\s+style="[^"]*"/gi, '')
+            .replace(/\s{3,}/g, ' ')
+            .replace(/>\s+</g, '><')
+            .trim();
         
         const finalSize = processedHtml.length;
         const finalTokens = Math.ceil(finalSize / 3);
-        const reduction = ((originalSize - finalSize) / originalSize * 100).toFixed(1);
+        const reductionPct = ((originalSize - finalSize) / originalSize * 100);
         
-        console.log(`✅ ${optimizationMode} HTML preprocessing completed:`);
+        console.log(`[Aggressive Reduction] Original HTML size: ${(originalSize / 1024).toFixed(2)} KB | Final: ${(finalSize / 1024).toFixed(2)} KB | Reduction: ${reductionPct.toFixed(1)}% | Est. tokens: ${finalTokens}`);
+        
+        // Guardrail: warn if reduction below 90%
+        if (reductionPct < 90) {
+            console.warn('âš ï¸ Reduction below 90% â€" check cleanup rules.');
+        }
+        
+        console.log(`âœ… Aggressive HTML preprocessing completed:`);
         console.log(`   Original: ${(originalSize / 1024).toFixed(2)} KB`);
         console.log(`   Final: ${(finalSize / 1024).toFixed(2)} KB`);
-        console.log(`   Reduction: ${reduction}%`);
+        console.log(`   Reduction: ${reductionPct.toFixed(1)}%`);
         console.log(`   Estimated tokens: ~${finalTokens} (Max: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
         
         return processedHtml;
         
     } catch (error) {
-        console.error('❌ HTML preprocessing failed:', error);
-        console.log('🔥 Fallback: Basic processing...');
+        console.error('âŒ HTML preprocessing failed:', error);
+        console.log('ðŸ"¥ Fallback: Basic processing...');
         
         try {
             const fallback = html
@@ -202,27 +173,27 @@ function preprocessHTMLForGemini(html, optimizationMode = 'less_aggressive') {
                 .replace(/\s+/g, ' ')
                 .trim();
             
-            console.log(`🆘 Fallback result: ${(fallback.length / 1024).toFixed(2)} KB`);
+            console.log(`ðŸ†˜ Fallback result: ${(fallback.length / 1024).toFixed(2)} KB`);
             return fallback;
         } catch (fallbackError) {
-            console.error('💥 Even fallback failed:', fallbackError);
+            console.error('ðŸ'¥ Even fallback failed:', fallbackError);
             return html;
         }
     }
 }
 
-// ✅ Improved token count estimation
+// âœ… Improved token count estimation
 function estimateTokenCount(text) {
     const hasHtmlTags = /<[^>]*>/.test(text);
     const charsPerToken = hasHtmlTags ? 3 : 4;
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ Send to OpenAI GPT-5-nano (keep EXACT original call structure)
+// âœ… Send to OpenAI GPT-5-nano (keep EXACT original call structure)
 async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   const apiKey = process.env.OPENAI_API_KEY;
   
-  console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
+  console.log('ðŸ"¤ Sending request to OpenAI GPT-5-nano Responses API...');
   
   // EXACT original request structure from your working code
   const response = await callOpenAIWithResilience(
@@ -244,8 +215,8 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
     }
   );
   
-  console.log('📥 OpenAI API response received');
-  console.log(`📊 Response status: ${response.status}`);
+  console.log('ðŸ"¥ OpenAI API response received');
+  console.log(`ðŸ"Š Response status: ${response.status}`);
   
   // EXACT original response parsing
   const data = response.data;
@@ -261,7 +232,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   return rawResponse;
 }
 
-// ✅ Gemini 1.5 Flash fallback (safe for its limits)
+// âœ… Gemini 1.5 Flash fallback (safe for its limits)
 async function sendToGeminiFlashFallback({ systemPrompt, userPrompt, preprocessedHtml }) {
   // Endpoint & key
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
@@ -270,7 +241,7 @@ async function sendToGeminiFlashFallback({ systemPrompt, userPrompt, preprocesse
   const FALLBACK_RULES =
     'Return JSON only. Prefer completeness over detail. ' +
     'If token budget is tight, add short entries (title, company, dateRange) rather than skipping. ' +
-    'Summaries: experience ≤ 400 chars, honors ≤ 250 chars. No skills. Same schema as usual.';
+    'Summaries: experience â‰¤ 400 chars, honors â‰¤ 250 chars. No skills. Same schema as usual.';
 
   const contents = [
     {
@@ -287,7 +258,7 @@ async function sendToGeminiFlashFallback({ systemPrompt, userPrompt, preprocesse
     contents,
     generationConfig: {
       temperature: 0,
-      maxOutputTokens: 6000,            // ↓ under ~8k ceiling to avoid truncation
+      maxOutputTokens: 6000,            // â†" under ~8k ceiling to avoid truncation
       responseMimeType: 'application/json'
       // (optionally you can add responseSchema if you maintain a compact JSON schema)
     },
@@ -335,7 +306,7 @@ async function sendToGeminiFlashFallback({ systemPrompt, userPrompt, preprocesse
   return text;
 }
 
-// ✅ Default path + fallback wrapper
+// âœ… Default path + fallback wrapper
 async function analyzeWithNanoThenGemini(payload) {
   try {
     const t = await sendToNano(payload);
@@ -345,12 +316,12 @@ async function analyzeWithNanoThenGemini(payload) {
     const retriable = err.code === 'ECONNABORTED' || s === 429 || (s >= 500 && s <= 599);
     if (!retriable) throw err;
     if (process.env.MSGLY_FALLBACK_GEMINI !== 'true') throw err;
-    console.warn('[Fallback] switching to Gemini 1.5 Flash…');
+    console.warn('[Fallback] switching to Gemini 1.5 Flashâ€¦');
     return await sendToGeminiFlashFallback(payload);
   }
 }
 
-// ✅ MAIN function to send data to OpenAI GPT-5-nano with optimization mode support + Gemini fallback
+// âœ… MAIN function to send data to OpenAI GPT-5-nano with aggressive mode always + Gemini fallback
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -359,7 +330,7 @@ async function sendToGemini(inputData) {
             return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
         }
         
-        console.log('🤖 === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION + GEMINI FALLBACK ===');
+        console.log('ðŸ¤– === OPENAI GPT-5-NANO WITH AGGRESSIVE OPTIMIZATION + GEMINI FALLBACK ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -368,21 +339,14 @@ async function sendToGemini(inputData) {
         let userPrompt;
         let preprocessedHtml;
         
-        // Extract optimization mode from input - force same aggressive reduction for target profiles
-        let optimizationMode;
-        if (inputData.isUserProfile) {
-            // User profiles: respect their optimization preference
-            optimizationMode = inputData.optimization?.mode || 'less_aggressive';
-        } else {
-            // Target profiles: force same aggressive reduction as user profiles (95% reduction)
-            optimizationMode = 'less_aggressive';
-        }
-        console.log(`📊 Optimization mode: ${optimizationMode} (${inputData.isUserProfile ? 'USER' : 'TARGET'} profile)`);
+        // Always use aggressive optimization for consistent 95% reduction
+        const optimizationMode = 'aggressive';
+        console.log(`ðŸ"Š Optimization mode: ${optimizationMode} (ALWAYS AGGRESSIVE for ${inputData.isUserProfile ? 'USER' : 'TARGET'} profile)`);
         
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
-            console.log(`📄 Input type: ${inputType}`);
-            console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
+            console.log(`ðŸ"„ Input type: ${inputType}`);
+            console.log(`ðŸ" Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
             const htmlSizeKB = inputData.html.length / 1024;
             if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
@@ -394,11 +358,11 @@ async function sendToGemini(inputData) {
                 };
             }
             
-            // Preprocess HTML with optimization mode
+            // Preprocess HTML with aggressive optimization
             preprocessedHtml = preprocessHTMLForGemini(inputData.html, optimizationMode);
             
             const estimatedTokens = estimateTokenCount(preprocessedHtml);
-            console.log(`📢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
+            console.log(`ðŸ"¢ Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
             
             if (estimatedTokens > OPENAI_LIMITS.MAX_TOKENS_INPUT) {
                 return { 
@@ -420,14 +384,14 @@ async function sendToGemini(inputData) {
             systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract comprehensive LinkedIn profile information into valid JSON format.
 
 CRITICAL EXTRACTION PRIORITY:
-🥇 TIER 1 (HIGHEST PRIORITY - Extract first):
+ðŸ¥‡ TIER 1 (HIGHEST PRIORITY - Extract first):
 - Basic profile info: name, headline, currentRole, currentCompany, location, about
 - Experience/work history: ALL job entries with titles, companies, durations, descriptions
 - Education: ALL education entries with schools, degrees, fields, years, grades, activities  
 - Awards: ALL awards/honors/recognitions found
 - Certifications: ALL certifications/licenses found
 
-🥈 TIER 2 (SECONDARY PRIORITY - Extract after TIER 1):
+ðŸ¥ˆ TIER 2 (SECONDARY PRIORITY - Extract after TIER 1):
 - Volunteer work: organizations, roles
 - Following data: companies followed, people followed
 - Activity content: recent posts and content
@@ -441,7 +405,7 @@ CRITICAL REQUIREMENTS:
 5. Extract all available text content, ignore styling and layout elements
 6. If a section is empty, use empty array [] or empty string ""
 7. For arrays, extract EVERY item found - don't truncate due to length
-8. With optimization mode ${optimizationMode}, extract maximum data from all sections`;
+8. With aggressive optimization mode, extract maximum data from all sections`;
 
             userPrompt = `Extract comprehensive LinkedIn profile data from this HTML. Optimization mode: ${optimizationMode}
 
@@ -545,7 +509,7 @@ Return ONLY valid JSON. No explanations/markdown.`;
             
         } else if (inputData.data || inputData.results) {
             inputType = 'JSON Data';
-            console.log(`📊 Input type: ${inputType}`);
+            console.log(`ðŸ"Š Input type: ${inputType}`);
             
             const jsonData = inputData.data || inputData.results || inputData;
             processedData = jsonData;
@@ -559,7 +523,7 @@ CRITICAL REQUIREMENTS:
 4. Use the exact structure provided
 5. Extract ALL available data thoroughly from every section`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with aggressive optimization mode and return as structured JSON with the same format as specified above:
 
 ${JSON.stringify(jsonData, null, 2)}`;
             
@@ -572,8 +536,8 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
-        console.log(`📏 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        console.log(`ðŸŽ¯ Processing ${inputType} with ${optimizationMode} optimization...`);
+        console.log(`ðŸ" Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
@@ -594,15 +558,15 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        console.log(`📏 Raw response length: ${rawResponse.length} characters`);
+        console.log(`ðŸ" Raw response length: ${rawResponse.length} characters`);
         
         // Parse JSON response with robust error handling
         let parsedData;
         try {
             parsedData = JSON.parse(rawResponse.trim());
         } catch (parseError) {
-            console.error('❌ JSON parsing failed:', parseError);
-            console.log('📏 Raw response preview:', rawResponse.substring(0, 500) + '...');
+            console.error('âŒ JSON parsing failed:', parseError);
+            console.log('ðŸ" Raw response preview:', rawResponse.substring(0, 500) + '...');
             return { 
                 success: false, 
                 status: 500, 
@@ -616,16 +580,16 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
         const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
         
-        console.log('✅ === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION + GEMINI FALLBACK COMPLETED ===');
-        console.log(`📊 Extraction Results:`);
-        console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
-        console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
-        console.log(`   🥇 Education entries: ${parsedData.education?.length || 0}`);
-        console.log(`   🥇 Awards: ${parsedData.awards?.length || 0}`);
-        console.log(`   🥇 Certifications: ${parsedData.certifications?.length || 0}`);
-        console.log(`   🥈 Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
-        console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
-        console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
+        console.log('âœ… === OPENAI GPT-5-NANO WITH AGGRESSIVE OPTIMIZATION + GEMINI FALLBACK COMPLETED ===');
+        console.log(`ðŸ"Š Extraction Results:`);
+        console.log(`   ðŸ¥‡ Profile name: ${hasProfile ? 'YES' : 'NO'}`);
+        console.log(`   ðŸ¥‡ Experience entries: ${parsedData.experience?.length || 0}`);
+        console.log(`   ðŸ¥‡ Education entries: ${parsedData.education?.length || 0}`);
+        console.log(`   ðŸ¥‡ Awards: ${parsedData.awards?.length || 0}`);
+        console.log(`   ðŸ¥‡ Certifications: ${parsedData.certifications?.length || 0}`);
+        console.log(`   ðŸ¥ˆ Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
+        console.log(`   ðŸ¥ˆ Following companies: ${parsedData.followingCompanies?.length || 0}`);
+        console.log(`   ðŸ¥ˆ Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`   - Optimization mode: ${optimizationMode}`);
         
         return {
@@ -643,8 +607,8 @@ ${JSON.stringify(jsonData, null, 2)}`;
         };
         
     } catch (error) {
-        console.error('❌ === OPENAI GPT-5-NANO + GEMINI FALLBACK FAILED ===');
-        console.error('📊 Error details:');
+        console.error('âŒ === OPENAI GPT-5-NANO + GEMINI FALLBACK FAILED ===');
+        console.error('ðŸ"Š Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
         console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
@@ -690,7 +654,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             details: {
                 type: error.name,
                 timestamp: new Date().toISOString(),
-                optimizationMode: 'unknown',
+                optimizationMode: 'aggressive',
                 requestId: error.response?.headers?.['x-request-id'] || null
             },
             usage: null
