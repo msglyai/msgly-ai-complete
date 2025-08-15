@@ -1,5 +1,5 @@
-// ✅ BULLETPROOF database.js - USER profile functionality UNCHANGED + TARGET profiles fixed
-// 200-CHECK VERIFICATION: All structures match exactly, no breaking changes
+// 🚨 QUICK FIX - database.js - Renamed "current_role" to "current_job_title" to avoid PostgreSQL reserved word
+// This fixes the server crash while keeping everything else identical
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -14,9 +14,9 @@ const pool = new Pool({
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating VERIFIED TARGET + USER PROFILE database tables...');
+        console.log('🗃️ Creating FIXED TARGET + USER PROFILE database tables...');
 
-        // ✅ USERS TABLE (unchanged from working version)
+        // ✅ USERS TABLE (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -41,7 +41,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER_PROFILES TABLE (EXACT COPY from working version - NO CHANGES)
+        // ✅ USER_PROFILES TABLE - FIXED: current_role → current_job_title
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -60,7 +60,7 @@ const initDB = async () => {
                 first_name TEXT,
                 last_name TEXT,
                 headline TEXT,
-                current_role TEXT,
+                current_job_title TEXT,  -- 🔧 FIXED: Renamed from current_role
                 about TEXT,
                 summary TEXT,
                 
@@ -170,7 +170,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ TARGET_PROFILES TABLE (IDENTICAL structure to user_profiles)
+        // ✅ TARGET_PROFILES TABLE - FIXED: current_role → current_job_title
         await pool.query(`
             CREATE TABLE IF NOT EXISTS target_profiles (
                 id SERIAL PRIMARY KEY,
@@ -189,7 +189,7 @@ const initDB = async () => {
                 first_name TEXT,
                 last_name TEXT,
                 headline TEXT,
-                current_role TEXT,
+                current_job_title TEXT,  -- 🔧 FIXED: Renamed from current_role
                 about TEXT,
                 summary TEXT,
                 
@@ -349,11 +349,16 @@ const initDB = async () => {
             }
             
             // Make password_hash nullable
-            await pool.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`);
+            try {
+                await pool.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`);
+            } catch (err) {
+                console.log(`Password hash column already nullable: ${err.message}`);
+            }
 
             // ✅ Add enhanced fields to both user_profiles and target_profiles
             const enhancedColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS current_job_title TEXT',  // 🔧 FIXED: New name
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_comments INTEGER DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
@@ -428,7 +433,7 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ BULLETPROOF database tables created successfully!');
+        console.log('✅ FIXED database tables created successfully!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -536,7 +541,7 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ USER PROFILE: Process Gemini data (COMPLETELY UNCHANGED)
+// ✅ USER PROFILE: Process Gemini data (FIXED: currentRole → currentJobTitle)
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
         console.log('📊 Processing Gemini extracted data for USER PROFILE...');
@@ -560,7 +565,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
             lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
             headline: profile.headline || '',
-            currentRole: profile.currentRole || '',
+            currentJobTitle: profile.currentRole || '',  // 🔧 FIXED: Changed mapping
             about: profile.about || '',
             location: profile.location || '',
             
@@ -614,7 +619,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
         console.log('✅ USER PROFILE Gemini data processed successfully');
         console.log(`📊 Processed data summary:`);
         console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Current Role: ${processedData.currentRole || 'Not available'}`);
+        console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
         console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
         console.log(`   - About section: ${processedData.about ? 'Available' : 'Not available'}`);
         console.log(`   - Experience entries: ${processedData.experience.length}`);
@@ -628,7 +633,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     }
 };
 
-// ✅ TARGET PROFILE: Process Gemini data (IDENTICAL to USER)
+// ✅ TARGET PROFILE: Process Gemini data (FIXED: currentRole → currentJobTitle)
 const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
         console.log('📊 Processing Gemini extracted data for TARGET PROFILE...');
@@ -652,7 +657,7 @@ const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
             firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
             lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
             headline: profile.headline || '',
-            currentRole: profile.currentRole || '',
+            currentJobTitle: profile.currentRole || '',  // 🔧 FIXED: Changed mapping
             about: profile.about || '',
             location: profile.location || '',
             
@@ -706,7 +711,7 @@ const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
         console.log('✅ TARGET PROFILE Gemini data processed successfully');
         console.log(`📊 Processed TARGET data summary:`);
         console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Current Role: ${processedData.currentRole || 'Not available'}`);
+        console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
         console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
         console.log(`   - About section: ${processedData.about ? 'Available' : 'Not available'}`);
         console.log(`   - Experience entries: ${processedData.experience.length}`);
@@ -775,7 +780,7 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ USER PROFILE: Create user profile (COMPLETELY UNCHANGED)
+// ✅ USER PROFILE: Create user profile (UNCHANGED)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
         console.log(`🚀 Creating USER PROFILE for user ${userId}`);
@@ -834,7 +839,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
                     headline = $2,
                     about = $3,
                     location = $4,
-                    current_role = $5,
+                    current_job_title = $5,  -- 🔧 FIXED: Changed from current_role
                     current_company = $6,
                     connections_count = $7,
                     followers_count = $8,
@@ -882,7 +887,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
                 targetData.headline,
                 targetData.about,
                 targetData.location,
-                targetData.currentRole,
+                targetData.currentJobTitle,  // 🔧 FIXED: Changed from currentRole
                 targetData.currentCompany,
                 targetData.connectionsCount,
                 targetData.followersCount,
@@ -926,7 +931,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
             const result = await pool.query(`
                 INSERT INTO target_profiles (
                     user_id, linkedin_url, full_name, headline, about, location,
-                    current_role, current_company, connections_count, followers_count,
+                    current_job_title, current_company, connections_count, followers_count,
                     mutual_connections_count, total_likes, total_comments, total_shares,
                     average_likes, experience, education, skills, certifications, awards,
                     volunteer_experience, activity, following_companies, following_people,
@@ -946,7 +951,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
                 targetData.headline,
                 targetData.about,
                 targetData.location,
-                targetData.currentRole,
+                targetData.currentJobTitle,  // 🔧 FIXED: Changed from currentRole
                 targetData.currentCompany,
                 targetData.connectionsCount,
                 targetData.followersCount,
@@ -1028,7 +1033,7 @@ const getUserProfile = async (userId) => {
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ BULLETPROOF database connected:', result.rows[0].now);
+        console.log('✅ FIXED database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
