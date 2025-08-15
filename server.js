@@ -1,6 +1,5 @@
-// What changed in Stage G
-// Added numeric sanitization helpers + wired llmOrchestrator + processProfileWithLLM integration
-// Msgly.AI Server - Complete with Traffic Light System Integrated
+// server.js - USER PROFILE ONLY VERSION - All Target logic removed
+// Msgly.AI Server - Complete with Traffic Light System - USER PROFILE ONLY
 
 const express = require('express');
 const cors = require('cors');
@@ -16,9 +15,6 @@ const axios = require('axios');
 // ✅ FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
-
-// ✅ FEATURE FLAG: Disable Target processing
-const ENABLE_TARGET = false; // Set to false to quarantine Target routes
 
 // ✅ STEP 2A: Import all database functions from utils/database.js
 const {
@@ -37,9 +33,6 @@ const {
     processScrapedProfileData,
     processGeminiData  // ✅ Import processGeminiData for User processing
 } = require('./utils/database');
-
-// ✅ STAGE G: Import LLM orchestrator
-const { processProfileWithLLM } = require('./utils/llmOrchestrator');
 
 // ✅ STEP 2B: Import all utility functions from utils/helpers.js
 const {
@@ -73,59 +66,11 @@ const {
 // ✅ STEP 2E: Import user routes initialization function
 const { initUserRoutes } = require('./routes/users');
 
-// ✅ STEP 2F: Import JWT-only profile & API routes initialization function
-const { initProfileRoutes } = require('./routes/profiles');
-
 // ✅ STEP 2C: Import modularized routes
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// What changed in Stage G – numeric sanitizers
-function toIntSafe(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  const km = s.match(/^([\d.,]+)\s*([KkMmBb])$/);
-  if (km) {
-    const num = parseFloat(km[1].replace(/,/g, ''));
-    if (isNaN(num)) return null;
-    const mult = { K:1e3, k:1e3, M:1e6, m:1e6, B:1e9, b:1e9 }[km[2]];
-    return Math.round(num * mult);
-  }
-  const digits = s.replace(/[^\d-]/g, '');
-  if (!digits || /^-?$/.test(digits)) return null;
-  const n = parseInt(digits, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-function toFloatSafe(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  const km = s.match(/^([\d.,]+)\s*([KkMmBb])$/);
-  if (km) {
-    const num = parseFloat(km[1].replace(/,/g, ''));
-    if (isNaN(num)) return null;
-    const mult = { K:1e3, k:1e3, M:1e6, m:1e6, B:1e9, b:1e9 }[km[2]];
-    return num * mult;
-  }
-  const norm = s.replace(/,/g, '');
-  const n = parseFloat(norm);
-  return Number.isFinite(n) ? n : null;
-}
-
-// What changed in Stage G
-function normalizeLinkedInUrl(url = '') {
-  try {
-    return url.toString().toLowerCase()
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .replace(/[?#].*$/, '')
-      .replace(/\/$/, '');
-  } catch { return ''; }
-}
-
-// ✅ USER PROFILE HANDLER: Restored exact User flow that was working before
+// ✅ USER PROFILE HANDLER: Simplified and cleaned for user profiles only
 async function handleUserProfile(req, res) {
     try {
         console.log('🔵 === USER PROFILE PROCESSING ===');
@@ -158,7 +103,8 @@ async function handleUserProfile(req, res) {
             console.error('❌ Gemini processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
-                error: 'Failed to process profile data with Gemini'
+                error: 'Failed to process profile data with Gemini',
+                details: geminiResult.error || 'Unknown error'
             });
         }
         
@@ -189,12 +135,14 @@ async function handleUserProfile(req, res) {
                 volunteer_experience = $14,
                 activity = $15,
                 engagement_data = $16,
+                gemini_raw_data = $17,
+                gemini_processed_at = NOW(),
                 data_extraction_status = 'completed',
                 initial_scraping_done = true,
                 profile_analyzed = true,
                 extraction_completed_at = NOW(),
                 updated_at = NOW()
-            WHERE user_id = $17
+            WHERE user_id = $18
         `, [
             processedProfile.fullName,
             processedProfile.headline,
@@ -212,8 +160,15 @@ async function handleUserProfile(req, res) {
             JSON.stringify(processedProfile.volunteerExperience),
             JSON.stringify(processedProfile.activity),
             JSON.stringify(processedProfile.engagementData),
+            JSON.stringify(processedProfile.geminiRawData),
             userId
         ]);
+        
+        // Update users table registration status
+        await pool.query(
+            'UPDATE users SET registration_completed = true, extraction_status = $1 WHERE id = $2',
+            ['completed', userId]
+        );
         
         console.log('✅ USER profile saved to user_profiles table successfully');
         
@@ -236,159 +191,6 @@ async function handleUserProfile(req, res) {
         res.status(500).json({
             success: false,
             error: 'User profile processing failed',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-}
-
-// ✅ TARGET PROFILE HANDLER: Updated with UPSERT pattern and no credit charging
-async function handleAnalyzeTarget(req, res) {
-    try {
-        console.log('🎯 Target profile analysis request received');
-        console.log(`👤 User ID: ${req.user.id}`);
-        
-        const { html, profileUrl, normalizedUrl } = req.body;
-        const userId = req.user.id;
-        
-        if (!html || !profileUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'HTML content and profileUrl are required'
-            });
-        }
-        
-        // A.1 Normalize URL (server)
-        const normalizedUrlFinal = normalizeLinkedInUrl(normalizedUrl || profileUrl);
-        console.log(`🔗 Original URL: ${profileUrl}`);
-        console.log(`🔗 Normalized URL: ${normalizedUrlFinal}`);
-        
-        // A.2 Dedupe before heavy work
-        const { rows: existing } = await pool.query(
-            'SELECT id FROM target_profiles WHERE user_id = $1 AND normalized_url = $2 LIMIT 1',
-            [userId, normalizedUrlFinal]
-        );
-        
-        if (existing.length) {
-            console.log(`⚠️ Target already exists for user ${userId} + URL ${normalizedUrlFinal}`);
-            return res.status(200).json({
-                success: true,
-                alreadyExists: true,
-                message: 'Target already exists for this user+URL'
-            });
-        }
-        
-        console.log('✅ Target is new, processing...');
-        
-        // Process HTML with Gemini for TARGET profile
-        console.log('🤖 Processing HTML with Gemini for TARGET profile...');
-        
-        const geminiResult = await sendToGemini({
-            html: html,
-            url: profileUrl,
-            isUserProfile: false
-        });
-        
-        if (!geminiResult.success) {
-            console.error('❌ Gemini processing failed for TARGET profile:', geminiResult.error);
-            return res.status(500).json({
-                success: false,
-                error: 'Failed to process profile data with Gemini'
-            });
-        }
-        
-        console.log('✅ Gemini processing successful for TARGET profile');
-        
-        // Process Gemini data for TARGET profile
-        const processedProfile = processGeminiData(geminiResult, profileUrl);
-        
-        // ✅ NEW: UPSERT pattern with column count guard
-        console.log('💾 Inserting/updating target profile using UPSERT pattern...');
-        
-        // ✅ NEW: Pre-query guard for column count mismatch
-        const expectedColumns = [
-            'user_id', 'normalized_url', 'data_json', 'raw_html', 'token_usage', 
-            'artifacts', 'updated_at'
-        ];
-        const values = [
-            userId,
-            normalizedUrlFinal, 
-            processedProfile,
-            html,
-            geminiResult.metadata?.tokenUsage || {},
-            {},
-            new Date()
-        ];
-        
-        if (expectedColumns.length !== values.length) {
-            console.error('❌ Column count mismatch!');
-            console.error(`Expected columns (${expectedColumns.length}):`, expectedColumns);
-            console.error(`Provided values (${values.length}):`, values.map((v, i) => `${i}: ${typeof v}`));
-            return res.status(500).json({
-                success: false,
-                error: `Column count mismatch: expected ${expectedColumns.length}, got ${values.length}`,
-                details: 'INSERT has more target columns than expressions'
-            });
-        }
-        
-        // ✅ NEW: UPSERT with conflict resolution
-        const upsertQuery = `
-            INSERT INTO target_profiles ( 
-                user_id, normalized_url, data_json, raw_html, token_usage, artifacts, updated_at 
-            ) VALUES ( 
-                $1, $2, $3::jsonb, $4, $5::jsonb, $6::jsonb, NOW() 
-            ) 
-            ON CONFLICT (user_id, normalized_url) 
-            DO UPDATE SET 
-                data_json = EXCLUDED.data_json, 
-                raw_html = EXCLUDED.raw_html, 
-                token_usage = EXCLUDED.token_usage, 
-                artifacts = EXCLUDED.artifacts, 
-                updated_at = NOW()
-        `;
-        
-        let inserted;
-        try {
-            const { rows } = await pool.query(upsertQuery, [
-                userId,
-                normalizedUrlFinal,
-                JSON.stringify(processedProfile),
-                html,
-                JSON.stringify(geminiResult.metadata?.tokenUsage || {}),
-                JSON.stringify({})
-            ]);
-            
-            console.log(`✅ Target profile upserted successfully for user ${userId}`);
-            
-        } catch (e) {
-            console.error('❌ Database upsert failed:', e);
-            throw e;
-        }
-        
-        // A.4 Response (no credit charging)
-        console.log('📤 Returning success response...');
-        
-        return res.status(200).json({
-            success: true,
-            data: processedProfile,
-            storage: {
-                raw_html_saved: true,
-                parsed_json_saved: true
-            },
-            processing: {
-                provider: 'gemini',
-                model: 'gemini-pro',
-                token_usage: geminiResult.metadata?.tokenUsage || {}
-            },
-            alreadyExists: false,
-            message: 'Target profile analyzed successfully - no credits charged'
-        });
-        
-    } catch (error) {
-        console.error('❌ Target profile analysis error:', error);
-        
-        return res.status(500).json({
-            success: false,
-            error: 'Target profile analysis failed',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -446,22 +248,6 @@ const userRoutes = initUserRoutes({
     createUser,
     createOrUpdateUserProfile,
     getSetupStatusMessage
-});
-
-// ✅ STEP 2F: Initialize JWT-only profile & API routes with dependencies + STAGE G orchestrator
-const profileRoutes = initProfileRoutes({
-    pool,
-    authenticateToken,
-    getUserById,
-    processGeminiData,
-    processScrapedProfileData,
-    cleanLinkedInUrl,
-    getStatusMessage,
-    sendToGemini,
-    // ✅ STAGE G: Add orchestrator and numeric helpers
-    processProfileWithLLM,
-    toIntSafe,
-    toFloatSafe
 });
 
 // CORS configuration
@@ -580,9 +366,6 @@ app.use('/', healthRoutes);
 // ✅ STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ✅ STEP 2F: Mount JWT-only profile & API routes with STAGE G orchestrator
-app.use('/', profileRoutes);
-
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
@@ -696,32 +479,22 @@ app.post('/auth/chrome-extension', async (req, res) => {
     }
 });
 
-// ==================== FIXED /scrape-html ROUTE WITH PROPER ROUTING ====================
+// ==================== USER PROFILE ONLY /scrape-html ROUTE ====================
 
-// ✅ REQUIRED LOGGING AND ROUTING: Lock /scrape-html to User handler
+// ✅ USER PROFILE ONLY: Lock /scrape-html to User handler only
 app.post('/scrape-html', authenticateToken, (req, res) => {
     // ✅ REQUIRED LOGGING: Route entry
     console.log('🔍 route=/scrape-html');
     console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
     
-    // ✅ HARD GUARD: Check isUserProfile at the very top
-    if (req.body.isUserProfile === true) {
-        console.log('🔍 selectedHandler=USER');
-        console.log('🔵 USER handler start');
-        console.log(`🔍 userId=${req.user.id}`);
-        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
-        
-        // Route to User handler
-        return handleUserProfile(req, res);
-    } else {
-        console.log('🔍 selectedHandler=TARGET');
-        console.log('🎯 TARGET handler start');
-        console.log(`🔍 userId=${req.user.id}`);
-        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
-        
-        // Route to Target handler
-        return handleAnalyzeTarget(req, res);
-    }
+    // ✅ USER PROFILE ONLY: Always route to User handler
+    console.log('🔍 selectedHandler=USER (USER PROFILE ONLY MODE)');
+    console.log('🔵 USER handler start');
+    console.log(`🔍 userId=${req.user.id}`);
+    console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+    
+    // Always route to User handler since we're in USER PROFILE ONLY mode
+    return handleUserProfile(req, res);
 });
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
@@ -782,7 +555,7 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - NEW ENDPOINT FOR DASHBOARD
+// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
         console.log(`🚦 Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -814,7 +587,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             });
         }
 
-        // 🚦 DETERMINE TRAFFIC LIGHT STATUS
+        // 🚦 DETERMINE TRAFFIC LIGHT STATUS - USER PROFILE ONLY
         const isRegistrationComplete = data.registration_completed || false;
         const isInitialScrapingDone = data.initial_scraping_done || false;
         const extractionStatus = data.data_extraction_status || 'pending';
@@ -826,7 +599,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! You can now use all features.';
+            statusMessage = 'Profile fully synced and ready! USER PROFILE ONLY mode active.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -869,7 +642,8 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                 debugInfo: {
                     userId: req.user.id,
                     authMethod: req.authMethod,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    mode: 'USER_PROFILE_ONLY'
                 }
             }
         });
@@ -883,10 +657,10 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Get User Profile - REMOVED DUPLICATE RESPONSE FIELDS
+// 🔧 FIXED: Get User Profile - USER PROFILE ONLY
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔐 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -942,7 +716,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready for target scraping'
+                    'Profile complete and ready - USER PROFILE ONLY mode'
             };
         }
 
@@ -1025,7 +799,8 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     extractionRetryCount: profile.extraction_retry_count,
                     profileAnalyzed: profile.profile_analyzed
                 } : null,
-                syncStatus: syncStatus
+                syncStatus: syncStatus,
+                mode: 'USER_PROFILE_ONLY'
             }
         });
     } catch (error) {
@@ -1037,10 +812,10 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Check profile extraction status - DUAL Authentication Support (Session OR JWT)
+// 🔧 FIXED: Check profile extraction status - USER PROFILE ONLY
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`🔐 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`🔍 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1077,7 +852,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'ENHANCED_HTML_SCRAPING_WITH_LLM_ORCHESTRATOR',
+            processing_mode: 'USER_PROFILE_ONLY',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -1101,44 +876,8 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Enhanced Chrome extension', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'LLM Orchestrator with fallback chain', 'Numeric sanitization', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Enhanced Chrome extension', 'USER PROFILE ONLY mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
-            },
-            {
-                id: 'silver',
-                name: 'Silver',
-                credits: 30,
-                price: 17,
-                period: '/one-time',
-                billing: 'payAsYouGo',
-                validity: 'Credits never expire',
-                features: ['30 Credits', 'Enhanced Chrome extension', 'LLM Orchestrator with Gemini + OpenAI fallback', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', 'Credits never expire'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'gold',
-                name: 'Gold',
-                credits: 100,
-                price: 39,
-                period: '/one-time',
-                billing: 'payAsYouGo',
-                validity: 'Credits never expire',
-                features: ['100 Credits', 'Enhanced Chrome extension', 'LLM Orchestrator with Gemini + OpenAI fallback', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', 'Credits never expire'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'platinum',
-                name: 'Platinum',
-                credits: 250,
-                price: 78,
-                period: '/one-time',
-                billing: 'payAsYouGo',
-                validity: 'Credits never expire',
-                features: ['250 Credits', 'Enhanced Chrome extension', 'LLM Orchestrator with Gemini + OpenAI fallback', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', 'Credits never expire'],
-                available: false,
-                comingSoon: true
             }
         ],
         monthly: [
@@ -1150,44 +889,8 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Enhanced Chrome extension', 'LLM Orchestrator with fallback chain', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Enhanced Chrome extension', 'USER PROFILE ONLY mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
-            },
-            {
-                id: 'silver',
-                name: 'Silver',
-                credits: 30,
-                price: 13.90,
-                period: '/month',
-                billing: 'monthly',
-                validity: '7-day free trial included',
-                features: ['30 Credits', 'Enhanced Chrome extension', 'LLM Orchestrator with Gemini + OpenAI fallback', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', '7-day free trial included'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'gold',
-                name: 'Gold',
-                credits: 100,
-                price: 32,
-                period: '/month',
-                billing: 'monthly',
-                validity: '7-day free trial included',
-                features: ['100 Credits', 'Enhanced Chrome extension', 'LLM Orchestrator with Gemini + OpenAI fallback', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', '7-day free trial included'],
-                available: false,
-                comingSoon: true
-            },
-            {
-                id: 'platinum',
-                name: 'Platinum',
-                credits: 250,
-                price: 63.87,
-                period: '/month',
-                billing: 'monthly',
-                validity: '7-day free trial included',
-                features: ['250 Credits', 'Enhanced Chrome extension', 'LLM Orchestrator with Gemini + OpenAI fallback', 'Numeric sanitization', 'Comprehensive HTML scraping', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Certifications & awards data', 'Beautiful dashboard', '7-day free trial included'],
-                available: false,
-                comingSoon: true
             }
         ]
     };
@@ -1215,6 +918,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
+        message: 'USER PROFILE ONLY mode - Target profile routes disabled',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1231,16 +935,11 @@ app.use((req, res, next) => {
             'GET /profile',
             'GET /profile-status',
             'GET /traffic-light-status',
-            'POST /profile/user',
-            'POST /scrape-html (Target ingestion now behaves like User)',
+            'POST /scrape-html (USER PROFILE ONLY)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
             'PUT /user/settings',
-            'POST /generate-message',
-            'GET /message-history',
-            'GET /credits-history',
-            'POST /retry-extraction',
             'GET /packages'
         ]
     });
@@ -1259,22 +958,22 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - TARGET INGESTION LIKE USER + "SEE MORE" EXPANSION!');
+            console.log('🚀 Msgly.AI Server - USER PROFILE ONLY MODE!');
             console.log(`🔍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with UPSERT pattern`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ TARGET INGESTION IMPROVEMENTS:`);
-            console.log(`   🔄 UPSERT pattern: ON CONFLICT (user_id, normalized_url) DO UPDATE`);
-            console.log(`   🛡️ Column count guard prevents INSERT mismatch errors`);
-            console.log(`   💰 No credit charging on Analyze`);
-            console.log(`   🗄️ Database schema changes via startup guard (no migrations)`);
+            console.log(`✅ USER PROFILE ONLY MODE:`);
+            console.log(`   🔵 ALL Target Profile logic DISABLED`);
+            console.log(`   🔵 /scrape-html routes ONLY to User handler`);
+            console.log(`   🔵 Extension UI simplified for User profiles only`);
+            console.log(`   🔵 Database saves ONLY to user_profiles table`);
+            console.log(`   🔵 Traffic Light system tracks User profile completion only`);
             console.log(`✅ "SEE MORE" EXPANSION:`);
             console.log(`   📋 Experience section: max 2 clicks with DOM change detection`);
             console.log(`   🏆 Honors & Awards section: max 2 clicks with DOM change detection`);
             console.log(`   ⏱️ Randomized delays and proper waiting for content load`);
-            console.log(`   🔍 Called before HTML capture in both User & Target flows`);
-            console.log(`✅ READY FOR PRODUCTION!`);
+            console.log(`✅ READY FOR USER PROFILE TESTING ONLY!`);
         });
         
     } catch (error) {
