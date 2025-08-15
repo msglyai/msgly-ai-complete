@@ -1,8 +1,8 @@
-// What changed in Stage G
-// LLM fallback chain: Gemini → GPT-5 nano → GPT-5 mini
+// LLM fallback chain: GPT-5 nano → GPT-5 mini (Gemini removed)
+// Updated for USER PROFILE ONLY mode, ready for TARGET PROFILE expansion
 
-const { sendToGemini } = require('./sendToGemini');
-const { sendToOpenAI } = require('./sendToOpenAI');
+const { sendToGemini } = require('./sendToGemini'); // Actually calls OpenAI now
+const { sendToOpenAI } = require('./sendToOpenAI'); // Backup if you have this
 
 function isTransient(errOrRes) {
   const code = errOrRes?.status || errOrRes?.response?.status;
@@ -20,38 +20,94 @@ function isValidProfile(json) {
 }
 
 async function processProfileWithLLM({ html, url, isUserProfile }) {
-  // 1) Gemini (primary)
-  const g = await sendToGemini({
-    html, url, isUserProfile,
-    optimization: { mode: isUserProfile ? 'standard' : 'less_aggressive' }
-  });
-  if (g?.success && isValidProfile(g.data)) {
-    return { success: true, data: g.data, provider: 'gemini', model: g?.usage?.model || 'gemini-1.5-flash', usage: g.usage };
-  }
-  if (!isTransient(g)) {
-    return { success: false, userMessage: g?.userMessage || 'Failed to process profile', status: g?.status || 400 };
-  }
-
-  // 2) OpenAI GPT-5 nano (fallback #1)
-  const n = await sendToOpenAI({ html, url, model: 'gpt-5-nano' });
-  if (n?.success && isValidProfile(n.data)) {
-    return { success: true, data: n.data, provider: 'openai', model: 'gpt-5-nano', usage: n.usage };
-  }
-  if (!isTransient(n)) {
-    // 3) OpenAI GPT-5 mini (fallback #2)
-    const m = await sendToOpenAI({ html, url, model: 'gpt-5-mini' });
-    if (m?.success && isValidProfile(m.data)) {
-      return { success: true, data: m.data, provider: 'openai', model: 'gpt-5-mini', usage: m.usage };
+  console.log('🤖 LLM Orchestrator: Starting OpenAI-only processing...');
+  console.log(`📊 Profile type: ${isUserProfile ? 'USER' : 'TARGET'}`);
+  
+  // 1) OpenAI GPT-5-nano (primary) - using your cleaned sendToGemini function
+  console.log('🚀 Attempting OpenAI GPT-5-nano (primary)...');
+  try {
+    const nano = await sendToGemini({
+      html, 
+      url, 
+      isUserProfile,
+      optimization: { mode: isUserProfile ? 'standard' : 'less_aggressive' }
+    });
+    
+    if (nano?.success && isValidProfile(nano.data)) {
+      console.log('✅ OpenAI GPT-5-nano succeeded!');
+      return { 
+        success: true, 
+        data: nano.data, 
+        provider: 'openai', 
+        model: 'gpt-5-nano', 
+        usage: nano.usage || { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
+      };
     }
-    return { success: false, userMessage: m?.userMessage || 'Failed to process profile', status: m?.status || 400 };
+    
+    if (!isTransient(nano)) {
+      console.log('❌ OpenAI GPT-5-nano failed (non-transient), no fallback available');
+      return { 
+        success: false, 
+        userMessage: nano?.userMessage || 'Failed to process profile with OpenAI', 
+        status: nano?.status || 400 
+      };
+    }
+    
+    console.log('⚠️ OpenAI GPT-5-nano failed (transient), attempting fallback...');
+    
+  } catch (error) {
+    console.error('💥 OpenAI GPT-5-nano error:', error.message);
+    
+    // Check if error is transient
+    if (!isTransient(error)) {
+      return { 
+        success: false, 
+        userMessage: 'Failed to process profile with OpenAI', 
+        status: error.response?.status || 500 
+      };
+    }
   }
 
-  // transient on nano → try mini
-  const m = await sendToOpenAI({ html, url, model: 'gpt-5-mini' });
-  if (m?.success && isValidProfile(m.data)) {
-    return { success: true, data: m.data, provider: 'openai', model: 'gpt-5-mini', usage: m.usage };
+  // 2) Fallback: Try OpenAI with different settings (if you have sendToOpenAI function)
+  console.log('🔄 Attempting OpenAI fallback...');
+  
+  // If you don't have sendToOpenAI, we can try sendToGemini again with different optimization
+  try {
+    const fallback = await sendToGemini({
+      html, 
+      url, 
+      isUserProfile,
+      optimization: { mode: 'less_aggressive' } // Try less aggressive mode as fallback
+    });
+    
+    if (fallback?.success && isValidProfile(fallback.data)) {
+      console.log('✅ OpenAI fallback succeeded!');
+      return { 
+        success: true, 
+        data: fallback.data, 
+        provider: 'openai', 
+        model: 'gpt-5-nano-fallback', 
+        usage: fallback.usage || { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
+      };
+    }
+    
+    console.log('❌ All OpenAI attempts failed');
+    return { 
+      success: false, 
+      userMessage: fallback?.userMessage || 'Failed to process profile after multiple attempts', 
+      status: fallback?.status || 503, 
+      transient: true 
+    };
+    
+  } catch (fallbackError) {
+    console.error('💥 OpenAI fallback error:', fallbackError.message);
+    return { 
+      success: false, 
+      userMessage: 'Failed to process profile after multiple attempts', 
+      status: fallbackError.response?.status || 503, 
+      transient: true 
+    };
   }
-  return { success: false, userMessage: m?.userMessage || 'Failed to process profile', status: m?.status || 503, transient: true };
 }
 
 module.exports = { processProfileWithLLM };
