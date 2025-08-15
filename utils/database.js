@@ -1,5 +1,5 @@
 // ✅ COMPLETE FIXED database.js - Ready for Deployment
-// Fixed parameter count issue + reserved word issue
+// Fixed parameter count issue + reserved word issue + PLANS TABLE ADDED
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -16,6 +16,37 @@ const initDB = async () => {
     try {
         console.log('🗃️ Creating FIXED TARGET + USER PROFILE database tables...');
 
+        // ✅ NEW: PLANS TABLE - Exact pricing from signup page
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS plans (
+                id SERIAL PRIMARY KEY,
+                plan_code VARCHAR(50) UNIQUE NOT NULL,
+                display_name VARCHAR(100) NOT NULL,
+                description TEXT,
+                total_credits INTEGER NOT NULL,
+                price_monthly DECIMAL(10,2) DEFAULT 0,
+                price_yearly DECIMAL(10,2) DEFAULT 0,
+                billing_model VARCHAR(50) NOT NULL,
+                features JSONB DEFAULT '[]'::JSONB,
+                is_active BOOLEAN DEFAULT true,
+                chargebee_plan_id VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // ✅ Insert actual plan data from signup page
+        await pool.query(`
+            INSERT INTO plans (plan_code, display_name, description, total_credits, price_monthly, billing_model, features) VALUES
+            ('free', 'FREE PLAN', '7 free credits forever', 7, 0, 'monthly', '["7 Credits per month", "Chrome extension", "Advanced AI analysis", "No credit card required"]'::JSONB),
+            ('silver-monthly', 'SILVER PLAN', 'Monthly subscription', 30, 13.90, 'monthly', '["30 Credits per month", "Chrome extension", "Advanced AI analysis", "Monthly billing"]'::JSONB),
+            ('silver-payAsYouGo', 'SILVER PLAN', 'One-time purchase', 30, 17, 'payAsYouGo', '["30 Credits one-time", "Chrome extension", "Advanced AI analysis", "Credits never expire"]'::JSONB),
+            ('gold-monthly', 'GOLD PLAN', 'Monthly subscription', 100, 32, 'monthly', '["100 Credits per month", "Chrome extension", "Advanced AI analysis", "Monthly billing"]'::JSONB),
+            ('gold-payAsYouGo', 'GOLD PLAN', 'One-time purchase', 100, 39, 'payAsYouGo', '["100 Credits one-time", "Chrome extension", "Advanced AI analysis", "Credits never expire"]'::JSONB),
+            ('platinum-monthly', 'PLATINUM PLAN', 'Monthly subscription', 250, 63.87, 'monthly', '["250 Credits per month", "Chrome extension", "Advanced AI analysis", "Monthly billing"]'::JSONB),
+            ('platinum-payAsYouGo', 'PLATINUM PLAN', 'One-time purchase', 250, 78, 'payAsYouGo', '["250 Credits one-time", "Chrome extension", "Advanced AI analysis", "Credits never expire"]'::JSONB)
+            ON CONFLICT (plan_code) DO NOTHING;
+        `);
+
         // ✅ USERS TABLE (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
@@ -29,7 +60,7 @@ const initDB = async () => {
                 last_name VARCHAR(100),
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
-                credits_remaining INTEGER DEFAULT 10,
+                credits_remaining INTEGER DEFAULT 7,
                 subscription_status VARCHAR(50) DEFAULT 'active',
                 linkedin_url TEXT,
                 profile_data JSONB,
@@ -321,9 +352,31 @@ const initDB = async () => {
                 transaction_type VARCHAR(50),
                 credits_change INTEGER,
                 description TEXT,
+                metadata JSONB DEFAULT '{}'::JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+
+        // ✅ Add billing fields to users table (ready for Chargebee)
+        try {
+            const billingColumns = [
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMP',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100)',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)'
+            ];
+            
+            for (const columnQuery of billingColumns) {
+                try {
+                    await pool.query(columnQuery);
+                } catch (err) {
+                    console.log(`Column might already exist: ${err.message}`);
+                }
+            }
+        } catch (err) {
+            console.log('Some billing columns might already exist:', err.message);
+        }
 
         // ✅ Add missing columns (safe operation)
         try {
@@ -410,6 +463,10 @@ const initDB = async () => {
         // ✅ Create indexes
         try {
             await pool.query(`
+                -- Plans indexes
+                CREATE INDEX IF NOT EXISTS idx_plans_plan_code ON plans(plan_code);
+                CREATE INDEX IF NOT EXISTS idx_plans_billing_model ON plans(billing_model);
+                
                 -- User profiles indexes
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_linkedin_url ON user_profiles(linkedin_url);
@@ -427,13 +484,15 @@ const initDB = async () => {
                 -- Users indexes
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
+                CREATE INDEX IF NOT EXISTS idx_users_package_type ON users(package_type);
+                CREATE INDEX IF NOT EXISTS idx_users_billing_model ON users(billing_model);
             `);
             console.log('✅ Database indexes created successfully');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ FIXED database tables created successfully!');
+        console.log('✅ FIXED database tables created successfully with PLANS TABLE!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -735,7 +794,7 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
         'platinum': billingModel === 'payAsYouGo' ? 250 : 250
     };
     
-    const credits = creditsMap[packageType] || 10;
+    const credits = creditsMap[packageType] || 7;
     
     const result = await pool.query(
         'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
@@ -752,7 +811,7 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
         'platinum': billingModel === 'payAsYouGo' ? 250 : 250
     };
     
-    const credits = creditsMap[packageType] || 10;
+    const credits = creditsMap[packageType] || 7;
     
     const result = await pool.query(
         `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
@@ -778,6 +837,54 @@ const getUserByEmail = async (email) => {
 const getUserById = async (userId) => {
     const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     return result.rows[0];
+};
+
+// ✅ NEW: Get user plan information (NO MOCK DATA)
+const getUserPlan = async (userId) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                u.credits_remaining,
+                u.package_type,
+                u.billing_model,
+                u.subscription_starts_at,
+                u.subscription_ends_at,
+                u.next_billing_date,
+                p.display_name,
+                p.total_credits,
+                p.price_monthly,
+                p.features
+            FROM users u
+            LEFT JOIN plans p ON (
+                CASE 
+                    WHEN u.package_type = 'free' THEN p.plan_code = 'free'
+                    ELSE p.plan_code = u.package_type || '-' || u.billing_model
+                END
+            )
+            WHERE u.id = $1
+        `, [userId]);
+        
+        if (result.rows.length === 0) {
+            return null;
+        }
+        
+        const user = result.rows[0];
+        return {
+            creditsRemaining: user.credits_remaining,
+            totalCredits: user.total_credits,
+            planName: user.display_name,
+            packageType: user.package_type,
+            billingModel: user.billing_model,
+            renewalDate: user.next_billing_date,
+            subscriptionStartsAt: user.subscription_starts_at,
+            subscriptionEndsAt: user.subscription_ends_at,
+            price: user.price_monthly,
+            features: user.features
+        };
+    } catch (error) {
+        console.error('Error getting user plan:', error);
+        throw error;
+    }
 };
 
 // ✅ USER PROFILE: Create user profile (UNCHANGED)
@@ -1058,6 +1165,7 @@ module.exports = {
     linkGoogleAccount,
     getUserByEmail,
     getUserById,
+    getUserPlan,  // NEW: Get real plan data
     createOrUpdateUserProfile,
     
     // TARGET PROFILE functions
