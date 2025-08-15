@@ -1,6 +1,7 @@
-// What changed in Stage G
-// Enhanced sendToGemini.js - Support optimization.mode + structured transient returns
+// What changed in Stage G + Gemini Fallback
+// Enhanced sendToGemini.js - Support optimization.mode + structured transient returns + Gemini 1.5 Flash fallback on timeouts/429/5xx
 const axios = require('axios');
+const https = require('https');
 
 // ✅ Rate limiting configuration (OpenAI GPT-5-nano)
 const RATE_LIMIT = {
@@ -19,6 +20,50 @@ const OPENAI_LIMITS = {
 
 // ✅ Last request timestamp for rate limiting
 let lastRequestTime = 0;
+
+// ✅ Keep-alive agent for resilient OpenAI calls
+const keepAliveAgent = new https.Agent({ keepAlive: true });
+const TRY_TIMEOUTS_MS = process.env.MSGLY_OPENAI_TIMEOUTS_MS
+  ? process.env.MSGLY_OPENAI_TIMEOUTS_MS.split(',').map(s => parseInt(s.trim(), 10)).filter(Boolean)
+  : [90000, 150000]; // 90s then 150s
+
+// ✅ Resilient OpenAI call with keep-alive + longer timeouts + smart retries
+async function callOpenAIWithResilience(url, body, headers) {
+  let lastErr;
+  for (let attempt = 0; attempt < TRY_TIMEOUTS_MS.length; attempt++) {
+    const timeout = TRY_TIMEOUTS_MS[attempt];
+    const started = Date.now();
+    try {
+      const res = await axios.post(url, body, {
+        headers, 
+        timeout,
+        httpAgent: keepAliveAgent, 
+        httpsAgent: keepAliveAgent,
+        maxBodyLength: Infinity, 
+        maxContentLength: Infinity,
+        validateStatus: s => (s >= 200 && s < 300) || s === 429
+      });
+      console.log('[OpenAI] ok', { ms: Date.now() - started, status: res.status });
+      return res;
+    } catch (err) {
+      const s = err.response?.status;
+      const isTimeout = err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '');
+      console.error('[OpenAI] fail', {
+        attempt: attempt + 1,
+        ms: Date.now() - started,
+        isTimeout, status: s,
+        requestId: err.response?.headers?.['x-request-id']
+      });
+      lastErr = err;
+      if (isTimeout || s === 429 || (s >= 500 && s <= 599)) {
+        await new Promise(r => setTimeout(r, 500 + Math.random()*700));
+        continue;
+      }
+      break; // do not retry on non-429 4xx
+    }
+  }
+  throw lastErr;
+}
 
 // ✅ Rate limiting delay function
 async function enforceRateLimit() {
@@ -173,7 +218,139 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ MAIN function to send data to OpenAI GPT-5-nano with optimization mode support
+// ✅ Send to OpenAI GPT-5-nano (keep EXACT original call structure)
+async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
+  
+  // EXACT original request structure from your working code
+  const response = await callOpenAIWithResilience(
+    'https://api.openai.com/v1/responses',
+    {
+      model: 'gpt-5-nano',
+      text: { format: { type: 'json_object' } },
+      max_output_tokens: 12000,
+      input: [
+        { role: 'system', content: systemPrompt ?? '' },
+        { role: 'user', content: userPrompt ?? '' },
+        { role: 'user', content: preprocessedHtml ?? '' }
+      ]
+    },
+    {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'responses-2024-12-17'
+    }
+  );
+  
+  console.log('📥 OpenAI API response received');
+  console.log(`📊 Response status: ${response.status}`);
+  
+  // EXACT original response parsing
+  const data = response.data;
+  const rawResponse = data.output_text ?? 
+    (Array.isArray(data.output)
+      ? data.output
+          .map(p => Array.isArray(p.content) 
+            ? p.content.map(c => c.text || '').join('')
+            : '')
+          .join('')
+      : '');
+  
+  return rawResponse;
+}
+
+// ✅ Gemini 1.5 Flash fallback (safe for its limits)
+async function sendToGeminiFlashFallback({ systemPrompt, userPrompt, preprocessedHtml }) {
+  // Endpoint & key
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+  // Shorten descriptions to avoid 8k cut; prefer completeness
+  const FALLBACK_RULES =
+    'Return JSON only. Prefer completeness over detail. ' +
+    'If token budget is tight, add short entries (title, company, dateRange) rather than skipping. ' +
+    'Summaries: experience ≤ 400 chars, honors ≤ 250 chars. No skills. Same schema as usual.';
+
+  const contents = [
+    {
+      role: 'user',
+      parts: [
+        { text: String(systemPrompt || '') + '\n' + FALLBACK_RULES },
+        { text: String(userPrompt || '') },            // instructions/schema only
+        { text: String(preprocessedHtml || '') }       // full HTML once
+      ]
+    }
+  ];
+
+  const body = {
+    contents,
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 6000,            // ↓ under ~8k ceiling to avoid truncation
+      responseMimeType: 'application/json'
+      // (optionally you can add responseSchema if you maintain a compact JSON schema)
+    },
+    safetySettings: [] // keep neutral; we need raw JSON
+  };
+
+  const res = await axios.post(url, body, { timeout: 90000 }); // allow enough time
+  const data = res.data;
+
+  // extract text safely
+  let text =
+    data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+
+  // If Gemini truncated (MAX_TOKENS) or JSON.parse fails, request a JSON suffix
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const tail = text.slice(-1200);
+    const contReq = {
+      contents: [
+        ...contents,
+        {
+          role: 'user',
+          parts: [{ text:
+            'Continue the JSON only, from exactly where you stopped. ' +
+            'Return only the missing valid JSON suffix; do not repeat earlier content.\n\n' +
+            'Context (tail):\n' + tail
+          }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 2000,
+        responseMimeType: 'application/json'
+      },
+      safetySettings: []
+    };
+    const contRes = await axios.post(url, contReq, { timeout: 45000 });
+    const contText = contRes.data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    text += contText; // append
+    // return combined text (still a plain JSON string for our callers)
+  }
+
+  return text;
+}
+
+// ✅ Default path + fallback wrapper
+async function analyzeWithNanoThenGemini(payload) {
+  try {
+    const t = await sendToNano(payload);
+    return t;
+  } catch (err) {
+    const s = err.response?.status;
+    const retriable = err.code === 'ECONNABORTED' || s === 429 || (s >= 500 && s <= 599);
+    if (!retriable) throw err;
+    if (process.env.MSGLY_FALLBACK_GEMINI !== 'true') throw err;
+    console.warn('[Fallback] switching to Gemini 1.5 Flash…');
+    return await sendToGeminiFlashFallback(payload);
+  }
+}
+
+// ✅ MAIN function to send data to OpenAI GPT-5-nano with optimization mode support + Gemini fallback
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -182,7 +359,7 @@ async function sendToGemini(inputData) {
             return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
         }
         
-        console.log('🤖 === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION ===');
+        console.log('🤖 === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION + GEMINI FALLBACK ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -191,9 +368,16 @@ async function sendToGemini(inputData) {
         let userPrompt;
         let preprocessedHtml;
         
-        // Extract optimization mode from input
-        const optimizationMode = inputData.optimization?.mode || 'less_aggressive';
-        console.log(`📊 Optimization mode: ${optimizationMode}`);
+        // Extract optimization mode from input - force same aggressive reduction for target profiles
+        let optimizationMode;
+        if (inputData.isUserProfile) {
+            // User profiles: respect their optimization preference
+            optimizationMode = inputData.optimization?.mode || 'less_aggressive';
+        } else {
+            // Target profiles: force same aggressive reduction as user profiles (95% reduction)
+            optimizationMode = 'less_aggressive';
+        }
+        console.log(`📊 Optimization mode: ${optimizationMode} (${inputData.isUserProfile ? 'USER' : 'TARGET'} profile)`);
         
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
@@ -356,7 +540,8 @@ Return as JSON with this EXACT structure:
   }
 }
 
-The HTML content is provided in the next message. Return ONLY valid JSON. No explanations or markdown.`;
+The full HTML is provided separately as input_text in this same request.
+Return ONLY valid JSON. No explanations/markdown.`;
             
         } else if (inputData.data || inputData.results) {
             inputType = 'JSON Data';
@@ -374,11 +559,9 @@ CRITICAL REQUIREMENTS:
 4. Use the exact structure provided
 5. Extract ALL available data thoroughly from every section`;
 
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode}. The source data is provided in the next message.
+            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:
 
-Return as structured JSON with the same format as specified above for HTML processing. Extract ALL available data thoroughly from every section.`;
-
-            preprocessedHtml = JSON.stringify(jsonData, null, 2);  // Send JSON as "HTML" for consistency
+${JSON.stringify(jsonData, null, 2)}`;
             
         } else {
             return { 
@@ -391,83 +574,27 @@ Return as structured JSON with the same format as specified above for HTML proce
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
         console.log(`📏 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
-        console.log(`📏 Content length: ${(preprocessedHtml || '').length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Make request to OpenAI GPT-5-nano using Responses API
-        const openaiResponse = await retryWithBackoff(async () => {
-            console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
-            
-            const response = await axios.post(
-                'https://api.openai.com/v1/responses',
-                {
-                    model: 'gpt-5-nano',
-                    text: { format: { type: 'json_object' } },   // ✅ Correct Responses API format
-                    temperature: 0,
-                    max_output_tokens: 12000,
-                    input: [
-                        { role: 'system', content: [{ type: 'input_text', text: systemPrompt ?? '' }] },
-                        { role: 'user', content: [
-                            { type: 'input_text', text: userPrompt ?? '' },       // schema/instructions only
-                            { type: 'input_text', text: preprocessedHtml ?? '' }  // the full HTML blob (once)
-                        ]}
-                    ]
-                },
-                {
-                    timeout: 60000,
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json',
-                        'OpenAI-Beta': 'responses-2024-12-17'
-                    }
-                }
-            );
-            
-            return response;
+        // Use the new wrapper that tries nano first, then falls back to Gemini
+        const rawResponse = await analyzeWithNanoThenGemini({
+            systemPrompt,
+            userPrompt,
+            preprocessedHtml
         });
-        
-        console.log('📥 OpenAI API response received');
-        console.log(`📊 Response status: ${openaiResponse.status}`);
-        
-        // Parse response using exact specification
-        const data = openaiResponse.data;
-        const rawResponse = data.output_text ?? 
-            (Array.isArray(data.output)
-                ? data.output
-                    .map(p => Array.isArray(p.content) 
-                        ? p.content.map(c => c.text || '').join('')
-                        : '')
-                    .join('')
-                : '');
         
         if (!rawResponse) {
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'Invalid response structure from OpenAI Responses API',
+                userMessage: 'Invalid response structure from API',
                 transient: true 
             };
         }
         
         console.log(`📏 Raw response length: ${rawResponse.length} characters`);
-        
-        // Enhanced token usage extraction from Responses API
-        const usageMetadata = openaiResponse.data.usage;
-        let tokenUsage = null;
-        
-        if (usageMetadata) {
-            console.log(`💰 Usage - Input tokens: ${usageMetadata.input_tokens}, Output tokens: ${usageMetadata.output_tokens}, Total: ${usageMetadata.total_tokens}`);
-            
-            tokenUsage = {
-                input_tokens: usageMetadata.input_tokens || 0,
-                output_tokens: usageMetadata.output_tokens || 0,
-                total_tokens: usageMetadata.total_tokens || 0,
-                model: 'gpt-5-nano',
-                timestamp: new Date().toISOString()
-            };
-        }
         
         // Parse JSON response with robust error handling
         let parsedData;
@@ -479,7 +606,7 @@ Return as structured JSON with the same format as specified above for HTML proce
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'Failed to parse OpenAI Responses API response as JSON',
+                userMessage: 'Failed to parse API response as JSON',
                 transient: true 
             };
         }
@@ -489,7 +616,7 @@ Return as structured JSON with the same format as specified above for HTML proce
         const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
         const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
         
-        console.log('✅ === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION COMPLETED ===');
+        console.log('✅ === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION + GEMINI FALLBACK COMPLETED ===');
         console.log(`📊 Extraction Results:`);
         console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
         console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
@@ -500,7 +627,6 @@ Return as structured JSON with the same format as specified above for HTML proce
         console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
         console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`   - Optimization mode: ${optimizationMode}`);
-        console.log(`   - Token usage: ${usageMetadata?.total_tokens || 'N/A'}`);
         
         return {
             success: true,
@@ -512,52 +638,45 @@ Return as structured JSON with the same format as specified above for HTML proce
                 hasExperience: hasExperience,
                 hasEducation: hasEducation,
                 dataQuality: (hasProfile && hasExperience) ? 'high' : 'medium',
-                tokenUsage: usageMetadata,
                 optimizationMode: optimizationMode
-            },
-            usage: tokenUsage
+            }
         };
         
     } catch (error) {
-        console.error('❌ === OPENAI GPT-5-NANO FAILED ===');
-        const resp = error.response;
-        console.error('OpenAI error', {
-            status: resp?.status,
-            requestId: resp?.headers?.['x-request-id']
-        });
-        if (resp?.data) {
-            console.error('OpenAI error body:', JSON.stringify(resp.data));
-        }
-        
+        console.error('❌ === OPENAI GPT-5-NANO + GEMINI FALLBACK FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
-        console.error(`   - Status: ${resp?.status || 'N/A'}`);
-        console.error(`   - Request ID: ${resp?.headers?.['x-request-id'] || 'N/A'}`);
+        console.error(`   - Status: ${error.response?.status || 'N/A'}`);
+        console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
         
+        // Enhanced error logging - print the response body
+        if (error.response?.data) {
+            console.error('API error body:', JSON.stringify(error.response.data));
+        }
         
-        // Handle specific OpenAI error types with structured transient response
+        // Handle specific API error types with structured transient response
         let userFriendlyMessage = 'Failed to process profile data';
         let isTransient = false;
-        let status = resp?.status || 500;
+        let status = error.response?.status || 500;
         
-        if (resp?.status === 429) {
+        if (error.response?.status === 429) {
             userFriendlyMessage = 'Rate limit exceeded. Please wait a moment and try again.';
             isTransient = true;
-        } else if (resp?.status === 503) {
-            userFriendlyMessage = 'OpenAI is busy. Please try again in a moment.';
+        } else if (error.response?.status === 503) {
+            userFriendlyMessage = 'API is busy. Please try again in a moment.';
             isTransient = true;
-        } else if (resp?.status === 504) {
+        } else if (error.response?.status === 504) {
             userFriendlyMessage = 'Request timeout. Please try again.';
             isTransient = true;
         } else if (error.message.includes('timeout')) {
             userFriendlyMessage = 'Processing timeout. Please try again with a smaller profile.';
             isTransient = true;
             status = 503;
-        } else if (resp?.status === 400) {
+        } else if (error.response?.status === 400) {
             userFriendlyMessage = 'Invalid request format. Please try again.';
             isTransient = false;
-        } else if (resp?.status === 401 || resp?.status === 403) {
+        } else if (error.response?.status === 401 || error.response?.status === 403) {
             userFriendlyMessage = 'API authentication failed. Please check server configuration.';
             isTransient = false;
         }
@@ -572,7 +691,7 @@ Return as structured JSON with the same format as specified above for HTML proce
                 type: error.name,
                 timestamp: new Date().toISOString(),
                 optimizationMode: 'unknown',
-                requestId: resp?.headers?.['x-request-id'] || null
+                requestId: error.response?.headers?.['x-request-id'] || null
             },
             usage: null
         };
