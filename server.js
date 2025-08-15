@@ -1,5 +1,5 @@
-// server.js - USER PROFILE ONLY VERSION - All Target logic removed
-// Msgly.AI Server - Complete with Traffic Light System - USER PROFILE ONLY
+// server.js - Enhanced with TARGET PROFILE + USER PROFILE support
+// Msgly.AI Server - Complete with Traffic Light System - Enhanced TARGET + USER PROFILE
 
 const express = require('express');
 const cors = require('cors');
@@ -70,7 +70,280 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ USER PROFILE HANDLER: Simplified and cleaned for user profiles only
+// ✅ NEW: TARGET PROFILE database functions
+async function createOrUpdateTargetProfile(userId, linkedinUrl, targetData) {
+    try {
+        console.log(`🎯 Creating TARGET PROFILE for user ${userId}`);
+        console.log(`🔗 Target URL: ${linkedinUrl}`);
+        
+        const existingProfile = await pool.query(
+            'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
+            [userId, linkedinUrl]
+        );
+        
+        let profile;
+        if (existingProfile.rows.length > 0) {
+            const result = await pool.query(`
+                UPDATE target_profiles SET 
+                    full_name = $1,
+                    headline = $2,
+                    about = $3,
+                    location = $4,
+                    current_company = $5,
+                    connections_count = $6,
+                    followers_count = $7,
+                    experience = $8,
+                    education = $9,
+                    skills = $10,
+                    certifications = $11,
+                    awards = $12,
+                    volunteer_experience = $13,
+                    activity = $14,
+                    engagement_data = $15,
+                    gemini_raw_data = $16,
+                    gemini_processed_at = NOW(),
+                    data_extraction_status = 'completed',
+                    profile_analyzed = true,
+                    extraction_completed_at = NOW(),
+                    updated_at = NOW()
+                WHERE user_id = $17 AND linkedin_url = $18
+                RETURNING *
+            `, [
+                targetData.fullName,
+                targetData.headline,
+                targetData.about,
+                targetData.location,
+                targetData.currentCompany,
+                targetData.connectionsCount,
+                targetData.followersCount,
+                JSON.stringify(targetData.experience),
+                JSON.stringify(targetData.education),
+                JSON.stringify(targetData.skills),
+                JSON.stringify(targetData.certifications),
+                JSON.stringify(targetData.awards),
+                JSON.stringify(targetData.volunteerExperience),
+                JSON.stringify(targetData.activity),
+                JSON.stringify(targetData.engagementData),
+                JSON.stringify(targetData.geminiRawData),
+                userId,
+                linkedinUrl
+            ]);
+            profile = result.rows[0];
+        } else {
+            const result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id, linkedin_url, full_name, headline, about, location,
+                    current_company, connections_count, followers_count, experience,
+                    education, skills, certifications, awards, volunteer_experience,
+                    activity, engagement_data, gemini_raw_data, gemini_processed_at,
+                    data_extraction_status, profile_analyzed, extraction_completed_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), 'completed', true, NOW()
+                ) RETURNING *
+            `, [
+                userId,
+                linkedinUrl,
+                targetData.fullName,
+                targetData.headline,
+                targetData.about,
+                targetData.location,
+                targetData.currentCompany,
+                targetData.connectionsCount,
+                targetData.followersCount,
+                JSON.stringify(targetData.experience),
+                JSON.stringify(targetData.education),
+                JSON.stringify(targetData.skills),
+                JSON.stringify(targetData.certifications),
+                JSON.stringify(targetData.awards),
+                JSON.stringify(targetData.volunteerExperience),
+                JSON.stringify(targetData.activity),
+                JSON.stringify(targetData.engagementData),
+                JSON.stringify(targetData.geminiRawData)
+            ]);
+            profile = result.rows[0];
+        }
+        
+        console.log(`✅ TARGET PROFILE saved successfully for user ${userId}`);
+        return profile;
+        
+    } catch (error) {
+        console.error('❌ Error in TARGET PROFILE creation:', error);
+        throw error;
+    }
+}
+
+// ✅ NEW: Process Gemini data for TARGET PROFILE
+const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
+    try {
+        console.log('📊 Processing Gemini extracted data for TARGET PROFILE...');
+        
+        // ✅ CRITICAL FIX: Extract data from the correct structure
+        const aiData = geminiResponse.data; // This is where the actual profile data is
+        const profile = aiData.profile || {};
+        const engagement = aiData.engagement || {};
+        
+        console.log('🔍 TARGET AI Data Structure Check:');
+        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
+        console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
+        console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
+        console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
+        
+        const processedData = {
+            // ✅ FIXED: Map from correct Gemini response structure
+            linkedinUrl: cleanProfileUrl,
+            url: cleanProfileUrl,
+            
+            // Basic Info - Map from profile object
+            fullName: profile.name || '',
+            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
+            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
+            headline: profile.headline || '',
+            currentRole: profile.currentRole || '',
+            about: profile.about || '',
+            location: profile.location || '',
+            
+            // Company Info
+            currentCompany: profile.currentCompany || '',
+            currentCompanyName: profile.currentCompany || '',
+            
+            // Metrics - Parse numbers correctly
+            connectionsCount: parseLinkedInNumber(profile.connectionsCount),
+            followersCount: parseLinkedInNumber(profile.followersCount),
+            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
+            
+            // ✅ ENHANCED: New engagement fields
+            totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
+            totalComments: parseLinkedInNumber(engagement.totalComments) || 0,
+            totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
+            averageLikes: parseFloat(engagement.averageLikes) || 0,
+            
+            // Complex data arrays - Map from correct AI response
+            experience: ensureValidJSONArray(aiData.experience || []),
+            education: ensureValidJSONArray(aiData.education || []),
+            skills: ensureValidJSONArray(aiData.skills || []),
+            certifications: ensureValidJSONArray(aiData.certifications || []),
+            awards: ensureValidJSONArray(aiData.awards || []),
+            activity: ensureValidJSONArray(aiData.activity || []),
+            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
+            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
+            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
+            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
+            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
+            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
+            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
+            groups: ensureValidJSONArray(aiData.groups || []),
+            featured: ensureValidJSONArray(aiData.featured || []),
+            services: ensureValidJSONArray(aiData.services || []),
+            engagementData: sanitizeForJSON(engagement),
+            creatorInfo: sanitizeForJSON(aiData.creator || {}),
+            businessInfo: sanitizeForJSON(aiData.business || {}),
+            
+            // ✅ NEW: Raw Gemini data storage for GPT 4.1
+            geminiRawData: sanitizeForJSON(geminiResponse),
+            geminiProcessedAt: new Date(),
+            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
+            
+            // Metadata
+            timestamp: new Date(),
+            dataSource: 'html_scraping_gemini_target',
+            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
+        };
+        
+        console.log('✅ TARGET PROFILE Gemini data processed successfully');
+        console.log(`📊 Processed TARGET data summary:`);
+        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
+        console.log(`   - Current Role: ${processedData.currentRole || 'Not available'}`);
+        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
+        console.log(`   - Experience entries: ${processedData.experience.length}`);
+        console.log(`   - Education entries: ${processedData.education.length}`);
+        console.log(`   - Certifications: ${processedData.certifications.length}`);
+        console.log(`   - Awards: ${processedData.awards.length}`);
+        console.log(`   - Activity posts: ${processedData.activity.length}`);
+        console.log(`   - Has Experience: ${processedData.hasExperience}`);
+        
+        return processedData;
+        
+    } catch (error) {
+        console.error('❌ Error processing TARGET PROFILE Gemini data:', error);
+        throw new Error(`TARGET PROFILE Gemini data processing failed: ${error.message}`);
+    }
+};
+
+// ✅ NEW: TARGET PROFILE handler function
+async function handleTargetProfile(req, res) {
+    try {
+        console.log('🎯 === TARGET PROFILE PROCESSING ===');
+        console.log(`👤 User ID: ${req.user.id}`);
+        console.log(`🔗 URL: ${req.body.profileUrl}`);
+        
+        const { html, profileUrl } = req.body;
+        const userId = req.user.id;
+        
+        if (!html || !profileUrl) {
+            return res.status(400).json({
+                success: false,
+                error: 'HTML content and profileUrl are required for target profile processing'
+            });
+        }
+        
+        // Clean and validate LinkedIn URL
+        const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
+        
+        console.log('🤖 Processing HTML with Gemini for TARGET profile...');
+        
+        // Process HTML with Gemini
+        const geminiResult = await sendToGemini({
+            html: html,
+            url: cleanProfileUrl,
+            isUserProfile: false  // ✅ FALSE for target profiles
+        });
+        
+        if (!geminiResult.success) {
+            console.error('❌ Gemini processing failed for TARGET profile:', geminiResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process target profile data with Gemini',
+                details: geminiResult.error || 'Unknown error'
+            });
+        }
+        
+        console.log('✅ Gemini processing successful for TARGET profile');
+        
+        // Process Gemini data for TARGET profile
+        const processedProfile = processTargetGeminiData(geminiResult, cleanProfileUrl);
+        
+        // Save to target_profiles table
+        const savedProfile = await createOrUpdateTargetProfile(userId, cleanProfileUrl, processedProfile);
+        
+        console.log('✅ TARGET profile saved to target_profiles table successfully');
+        
+        res.json({
+            success: true,
+            message: 'Target profile analyzed and saved successfully',
+            data: {
+                fullName: processedProfile.fullName,
+                headline: processedProfile.headline,
+                currentRole: processedProfile.currentRole,
+                currentCompany: processedProfile.currentCompany,
+                experienceCount: processedProfile.experience?.length || 0,
+                educationCount: processedProfile.education?.length || 0,
+                hasExperience: processedProfile.hasExperience,
+                profileId: savedProfile.id
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ TARGET profile processing error:', error);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Target profile processing failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+}
+
+// ✅ USER PROFILE HANDLER: Simplified and cleaned for user profiles only (UNCHANGED)
 async function handleUserProfile(req, res) {
     try {
         console.log('🔵 === USER PROFILE PROCESSING ===');
@@ -393,7 +666,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('🔐 Verifying Google token...');
+        console.log('🔍 Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -479,22 +752,43 @@ app.post('/auth/chrome-extension', async (req, res) => {
     }
 });
 
-// ==================== USER PROFILE ONLY /scrape-html ROUTE ====================
+// ==================== ENHANCED PROFILE PROCESSING ROUTES ====================
 
-// ✅ USER PROFILE ONLY: Lock /scrape-html to User handler only
+// ✅ Enhanced /scrape-html route with intelligent routing
 app.post('/scrape-html', authenticateToken, (req, res) => {
     // ✅ REQUIRED LOGGING: Route entry
     console.log('🔍 route=/scrape-html');
     console.log(`🔍 isUserProfile=${req.body.isUserProfile}`);
     
-    // ✅ USER PROFILE ONLY: Always route to User handler
-    console.log('🔍 selectedHandler=USER (USER PROFILE ONLY MODE)');
-    console.log('🔵 USER handler start');
+    // ✅ Enhanced: Route based on isUserProfile parameter
+    if (req.body.isUserProfile === true) {
+        console.log('🔍 selectedHandler=USER');
+        console.log('🔵 USER handler start');
+        console.log(`🔍 userId=${req.user.id}`);
+        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        
+        return handleUserProfile(req, res);
+    } else {
+        console.log('🔍 selectedHandler=TARGET');
+        console.log('🎯 TARGET handler start');
+        console.log(`🔍 userId=${req.user.id}`);
+        console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        
+        return handleTargetProfile(req, res);
+    }
+});
+
+// ✅ NEW: Dedicated TARGET PROFILE endpoint
+app.post('/target-profile/analyze', authenticateToken, (req, res) => {
+    console.log('🎯 route=/target-profile/analyze');
+    console.log('🎯 TARGET PROFILE ANALYSIS handler start');
     console.log(`🔍 userId=${req.user.id}`);
     console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
     
-    // Always route to User handler since we're in USER PROFILE ONLY mode
-    return handleUserProfile(req, res);
+    // Force isUserProfile to false for target profiles
+    req.body.isUserProfile = false;
+    
+    return handleTargetProfile(req, res);
 });
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
@@ -529,7 +823,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`🔐 OAuth callback - User: ${req.user.email}`);
+            console.log(`🔍 OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -555,7 +849,7 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY
+// 🚦 TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY (UNCHANGED)
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
         console.log(`🚦 Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -599,7 +893,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! USER PROFILE ONLY mode active.';
+            statusMessage = 'Profile fully synced and ready! Enhanced TARGET + USER PROFILE mode active.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -643,7 +937,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'USER_PROFILE_ONLY'
+                    mode: 'ENHANCED_TARGET_USER_PROFILE'
                 }
             }
         });
@@ -657,7 +951,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Get User Profile - USER PROFILE ONLY
+// 🔧 FIXED: Get User Profile - USER PROFILE ONLY (UNCHANGED)
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
         console.log(`🔍 Profile request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -716,7 +1010,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - USER PROFILE ONLY mode'
+                    'Profile complete and ready - Enhanced TARGET + USER PROFILE mode'
             };
         }
 
@@ -800,7 +1094,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     profileAnalyzed: profile.profile_analyzed
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'USER_PROFILE_ONLY'
+                mode: 'ENHANCED_TARGET_USER_PROFILE'
             }
         });
     } catch (error) {
@@ -812,7 +1106,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// 🔧 FIXED: Check profile extraction status - USER PROFILE ONLY
+// 🔧 FIXED: Check profile extraction status - USER PROFILE ONLY (UNCHANGED)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
         console.log(`🔍 Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -852,7 +1146,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'USER_PROFILE_ONLY',
+            processing_mode: 'ENHANCED_TARGET_USER_PROFILE',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -876,7 +1170,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Enhanced Chrome extension', 'USER PROFILE ONLY mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Enhanced Chrome extension', 'Enhanced TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             }
         ],
@@ -889,7 +1183,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '10 free profiles forever',
-                features: ['10 Credits per month', 'Enhanced Chrome extension', 'USER PROFILE ONLY mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                features: ['10 Credits per month', 'Enhanced Chrome extension', 'Enhanced TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             }
         ]
@@ -918,7 +1212,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'USER PROFILE ONLY mode - Target profile routes disabled',
+        message: 'Enhanced TARGET + USER PROFILE mode active',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -935,7 +1229,8 @@ app.use((req, res, next) => {
             'GET /profile',
             'GET /profile-status',
             'GET /traffic-light-status',
-            'POST /scrape-html (USER PROFILE ONLY)',
+            'POST /scrape-html (Enhanced routing: USER + TARGET)',
+            'POST /target-profile/analyze (NEW: Dedicated TARGET endpoint)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -958,22 +1253,27 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Msgly.AI Server - USER PROFILE ONLY MODE!');
+            console.log('🚀 Enhanced Msgly.AI Server - TARGET + USER PROFILE MODE!');
             console.log(`🔍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL`);
             console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ USER PROFILE ONLY MODE:`);
-            console.log(`   🔵 ALL Target Profile logic DISABLED`);
-            console.log(`   🔵 /scrape-html routes ONLY to User handler`);
-            console.log(`   🔵 Extension UI simplified for User profiles only`);
-            console.log(`   🔵 Database saves ONLY to user_profiles table`);
-            console.log(`   🔵 Traffic Light system tracks User profile completion only`);
+            console.log(`✅ ENHANCED TARGET + USER PROFILE MODE:`);
+            console.log(`   🔵 USER PROFILE: Automatic analysis on own LinkedIn profile`);
+            console.log(`   🎯 TARGET PROFILE: Manual analysis via "Analyze" button click`);
+            console.log(`   🔄 /scrape-html: Intelligent routing based on isUserProfile parameter`);
+            console.log(`   🎯 /target-profile/analyze: Dedicated TARGET PROFILE endpoint`);
+            console.log(`   🗃️ Database: user_profiles table for USER, target_profiles table for TARGET`);
+            console.log(`   🚦 Traffic Light system tracks User profile completion only`);
             console.log(`✅ "SEE MORE" EXPANSION:`);
             console.log(`   📋 Experience section: max 2 clicks with DOM change detection`);
             console.log(`   🏆 Honors & Awards section: max 2 clicks with DOM change detection`);
             console.log(`   ⏱️ Randomized delays and proper waiting for content load`);
-            console.log(`✅ READY FOR USER PROFILE TESTING ONLY!`);
+            console.log(`✅ COMPLETE SEPARATION:`);
+            console.log(`   🔵 USER: /scrape-html → user_profiles table`);
+            console.log(`   🎯 TARGET: /target-profile/analyze → target_profiles table`);
+            console.log(`   🔀 Same AI processing, different database destinations`);
+            console.log(`✅ READY FOR ENHANCED TESTING - USER + TARGET PROFILES!`);
         });
         
     } catch (error) {
