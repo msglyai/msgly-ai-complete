@@ -1,5 +1,4 @@
-// What changed in Stage G + Gemini Fallback
-// Enhanced sendToGemini.js - Support optimization.mode + structured transient returns + Gemini 1.5 Flash fallback on timeouts/429/5xx
+// Enhanced sendToGemini.js - OpenAI GPT-5-nano ONLY - No Gemini Fallback
 const axios = require('axios');
 const https = require('https');
 
@@ -261,96 +260,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   return rawResponse;
 }
 
-// ✅ Gemini 1.5 Flash fallback (safe for its limits)
-async function sendToGeminiFlashFallback({ systemPrompt, userPrompt, preprocessedHtml }) {
-  // Endpoint & key
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-  // Shorten descriptions to avoid 8k cut; prefer completeness
-  const FALLBACK_RULES =
-    'Return JSON only. Prefer completeness over detail. ' +
-    'If token budget is tight, add short entries (title, company, dateRange) rather than skipping. ' +
-    'Summaries: experience ≤ 400 chars, honors ≤ 250 chars. No skills. Same schema as usual.';
-
-  const contents = [
-    {
-      role: 'user',
-      parts: [
-        { text: String(systemPrompt || '') + '\n' + FALLBACK_RULES },
-        { text: String(userPrompt || '') },            // instructions/schema only
-        { text: String(preprocessedHtml || '') }       // full HTML once
-      ]
-    }
-  ];
-
-  const body = {
-    contents,
-    generationConfig: {
-      temperature: 0,
-      maxOutputTokens: 6000,            // ↓ under ~8k ceiling to avoid truncation
-      responseMimeType: 'application/json'
-      // (optionally you can add responseSchema if you maintain a compact JSON schema)
-    },
-    safetySettings: [] // keep neutral; we need raw JSON
-  };
-
-  const res = await axios.post(url, body, { timeout: 90000 }); // allow enough time
-  const data = res.data;
-
-  // extract text safely
-  let text =
-    data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-
-  // If Gemini truncated (MAX_TOKENS) or JSON.parse fails, request a JSON suffix
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    const tail = text.slice(-1200);
-    const contReq = {
-      contents: [
-        ...contents,
-        {
-          role: 'user',
-          parts: [{ text:
-            'Continue the JSON only, from exactly where you stopped. ' +
-            'Return only the missing valid JSON suffix; do not repeat earlier content.\n\n' +
-            'Context (tail):\n' + tail
-          }]
-        }
-      ],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 2000,
-        responseMimeType: 'application/json'
-      },
-      safetySettings: []
-    };
-    const contRes = await axios.post(url, contReq, { timeout: 45000 });
-    const contText = contRes.data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-    text += contText; // append
-    // return combined text (still a plain JSON string for our callers)
-  }
-
-  return text;
-}
-
-// ✅ Default path + fallback wrapper
-async function analyzeWithNanoThenGemini(payload) {
-  try {
-    const t = await sendToNano(payload);
-    return t;
-  } catch (err) {
-    const s = err.response?.status;
-    const retriable = err.code === 'ECONNABORTED' || s === 429 || (s >= 500 && s <= 599);
-    if (!retriable) throw err;
-    if (process.env.MSGLY_FALLBACK_GEMINI !== 'true') throw err;
-    console.warn('[Fallback] switching to Gemini 1.5 Flash…');
-    return await sendToGeminiFlashFallback(payload);
-  }
-}
-
-// ✅ MAIN function to send data to OpenAI GPT-5-nano with optimization mode support + Gemini fallback
+// ✅ MAIN function to send data to OpenAI GPT-5-nano with optimization mode support
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -359,7 +269,7 @@ async function sendToGemini(inputData) {
             return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
         }
         
-        console.log('🤖 === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION + GEMINI FALLBACK ===');
+        console.log('🤖 === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -578,8 +488,8 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Use the new wrapper that tries nano first, then falls back to Gemini
-        const rawResponse = await analyzeWithNanoThenGemini({
+        // Send directly to OpenAI GPT-5-nano (no fallback)
+        const rawResponse = await sendToNano({
             systemPrompt,
             userPrompt,
             preprocessedHtml
@@ -616,7 +526,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
         const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
         
-        console.log('✅ === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION + GEMINI FALLBACK COMPLETED ===');
+        console.log('✅ === OPENAI GPT-5-NANO WITH STAGE G OPTIMIZATION COMPLETED ===');
         console.log(`📊 Extraction Results:`);
         console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
         console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
@@ -643,7 +553,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         };
         
     } catch (error) {
-        console.error('❌ === OPENAI GPT-5-NANO + GEMINI FALLBACK FAILED ===');
+        console.error('❌ === OPENAI GPT-5-NANO FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
