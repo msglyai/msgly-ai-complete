@@ -1,5 +1,5 @@
-// Msgly.AI Database Utilities - STEP 2A EXTRACTION - COMPLETE WITH ALL LINKEDIN FIELDS
-// All database functions, helpers, and utilities extracted from server.js
+// database.js - USER PROFILE ONLY VERSION - All Target profile database logic removed
+// Database Utilities - USER PROFILE ONLY - Extracted from server.js
 
 // ==================== DATABASE CONNECTION & SETUP ====================
 
@@ -16,7 +16,7 @@ const pool = new Pool({
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating enhanced database tables...');
+        console.log('🗃️ Creating USER PROFILE ONLY database tables...');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
@@ -42,7 +42,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ FIXED: Escape PostgreSQL reserved word "current_role" with double quotes
+        // ✅ USER PROFILE ONLY: Only create user_profiles table, no target_profiles
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -162,116 +162,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ FIXED: Escape PostgreSQL reserved word "current_role" in target_profiles too
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS target_profiles (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                
-                -- Basic Profile Information
-                linkedin_url TEXT NOT NULL,
-                linkedin_id TEXT,
-                linkedin_num_id BIGINT,
-                input_url TEXT,
-                url TEXT,
-                full_name TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                headline TEXT,
-                "current_role" TEXT,  -- ✅ FIXED: Escaped PostgreSQL reserved word
-                about TEXT,
-                summary TEXT,
-                
-                -- Location Information
-                location TEXT,
-                city TEXT,
-                state TEXT,
-                country TEXT,
-                country_code TEXT,
-                
-                -- Professional Information
-                industry TEXT,
-                current_company TEXT,
-                current_company_name TEXT,
-                current_company_id TEXT,
-                current_company_company_id TEXT,
-                current_position TEXT,
-                
-                -- ✅ ENHANCED: Metrics with new engagement fields
-                connections_count INTEGER,
-                followers_count INTEGER,
-                mutual_connections_count INTEGER DEFAULT 0,
-                connections INTEGER,
-                followers INTEGER,
-                recommendations_count INTEGER,
-                total_likes INTEGER DEFAULT 0,
-                total_comments INTEGER DEFAULT 0,
-                total_shares INTEGER DEFAULT 0,
-                average_likes DECIMAL(10,2) DEFAULT 0,
-                
-                -- Media
-                profile_picture TEXT,
-                profile_image_url VARCHAR(500),
-                avatar TEXT,
-                banner_image TEXT,
-                background_image_url VARCHAR(500),
-                
-                -- Identifiers
-                public_identifier VARCHAR(255),
-                
-                -- Complex Data Arrays (ALL JSONB) - ENHANCED
-                experience JSONB DEFAULT '[]'::JSONB,
-                education JSONB DEFAULT '[]'::JSONB,
-                educations_details JSONB DEFAULT '[]'::JSONB,
-                skills JSONB DEFAULT '[]'::JSONB,
-                skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
-                languages JSONB DEFAULT '[]'::JSONB,
-                certifications JSONB DEFAULT '[]'::JSONB,
-                courses JSONB DEFAULT '[]'::JSONB,
-                projects JSONB DEFAULT '[]'::JSONB,
-                publications JSONB DEFAULT '[]'::JSONB,
-                patents JSONB DEFAULT '[]'::JSONB,
-                volunteer_experience JSONB DEFAULT '[]'::JSONB,
-                volunteering JSONB DEFAULT '[]'::JSONB,
-                honors_and_awards JSONB DEFAULT '[]'::JSONB,
-                awards JSONB DEFAULT '[]'::JSONB,
-                organizations JSONB DEFAULT '[]'::JSONB,
-                recommendations JSONB DEFAULT '[]'::JSONB,
-                recommendations_given JSONB DEFAULT '[]'::JSONB,
-                recommendations_received JSONB DEFAULT '[]'::JSONB,
-                posts JSONB DEFAULT '[]'::JSONB,
-                activity JSONB DEFAULT '[]'::JSONB,
-                articles JSONB DEFAULT '[]'::JSONB,
-                people_also_viewed JSONB DEFAULT '[]'::JSONB,
-                engagement_data JSONB DEFAULT '{}'::JSONB,
-                
-                -- ✅ NEW: Additional fields for complete LinkedIn data
-                following_companies JSONB DEFAULT '[]'::JSONB,
-                following_people JSONB DEFAULT '[]'::JSONB,
-                following_hashtags JSONB DEFAULT '[]'::JSONB,
-                following_newsletters JSONB DEFAULT '[]'::JSONB,
-                interests_industries JSONB DEFAULT '[]'::JSONB,
-                interests_topics JSONB DEFAULT '[]'::JSONB,
-                groups JSONB DEFAULT '[]'::JSONB,
-                featured JSONB DEFAULT '[]'::JSONB,
-                creator_info JSONB DEFAULT '{}'::JSONB,
-                services JSONB DEFAULT '[]'::JSONB,
-                business_info JSONB DEFAULT '{}'::JSONB,
-                
-                -- ✅ NEW: RAW GEMINI DATA STORAGE FOR GPT 4.1
-                gemini_raw_data JSONB,
-                gemini_processed_at TIMESTAMP,
-                gemini_token_usage JSONB DEFAULT '{}'::JSONB,
-                
-                -- Metadata
-                timestamp TIMESTAMP DEFAULT NOW(),
-                data_source VARCHAR(100) DEFAULT 'chrome_extension',
-                scraped_at TIMESTAMP DEFAULT NOW(),
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
-
+        // ✅ USER PROFILE ONLY: Keep message_logs and credits_transactions for user functionality
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -296,7 +187,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ FIXED: Add missing columns one by one to avoid PostgreSQL syntax errors - WITH ESCAPED current_role
+        // ✅ USER PROFILE ONLY: Add missing columns to existing tables
         try {
             // Fix users table columns
             const userColumns = [
@@ -316,7 +207,6 @@ const initDB = async () => {
                 try {
                     await pool.query(columnQuery);
                 } catch (err) {
-                    // Column might already exist, continue
                     console.log(`Column might already exist: ${err.message}`);
                 }
             }
@@ -325,7 +215,7 @@ const initDB = async () => {
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
 
-            // ✅ FIXED: Add enhanced fields to user_profiles one by one - WITH ESCAPED current_role
+            // ✅ USER PROFILE ONLY: Add enhanced fields to user_profiles table
             const userProfileColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',  // ✅ FIXED: Escaped
@@ -356,52 +246,16 @@ const initDB = async () => {
                 try {
                     await pool.query(columnQuery);
                 } catch (err) {
-                    // Column might already exist, continue
-                    console.log(`Column might already exist: ${err.message}`);
-                }
-            }
-
-            // ✅ FIXED: Add enhanced fields to target_profiles one by one - WITH ESCAPED current_role
-            const targetProfileColumns = [
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',  // ✅ FIXED: Escaped
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_comments INTEGER DEFAULT 0',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_companies JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_people JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_hashtags JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS following_newsletters JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS interests_industries JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS interests_topics JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS groups JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS featured JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS creator_info JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS services JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB'
-            ];
-
-            for (const columnQuery of targetProfileColumns) {
-                try {
-                    await pool.query(columnQuery);
-                } catch (err) {
-                    // Column might already exist, continue
                     console.log(`Column might already exist: ${err.message}`);
                 }
             }
             
-            console.log('✅ Enhanced database columns updated successfully');
+            console.log('✅ USER PROFILE ONLY database columns updated successfully');
         } catch (err) {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes
+        // Create indexes for USER PROFILE ONLY
         try {
             await pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
@@ -414,20 +268,15 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_retry_count ON user_profiles(extraction_retry_count);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_updated_at ON user_profiles(updated_at);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_current_company ON user_profiles(current_company);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url ON target_profiles(linkedin_url);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_scraped_at ON target_profiles(scraped_at);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_gemini_processed ON user_profiles(gemini_processed_at);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_mutual_connections ON user_profiles(mutual_connections_count);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_gemini_processed ON target_profiles(gemini_processed_at);
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_mutual_connections ON target_profiles(mutual_connections_count);
             `);
-            console.log('✅ Created enhanced database indexes');
+            console.log('✅ Created USER PROFILE ONLY database indexes');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ Enhanced database tables created successfully - PostgreSQL reserved word fixed!');
+        console.log('✅ USER PROFILE ONLY database tables created successfully!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -535,10 +384,10 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ FIXED: Process Gemini data correctly (RENAMED from processOpenAIData)
+// ✅ USER PROFILE ONLY: Process Gemini data correctly
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
-        console.log('📊 Processing Gemini extracted data...');
+        console.log('📊 Processing Gemini extracted data for USER PROFILE...');
         
         // ✅ CRITICAL FIX: Extract data from the correct structure
         const aiData = geminiResponse.data; // This is where the actual profile data is
@@ -612,7 +461,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
         };
         
-        console.log('✅ Gemini data processed successfully');
+        console.log('✅ USER PROFILE Gemini data processed successfully');
         console.log(`📊 Processed data summary:`);
         console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
         console.log(`   - Current Role: ${processedData.currentRole || 'Not available'}`);
@@ -622,95 +471,13 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
         console.log(`   - Certifications: ${processedData.certifications.length}`);
         console.log(`   - Awards: ${processedData.awards.length}`);
         console.log(`   - Activity posts: ${processedData.activity.length}`);
-        console.log(`   - Volunteer experiences: ${processedData.volunteerExperience.length}`);
-        console.log(`   - Following companies: ${processedData.followingCompanies.length}`);
-        console.log(`   - Following people: ${processedData.followingPeople.length}`);
-        console.log(`   - Raw Gemini data stored: ${!!processedData.geminiRawData}`);
         console.log(`   - Has Experience: ${processedData.hasExperience}`);
         
         return processedData;
         
     } catch (error) {
-        console.error('❌ Error processing Gemini data:', error);
-        throw new Error(`Gemini data processing failed: ${error.message}`);
-    }
-};
-
-// ✅ Legacy process scraped data function - kept for backwards compatibility
-const processScrapedProfileData = (scrapedData, isUserProfile = false) => {
-    try {
-        console.log('📊 Processing scraped profile data from extension...');
-        
-        const processedData = {
-            linkedinUrl: scrapedData.url || scrapedData.linkedinUrl || '',
-            linkedinId: scrapedData.linkedin_id || scrapedData.linkedinId || null,
-            linkedinNumId: scrapedData.linkedin_num_id || scrapedData.linkedinNumId || null,
-            inputUrl: scrapedData.input_url || scrapedData.inputUrl || scrapedData.url || '',
-            url: scrapedData.url || scrapedData.linkedinUrl || '',
-            
-            fullName: scrapedData.fullName || scrapedData.name || '',
-            firstName: scrapedData.firstName || scrapedData.first_name || 
-                      (scrapedData.fullName ? scrapedData.fullName.split(' ')[0] : ''),
-            lastName: scrapedData.lastName || scrapedData.last_name || 
-                     (scrapedData.fullName ? scrapedData.fullName.split(' ').slice(1).join(' ') : ''),
-            headline: scrapedData.headline || '',
-            currentRole: scrapedData.currentRole || scrapedData.headline || '',
-            about: scrapedData.about || scrapedData.summary || '',
-            summary: scrapedData.summary || scrapedData.about || '',
-            
-            location: scrapedData.location || '',
-            city: scrapedData.city || '',
-            state: scrapedData.state || '',
-            country: scrapedData.country || '',
-            countryCode: scrapedData.countryCode || '',
-            
-            industry: scrapedData.industry || '',
-            currentCompany: scrapedData.currentCompany || scrapedData.company || '',
-            currentCompanyName: scrapedData.currentCompanyName || scrapedData.company || '',
-            currentPosition: scrapedData.currentPosition || scrapedData.headline || '',
-            
-            connectionsCount: parseLinkedInNumber(scrapedData.connectionsCount || scrapedData.connections),
-            followersCount: parseLinkedInNumber(scrapedData.followersCount || scrapedData.followers),
-            connections: parseLinkedInNumber(scrapedData.connections || scrapedData.connectionsCount),
-            followers: parseLinkedInNumber(scrapedData.followers || scrapedData.followersCount),
-            mutualConnectionsCount: parseLinkedInNumber(scrapedData.mutualConnections) || 0,
-            
-            totalLikes: parseLinkedInNumber(scrapedData.totalLikes) || 0,
-            totalComments: parseLinkedInNumber(scrapedData.totalComments) || 0,
-            totalShares: parseLinkedInNumber(scrapedData.totalShares) || 0,
-            averageLikes: parseFloat(scrapedData.averageLikes) || 0,
-            
-            profileImageUrl: scrapedData.profileImageUrl || scrapedData.avatar || '',
-            avatar: scrapedData.avatar || scrapedData.profileImageUrl || '',
-            
-            experience: ensureValidJSONArray(scrapedData.experience || []),
-            education: ensureValidJSONArray(scrapedData.education || []),
-            skills: ensureValidJSONArray(scrapedData.skills || []),
-            certifications: ensureValidJSONArray(scrapedData.certifications || []),
-            awards: ensureValidJSONArray(scrapedData.awards || []),
-            activity: ensureValidJSONArray(scrapedData.activity || []),
-            volunteerExperience: ensureValidJSONArray(scrapedData.volunteerExperience || []),
-            followingCompanies: ensureValidJSONArray(scrapedData.followingCompanies || []),
-            followingPeople: ensureValidJSONArray(scrapedData.followingPeople || []),
-            
-            timestamp: new Date(),
-            dataSource: 'chrome_extension',
-            extractedAt: scrapedData.extractedAt || new Date().toISOString(),
-            extractedFrom: scrapedData.extractedFrom || 'chrome_extension'
-        };
-        
-        console.log('✅ Scraped data processed successfully');
-        console.log(`📊 Data summary:`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Headline: ${processedData.headline || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - Is User Profile: ${isUserProfile}`);
-        
-        return processedData;
-        
-    } catch (error) {
-        console.error('❌ Error processing scraped data:', error);
-        throw new Error(`Scraped data processing failed: ${error.message}`);
+        console.error('❌ Error processing USER PROFILE Gemini data:', error);
+        throw new Error(`USER PROFILE Gemini data processing failed: ${error.message}`);
     }
 };
 
@@ -769,11 +536,10 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ SIMPLIFIED: Create user profile - No background extraction
+// ✅ USER PROFILE ONLY: Create user profile - No background extraction
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
-        // ✅ CRITICAL: Use cleanLinkedInUrl from main server
-        console.log(`🚀 Creating profile for user ${userId}`);
+        console.log(`🚀 Creating USER PROFILE for user ${userId}`);
         console.log(`🔧 Original URL: ${linkedinUrl}`);
         
         // ✅ Save URL to users table
@@ -802,11 +568,11 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
             profile = result.rows[0];
         }
         
-        console.log(`✅ Profile created for user ${userId} (Chrome extension required for completion)`);
+        console.log(`✅ USER PROFILE created for user ${userId} (Chrome extension required for completion)`);
         return profile;
         
     } catch (error) {
-        console.error('Error in profile creation:', error);
+        console.error('Error in USER PROFILE creation:', error);
         throw error;
     }
 };
@@ -816,7 +582,7 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ Enhanced database connected:', result.rows[0].now);
+        console.log('✅ USER PROFILE ONLY database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
@@ -825,7 +591,7 @@ const testDatabase = async () => {
     }
 };
 
-// Export all database functions and utilities
+// Export all database functions and utilities - USER PROFILE ONLY
 module.exports = {
     // Database connection
     pool,
@@ -846,6 +612,5 @@ module.exports = {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData,      // ✅ RENAMED: processOpenAIData → processGeminiData
-    processScrapedProfileData
+    processGeminiData      // ✅ USER PROFILE ONLY: Only process user profiles
 };
