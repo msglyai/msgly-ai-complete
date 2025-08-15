@@ -1,7 +1,6 @@
-// Msgly.AI Database Utilities - STEP 2A EXTRACTION - COMPLETE WITH ALL LINKEDIN FIELDS
+ // Msgly.AI Database Utilities - STEP 2A EXTRACTION - COMPLETE WITH ALL LINKEDIN FIELDS
 // All database functions, helpers, and utilities extracted from server.js
 // G2A UPDATE: Added missing columns to user_profiles for parity with target_profiles
-// ✅ NEW: Added startup schema guard for target_profiles columns
 
 // ==================== DATABASE CONNECTION & SETUP ====================
 
@@ -13,38 +12,6 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
-
-// ✅ NEW: Startup schema guard for target_profiles
-async function ensureTargetProfilesSchema(db) {
-    try {
-        console.log('🔧 Ensuring target_profiles schema with required columns...');
-        
-        const sql = `
-            BEGIN;
-            
-            -- Add required columns for UPSERT pattern
-            ALTER TABLE target_profiles 
-                ADD COLUMN IF NOT EXISTS data_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-                ADD COLUMN IF NOT EXISTS raw_html TEXT,
-                ADD COLUMN IF NOT EXISTS token_usage JSONB,
-                ADD COLUMN IF NOT EXISTS artifacts JSONB,
-                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-            
-            -- Create unique index for deduplication
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_target_user_url 
-                ON target_profiles (user_id, normalized_url);
-            
-            COMMIT;
-        `;
-        
-        await db.query(sql);
-        console.log('✅ Target profiles schema ensured successfully');
-        
-    } catch (error) {
-        console.error('❌ Error ensuring target_profiles schema:', error);
-        throw error;
-    }
-}
 
 // ==================== DATABASE INITIALIZATION ====================
 
@@ -306,13 +273,6 @@ const initDB = async () => {
                 gemini_processed_at TIMESTAMP,
                 gemini_token_usage JSONB DEFAULT '{}'::JSONB,
                 
-                -- ✅ NEW: Additional columns for UPSERT pattern (will be added by schema guard)
-                normalized_url TEXT,
-                data_json JSONB,
-                raw_html TEXT,
-                token_usage JSONB,
-                artifacts JSONB,
-                
                 -- Metadata
                 timestamp TIMESTAMP DEFAULT NOW(),
                 data_source VARCHAR(100) DEFAULT 'chrome_extension',
@@ -449,9 +409,7 @@ const initDB = async () => {
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB',
-                // ✅ NEW: Add normalized_url column for deduplication
-                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS normalized_url TEXT'
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB'
             ];
 
             for (const columnQuery of targetProfileColumns) {
@@ -492,16 +450,11 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_ai_provider ON user_profiles(ai_provider);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_ai_model ON user_profiles(ai_model);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_total_tokens ON user_profiles(total_tokens);
-                -- ✅ NEW: Index for normalized_url deduplication
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_normalized_url ON target_profiles(normalized_url);
             `);
             console.log('✅ Created enhanced database indexes');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
-
-        // ✅ NEW: Call startup schema guard after initial setup
-        await ensureTargetProfilesSchema(pool);
 
         console.log('✅ G2A: Enhanced database tables created successfully - user_profiles has full parity with target_profiles!');
     } catch (error) {
@@ -909,7 +862,6 @@ module.exports = {
     // Database setup
     initDB,
     testDatabase,
-    ensureTargetProfilesSchema,  // ✅ NEW: Export schema guard function
     
     // User management
     createUser,
