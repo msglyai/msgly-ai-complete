@@ -1,5 +1,5 @@
-// ✅ COMPLETE FIXED database.js - Ready for Deployment
-// Fixed parameter count issue + reserved word issue
+// ✅ CLEAN database.js - Minimal changes, TARGET now copies exact USER pattern
+// Removed broken TARGET complexity, kept all working USER code intact
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -541,10 +541,10 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ USER PROFILE: Process Gemini data (FIXED: currentRole → currentJobTitle)
+// ✅ SHARED: Process Gemini data (FIXED: used by BOTH USER and TARGET now)
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
-        console.log('📊 Processing Gemini extracted data for USER PROFILE...');
+        console.log('📊 Processing Gemini extracted data...');
         
         const aiData = geminiResponse.data;
         const profile = aiData.profile || {};
@@ -616,7 +616,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
         };
         
-        console.log('✅ USER PROFILE Gemini data processed successfully');
+        console.log('✅ Gemini data processed successfully');
         console.log(`📊 Processed data summary:`);
         console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
         console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
@@ -628,102 +628,12 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
         return processedData;
         
     } catch (error) {
-        console.error('❌ Error processing USER PROFILE Gemini data:', error);
-        throw new Error(`USER PROFILE Gemini data processing failed: ${error.message}`);
+        console.error('❌ Error processing Gemini data:', error);
+        throw new Error(`Gemini data processing failed: ${error.message}`);
     }
 };
 
-// ✅ TARGET PROFILE: Process Gemini data (FIXED: currentRole → currentJobTitle)
-const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
-    try {
-        console.log('📊 Processing Gemini extracted data for TARGET PROFILE...');
-        
-        const aiData = geminiResponse.data;
-        const profile = aiData.profile || {};
-        const engagement = aiData.engagement || {};
-        
-        console.log('🔍 TARGET AI Data Structure Check:');
-        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
-        console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
-        console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
-        console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
-        
-        const processedData = {
-            linkedinUrl: cleanProfileUrl,
-            url: cleanProfileUrl,
-            
-            // Basic Info - EXACT same mapping as USER
-            fullName: profile.name || '',
-            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
-            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
-            headline: profile.headline || '',
-            currentJobTitle: profile.currentRole || '',  // 🔧 FIXED: Changed mapping
-            about: profile.about || '',
-            location: profile.location || '',
-            
-            // Company Info
-            currentCompany: profile.currentCompany || '',
-            currentCompanyName: profile.currentCompany || '',
-            
-            // Metrics
-            connectionsCount: parseLinkedInNumber(profile.connectionsCount),
-            followersCount: parseLinkedInNumber(profile.followersCount),
-            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
-            
-            // Enhanced engagement fields
-            totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
-            totalComments: parseLinkedInNumber(engagement.totalComments) || 0,
-            totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
-            averageLikes: parseFloat(engagement.averageLikes) || 0,
-            
-            // Complex data arrays - EXACT same mapping as USER
-            experience: ensureValidJSONArray(aiData.experience || []),
-            education: ensureValidJSONArray(aiData.education || []),
-            skills: ensureValidJSONArray(aiData.skills || []),
-            certifications: ensureValidJSONArray(aiData.certifications || []),
-            awards: ensureValidJSONArray(aiData.awards || []),
-            activity: ensureValidJSONArray(aiData.activity || []),
-            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
-            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
-            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
-            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
-            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
-            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
-            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
-            groups: ensureValidJSONArray(aiData.groups || []),
-            featured: ensureValidJSONArray(aiData.featured || []),
-            services: ensureValidJSONArray(aiData.services || []),
-            engagementData: sanitizeForJSON(engagement),
-            creatorInfo: sanitizeForJSON(aiData.creator || {}),
-            businessInfo: sanitizeForJSON(aiData.business || {}),
-            
-            // Raw Gemini data storage
-            geminiRawData: sanitizeForJSON(geminiResponse),
-            geminiProcessedAt: new Date(),
-            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
-            
-            // Metadata
-            timestamp: new Date(),
-            dataSource: 'html_scraping_gemini_target',
-            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
-        };
-        
-        console.log('✅ TARGET PROFILE Gemini data processed successfully');
-        console.log(`📊 Processed TARGET data summary:`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - About section: ${processedData.about ? 'Available' : 'Not available'}`);
-        console.log(`   - Experience entries: ${processedData.experience.length}`);
-        console.log(`   - Has Experience: ${processedData.hasExperience}`);
-        
-        return processedData;
-        
-    } catch (error) {
-        console.error('❌ Error processing TARGET PROFILE Gemini data:', error);
-        throw new Error(`TARGET PROFILE Gemini data processing failed: ${error.message}`);
-    }
-};
+// ❌ REMOVED: processTargetGeminiData function (was broken, now TARGET uses processGeminiData)
 
 // ==================== USER MANAGEMENT FUNCTIONS ====================
 
@@ -780,7 +690,7 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ USER PROFILE: Create user profile (UNCHANGED)
+// ✅ USER PROFILE: Create user profile (UNCHANGED - still working)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
         console.log(`🚀 Creating USER PROFILE for user ${userId}`);
@@ -820,8 +730,8 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
     }
 };
 
-// ✅ TARGET PROFILE: Create and update target profiles (FIXED parameter count)
-const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
+// ✅ NEW: TARGET PROFILE - Simple copy of USER profile function (minimal changes)
+const createOrUpdateTargetProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
         console.log(`🎯 Creating TARGET PROFILE for user ${userId}`);
         console.log(`🔗 Target URL: ${linkedinUrl}`);
@@ -833,174 +743,29 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
         
         let profile;
         if (existingProfile.rows.length > 0) {
-            const result = await pool.query(`
-                UPDATE target_profiles SET 
-                    full_name = $1,
-                    headline = $2,
-                    about = $3,
-                    location = $4,
-                    current_job_title = $5,
-                    current_company = $6,
-                    connections_count = $7,
-                    followers_count = $8,
-                    mutual_connections_count = $9,
-                    total_likes = $10,
-                    total_comments = $11,
-                    total_shares = $12,
-                    average_likes = $13,
-                    experience = $14,
-                    education = $15,
-                    skills = $16,
-                    certifications = $17,
-                    awards = $18,
-                    volunteer_experience = $19,
-                    activity = $20,
-                    following_companies = $21,
-                    following_people = $22,
-                    following_hashtags = $23,
-                    following_newsletters = $24,
-                    interests_industries = $25,
-                    interests_topics = $26,
-                    groups = $27,
-                    featured = $28,
-                    services = $29,
-                    engagement_data = $30,
-                    creator_info = $31,
-                    business_info = $32,
-                    gemini_raw_data = $33,
-                    raw_gpt_response = $34,
-                    input_tokens = $35,
-                    output_tokens = $36,
-                    total_tokens = $37,
-                    processing_time_ms = $38,
-                    api_request_id = $39,
-                    response_status = $40,
-                    gemini_processed_at = NOW(),
-                    data_extraction_status = 'completed',
-                    profile_analyzed = true,
-                    extraction_completed_at = NOW(),
-                    updated_at = NOW()
-                WHERE user_id = $41 AND linkedin_url = $42
-                RETURNING *
-            `, [
-                targetData.fullName,
-                targetData.headline,
-                targetData.about,
-                targetData.location,
-                targetData.currentJobTitle,
-                targetData.currentCompany,
-                targetData.connectionsCount,
-                targetData.followersCount,
-                targetData.mutualConnectionsCount,
-                targetData.totalLikes,
-                targetData.totalComments,
-                targetData.totalShares,
-                targetData.averageLikes,
-                JSON.stringify(targetData.experience),
-                JSON.stringify(targetData.education),
-                JSON.stringify(targetData.skills),
-                JSON.stringify(targetData.certifications),
-                JSON.stringify(targetData.awards),
-                JSON.stringify(targetData.volunteerExperience),
-                JSON.stringify(targetData.activity),
-                JSON.stringify(targetData.followingCompanies),
-                JSON.stringify(targetData.followingPeople),
-                JSON.stringify(targetData.followingHashtags),
-                JSON.stringify(targetData.followingNewsletters),
-                JSON.stringify(targetData.interestsIndustries),
-                JSON.stringify(targetData.interestsTopics),
-                JSON.stringify(targetData.groups),
-                JSON.stringify(targetData.featured),
-                JSON.stringify(targetData.services),
-                JSON.stringify(targetData.engagementData),
-                JSON.stringify(targetData.creatorInfo),
-                JSON.stringify(targetData.businessInfo),
-                JSON.stringify(targetData.geminiRawData),
-                targetData.rawGptResponse || null,
-                targetData.inputTokens || null,
-                targetData.outputTokens || null,
-                targetData.totalTokens || null,
-                targetData.processingTimeMs || null,
-                targetData.apiRequestId || null,
-                targetData.responseStatus || 'success',
-                userId,
-                linkedinUrl
-            ]);
+            const result = await pool.query(
+                'UPDATE target_profiles SET full_name = $1, data_extraction_status = $2, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 AND linkedin_url = $4 RETURNING *',
+                [displayName, 'pending', userId, linkedinUrl]
+            );
             profile = result.rows[0];
         } else {
-            // 🔧 FIXED: Corrected INSERT statement with exact parameter count (42 parameters)
-            const result = await pool.query(`
-                INSERT INTO target_profiles (
-                    user_id, linkedin_url, full_name, headline, about, location,
-                    current_job_title, current_company, connections_count, followers_count,
-                    mutual_connections_count, total_likes, total_comments, total_shares,
-                    average_likes, experience, education, skills, certifications, awards,
-                    volunteer_experience, activity, following_companies, following_people,
-                    following_hashtags, following_newsletters, interests_industries,
-                    interests_topics, groups, featured, services, engagement_data,
-                    creator_info, business_info, gemini_raw_data, raw_gpt_response,
-                    input_tokens, output_tokens, total_tokens, processing_time_ms,
-                    api_request_id, response_status, gemini_processed_at,
-                    data_extraction_status, profile_analyzed, extraction_completed_at
-                ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, NOW(), 'completed', true, NOW()
-                ) RETURNING *
-            `, [
-                userId,                                      // $1
-                linkedinUrl,                                 // $2
-                targetData.fullName,                         // $3
-                targetData.headline,                         // $4
-                targetData.about,                            // $5
-                targetData.location,                         // $6
-                targetData.currentJobTitle,                  // $7
-                targetData.currentCompany,                   // $8
-                targetData.connectionsCount,                 // $9
-                targetData.followersCount,                   // $10
-                targetData.mutualConnectionsCount,           // $11
-                targetData.totalLikes,                       // $12
-                targetData.totalComments,                    // $13
-                targetData.totalShares,                      // $14
-                targetData.averageLikes,                     // $15
-                JSON.stringify(targetData.experience),       // $16
-                JSON.stringify(targetData.education),        // $17
-                JSON.stringify(targetData.skills),           // $18
-                JSON.stringify(targetData.certifications),   // $19
-                JSON.stringify(targetData.awards),           // $20
-                JSON.stringify(targetData.volunteerExperience), // $21
-                JSON.stringify(targetData.activity),         // $22
-                JSON.stringify(targetData.followingCompanies), // $23
-                JSON.stringify(targetData.followingPeople),  // $24
-                JSON.stringify(targetData.followingHashtags), // $25
-                JSON.stringify(targetData.followingNewsletters), // $26
-                JSON.stringify(targetData.interestsIndustries), // $27
-                JSON.stringify(targetData.interestsTopics),  // $28
-                JSON.stringify(targetData.groups),           // $29
-                JSON.stringify(targetData.featured),         // $30
-                JSON.stringify(targetData.services),         // $31
-                JSON.stringify(targetData.engagementData),   // $32
-                JSON.stringify(targetData.creatorInfo),      // $33
-                JSON.stringify(targetData.businessInfo),     // $34
-                JSON.stringify(targetData.geminiRawData),    // $35
-                targetData.rawGptResponse || null,           // $36
-                targetData.inputTokens || null,              // $37
-                targetData.outputTokens || null,             // $38
-                targetData.totalTokens || null,              // $39
-                targetData.processingTimeMs || null,         // $40
-                targetData.apiRequestId || null,             // $41
-                targetData.responseStatus || 'success'       // $42 - FIXED PARAMETER!
-            ]);
+            const result = await pool.query(
+                'INSERT INTO target_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_done) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+                [userId, linkedinUrl, displayName, 'pending', 0, false]
+            );
             profile = result.rows[0];
         }
         
-        console.log(`✅ TARGET PROFILE saved successfully for user ${userId}`);
-        console.log(`📄 About section: ${targetData.about ? 'Included' : 'Not available'}`);
+        console.log(`✅ TARGET PROFILE created for user ${userId}`);
         return profile;
         
     } catch (error) {
-        console.error('❌ Error in TARGET PROFILE creation:', error);
+        console.error('Error in TARGET PROFILE creation:', error);
         throw error;
     }
 };
+
+// ❌ REMOVED: Complex broken createOrUpdateTargetProfile function (42+ parameters)
 
 // ✅ Helper functions
 const getTargetProfile = async (userId, linkedinUrl) => {
@@ -1060,15 +825,16 @@ module.exports = {
     getUserById,
     createOrUpdateUserProfile,
     
-    // TARGET PROFILE functions
-    processTargetGeminiData,
+    // ✅ SIMPLE: TARGET PROFILE functions (copies of USER functions)
     createOrUpdateTargetProfile,
     getTargetProfile,
     getUserProfile,
     
-    // Data processing helpers
+    // ✅ SHARED: Data processing helpers (used by both USER and TARGET)
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData
+    processGeminiData  // ✅ Now used by BOTH USER and TARGET (no more separate functions)
+    
+    // ❌ REMOVED: processTargetGeminiData (was broken, TARGET now uses processGeminiData)
 };
