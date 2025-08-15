@@ -87,7 +87,7 @@ const initDB = async () => {
                 last_name VARCHAR(100),
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
-                credits_remaining INTEGER DEFAULT 7,
+                credits_remaining INTEGER DEFAULT 10,
                 subscription_status VARCHAR(50) DEFAULT 'active',
                 linkedin_url TEXT,
                 profile_data JSONB,
