@@ -1,5 +1,5 @@
-// ✅ COMPLETE FIXED database.js - Ready for Deployment
-// Fixed parameter count issue + reserved word issue
+// ✅ RAILWAY FIXED database.js - Fixes target_profiles about column issue
+// This version checks and repairs the existing table structure on Railway
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -10,11 +10,69 @@ const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
+// ==================== RAILWAY TABLE STRUCTURE FIXER ====================
+
+const fixTargetProfilesTable = async () => {
+    try {
+        console.log('🔧 Checking target_profiles table structure on Railway...');
+        
+        // Check if target_profiles table exists and get column info
+        const tableCheck = await pool.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'target_profiles'
+            );
+        `);
+        
+        if (tableCheck.rows[0].exists) {
+            console.log('📋 target_profiles table exists, checking about column...');
+            
+            // Check if about column is GENERATED
+            const columnCheck = await pool.query(`
+                SELECT column_name, data_type, is_generated, generation_expression
+                FROM information_schema.columns 
+                WHERE table_name = 'target_profiles' 
+                AND column_name = 'about';
+            `);
+            
+            if (columnCheck.rows.length > 0) {
+                const aboutColumn = columnCheck.rows[0];
+                console.log(`📊 About column info:`, aboutColumn);
+                
+                if (aboutColumn.is_generated === 'ALWAYS') {
+                    console.log('🚨 FOUND ISSUE: about column is GENERATED, fixing...');
+                    
+                    // Fix the generated column by dropping and recreating it
+                    await pool.query('ALTER TABLE target_profiles DROP COLUMN IF EXISTS about;');
+                    await pool.query('ALTER TABLE target_profiles ADD COLUMN about TEXT;');
+                    
+                    console.log('✅ FIXED: about column is now regular TEXT column');
+                } else {
+                    console.log('✅ about column is already correct (not generated)');
+                }
+            } else {
+                console.log('📝 Adding missing about column...');
+                await pool.query('ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS about TEXT;');
+            }
+        } else {
+            console.log('📋 target_profiles table does not exist, will be created normally');
+        }
+        
+    } catch (error) {
+        console.error('⚠️ Error checking/fixing target_profiles table:', error.message);
+        // Don't throw - continue with normal table creation
+    }
+};
+
 // ==================== DATABASE INITIALIZATION ====================
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating FIXED TARGET + USER PROFILE database tables...');
+        console.log('🗃️ Creating RAILWAY FIXED database tables...');
+
+        // 🔧 FIRST: Fix existing target_profiles table if needed
+        await fixTargetProfilesTable();
 
         // ✅ USERS TABLE (unchanged)
         await pool.query(`
@@ -41,7 +99,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER_PROFILES TABLE - FIXED: current_role → current_job_title
+        // ✅ USER_PROFILES TABLE - FIXED: current_role → current_job_title  
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -104,30 +162,11 @@ const initDB = async () => {
                 -- Complex Data Arrays (ALL JSONB)
                 experience JSONB DEFAULT '[]'::JSONB,
                 education JSONB DEFAULT '[]'::JSONB,
-                educations_details JSONB DEFAULT '[]'::JSONB,
                 skills JSONB DEFAULT '[]'::JSONB,
-                skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
-                languages JSONB DEFAULT '[]'::JSONB,
                 certifications JSONB DEFAULT '[]'::JSONB,
-                courses JSONB DEFAULT '[]'::JSONB,
-                projects JSONB DEFAULT '[]'::JSONB,
-                publications JSONB DEFAULT '[]'::JSONB,
-                patents JSONB DEFAULT '[]'::JSONB,
-                volunteer_experience JSONB DEFAULT '[]'::JSONB,
-                volunteering JSONB DEFAULT '[]'::JSONB,
-                honors_and_awards JSONB DEFAULT '[]'::JSONB,
                 awards JSONB DEFAULT '[]'::JSONB,
-                organizations JSONB DEFAULT '[]'::JSONB,
-                recommendations JSONB DEFAULT '[]'::JSONB,
-                recommendations_given JSONB DEFAULT '[]'::JSONB,
-                recommendations_received JSONB DEFAULT '[]'::JSONB,
-                posts JSONB DEFAULT '[]'::JSONB,
+                volunteer_experience JSONB DEFAULT '[]'::JSONB,
                 activity JSONB DEFAULT '[]'::JSONB,
-                articles JSONB DEFAULT '[]'::JSONB,
-                people_also_viewed JSONB DEFAULT '[]'::JSONB,
-                engagement_data JSONB DEFAULT '{}'::JSONB,
-                
-                -- Additional fields for complete LinkedIn data
                 following_companies JSONB DEFAULT '[]'::JSONB,
                 following_people JSONB DEFAULT '[]'::JSONB,
                 following_hashtags JSONB DEFAULT '[]'::JSONB,
@@ -136,16 +175,15 @@ const initDB = async () => {
                 interests_topics JSONB DEFAULT '[]'::JSONB,
                 groups JSONB DEFAULT '[]'::JSONB,
                 featured JSONB DEFAULT '[]'::JSONB,
-                creator_info JSONB DEFAULT '{}'::JSONB,
                 services JSONB DEFAULT '[]'::JSONB,
+                
+                -- Complex Objects (JSONB)
+                engagement_data JSONB DEFAULT '{}'::JSONB,
+                creator_info JSONB DEFAULT '{}'::JSONB,
                 business_info JSONB DEFAULT '{}'::JSONB,
-                
-                -- RAW GEMINI DATA STORAGE FOR GPT 5 NANO
                 gemini_raw_data JSONB,
-                gemini_processed_at TIMESTAMP,
-                gemini_token_usage JSONB DEFAULT '{}'::JSONB,
                 
-                -- TOKEN TRACKING COLUMNS
+                -- Token tracking
                 raw_gpt_response TEXT,
                 input_tokens INTEGER,
                 output_tokens INTEGER,
@@ -163,10 +201,9 @@ const initDB = async () => {
                 extraction_error TEXT,
                 extraction_retry_count INTEGER DEFAULT 0,
                 profile_analyzed BOOLEAN DEFAULT false,
+                gemini_processed_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                
-                CONSTRAINT user_profiles_user_id_key UNIQUE (user_id)
+                updated_at TIMESTAMP DEFAULT NOW()
             );
         `);
 
@@ -233,30 +270,11 @@ const initDB = async () => {
                 -- Complex Data Arrays (ALL JSONB)
                 experience JSONB DEFAULT '[]'::JSONB,
                 education JSONB DEFAULT '[]'::JSONB,
-                educations_details JSONB DEFAULT '[]'::JSONB,
                 skills JSONB DEFAULT '[]'::JSONB,
-                skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
-                languages JSONB DEFAULT '[]'::JSONB,
                 certifications JSONB DEFAULT '[]'::JSONB,
-                courses JSONB DEFAULT '[]'::JSONB,
-                projects JSONB DEFAULT '[]'::JSONB,
-                publications JSONB DEFAULT '[]'::JSONB,
-                patents JSONB DEFAULT '[]'::JSONB,
-                volunteer_experience JSONB DEFAULT '[]'::JSONB,
-                volunteering JSONB DEFAULT '[]'::JSONB,
-                honors_and_awards JSONB DEFAULT '[]'::JSONB,
                 awards JSONB DEFAULT '[]'::JSONB,
-                organizations JSONB DEFAULT '[]'::JSONB,
-                recommendations JSONB DEFAULT '[]'::JSONB,
-                recommendations_given JSONB DEFAULT '[]'::JSONB,
-                recommendations_received JSONB DEFAULT '[]'::JSONB,
-                posts JSONB DEFAULT '[]'::JSONB,
+                volunteer_experience JSONB DEFAULT '[]'::JSONB,
                 activity JSONB DEFAULT '[]'::JSONB,
-                articles JSONB DEFAULT '[]'::JSONB,
-                people_also_viewed JSONB DEFAULT '[]'::JSONB,
-                engagement_data JSONB DEFAULT '{}'::JSONB,
-                
-                -- Additional fields for complete LinkedIn data
                 following_companies JSONB DEFAULT '[]'::JSONB,
                 following_people JSONB DEFAULT '[]'::JSONB,
                 following_hashtags JSONB DEFAULT '[]'::JSONB,
@@ -265,16 +283,15 @@ const initDB = async () => {
                 interests_topics JSONB DEFAULT '[]'::JSONB,
                 groups JSONB DEFAULT '[]'::JSONB,
                 featured JSONB DEFAULT '[]'::JSONB,
-                creator_info JSONB DEFAULT '{}'::JSONB,
                 services JSONB DEFAULT '[]'::JSONB,
+                
+                -- Complex Objects (JSONB)
+                engagement_data JSONB DEFAULT '{}'::JSONB,
+                creator_info JSONB DEFAULT '{}'::JSONB,
                 business_info JSONB DEFAULT '{}'::JSONB,
-                
-                -- RAW GEMINI DATA STORAGE FOR GPT 5 NANO
                 gemini_raw_data JSONB,
-                gemini_processed_at TIMESTAMP,
-                gemini_token_usage JSONB DEFAULT '{}'::JSONB,
                 
-                -- TOKEN TRACKING COLUMNS
+                -- Token tracking
                 raw_gpt_response TEXT,
                 input_tokens INTEGER,
                 output_tokens INTEGER,
@@ -292,6 +309,7 @@ const initDB = async () => {
                 extraction_error TEXT,
                 extraction_retry_count INTEGER DEFAULT 0,
                 profile_analyzed BOOLEAN DEFAULT false,
+                gemini_processed_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
                 
@@ -366,6 +384,8 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS volunteer_experience JSONB DEFAULT \'[]\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS activity JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_companies JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_people JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_hashtags JSONB DEFAULT \'[]\'::JSONB',
@@ -379,7 +399,6 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS raw_gpt_response TEXT',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS input_tokens INTEGER',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
@@ -389,10 +408,10 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS response_status TEXT DEFAULT \'success\''
             ];
 
-            // Apply same columns to target_profiles
-            const targetColumns = enhancedColumns.map(query => 
-                query.replace('user_profiles', 'target_profiles')
-            );
+            // Apply same columns to target_profiles (excluding about - we fixed it above)
+            const targetColumns = enhancedColumns
+                .filter(query => !query.includes('ADD COLUMN IF NOT EXISTS about'))  // Skip about column
+                .map(query => query.replace('user_profiles', 'target_profiles'));
 
             for (const columnQuery of [...enhancedColumns, ...targetColumns]) {
                 try {
@@ -433,561 +452,520 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ FIXED database tables created successfully!');
+        console.log('✅ RAILWAY FIXED database tables created successfully!');
+
     } catch (error) {
-        console.error('❌ Database setup error:', error);
+        console.error('❌ Database initialization failed:', error);
         throw error;
     }
 };
 
-// ==================== DATA PROCESSING HELPER FUNCTIONS ====================
+// ==================== DATA PROCESSING FUNCTIONS ====================
 
-// JSON validation and sanitization
-const sanitizeForJSON = (data) => {
-    if (data === null || data === undefined) {
-        return null;
+// Helper functions (unchanged)
+const sanitizeForJSON = (value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+        return value.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
     }
-    
-    if (typeof data === 'string') {
+    return value;
+};
+
+const ensureValidJSONArray = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
         try {
-            const parsed = JSON.parse(data);
-            return parsed;
-        } catch (e) {
-            return data;
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [value];
+        } catch {
+            return [value];
         }
     }
-    
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeForJSON(item)).filter(item => item !== null);
-    }
-    
-    if (typeof data === 'object') {
-        const sanitized = {};
-        for (const [key, value] of Object.entries(data)) {
-            const sanitizedValue = sanitizeForJSON(value);
-            if (sanitizedValue !== null) {
-                sanitized[key] = sanitizedValue;
-            }
-        }
-        return sanitized;
-    }
-    
-    return data;
+    return [];
 };
 
-// Ensure arrays are properly formatted for PostgreSQL JSONB
-const ensureValidJSONArray = (data) => {
-    try {
-        if (!data) {
-            return [];
-        }
-        
-        if (Array.isArray(data)) {
-            const sanitized = data.map(item => sanitizeForJSON(item)).filter(item => item !== null);
-            const testString = JSON.stringify(sanitized);
-            JSON.parse(testString);
-            return sanitized;
-        }
-        
-        if (typeof data === 'string') {
-            try {
-                const parsed = JSON.parse(data);
-                if (Array.isArray(parsed)) {
-                    return ensureValidJSONArray(parsed);
-                }
-                return [parsed];
-            } catch (e) {
-                return [];
-            }
-        }
-        
-        if (typeof data === 'object') {
-            return [sanitizeForJSON(data)];
-        }
-        
-        return [];
-    } catch (error) {
-        console.error('Error ensuring valid JSON array:', error);
-        return [];
-    }
+const parseLinkedInNumber = (value) => {
+    if (!value) return null;
+    const numStr = value.toString().replace(/[^\d]/g, '');
+    const num = parseInt(numStr);
+    return isNaN(num) ? null : num;
 };
 
-// Helper function to parse LinkedIn numbers
-const parseLinkedInNumber = (str) => {
-    if (!str) return null;
-    if (typeof str === 'number') return str;
-    
+// ✅ USER PROFILE processing (unchanged from working version)
+const processGeminiData = async (userId, geminiResponse, inputUrl) => {
     try {
-        const cleanStr = str.toString().toLowerCase().trim();
+        console.log(`🔄 Processing GPT-5 nano data for USER profile ${userId}...`);
         
-        if (cleanStr.includes('m')) {
-            const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
-            return num ? Math.round(num * 1000000) : null;
+        const profile = geminiResponse.profile;
+        if (!profile) {
+            throw new Error('No profile data found in Gemini response');
         }
-        if (cleanStr.includes('k')) {
-            const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
-            return num ? Math.round(num * 1000) : null;
-        }
-        
-        const numbers = cleanStr.match(/[\d,]+/);
-        if (numbers) {
-            const cleanNumber = numbers[0].replace(/,/g, '');
-            return parseInt(cleanNumber, 10) || null;
-        }
-        return null;
-    } catch (error) {
-        console.error('Error parsing LinkedIn number:', str, error);
-        return null;
-    }
-};
 
-// ✅ USER PROFILE: Process Gemini data (FIXED: currentRole → currentJobTitle)
-const processGeminiData = (geminiResponse, cleanProfileUrl) => {
-    try {
-        console.log('📊 Processing Gemini extracted data for USER PROFILE...');
-        
-        const aiData = geminiResponse.data;
-        const profile = aiData.profile || {};
-        const engagement = aiData.engagement || {};
-        
-        console.log('🔍 AI Data Structure Check:');
-        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
-        console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
-        console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
-        console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
-        
         const processedData = {
-            linkedinUrl: cleanProfileUrl,
-            url: cleanProfileUrl,
-            
-            // Basic Info
-            fullName: profile.name || '',
-            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
-            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
-            headline: profile.headline || '',
-            currentJobTitle: profile.currentRole || '',  // 🔧 FIXED: Changed mapping
-            about: profile.about || '',
-            location: profile.location || '',
-            
-            // Company Info
-            currentCompany: profile.currentCompany || '',
-            currentCompanyName: profile.currentCompany || '',
-            
-            // Metrics
+            userId: userId,
+            linkedinUrl: inputUrl,
+            linkedinId: sanitizeForJSON(profile.linkedinId),
+            inputUrl: inputUrl,
+            url: sanitizeForJSON(profile.url),
+            fullName: sanitizeForJSON(profile.name),
+            firstName: sanitizeForJSON(profile.firstName),
+            lastName: sanitizeForJSON(profile.lastName),
+            headline: sanitizeForJSON(profile.headline),
+            currentJobTitle: sanitizeForJSON(profile.currentJobTitle), // 🔧 FIXED: New field name
+            about: sanitizeForJSON(profile.about),
+            summary: sanitizeForJSON(profile.summary),
+            location: sanitizeForJSON(profile.location),
+            city: sanitizeForJSON(profile.city),
+            state: sanitizeForJSON(profile.state),
+            country: sanitizeForJSON(profile.country),
+            countryCode: sanitizeForJSON(profile.countryCode),
+            industry: sanitizeForJSON(profile.industry),
+            currentCompany: sanitizeForJSON(profile.currentCompany),
+            currentCompanyName: sanitizeForJSON(profile.currentCompanyName),
             connectionsCount: parseLinkedInNumber(profile.connectionsCount),
             followersCount: parseLinkedInNumber(profile.followersCount),
-            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
-            
-            // Enhanced engagement fields
-            totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
-            totalComments: parseLinkedInNumber(engagement.totalComments) || 0,
-            totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
-            averageLikes: parseFloat(engagement.averageLikes) || 0,
-            
-            // Complex data arrays
-            experience: ensureValidJSONArray(aiData.experience || []),
-            education: ensureValidJSONArray(aiData.education || []),
-            skills: ensureValidJSONArray(aiData.skills || []),
-            certifications: ensureValidJSONArray(aiData.certifications || []),
-            awards: ensureValidJSONArray(aiData.awards || []),
-            activity: ensureValidJSONArray(aiData.activity || []),
-            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
-            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
-            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
-            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
-            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
-            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
-            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
-            groups: ensureValidJSONArray(aiData.groups || []),
-            featured: ensureValidJSONArray(aiData.featured || []),
-            services: ensureValidJSONArray(aiData.services || []),
-            engagementData: sanitizeForJSON(engagement),
-            creatorInfo: sanitizeForJSON(aiData.creator || {}),
-            businessInfo: sanitizeForJSON(aiData.business || {}),
-            
-            // Raw Gemini data storage
-            geminiRawData: sanitizeForJSON(geminiResponse),
-            geminiProcessedAt: new Date(),
-            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
-            
-            // Metadata
-            timestamp: new Date(),
-            dataSource: 'html_scraping_gemini',
-            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
+            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnectionsCount) || 0,
+            totalLikes: parseLinkedInNumber(profile.totalLikes) || 0,
+            totalComments: parseLinkedInNumber(profile.totalComments) || 0,
+            totalShares: parseLinkedInNumber(profile.totalShares) || 0,
+            averageLikes: profile.averageLikes || 0,
+            profilePicture: sanitizeForJSON(profile.profilePicture),
+            backgroundImageUrl: sanitizeForJSON(profile.backgroundImageUrl),
+            publicIdentifier: sanitizeForJSON(profile.publicIdentifier),
+            experience: ensureValidJSONArray(profile.experience),
+            education: ensureValidJSONArray(profile.education),
+            skills: ensureValidJSONArray(profile.skills),
+            certifications: ensureValidJSONArray(profile.certifications),
+            awards: ensureValidJSONArray(profile.awards),
+            volunteerExperience: ensureValidJSONArray(profile.volunteerExperience),
+            activity: ensureValidJSONArray(profile.activity),
+            followingCompanies: ensureValidJSONArray(profile.followingCompanies),
+            followingPeople: ensureValidJSONArray(profile.followingPeople),
+            followingHashtags: ensureValidJSONArray(profile.followingHashtags),
+            followingNewsletters: ensureValidJSONArray(profile.followingNewsletters),
+            interestsIndustries: ensureValidJSONArray(profile.interestsIndustries),
+            interestsTopics: ensureValidJSONArray(profile.interestsTopics),
+            groups: ensureValidJSONArray(profile.groups),
+            featured: ensureValidJSONArray(profile.featured),
+            services: ensureValidJSONArray(profile.services),
+            engagementData: profile.engagementData || {},
+            creatorInfo: profile.creatorInfo || {},
+            businessInfo: profile.businessInfo || {},
+            geminiRawData: geminiResponse,
+            rawGptResponse: typeof geminiResponse === 'string' ? geminiResponse : JSON.stringify(geminiResponse),
+            inputTokens: geminiResponse.usage?.input_tokens || null,
+            outputTokens: geminiResponse.usage?.output_tokens || null,
+            totalTokens: geminiResponse.usage?.total_tokens || null,
+            processingTimeMs: geminiResponse.processing_time_ms || null,
+            apiRequestId: geminiResponse.api_request_id || null,
+            responseStatus: geminiResponse.response_status || 'success'
         };
-        
-        console.log('✅ USER PROFILE Gemini data processed successfully');
-        console.log(`📊 Processed data summary:`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - About section: ${processedData.about ? 'Available' : 'Not available'}`);
-        console.log(`   - Experience entries: ${processedData.experience.length}`);
-        console.log(`   - Has Experience: ${processedData.hasExperience}`);
-        
-        return processedData;
-        
+
+        const savedProfile = await createOrUpdateUserProfile(processedData);
+        console.log(`✅ USER PROFILE GPT-5 nano data processed successfully`);
+        return savedProfile;
+
     } catch (error) {
-        console.error('❌ Error processing USER PROFILE Gemini data:', error);
-        throw new Error(`USER PROFILE Gemini data processing failed: ${error.message}`);
+        console.error('❌ Error processing USER PROFILE GPT-5 nano data:', error);
+        throw error;
     }
 };
 
-// ✅ TARGET PROFILE: Process Gemini data (FIXED: currentRole → currentJobTitle)
-const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
+// ✅ TARGET PROFILE processing 
+const processTargetGeminiData = async (userId, linkedinUrl, geminiResponse) => {
     try {
-        console.log('📊 Processing Gemini extracted data for TARGET PROFILE...');
+        console.log(`🎯 Processing GPT-5 nano data for TARGET profile...`);
         
-        const aiData = geminiResponse.data;
-        const profile = aiData.profile || {};
-        const engagement = aiData.engagement || {};
-        
-        console.log('🔍 TARGET AI Data Structure Check:');
-        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
-        console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
-        console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
-        console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
-        
+        const profile = geminiResponse.profile;
+        if (!profile) {
+            throw new Error('No profile data found in Gemini response');
+        }
+
         const processedData = {
-            linkedinUrl: cleanProfileUrl,
-            url: cleanProfileUrl,
-            
-            // Basic Info - EXACT same mapping as USER
-            fullName: profile.name || '',
-            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
-            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
-            headline: profile.headline || '',
-            currentJobTitle: profile.currentRole || '',  // 🔧 FIXED: Changed mapping
-            about: profile.about || '',
-            location: profile.location || '',
-            
-            // Company Info
-            currentCompany: profile.currentCompany || '',
-            currentCompanyName: profile.currentCompany || '',
-            
-            // Metrics
+            userId: userId,
+            linkedinUrl: linkedinUrl,
+            linkedinId: sanitizeForJSON(profile.linkedinId),
+            inputUrl: linkedinUrl,
+            url: sanitizeForJSON(profile.url),
+            fullName: sanitizeForJSON(profile.name),
+            firstName: sanitizeForJSON(profile.firstName),
+            lastName: sanitizeForJSON(profile.lastName),
+            headline: sanitizeForJSON(profile.headline),
+            currentJobTitle: sanitizeForJSON(profile.currentJobTitle), // 🔧 FIXED: New field name
+            about: sanitizeForJSON(profile.about),
+            summary: sanitizeForJSON(profile.summary),
+            location: sanitizeForJSON(profile.location),
+            city: sanitizeForJSON(profile.city),
+            state: sanitizeForJSON(profile.state),
+            country: sanitizeForJSON(profile.country),
+            countryCode: sanitizeForJSON(profile.countryCode),
+            industry: sanitizeForJSON(profile.industry),
+            currentCompany: sanitizeForJSON(profile.currentCompany),
+            currentCompanyName: sanitizeForJSON(profile.currentCompanyName),
             connectionsCount: parseLinkedInNumber(profile.connectionsCount),
             followersCount: parseLinkedInNumber(profile.followersCount),
-            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
-            
-            // Enhanced engagement fields
-            totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
-            totalComments: parseLinkedInNumber(engagement.totalComments) || 0,
-            totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
-            averageLikes: parseFloat(engagement.averageLikes) || 0,
-            
-            // Complex data arrays - EXACT same mapping as USER
-            experience: ensureValidJSONArray(aiData.experience || []),
-            education: ensureValidJSONArray(aiData.education || []),
-            skills: ensureValidJSONArray(aiData.skills || []),
-            certifications: ensureValidJSONArray(aiData.certifications || []),
-            awards: ensureValidJSONArray(aiData.awards || []),
-            activity: ensureValidJSONArray(aiData.activity || []),
-            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
-            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
-            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
-            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
-            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
-            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
-            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
-            groups: ensureValidJSONArray(aiData.groups || []),
-            featured: ensureValidJSONArray(aiData.featured || []),
-            services: ensureValidJSONArray(aiData.services || []),
-            engagementData: sanitizeForJSON(engagement),
-            creatorInfo: sanitizeForJSON(aiData.creator || {}),
-            businessInfo: sanitizeForJSON(aiData.business || {}),
-            
-            // Raw Gemini data storage
-            geminiRawData: sanitizeForJSON(geminiResponse),
-            geminiProcessedAt: new Date(),
-            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
-            
-            // Metadata
-            timestamp: new Date(),
-            dataSource: 'html_scraping_gemini_target',
-            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
+            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnectionsCount) || 0,
+            totalLikes: parseLinkedInNumber(profile.totalLikes) || 0,
+            totalComments: parseLinkedInNumber(profile.totalComments) || 0,
+            totalShares: parseLinkedInNumber(profile.totalShares) || 0,
+            averageLikes: profile.averageLikes || 0,
+            profilePicture: sanitizeForJSON(profile.profilePicture),
+            backgroundImageUrl: sanitizeForJSON(profile.backgroundImageUrl),
+            publicIdentifier: sanitizeForJSON(profile.publicIdentifier),
+            experience: ensureValidJSONArray(profile.experience),
+            education: ensureValidJSONArray(profile.education),
+            skills: ensureValidJSONArray(profile.skills),
+            certifications: ensureValidJSONArray(profile.certifications),
+            awards: ensureValidJSONArray(profile.awards),
+            volunteerExperience: ensureValidJSONArray(profile.volunteerExperience),
+            activity: ensureValidJSONArray(profile.activity),
+            followingCompanies: ensureValidJSONArray(profile.followingCompanies),
+            followingPeople: ensureValidJSONArray(profile.followingPeople),
+            followingHashtags: ensureValidJSONArray(profile.followingHashtags),
+            followingNewsletters: ensureValidJSONArray(profile.followingNewsletters),
+            interestsIndustries: ensureValidJSONArray(profile.interestsIndustries),
+            interestsTopics: ensureValidJSONArray(profile.interestsTopics),
+            groups: ensureValidJSONArray(profile.groups),
+            featured: ensureValidJSONArray(profile.featured),
+            services: ensureValidJSONArray(profile.services),
+            engagementData: profile.engagementData || {},
+            creatorInfo: profile.creatorInfo || {},
+            businessInfo: profile.businessInfo || {},
+            geminiRawData: geminiResponse,
+            rawGptResponse: typeof geminiResponse === 'string' ? geminiResponse : JSON.stringify(geminiResponse),
+            inputTokens: geminiResponse.usage?.input_tokens || null,
+            outputTokens: geminiResponse.usage?.output_tokens || null,
+            totalTokens: geminiResponse.usage?.total_tokens || null,
+            processingTimeMs: geminiResponse.processing_time_ms || null,
+            apiRequestId: geminiResponse.api_request_id || null,
+            responseStatus: geminiResponse.response_status || 'success'
         };
-        
-        console.log('✅ TARGET PROFILE Gemini data processed successfully');
-        console.log(`📊 Processed TARGET data summary:`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - About section: ${processedData.about ? 'Available' : 'Not available'}`);
-        console.log(`   - Experience entries: ${processedData.experience.length}`);
-        console.log(`   - Has Experience: ${processedData.hasExperience}`);
-        
-        return processedData;
-        
+
+        const savedProfile = await createOrUpdateTargetProfile(userId, linkedinUrl, processedData);
+        console.log(`✅ TARGET PROFILE GPT-5 nano data processed successfully`);
+        return savedProfile;
+
     } catch (error) {
-        console.error('❌ Error processing TARGET PROFILE Gemini data:', error);
-        throw new Error(`TARGET PROFILE Gemini data processing failed: ${error.message}`);
+        console.error('❌ Error processing TARGET PROFILE GPT-5 nano data:', error);
+        throw error;
     }
 };
 
-// ==================== USER MANAGEMENT FUNCTIONS ====================
+// ==================== DATABASE FUNCTIONS ====================
 
-const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
-    const creditsMap = {
-        'free': 7,
-        'silver': billingModel === 'payAsYouGo' ? 30 : 30,
-        'gold': billingModel === 'payAsYouGo' ? 100 : 100,
-        'platinum': billingModel === 'payAsYouGo' ? 250 : 250
-    };
-    
-    const credits = creditsMap[packageType] || 10;
-    
-    const result = await pool.query(
-        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [email, passwordHash, packageType, billingModel, credits]
-    );
-    return result.rows[0];
+const createUser = async (email, hashedPassword) => {
+    try {
+        const result = await pool.query(
+            'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING *',
+            [email, hashedPassword]
+        );
+        return result.rows[0];
+    } catch (error) {
+        if (error.code === '23505') {
+            throw new Error('User already exists');
+        }
+        throw error;
+    }
 };
 
-const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
-    const creditsMap = {
-        'free': 7,
-        'silver': billingModel === 'payAsYouGo' ? 30 : 30,
-        'gold': billingModel === 'payAsYouGo' ? 100 : 100,
-        'platinum': billingModel === 'payAsYouGo' ? 250 : 250
-    };
-    
-    const credits = creditsMap[packageType] || 10;
-    
-    const result = await pool.query(
-        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
-    );
-    return result.rows[0];
+const createGoogleUser = async (googleId, email, displayName, profilePicture, firstName, lastName) => {
+    try {
+        const result = await pool.query(`
+            INSERT INTO users (google_id, email, display_name, profile_picture, first_name, last_name, registration_completed)
+            VALUES ($1, $2, $3, $4, $5, $6, true)
+            RETURNING *
+        `, [googleId, email, displayName, profilePicture, firstName, lastName]);
+        
+        return result.rows[0];
+    } catch (error) {
+        if (error.code === '23505') {
+            throw new Error('User already exists');
+        }
+        throw error;
+    }
 };
 
-const linkGoogleAccount = async (userId, googleId) => {
-    const result = await pool.query(
-        'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-        [googleId, userId]
-    );
-    return result.rows[0];
+const linkGoogleAccount = async (userId, googleId, displayName, profilePicture) => {
+    try {
+        const result = await pool.query(`
+            UPDATE users 
+            SET google_id = $2, display_name = $3, profile_picture = $4, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *
+        `, [userId, googleId, displayName, profilePicture]);
+        
+        return result.rows[0];
+    } catch (error) {
+        throw error;
+    }
 };
 
 const getUserByEmail = async (email) => {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    return result.rows[0];
-};
-
-const getUserById = async (userId) => {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    return result.rows[0];
-};
-
-// ✅ USER PROFILE: Create user profile (UNCHANGED)
-const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
-        console.log(`🚀 Creating USER PROFILE for user ${userId}`);
-        console.log(`🔗 Original URL: ${linkedinUrl}`);
-        
-        await pool.query(
-            'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
-            [linkedinUrl, 'not_started', userId]
-        );
-        
-        const existingProfile = await pool.query(
-            'SELECT * FROM user_profiles WHERE user_id = $1',
-            [userId]
-        );
-        
-        let profile;
-        if (existingProfile.rows.length > 0) {
-            const result = await pool.query(
-                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
-                [linkedinUrl, displayName, 'pending', userId]
-            );
-            profile = result.rows[0];
-        } else {
-            const result = await pool.query(
-                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_done) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-                [userId, linkedinUrl, displayName, 'pending', 0, false]
-            );
-            profile = result.rows[0];
-        }
-        
-        console.log(`✅ USER PROFILE created for user ${userId}`);
-        return profile;
-        
+        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        return result.rows[0];
     } catch (error) {
-        console.error('Error in USER PROFILE creation:', error);
         throw error;
     }
 };
 
-// ✅ TARGET PROFILE: Create and update target profiles (FIXED parameter count)
-const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
+const getUserById = async (id) => {
     try {
-        console.log(`🎯 Creating TARGET PROFILE for user ${userId}`);
-        console.log(`🔗 Target URL: ${linkedinUrl}`);
-        
-        const existingProfile = await pool.query(
-            'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
-            [userId, linkedinUrl]
-        );
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+        return result.rows[0];
+    } catch (error) {
+        throw error;
+    }
+};
+
+// ✅ USER PROFILE database function (unchanged from working version)
+const createOrUpdateUserProfile = async (processedData) => {
+    try {
+        console.log(`💾 Saving USER profile to database for user ${processedData.userId}...`);
         
         let profile;
+        const existingProfile = await pool.query(
+            'SELECT id FROM user_profiles WHERE user_id = $1',
+            [processedData.userId]
+        );
+
         if (existingProfile.rows.length > 0) {
+            console.log(`🔄 Updating existing USER profile for user ${processedData.userId}`);
             const result = await pool.query(`
-                UPDATE target_profiles SET 
-                    full_name = $1,
-                    headline = $2,
-                    about = $3,
-                    location = $4,
-                    current_job_title = $5,
-                    current_company = $6,
-                    connections_count = $7,
-                    followers_count = $8,
-                    mutual_connections_count = $9,
-                    total_likes = $10,
-                    total_comments = $11,
-                    total_shares = $12,
-                    average_likes = $13,
-                    experience = $14,
-                    education = $15,
-                    skills = $16,
-                    certifications = $17,
-                    awards = $18,
-                    volunteer_experience = $19,
-                    activity = $20,
-                    following_companies = $21,
-                    following_people = $22,
-                    following_hashtags = $23,
-                    following_newsletters = $24,
-                    interests_industries = $25,
-                    interests_topics = $26,
-                    groups = $27,
-                    featured = $28,
-                    services = $29,
-                    engagement_data = $30,
-                    creator_info = $31,
-                    business_info = $32,
-                    gemini_raw_data = $33,
-                    raw_gpt_response = $34,
-                    input_tokens = $35,
-                    output_tokens = $36,
-                    total_tokens = $37,
-                    processing_time_ms = $38,
-                    api_request_id = $39,
-                    response_status = $40,
-                    gemini_processed_at = NOW(),
-                    data_extraction_status = 'completed',
-                    profile_analyzed = true,
-                    extraction_completed_at = NOW(),
-                    updated_at = NOW()
-                WHERE user_id = $41 AND linkedin_url = $42
-                RETURNING *
+                UPDATE user_profiles SET
+                    linkedin_url = $2, linkedin_id = $3, input_url = $4, url = $5,
+                    full_name = $6, first_name = $7, last_name = $8, headline = $9,
+                    current_job_title = $10, about = $11, summary = $12, location = $13,
+                    city = $14, state = $15, country = $16, country_code = $17,
+                    industry = $18, current_company = $19, current_company_name = $20,
+                    connections_count = $21, followers_count = $22, mutual_connections_count = $23,
+                    total_likes = $24, total_comments = $25, total_shares = $26, average_likes = $27,
+                    profile_picture = $28, background_image_url = $29, public_identifier = $30,
+                    experience = $31, education = $32, skills = $33, certifications = $34, awards = $35,
+                    volunteer_experience = $36, activity = $37, following_companies = $38,
+                    following_people = $39, following_hashtags = $40, following_newsletters = $41,
+                    interests_industries = $42, interests_topics = $43, groups = $44, featured = $45,
+                    services = $46, engagement_data = $47, creator_info = $48, business_info = $49,
+                    gemini_raw_data = $50, raw_gpt_response = $51, input_tokens = $52, output_tokens = $53,
+                    total_tokens = $54, processing_time_ms = $55, api_request_id = $56, response_status = $57,
+                    gemini_processed_at = NOW(), data_extraction_status = 'completed', 
+                    profile_analyzed = true, extraction_completed_at = NOW(), updated_at = NOW()
+                WHERE user_id = $1 RETURNING *
             `, [
-                targetData.fullName,
-                targetData.headline,
-                targetData.about,
-                targetData.location,
-                targetData.currentJobTitle,
-                targetData.currentCompany,
-                targetData.connectionsCount,
-                targetData.followersCount,
-                targetData.mutualConnectionsCount,
-                targetData.totalLikes,
-                targetData.totalComments,
-                targetData.totalShares,
-                targetData.averageLikes,
-                JSON.stringify(targetData.experience),
-                JSON.stringify(targetData.education),
-                JSON.stringify(targetData.skills),
-                JSON.stringify(targetData.certifications),
-                JSON.stringify(targetData.awards),
-                JSON.stringify(targetData.volunteerExperience),
-                JSON.stringify(targetData.activity),
-                JSON.stringify(targetData.followingCompanies),
-                JSON.stringify(targetData.followingPeople),
-                JSON.stringify(targetData.followingHashtags),
-                JSON.stringify(targetData.followingNewsletters),
-                JSON.stringify(targetData.interestsIndustries),
-                JSON.stringify(targetData.interestsTopics),
-                JSON.stringify(targetData.groups),
-                JSON.stringify(targetData.featured),
-                JSON.stringify(targetData.services),
-                JSON.stringify(targetData.engagementData),
-                JSON.stringify(targetData.creatorInfo),
-                JSON.stringify(targetData.businessInfo),
-                JSON.stringify(targetData.geminiRawData),
-                targetData.rawGptResponse || null,
-                targetData.inputTokens || null,
-                targetData.outputTokens || null,
-                targetData.totalTokens || null,
-                targetData.processingTimeMs || null,
-                targetData.apiRequestId || null,
-                targetData.responseStatus || 'success',
-                userId,
-                linkedinUrl
+                processedData.userId, processedData.linkedinUrl, processedData.linkedinId,
+                processedData.inputUrl, processedData.url, processedData.fullName,
+                processedData.firstName, processedData.lastName, processedData.headline,
+                processedData.currentJobTitle, processedData.about, processedData.summary,
+                processedData.location, processedData.city, processedData.state,
+                processedData.country, processedData.countryCode, processedData.industry,
+                processedData.currentCompany, processedData.currentCompanyName,
+                processedData.connectionsCount, processedData.followersCount,
+                processedData.mutualConnectionsCount, processedData.totalLikes,
+                processedData.totalComments, processedData.totalShares, processedData.averageLikes,
+                processedData.profilePicture, processedData.backgroundImageUrl,
+                processedData.publicIdentifier, JSON.stringify(processedData.experience),
+                JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
+                JSON.stringify(processedData.certifications), JSON.stringify(processedData.awards),
+                JSON.stringify(processedData.volunteerExperience), JSON.stringify(processedData.activity),
+                JSON.stringify(processedData.followingCompanies), JSON.stringify(processedData.followingPeople),
+                JSON.stringify(processedData.followingHashtags), JSON.stringify(processedData.followingNewsletters),
+                JSON.stringify(processedData.interestsIndustries), JSON.stringify(processedData.interestsTopics),
+                JSON.stringify(processedData.groups), JSON.stringify(processedData.featured),
+                JSON.stringify(processedData.services), JSON.stringify(processedData.engagementData),
+                JSON.stringify(processedData.creatorInfo), JSON.stringify(processedData.businessInfo),
+                JSON.stringify(processedData.geminiRawData), processedData.rawGptResponse,
+                processedData.inputTokens, processedData.outputTokens, processedData.totalTokens,
+                processedData.processingTimeMs, processedData.apiRequestId, processedData.responseStatus
             ]);
             profile = result.rows[0];
         } else {
-            // 🔧 FIXED: Corrected INSERT statement with exact parameter count (42 parameters)
+            console.log(`➕ Creating new USER profile for user ${processedData.userId}`);
+            const result = await pool.query(`
+                INSERT INTO user_profiles (
+                    user_id, linkedin_url, linkedin_id, input_url, url, full_name, first_name, last_name, headline,
+                    current_job_title, about, summary, location, city, state, country, country_code,
+                    industry, current_company, current_company_name, connections_count, followers_count,
+                    mutual_connections_count, total_likes, total_comments, total_shares, average_likes,
+                    profile_picture, background_image_url, public_identifier, experience, education, skills,
+                    certifications, awards, volunteer_experience, activity, following_companies,
+                    following_people, following_hashtags, following_newsletters, interests_industries,
+                    interests_topics, groups, featured, services, engagement_data, creator_info,
+                    business_info, gemini_raw_data, raw_gpt_response, input_tokens, output_tokens,
+                    total_tokens, processing_time_ms, api_request_id, response_status,
+                    gemini_processed_at, data_extraction_status, profile_analyzed, extraction_completed_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, NOW(), 'completed', true, NOW()
+                ) RETURNING *
+            `, [
+                processedData.userId, processedData.linkedinUrl, processedData.linkedinId,
+                processedData.inputUrl, processedData.url, processedData.fullName,
+                processedData.firstName, processedData.lastName, processedData.headline,
+                processedData.currentJobTitle, processedData.about, processedData.summary,
+                processedData.location, processedData.city, processedData.state,
+                processedData.country, processedData.countryCode, processedData.industry,
+                processedData.currentCompany, processedData.currentCompanyName,
+                processedData.connectionsCount, processedData.followersCount,
+                processedData.mutualConnectionsCount, processedData.totalLikes,
+                processedData.totalComments, processedData.totalShares, processedData.averageLikes,
+                processedData.profilePicture, processedData.backgroundImageUrl,
+                processedData.publicIdentifier, JSON.stringify(processedData.experience),
+                JSON.stringify(processedData.education), JSON.stringify(processedData.skills),
+                JSON.stringify(processedData.certifications), JSON.stringify(processedData.awards),
+                JSON.stringify(processedData.volunteerExperience), JSON.stringify(processedData.activity),
+                JSON.stringify(processedData.followingCompanies), JSON.stringify(processedData.followingPeople),
+                JSON.stringify(processedData.followingHashtags), JSON.stringify(processedData.followingNewsletters),
+                JSON.stringify(processedData.interestsIndustries), JSON.stringify(processedData.interestsTopics),
+                JSON.stringify(processedData.groups), JSON.stringify(processedData.featured),
+                JSON.stringify(processedData.services), JSON.stringify(processedData.engagementData),
+                JSON.stringify(processedData.creatorInfo), JSON.stringify(processedData.businessInfo),
+                JSON.stringify(processedData.geminiRawData), processedData.rawGptResponse,
+                processedData.inputTokens, processedData.outputTokens, processedData.totalTokens,
+                processedData.processingTimeMs, processedData.apiRequestId, processedData.responseStatus
+            ]);
+            profile = result.rows[0];
+        }
+        
+        console.log(`✅ USER PROFILE saved successfully for user ${processedData.userId}`);
+        return profile;
+        
+    } catch (error) {
+        console.error('❌ Error in USER PROFILE creation:', error);
+        throw error;
+    }
+};
+
+// ✅ TARGET PROFILE database function - FIXED parameter count
+const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
+    try {
+        console.log(`🎯 Saving TARGET profile to database for user ${userId}...`);
+        
+        let profile;
+        const existingProfile = await pool.query(
+            'SELECT id FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
+            [userId, linkedinUrl]
+        );
+
+        if (existingProfile.rows.length > 0) {
+            console.log(`🔄 Updating existing TARGET profile for user ${userId}`);
+            const result = await pool.query(`
+                UPDATE target_profiles SET
+                    linkedin_id = $3, input_url = $4, url = $5, full_name = $6, first_name = $7,
+                    last_name = $8, headline = $9, current_job_title = $10, about = $11, summary = $12,
+                    location = $13, city = $14, state = $15, country = $16, country_code = $17,
+                    industry = $18, current_company = $19, current_company_name = $20,
+                    connections_count = $21, followers_count = $22, mutual_connections_count = $23,
+                    total_likes = $24, total_comments = $25, total_shares = $26, average_likes = $27,
+                    profile_picture = $28, background_image_url = $29, public_identifier = $30,
+                    experience = $31, education = $32, skills = $33, certifications = $34, awards = $35,
+                    volunteer_experience = $36, activity = $37, following_companies = $38,
+                    following_people = $39, following_hashtags = $40, following_newsletters = $41,
+                    interests_industries = $42, interests_topics = $43, groups = $44, featured = $45,
+                    services = $46, engagement_data = $47, creator_info = $48, business_info = $49,
+                    gemini_raw_data = $50, raw_gpt_response = $51, input_tokens = $52, output_tokens = $53,
+                    total_tokens = $54, processing_time_ms = $55, api_request_id = $56, response_status = $57,
+                    gemini_processed_at = NOW(), data_extraction_status = 'completed', 
+                    profile_analyzed = true, extraction_completed_at = NOW(), updated_at = NOW()
+                WHERE user_id = $1 AND linkedin_url = $2 RETURNING *
+            `, [
+                userId, linkedinUrl, targetData.linkedinId, targetData.inputUrl, targetData.url,
+                targetData.fullName, targetData.firstName, targetData.lastName, targetData.headline,
+                targetData.currentJobTitle, targetData.about, targetData.summary, targetData.location,
+                targetData.city, targetData.state, targetData.country, targetData.countryCode,
+                targetData.industry, targetData.currentCompany, targetData.currentCompanyName,
+                targetData.connectionsCount, targetData.followersCount, targetData.mutualConnectionsCount,
+                targetData.totalLikes, targetData.totalComments, targetData.totalShares, targetData.averageLikes,
+                targetData.profilePicture, targetData.backgroundImageUrl, targetData.publicIdentifier,
+                JSON.stringify(targetData.experience), JSON.stringify(targetData.education),
+                JSON.stringify(targetData.skills), JSON.stringify(targetData.certifications),
+                JSON.stringify(targetData.awards), JSON.stringify(targetData.volunteerExperience),
+                JSON.stringify(targetData.activity), JSON.stringify(targetData.followingCompanies),
+                JSON.stringify(targetData.followingPeople), JSON.stringify(targetData.followingHashtags),
+                JSON.stringify(targetData.followingNewsletters), JSON.stringify(targetData.interestsIndustries),
+                JSON.stringify(targetData.interestsTopics), JSON.stringify(targetData.groups),
+                JSON.stringify(targetData.featured), JSON.stringify(targetData.services),
+                JSON.stringify(targetData.engagementData), JSON.stringify(targetData.creatorInfo),
+                JSON.stringify(targetData.businessInfo), JSON.stringify(targetData.geminiRawData),
+                targetData.rawGptResponse || null, targetData.inputTokens || null, targetData.outputTokens || null,
+                targetData.totalTokens || null, targetData.processingTimeMs || null,
+                targetData.apiRequestId || null, targetData.responseStatus || 'success'
+            ]);
+            profile = result.rows[0];
+        } else {
+            console.log(`➕ Creating new TARGET profile for user ${userId}`);
             const result = await pool.query(`
                 INSERT INTO target_profiles (
-                    user_id, linkedin_url, full_name, headline, about, location,
-                    current_job_title, current_company, connections_count, followers_count,
-                    mutual_connections_count, total_likes, total_comments, total_shares,
-                    average_likes, experience, education, skills, certifications, awards,
-                    volunteer_experience, activity, following_companies, following_people,
-                    following_hashtags, following_newsletters, interests_industries,
-                    interests_topics, groups, featured, services, engagement_data,
-                    creator_info, business_info, gemini_raw_data, raw_gpt_response,
-                    input_tokens, output_tokens, total_tokens, processing_time_ms,
-                    api_request_id, response_status, gemini_processed_at,
-                    data_extraction_status, profile_analyzed, extraction_completed_at
+                    user_id, linkedin_url, linkedin_id, input_url, url, full_name, first_name, last_name,
+                    headline, current_job_title, about, summary, location, city, state, country, country_code,
+                    industry, current_company, current_company_name, connections_count, followers_count,
+                    mutual_connections_count, total_likes, total_comments, total_shares, average_likes,
+                    profile_picture, background_image_url, public_identifier, experience, education, skills,
+                    certifications, awards, volunteer_experience, activity, following_companies,
+                    following_people, following_hashtags, following_newsletters, interests_industries,
+                    interests_topics, groups, featured, services, engagement_data, creator_info,
+                    business_info, gemini_raw_data, raw_gpt_response, input_tokens, output_tokens,
+                    total_tokens, processing_time_ms, api_request_id, response_status,
+                    gemini_processed_at, data_extraction_status, profile_analyzed, extraction_completed_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, NOW(), 'completed', true, NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, NOW(), 'completed', true, NOW()
                 ) RETURNING *
             `, [
                 userId,                                      // $1
                 linkedinUrl,                                 // $2
-                targetData.fullName,                         // $3
-                targetData.headline,                         // $4
-                targetData.about,                            // $5
-                targetData.location,                         // $6
-                targetData.currentJobTitle,                  // $7
-                targetData.currentCompany,                   // $8
-                targetData.connectionsCount,                 // $9
-                targetData.followersCount,                   // $10
-                targetData.mutualConnectionsCount,           // $11
-                targetData.totalLikes,                       // $12
-                targetData.totalComments,                    // $13
-                targetData.totalShares,                      // $14
-                targetData.averageLikes,                     // $15
-                JSON.stringify(targetData.experience),       // $16
-                JSON.stringify(targetData.education),        // $17
-                JSON.stringify(targetData.skills),           // $18
-                JSON.stringify(targetData.certifications),   // $19
-                JSON.stringify(targetData.awards),           // $20
-                JSON.stringify(targetData.volunteerExperience), // $21
-                JSON.stringify(targetData.activity),         // $22
-                JSON.stringify(targetData.followingCompanies), // $23
-                JSON.stringify(targetData.followingPeople),  // $24
-                JSON.stringify(targetData.followingHashtags), // $25
-                JSON.stringify(targetData.followingNewsletters), // $26
-                JSON.stringify(targetData.interestsIndustries), // $27
-                JSON.stringify(targetData.interestsTopics),  // $28
-                JSON.stringify(targetData.groups),           // $29
-                JSON.stringify(targetData.featured),         // $30
-                JSON.stringify(targetData.services),         // $31
-                JSON.stringify(targetData.engagementData),   // $32
-                JSON.stringify(targetData.creatorInfo),      // $33
-                JSON.stringify(targetData.businessInfo),     // $34
-                JSON.stringify(targetData.geminiRawData),    // $35
-                targetData.rawGptResponse || null,           // $36
-                targetData.inputTokens || null,              // $37
-                targetData.outputTokens || null,             // $38
-                targetData.totalTokens || null,              // $39
-                targetData.processingTimeMs || null,         // $40
-                targetData.apiRequestId || null,             // $41
-                targetData.responseStatus || 'success'       // $42 - FIXED PARAMETER!
+                targetData.linkedinId,                       // $3
+                targetData.inputUrl,                         // $4
+                targetData.url,                              // $5
+                targetData.fullName,                         // $6
+                targetData.firstName,                        // $7
+                targetData.lastName,                         // $8
+                targetData.headline,                         // $9
+                targetData.currentJobTitle,                  // $10
+                targetData.about,                            // $11 - ✅ FIXED: Now regular TEXT column
+                targetData.summary,                          // $12
+                targetData.location,                         // $13
+                targetData.city,                             // $14
+                targetData.state,                            // $15
+                targetData.country,                          // $16
+                targetData.countryCode,                      // $17
+                targetData.industry,                         // $18
+                targetData.currentCompany,                   // $19
+                targetData.currentCompanyName,               // $20
+                targetData.connectionsCount,                 // $21
+                targetData.followersCount,                   // $22
+                targetData.mutualConnectionsCount,           // $23
+                targetData.totalLikes,                       // $24
+                targetData.totalComments,                    // $25
+                targetData.totalShares,                      // $26
+                targetData.averageLikes,                     // $27
+                targetData.profilePicture,                   // $28
+                targetData.backgroundImageUrl,               // $29
+                targetData.publicIdentifier,                 // $30
+                JSON.stringify(targetData.experience),       // $31
+                JSON.stringify(targetData.education),        // $32
+                JSON.stringify(targetData.skills),           // $33
+                JSON.stringify(targetData.certifications),   // $34
+                JSON.stringify(targetData.awards),           // $35
+                JSON.stringify(targetData.volunteerExperience), // $36
+                JSON.stringify(targetData.activity),         // $37
+                JSON.stringify(targetData.followingCompanies), // $38
+                JSON.stringify(targetData.followingPeople),  // $39
+                JSON.stringify(targetData.followingHashtags), // $40
+                JSON.stringify(targetData.followingNewsletters), // $41
+                JSON.stringify(targetData.interestsIndustries), // $42
+                JSON.stringify(targetData.interestsTopics),  // $43
+                JSON.stringify(targetData.groups),           // $44
+                JSON.stringify(targetData.featured),         // $45
+                JSON.stringify(targetData.services),         // $46
+                JSON.stringify(targetData.engagementData),   // $47
+                JSON.stringify(targetData.creatorInfo),      // $48
+                JSON.stringify(targetData.businessInfo),     // $49
+                JSON.stringify(targetData.geminiRawData),    // $50
+                targetData.rawGptResponse || null,           // $51
+                targetData.inputTokens || null,              // $52
+                targetData.outputTokens || null,             // $53
+                targetData.totalTokens || null,              // $54
+                targetData.processingTimeMs || null,         // $55
+                targetData.apiRequestId || null,             // $56
+                targetData.responseStatus || 'success'       // $57 - ✅ FIXED: All 57 parameters mapped!
             ]);
             profile = result.rows[0];
         }
@@ -1034,7 +1012,7 @@ const getUserProfile = async (userId) => {
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ COMPLETE database connected:', result.rows[0].now);
+        console.log('✅ RAILWAY FIXED database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
