@@ -1,5 +1,5 @@
-// 🚨 QUICK FIX - database.js - Renamed "current_role" to "current_job_title" to avoid PostgreSQL reserved word
-// This fixes the server crash while keeping everything else identical
+// ✅ COMPLETE FIXED database.js - Ready for Deployment
+// Fixed parameter count issue + reserved word issue
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -820,7 +820,7 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
     }
 };
 
-// ✅ TARGET PROFILE: Create and update target profiles (FIXED field mapping)
+// ✅ TARGET PROFILE: Create and update target profiles (FIXED parameter count)
 const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
     try {
         console.log(`🎯 Creating TARGET PROFILE for user ${userId}`);
@@ -839,7 +839,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
                     headline = $2,
                     about = $3,
                     location = $4,
-                    current_job_title = $5,  -- 🔧 FIXED: Changed from current_role
+                    current_job_title = $5,
                     current_company = $6,
                     connections_count = $7,
                     followers_count = $8,
@@ -887,7 +887,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
                 targetData.headline,
                 targetData.about,
                 targetData.location,
-                targetData.currentJobTitle,  // 🔧 FIXED: Changed from currentRole
+                targetData.currentJobTitle,
                 targetData.currentCompany,
                 targetData.connectionsCount,
                 targetData.followersCount,
@@ -928,6 +928,7 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
             ]);
             profile = result.rows[0];
         } else {
+            // 🔧 FIXED: Corrected INSERT statement with exact parameter count (42 parameters)
             const result = await pool.query(`
                 INSERT INTO target_profiles (
                     user_id, linkedin_url, full_name, headline, about, location,
@@ -942,51 +943,51 @@ const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
                     api_request_id, response_status, gemini_processed_at,
                     data_extraction_status, profile_analyzed, extraction_completed_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, NOW(), 'completed', true, NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, NOW(), 'completed', true, NOW()
                 ) RETURNING *
             `, [
-                userId,
-                linkedinUrl,
-                targetData.fullName,
-                targetData.headline,
-                targetData.about,
-                targetData.location,
-                targetData.currentJobTitle,  // 🔧 FIXED: Changed from currentRole
-                targetData.currentCompany,
-                targetData.connectionsCount,
-                targetData.followersCount,
-                targetData.mutualConnectionsCount,
-                targetData.totalLikes,
-                targetData.totalComments,
-                targetData.totalShares,
-                targetData.averageLikes,
-                JSON.stringify(targetData.experience),
-                JSON.stringify(targetData.education),
-                JSON.stringify(targetData.skills),
-                JSON.stringify(targetData.certifications),
-                JSON.stringify(targetData.awards),
-                JSON.stringify(targetData.volunteerExperience),
-                JSON.stringify(targetData.activity),
-                JSON.stringify(targetData.followingCompanies),
-                JSON.stringify(targetData.followingPeople),
-                JSON.stringify(targetData.followingHashtags),
-                JSON.stringify(targetData.followingNewsletters),
-                JSON.stringify(targetData.interestsIndustries),
-                JSON.stringify(targetData.interestsTopics),
-                JSON.stringify(targetData.groups),
-                JSON.stringify(targetData.featured),
-                JSON.stringify(targetData.services),
-                JSON.stringify(targetData.engagementData),
-                JSON.stringify(targetData.creatorInfo),
-                JSON.stringify(targetData.businessInfo),
-                JSON.stringify(targetData.geminiRawData),
-                targetData.rawGptResponse || null,
-                targetData.inputTokens || null,
-                targetData.outputTokens || null,
-                targetData.totalTokens || null,
-                targetData.processingTimeMs || null,
-                targetData.apiRequestId || null,
-                targetData.responseStatus || 'success'
+                userId,                                      // $1
+                linkedinUrl,                                 // $2
+                targetData.fullName,                         // $3
+                targetData.headline,                         // $4
+                targetData.about,                            // $5
+                targetData.location,                         // $6
+                targetData.currentJobTitle,                  // $7
+                targetData.currentCompany,                   // $8
+                targetData.connectionsCount,                 // $9
+                targetData.followersCount,                   // $10
+                targetData.mutualConnectionsCount,           // $11
+                targetData.totalLikes,                       // $12
+                targetData.totalComments,                    // $13
+                targetData.totalShares,                      // $14
+                targetData.averageLikes,                     // $15
+                JSON.stringify(targetData.experience),       // $16
+                JSON.stringify(targetData.education),        // $17
+                JSON.stringify(targetData.skills),           // $18
+                JSON.stringify(targetData.certifications),   // $19
+                JSON.stringify(targetData.awards),           // $20
+                JSON.stringify(targetData.volunteerExperience), // $21
+                JSON.stringify(targetData.activity),         // $22
+                JSON.stringify(targetData.followingCompanies), // $23
+                JSON.stringify(targetData.followingPeople),  // $24
+                JSON.stringify(targetData.followingHashtags), // $25
+                JSON.stringify(targetData.followingNewsletters), // $26
+                JSON.stringify(targetData.interestsIndustries), // $27
+                JSON.stringify(targetData.interestsTopics),  // $28
+                JSON.stringify(targetData.groups),           // $29
+                JSON.stringify(targetData.featured),         // $30
+                JSON.stringify(targetData.services),         // $31
+                JSON.stringify(targetData.engagementData),   // $32
+                JSON.stringify(targetData.creatorInfo),      // $33
+                JSON.stringify(targetData.businessInfo),     // $34
+                JSON.stringify(targetData.geminiRawData),    // $35
+                targetData.rawGptResponse || null,           // $36
+                targetData.inputTokens || null,              // $37
+                targetData.outputTokens || null,             // $38
+                targetData.totalTokens || null,              // $39
+                targetData.processingTimeMs || null,         // $40
+                targetData.apiRequestId || null,             // $41
+                targetData.responseStatus || 'success'       // $42 - FIXED PARAMETER!
             ]);
             profile = result.rows[0];
         }
@@ -1033,7 +1034,7 @@ const getUserProfile = async (userId) => {
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ FIXED database connected:', result.rows[0].now);
+        console.log('✅ COMPLETE database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
