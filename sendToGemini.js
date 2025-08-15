@@ -217,7 +217,7 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ Send to OpenAI GPT-5-nano (keep EXACT original call structure)
+// ✅ Send to OpenAI GPT-5-nano (ENHANCED response extraction for TARGET profiles)
 async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   const apiKey = process.env.OPENAI_API_KEY;
   
@@ -243,12 +243,14 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
     }
   );
   
-  console.log('📥 OpenAI API response received');
+  console.log('🔥 OpenAI API response received');
   console.log(`📊 Response status: ${response.status}`);
   
-  // EXACT original response parsing
+  // 🔧 ENHANCED response extraction with multiple fallback methods for TARGET profiles
   const data = response.data;
-  const rawResponse = data.output_text ?? 
+  
+  // Method 1: Original extraction (works for USER profiles)
+  let rawResponse = data.output_text ?? 
     (Array.isArray(data.output)
       ? data.output
           .map(p => Array.isArray(p.content) 
@@ -256,6 +258,44 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
             : '')
           .join('')
       : '');
+  
+  // 🎯 CRITICAL FIX: Additional extraction methods for TARGET profiles
+  if (!rawResponse || rawResponse.length < 100) {
+    console.log('🔄 Trying alternative extraction methods for TARGET profile...');
+    
+    // Method 2: Direct content extraction
+    if (data.output && Array.isArray(data.output) && data.output.length > 0) {
+      const firstOutput = data.output[0];
+      if (firstOutput && typeof firstOutput === 'object') {
+        rawResponse = firstOutput.text || 
+                     firstOutput.content || 
+                     (firstOutput.message && firstOutput.message.content) || 
+                     JSON.stringify(firstOutput);
+      }
+    }
+    
+    // Method 3: Choices-based extraction (alternative API response format)
+    if ((!rawResponse || rawResponse.length < 100) && data.choices && Array.isArray(data.choices)) {
+      console.log('🔄 Trying choices-based extraction...');
+      rawResponse = data.choices
+        .map(choice => choice.message?.content || choice.text || '')
+        .join('');
+    }
+    
+    // Method 4: Direct response body extraction
+    if ((!rawResponse || rawResponse.length < 100) && data.response) {
+      console.log('🔄 Trying direct response extraction...');
+      rawResponse = typeof data.response === 'string' ? data.response : JSON.stringify(data.response);
+    }
+    
+    // Method 5: Raw data stringification as last resort
+    if (!rawResponse || rawResponse.length < 100) {
+      console.log('🔄 Using full response data as fallback...');
+      rawResponse = JSON.stringify(data);
+    }
+  }
+  
+  console.log(`📝 Extracted response length: ${rawResponse?.length || 0} characters`);
   
   return rawResponse;
 }
@@ -292,7 +332,7 @@ async function sendToGemini(inputData) {
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
             console.log(`📄 Input type: ${inputType}`);
-            console.log(`📏 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
+            console.log(`🔍 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
             const htmlSizeKB = inputData.html.length / 1024;
             if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
@@ -308,7 +348,7 @@ async function sendToGemini(inputData) {
             preprocessedHtml = preprocessHTMLForGemini(inputData.html, optimizationMode);
             
             const estimatedTokens = estimateTokenCount(preprocessedHtml);
-            console.log(`📢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
+            console.log(`🔢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
             
             if (estimatedTokens > OPENAI_LIMITS.MAX_TOKENS_INPUT) {
                 return { 
@@ -483,7 +523,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
         }
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
-        console.log(`📏 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        console.log(`🔍 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
@@ -504,7 +544,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        console.log(`📏 Raw response length: ${rawResponse.length} characters`);
+        console.log(`🔍 Raw response length: ${rawResponse.length} characters`);
         
         // Parse JSON response with robust error handling
         let parsedData;
@@ -512,7 +552,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             parsedData = JSON.parse(rawResponse.trim());
         } catch (parseError) {
             console.error('❌ JSON parsing failed:', parseError);
-            console.log('📏 Raw response preview:', rawResponse.substring(0, 500) + '...');
+            console.log('🔍 Raw response preview:', rawResponse.substring(0, 500) + '...');
             return { 
                 success: false, 
                 status: 500, 
