@@ -1,5 +1,5 @@
-// database.js - USER PROFILE ONLY VERSION - All Target profile database logic removed
-// Database Utilities - USER PROFILE ONLY - Extracted from server.js
+// database.js - Enhanced with TARGET PROFILE + USER PROFILE support
+// Database Utilities - Complete TARGET + USER PROFILE functionality
 
 // ==================== DATABASE CONNECTION & SETUP ====================
 
@@ -16,7 +16,7 @@ const pool = new Pool({
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating USER PROFILE ONLY database tables...');
+        console.log('🗃️ Creating ENHANCED TARGET + USER PROFILE database tables...');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
@@ -42,7 +42,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER PROFILE ONLY: Only create user_profiles table, no target_profiles
+        // ✅ USER PROFILE table with token tracking
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -141,10 +141,19 @@ const initDB = async () => {
                 services JSONB DEFAULT '[]'::JSONB,
                 business_info JSONB DEFAULT '{}'::JSONB,
                 
-                -- ✅ NEW: RAW GEMINI DATA STORAGE FOR GPT 4.1
+                -- ✅ NEW: RAW GEMINI DATA STORAGE FOR GPT 5 NANO
                 gemini_raw_data JSONB,
                 gemini_processed_at TIMESTAMP,
                 gemini_token_usage JSONB DEFAULT '{}'::JSONB,
+                
+                -- ✅ NEW: TOKEN TRACKING COLUMNS
+                raw_gpt_response TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                processing_time_ms INTEGER,
+                api_request_id TEXT,
+                response_status TEXT DEFAULT 'success',
                 
                 -- Metadata
                 timestamp TIMESTAMP,
@@ -162,7 +171,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER PROFILE ONLY: Keep message_logs and credits_transactions for user functionality
+        // ✅ Keep message_logs and credits_transactions for user functionality
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -187,7 +196,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER PROFILE ONLY: Add missing columns to existing tables
+        // ✅ Add missing columns to existing tables
         try {
             // Fix users table columns
             const userColumns = [
@@ -215,7 +224,7 @@ const initDB = async () => {
                 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
             `);
 
-            // ✅ USER PROFILE ONLY: Add enhanced fields to user_profiles table
+            // ✅ Add enhanced fields to user_profiles table
             const userProfileColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS "current_role" TEXT',  // ✅ FIXED: Escaped
@@ -239,7 +248,14 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB'
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS raw_gpt_response TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS input_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS processing_time_ms INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS api_request_id TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS response_status TEXT DEFAULT \'success\''
             ];
 
             for (const columnQuery of userProfileColumns) {
@@ -250,12 +266,12 @@ const initDB = async () => {
                 }
             }
             
-            console.log('✅ USER PROFILE ONLY database columns updated successfully');
+            console.log('✅ ENHANCED TARGET + USER PROFILE database columns updated successfully');
         } catch (err) {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes for USER PROFILE ONLY
+        // Create indexes for ENHANCED TARGET + USER PROFILE
         try {
             await pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
@@ -271,12 +287,12 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_gemini_processed ON user_profiles(gemini_processed_at);
                 CREATE INDEX IF NOT EXISTS idx_user_profiles_mutual_connections ON user_profiles(mutual_connections_count);
             `);
-            console.log('✅ Created USER PROFILE ONLY database indexes');
+            console.log('✅ Created ENHANCED TARGET + USER PROFILE database indexes');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ USER PROFILE ONLY database tables created successfully!');
+        console.log('✅ ENHANCED TARGET + USER PROFILE database tables created successfully!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
@@ -384,7 +400,7 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ USER PROFILE ONLY: Process Gemini data correctly
+// ✅ USER PROFILE: Process Gemini data correctly (UNCHANGED)
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
         console.log('📊 Processing Gemini extracted data for USER PROFILE...');
@@ -450,7 +466,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             creatorInfo: sanitizeForJSON(aiData.creator || {}),
             businessInfo: sanitizeForJSON(aiData.business || {}),
             
-            // ✅ NEW: Raw Gemini data storage for GPT 4.1
+            // ✅ NEW: Raw Gemini data storage for GPT 5 nano
             geminiRawData: sanitizeForJSON(geminiResponse),
             geminiProcessedAt: new Date(),
             geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
@@ -478,6 +494,103 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     } catch (error) {
         console.error('❌ Error processing USER PROFILE Gemini data:', error);
         throw new Error(`USER PROFILE Gemini data processing failed: ${error.message}`);
+    }
+};
+
+// ✅ NEW: TARGET PROFILE - Process Gemini data (DUPLICATE of USER for future business logic)
+const processTargetGeminiData = (geminiResponse, cleanProfileUrl) => {
+    try {
+        console.log('📊 Processing Gemini extracted data for TARGET PROFILE...');
+        
+        // ✅ CRITICAL FIX: Extract data from the correct structure
+        const aiData = geminiResponse.data; // This is where the actual profile data is
+        const profile = aiData.profile || {};
+        const engagement = aiData.engagement || {};
+        
+        console.log('🔍 TARGET AI Data Structure Check:');
+        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
+        console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
+        console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
+        console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
+        
+        const processedData = {
+            // ✅ FIXED: Map from correct Gemini response structure
+            linkedinUrl: cleanProfileUrl,
+            url: cleanProfileUrl,
+            
+            // Basic Info - Map from profile object
+            fullName: profile.name || '',
+            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
+            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
+            headline: profile.headline || '',
+            currentRole: profile.currentRole || '',
+            about: profile.about || '',
+            location: profile.location || '',
+            
+            // Company Info
+            currentCompany: profile.currentCompany || '',
+            currentCompanyName: profile.currentCompany || '',
+            
+            // Metrics - Parse numbers correctly
+            connectionsCount: parseLinkedInNumber(profile.connectionsCount),
+            followersCount: parseLinkedInNumber(profile.followersCount),
+            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
+            
+            // ✅ ENHANCED: New engagement fields
+            totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
+            totalComments: parseLinkedInNumber(engagement.totalComments) || 0,
+            totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
+            averageLikes: parseFloat(engagement.averageLikes) || 0,
+            
+            // Complex data arrays - Map from correct AI response
+            experience: ensureValidJSONArray(aiData.experience || []),
+            education: ensureValidJSONArray(aiData.education || []),
+            skills: ensureValidJSONArray(aiData.skills || []),
+            certifications: ensureValidJSONArray(aiData.certifications || []),
+            awards: ensureValidJSONArray(aiData.awards || []),
+            activity: ensureValidJSONArray(aiData.activity || []),
+            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
+            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
+            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
+            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
+            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
+            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
+            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
+            groups: ensureValidJSONArray(aiData.groups || []),
+            featured: ensureValidJSONArray(aiData.featured || []),
+            services: ensureValidJSONArray(aiData.services || []),
+            engagementData: sanitizeForJSON(engagement),
+            creatorInfo: sanitizeForJSON(aiData.creator || {}),
+            businessInfo: sanitizeForJSON(aiData.business || {}),
+            
+            // ✅ NEW: Raw Gemini data storage for GPT 5 nano
+            geminiRawData: sanitizeForJSON(geminiResponse),
+            geminiProcessedAt: new Date(),
+            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
+            
+            // Metadata
+            timestamp: new Date(),
+            dataSource: 'html_scraping_gemini_target',
+            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
+        };
+        
+        console.log('✅ TARGET PROFILE Gemini data processed successfully');
+        console.log(`📊 Processed TARGET data summary:`);
+        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
+        console.log(`   - Current Role: ${processedData.currentRole || 'Not available'}`);
+        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
+        console.log(`   - Experience entries: ${processedData.experience.length}`);
+        console.log(`   - Education entries: ${processedData.education.length}`);
+        console.log(`   - Certifications: ${processedData.certifications.length}`);
+        console.log(`   - Awards: ${processedData.awards.length}`);
+        console.log(`   - Activity posts: ${processedData.activity.length}`);
+        console.log(`   - Has Experience: ${processedData.hasExperience}`);
+        
+        return processedData;
+        
+    } catch (error) {
+        console.error('❌ Error processing TARGET PROFILE Gemini data:', error);
+        throw new Error(`TARGET PROFILE Gemini data processing failed: ${error.message}`);
     }
 };
 
@@ -536,7 +649,7 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ USER PROFILE ONLY: Create user profile - No background extraction
+// ✅ USER PROFILE: Create user profile - No background extraction (UNCHANGED)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
         console.log(`🚀 Creating USER PROFILE for user ${userId}`);
@@ -577,12 +690,144 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
     }
 };
 
+// ✅ NEW: TARGET PROFILE - Create and update target profiles (DUPLICATE for future business logic)
+const createOrUpdateTargetProfile = async (userId, linkedinUrl, targetData) => {
+    try {
+        console.log(`🎯 Creating TARGET PROFILE for user ${userId}`);
+        console.log(`🔗 Target URL: ${linkedinUrl}`);
+        
+        // 🔮 FUTURE: Add your TARGET-specific business logic here:
+        // - Credit cost checking
+        // - Duplicate analysis prevention
+        // - Rate limiting per user
+        // - Premium features
+        // - Target profile scoring
+        
+        const existingProfile = await pool.query(
+            'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
+            [userId, linkedinUrl]
+        );
+        
+        let profile;
+        if (existingProfile.rows.length > 0) {
+            const result = await pool.query(`
+                UPDATE target_profiles SET 
+                    full_name = $1,
+                    headline = $2,
+                    about = $3,
+                    location = $4,
+                    current_company = $5,
+                    connections_count = $6,
+                    followers_count = $7,
+                    experience = $8,
+                    education = $9,
+                    skills = $10,
+                    certifications = $11,
+                    awards = $12,
+                    volunteer_experience = $13,
+                    activity = $14,
+                    engagement_data = $15,
+                    gemini_raw_data = $16,
+                    raw_gpt_response = $17,
+                    input_tokens = $18,
+                    output_tokens = $19,
+                    total_tokens = $20,
+                    processing_time_ms = $21,
+                    api_request_id = $22,
+                    response_status = $23,
+                    gemini_processed_at = NOW(),
+                    data_extraction_status = 'completed',
+                    profile_analyzed = true,
+                    extraction_completed_at = NOW(),
+                    updated_at = NOW()
+                WHERE user_id = $24 AND linkedin_url = $25
+                RETURNING *
+            `, [
+                targetData.fullName,
+                targetData.headline,
+                targetData.about,
+                targetData.location,
+                targetData.currentCompany,
+                targetData.connectionsCount,
+                targetData.followersCount,
+                JSON.stringify(targetData.experience),
+                JSON.stringify(targetData.education),
+                JSON.stringify(targetData.skills),
+                JSON.stringify(targetData.certifications),
+                JSON.stringify(targetData.awards),
+                JSON.stringify(targetData.volunteerExperience),
+                JSON.stringify(targetData.activity),
+                JSON.stringify(targetData.engagementData),
+                JSON.stringify(targetData.geminiRawData),
+                targetData.rawGptResponse || null,
+                targetData.inputTokens || null,
+                targetData.outputTokens || null,
+                targetData.totalTokens || null,
+                targetData.processingTimeMs || null,
+                targetData.apiRequestId || null,
+                targetData.responseStatus || 'success',
+                userId,
+                linkedinUrl
+            ]);
+            profile = result.rows[0];
+        } else {
+            const result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id, linkedin_url, full_name, headline, about, location,
+                    current_company, connections_count, followers_count, experience,
+                    education, skills, certifications, awards, volunteer_experience,
+                    activity, engagement_data, gemini_raw_data, raw_gpt_response,
+                    input_tokens, output_tokens, total_tokens, processing_time_ms,
+                    api_request_id, response_status, gemini_processed_at,
+                    data_extraction_status, profile_analyzed, extraction_completed_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), 'completed', true, NOW()
+                ) RETURNING *
+            `, [
+                userId,
+                linkedinUrl,
+                targetData.fullName,
+                targetData.headline,
+                targetData.about,
+                targetData.location,
+                targetData.currentCompany,
+                targetData.connectionsCount,
+                targetData.followersCount,
+                JSON.stringify(targetData.experience),
+                JSON.stringify(targetData.education),
+                JSON.stringify(targetData.skills),
+                JSON.stringify(targetData.certifications),
+                JSON.stringify(targetData.awards),
+                JSON.stringify(targetData.volunteerExperience),
+                JSON.stringify(targetData.activity),
+                JSON.stringify(targetData.engagementData),
+                JSON.stringify(targetData.geminiRawData),
+                targetData.rawGptResponse || null,
+                targetData.inputTokens || null,
+                targetData.outputTokens || null,
+                targetData.totalTokens || null,
+                targetData.processingTimeMs || null,
+                targetData.apiRequestId || null,
+                targetData.responseStatus || 'success'
+            ]);
+            profile = result.rows[0];
+        }
+        
+        console.log(`✅ TARGET PROFILE saved successfully for user ${userId}`);
+        return profile;
+        
+    } catch (error) {
+        console.error('❌ Error in TARGET PROFILE creation:', error);
+        throw error;
+    }
+};
+
 // ==================== DATABASE CONNECTION TESTING ====================
 
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ USER PROFILE ONLY database connected:', result.rows[0].now);
+        console.log('✅ ENHANCED TARGET + USER PROFILE database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
@@ -591,7 +836,7 @@ const testDatabase = async () => {
     }
 };
 
-// Export all database functions and utilities - USER PROFILE ONLY
+// Export all database functions and utilities - ENHANCED TARGET + USER PROFILE
 module.exports = {
     // Database connection
     pool,
@@ -608,9 +853,13 @@ module.exports = {
     getUserById,
     createOrUpdateUserProfile,
     
+    // ✅ NEW: TARGET PROFILE functions
+    processTargetGeminiData,
+    createOrUpdateTargetProfile,
+    
     // Data processing helpers
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData      // ✅ USER PROFILE ONLY: Only process user profiles
+    processGeminiData      // ✅ USER PROFILE processing (unchanged)
 };
