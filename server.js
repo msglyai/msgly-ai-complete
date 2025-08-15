@@ -299,11 +299,11 @@ async function handleTargetProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('❌ Gemini processing failed for TARGET profile:', geminiResult.error);
+            console.error('❌ Gemini processing failed for TARGET profile:', geminiResult.userMessage);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process target profile data with Gemini',
-                details: geminiResult.error || 'Unknown error'
+                details: geminiResult.userMessage || 'Unknown error'
             });
         }
         
@@ -642,7 +642,7 @@ app.use('/', userRoutes);
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension Auth Request:', {
+    console.log('🔍 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -1256,7 +1256,7 @@ const startServer = async () => {
             console.log('🚀 Enhanced Msgly.AI Server - TARGET + USER PROFILE MODE!');
             console.log(`🔍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL`);
-            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`🔍 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`✅ ENHANCED TARGET + USER PROFILE MODE:`);
             console.log(`   🔵 USER PROFILE: Automatic analysis on own LinkedIn profile`);
