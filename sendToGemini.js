@@ -13,7 +13,7 @@ const RATE_LIMIT = {
 // 🚀 INCREASED limits for TESTING - Allow more content to preserve complete data
 const OPENAI_LIMITS = {
     MAX_TOKENS_INPUT: 50000,         // Same (you have 28K headroom)
-    MAX_TOKENS_OUTPUT: 12000,        // INCREASED: 8000 → 12000 tokens
+    MAX_TOKENS_OUTPUT: 18000,        // INCREASED: 12000 → 18000 tokens (~13,500 words)
     MAX_SIZE_KB: 4000               // INCREASED: 3000 → 4000 KB (more content preserved)
 };
 
@@ -229,7 +229,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
     {
       model: 'gpt-5-nano',
       text: { format: { type: 'json_object' } },
-      max_output_tokens: 12000,
+      max_output_tokens: 18000,
       input: [
         { role: 'system', content: systemPrompt ?? '' },
         { role: 'user', content: userPrompt ?? '' },
