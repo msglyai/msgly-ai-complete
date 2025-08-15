@@ -35,6 +35,18 @@ const {
     createOrUpdateTargetProfile // ✅ NEW: TARGET PROFILE database functions
 } = require('./utils/database');
 
+// ✅ NEW: Import credit management system
+const {
+    createCreditHold,
+    completeOperation,
+    releaseCreditHold,
+    checkUserCredits,
+    getCurrentCredits,
+    getTransactionHistory,
+    cleanupExpiredHolds,
+    getOperationCost
+} = require('./credits');
+
 // ✅ STEP 2B: Import all utility functions from utils/helpers.js
 const {
     cleanLinkedInUrl,
@@ -71,10 +83,12 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ CLEAN: TARGET PROFILE handler function using NEW database functions
+// ✅ ENHANCED: TARGET PROFILE handler with credit management
 async function handleTargetProfile(req, res) {
+    let holdId = null;
+    
     try {
-        console.log('🎯 === TARGET PROFILE PROCESSING ===');
+        console.log('🎯 === TARGET PROFILE PROCESSING WITH CREDITS ===');
         console.log(`👤 User ID: ${req.user.id}`);
         console.log(`🔗 URL: ${req.body.profileUrl}`);
         
@@ -87,6 +101,34 @@ async function handleTargetProfile(req, res) {
                 error: 'HTML content and profileUrl are required for target profile processing'
             });
         }
+
+        // ✅ NEW: Create credit hold before processing
+        console.log('💳 Creating credit hold for target analysis...');
+        const holdResult = await createCreditHold(userId, 'target_analysis', {
+            profileUrl: profileUrl,
+            timestamp: new Date().toISOString()
+        });
+
+        if (!holdResult.success) {
+            if (holdResult.error === 'insufficient_credits') {
+                return res.status(402).json({
+                    success: false,
+                    error: 'insufficient_credits',
+                    userMessage: holdResult.userMessage,
+                    currentCredits: holdResult.currentCredits,
+                    requiredCredits: holdResult.requiredCredits
+                });
+            }
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create credit hold',
+                details: holdResult.error
+            });
+        }
+
+        holdId = holdResult.holdId;
+        console.log(`✅ Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
         
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
@@ -102,6 +144,10 @@ async function handleTargetProfile(req, res) {
         
         if (!geminiResult.success) {
             console.error('❌ GPT-5 nano processing failed for TARGET profile:', geminiResult.userMessage);
+            
+            // ✅ NEW: Release hold on failure
+            await releaseCreditHold(userId, holdId, 'gemini_processing_failed');
+            
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process target profile data with GPT-5 nano',
@@ -128,8 +174,33 @@ async function handleTargetProfile(req, res) {
         // ✅ CLEAN: Save to target_profiles table using NEW database function
         const savedProfile = await createOrUpdateTargetProfile(userId, cleanProfileUrl, processedProfile);
         
+        // ✅ NEW: Complete operation and deduct credits
+        console.log('💳 Completing operation and deducting credits...');
+        const completionResult = await completeOperation(userId, holdId, {
+            profileId: savedProfile.id,
+            fullName: processedProfile.fullName,
+            processingTimeMs: processedProfile.processingTimeMs,
+            tokenUsage: {
+                inputTokens: processedProfile.inputTokens,
+                outputTokens: processedProfile.outputTokens,
+                totalTokens: processedProfile.totalTokens
+            }
+        });
+
+        if (!completionResult.success) {
+            console.error('❌ Failed to complete credit operation:', completionResult.error);
+            // Release hold as fallback
+            await releaseCreditHold(userId, holdId, 'completion_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process credits after successful analysis'
+            });
+        }
+        
         console.log('✅ TARGET profile saved to target_profiles table successfully');
         console.log(`📊 Token usage: ${processedProfile.inputTokens || 'N/A'} input, ${processedProfile.outputTokens || 'N/A'} output, ${processedProfile.totalTokens || 'N/A'} total`);
+        console.log(`💰 Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
         
         res.json({
             success: true,
@@ -149,11 +220,21 @@ async function handleTargetProfile(req, res) {
                     totalTokens: processedProfile.totalTokens,
                     processingTimeMs: processedProfile.processingTimeMs
                 }
+            },
+            credits: {
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                transactionId: completionResult.transactionId
             }
         });
         
     } catch (error) {
         console.error('❌ TARGET profile processing error:', error);
+        
+        // ✅ NEW: Release hold on any error
+        if (holdId) {
+            await releaseCreditHold(req.user.id, holdId, 'processing_error');
+        }
         
         res.status(500).json({
             success: false,
@@ -306,6 +387,213 @@ async function handleUserProfile(req, res) {
         res.status(500).json({
             success: false,
             error: 'User profile processing failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+}
+
+// ✅ NEW: Message Generation Endpoint (1 credit)
+async function handleGenerateMessage(req, res) {
+    let holdId = null;
+    
+    try {
+        console.log('📧 === MESSAGE GENERATION WITH CREDITS ===');
+        console.log(`👤 User ID: ${req.user.id}`);
+        
+        const { targetProfileUrl, outreachContext } = req.body;
+        const userId = req.user.id;
+        
+        if (!targetProfileUrl || !outreachContext) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and outreach context are required'
+            });
+        }
+
+        // ✅ Create credit hold
+        console.log('💳 Creating credit hold for message generation...');
+        const holdResult = await createCreditHold(userId, 'message_generation', {
+            targetProfileUrl: targetProfileUrl,
+            outreachContext: outreachContext,
+            timestamp: new Date().toISOString()
+        });
+
+        if (!holdResult.success) {
+            if (holdResult.error === 'insufficient_credits') {
+                return res.status(402).json({
+                    success: false,
+                    error: 'insufficient_credits',
+                    userMessage: holdResult.userMessage,
+                    currentCredits: holdResult.currentCredits,
+                    requiredCredits: holdResult.requiredCredits
+                });
+            }
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create credit hold',
+                details: holdResult.error
+            });
+        }
+
+        holdId = holdResult.holdId;
+        console.log(`✅ Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+
+        // TODO: Implement actual message generation with AI
+        // For now, return a placeholder
+        const generatedMessage = `Hi [Name],
+
+I noticed your experience in ${outreachContext} and would love to connect. I believe there could be some interesting opportunities for collaboration.
+
+Best regards,
+[Your Name]`;
+
+        // ✅ Complete operation and deduct credits
+        console.log('💳 Completing operation and deducting credits...');
+        const completionResult = await completeOperation(userId, holdId, {
+            messageGenerated: true,
+            messageLength: generatedMessage.length,
+            targetUrl: targetProfileUrl
+        });
+
+        if (!completionResult.success) {
+            console.error('❌ Failed to complete credit operation:', completionResult.error);
+            await releaseCreditHold(userId, holdId, 'completion_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process credits after successful generation'
+            });
+        }
+
+        console.log(`💰 Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
+
+        res.json({
+            success: true,
+            message: 'LinkedIn message generated successfully',
+            data: {
+                generatedMessage: generatedMessage,
+                outreachContext: outreachContext,
+                targetProfileUrl: targetProfileUrl
+            },
+            credits: {
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                transactionId: completionResult.transactionId
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Message generation error:', error);
+        
+        if (holdId) {
+            await releaseCreditHold(req.user.id, holdId, 'processing_error');
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Message generation failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+}
+
+// ✅ NEW: Connection Request Generation Endpoint (1 credit)
+async function handleGenerateConnection(req, res) {
+    let holdId = null;
+    
+    try {
+        console.log('🤝 === CONNECTION GENERATION WITH CREDITS ===');
+        console.log(`👤 User ID: ${req.user.id}`);
+        
+        const { targetProfileUrl, outreachContext } = req.body;
+        const userId = req.user.id;
+        
+        if (!targetProfileUrl || !outreachContext) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and outreach context are required'
+            });
+        }
+
+        // ✅ Create credit hold
+        console.log('💳 Creating credit hold for connection generation...');
+        const holdResult = await createCreditHold(userId, 'connection_generation', {
+            targetProfileUrl: targetProfileUrl,
+            outreachContext: outreachContext,
+            timestamp: new Date().toISOString()
+        });
+
+        if (!holdResult.success) {
+            if (holdResult.error === 'insufficient_credits') {
+                return res.status(402).json({
+                    success: false,
+                    error: 'insufficient_credits',
+                    userMessage: holdResult.userMessage,
+                    currentCredits: holdResult.currentCredits,
+                    requiredCredits: holdResult.requiredCredits
+                });
+            }
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create credit hold',
+                details: holdResult.error
+            });
+        }
+
+        holdId = holdResult.holdId;
+        console.log(`✅ Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+
+        // TODO: Implement actual connection message generation with AI
+        // For now, return a placeholder
+        const generatedConnection = `I'd love to connect with you given your background in ${outreachContext}. Looking forward to potential collaboration opportunities.`;
+
+        // ✅ Complete operation and deduct credits
+        console.log('💳 Completing operation and deducting credits...');
+        const completionResult = await completeOperation(userId, holdId, {
+            connectionGenerated: true,
+            messageLength: generatedConnection.length,
+            targetUrl: targetProfileUrl
+        });
+
+        if (!completionResult.success) {
+            console.error('❌ Failed to complete credit operation:', completionResult.error);
+            await releaseCreditHold(userId, holdId, 'completion_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process credits after successful generation'
+            });
+        }
+
+        console.log(`💰 Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
+
+        res.json({
+            success: true,
+            message: 'Connection request generated successfully',
+            data: {
+                generatedConnection: generatedConnection,
+                outreachContext: outreachContext,
+                targetProfileUrl: targetProfileUrl
+            },
+            credits: {
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                transactionId: completionResult.transactionId
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Connection generation error:', error);
+        
+        if (holdId) {
+            await releaseCreditHold(req.user.id, holdId, 'processing_error');
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Connection generation failed',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -484,7 +772,7 @@ app.use('/', userRoutes);
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔍 Chrome Extension Auth Request:', {
+    console.log('🔑 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -631,6 +919,66 @@ app.post('/target-profile/analyze', authenticateToken, (req, res) => {
     req.body.isUserProfile = false;
     
     return handleTargetProfile(req, res);
+});
+
+// ✅ NEW: Message Generation Endpoints
+app.post('/generate-message', authenticateToken, handleGenerateMessage);
+app.post('/generate-connection', authenticateToken, handleGenerateConnection);
+
+// ✅ NEW: Credit Management Endpoints
+app.get('/credits/balance', authenticateToken, async (req, res) => {
+    try {
+        const result = await getCurrentCredits(req.user.id);
+        
+        if (!result.success) {
+            return res.status(500).json({
+                success: false,
+                error: result.error
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                credits: result.credits,
+                userId: req.user.id
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting credit balance:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get credit balance'
+        });
+    }
+});
+
+app.get('/credits/history', authenticateToken, async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 50;
+        const result = await getTransactionHistory(req.user.id, limit);
+        
+        if (!result.success) {
+            return res.status(500).json({
+                success: false,
+                error: result.error
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                transactions: result.transactions,
+                userId: req.user.id
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting transaction history:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get transaction history'
+        });
+    }
 });
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
@@ -1044,6 +1392,15 @@ app.get('/packages', (req, res) => {
     });
 });
 
+// ✅ NEW: Cleanup expired holds (run periodically)
+setInterval(async () => {
+    try {
+        await cleanupExpiredHolds();
+    } catch (error) {
+        console.error('❌ Error during scheduled cleanup:', error);
+    }
+}, 30 * 60 * 1000); // Run every 30 minutes
+
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error('❌ Unhandled Error:', error);
@@ -1061,7 +1418,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'Enhanced TARGET + USER PROFILE mode active',
+        message: 'Enhanced TARGET + USER PROFILE mode active with Credit Management',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1080,6 +1437,10 @@ app.use((req, res, next) => {
             'GET /traffic-light-status',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
             'POST /target-profile/analyze (CLEAN: Dedicated TARGET endpoint)',
+            'POST /generate-message (NEW: 1 credit)',
+            'POST /generate-connection (NEW: 1 credit)',
+            'GET /credits/balance (NEW: Credit management)',
+            'GET /credits/history (NEW: Transaction history)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -1102,33 +1463,38 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 Enhanced Msgly.AI Server - CLEAN TARGET + USER PROFILE MODE!');
+            console.log('🚀 Enhanced Msgly.AI Server - CREDIT MANAGEMENT SYSTEM ACTIVE!');
             console.log(`🔍 Port: ${PORT}`);
-            console.log(`🗃️ Database: Enhanced PostgreSQL with TOKEN TRACKING`);
-            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`🗃️ Database: Enhanced PostgreSQL with TOKEN TRACKING + CREDIT SYSTEM`);
+            console.log(`🔑 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`✅ CLEAN TARGET + USER PROFILE MODE:`);
             console.log(`   🔵 USER PROFILE: Automatic analysis on own LinkedIn profile`);
-            console.log(`   🎯 TARGET PROFILE: Manual analysis via "Analyze" button click`);
-            console.log(`   🔄 /scrape-html: Intelligent routing based on isUserProfile parameter`);
+            console.log(`   🎯 TARGET PROFILE: Manual analysis via "Analyze" button click (0.25 credits)`);
+            console.log(`   📄 /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   🎯 /target-profile/analyze: Clean dedicated TARGET PROFILE endpoint`);
             console.log(`   🗃️ Database: user_profiles table for USER, target_profiles table for TARGET`);
             console.log(`   🚦 Traffic Light system tracks User profile completion only`);
+            console.log(`💳 CREDIT MANAGEMENT SYSTEM:`);
+            console.log(`   🎯 Target Analysis: 0.25 credits`);
+            console.log(`   📧 Message Generation: 1.0 credits`);
+            console.log(`   🤝 Connection Generation: 1.0 credits`);
+            console.log(`   🔒 Credit holds prevent double-spending`);
+            console.log(`   💰 Deduction AFTER successful operations`);
+            console.log(`   📊 Complete transaction audit trail`);
+            console.log(`   ⚡ Real-time credit balance updates`);
+            console.log(`   🧹 Automatic cleanup of expired holds`);
+            console.log(`✅ NEW ENDPOINTS:`);
+            console.log(`   POST /generate-message (1 credit)`);
+            console.log(`   POST /generate-connection (1 credit)`);
+            console.log(`   GET /credits/balance`);
+            console.log(`   GET /credits/history`);
             console.log(`✅ TOKEN TRACKING SYSTEM:`);
             console.log(`   📊 Both USER and TARGET profiles save GPT-5 nano JSON responses`);
-            console.log(`   🔢 Input/output/total token counts tracked for all profiles`);
+            console.log(`   📢 Input/output/total token counts tracked for all profiles`);
             console.log(`   ⏱️ Processing time and API request IDs logged`);
             console.log(`   💾 Raw responses stored for debugging and analysis`);
-            console.log(`✅ ENHANCED BUSINESS LOGIC READY:`);
-            console.log(`   💰 TARGET profile functions ready for credit checking`);
-            console.log(`   🔍 Duplicate analysis prevention ready for implementation`);
-            console.log(`   📈 TARGET-specific analytics and scoring ready`);
-            console.log(`   🚫 Rate limiting and premium features ready for TARGET profiles`);
-            console.log(`✅ COMPLETE SEPARATION:`);
-            console.log(`   🔵 USER: /scrape-html → processGeminiData() → user_profiles table`);
-            console.log(`   🎯 TARGET: /target-profile/analyze → processTargetGeminiData() → target_profiles table`);
-            console.log(`   🔧 Same AI processing, different business logic and database destinations`);
-            console.log(`✅ READY FOR PRODUCTION - CLEAN TARGET + USER PROFILES WITH TOKEN TRACKING!`);
+            console.log(`✅ PRODUCTION-READY CREDIT SYSTEM WITH HOLD PROTECTION!`);
         });
         
     } catch (error) {
