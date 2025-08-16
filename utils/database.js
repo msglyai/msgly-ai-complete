@@ -1,5 +1,6 @@
 // ENHANCED database.js - Added Plans Table + Dual Credit System
 // Sophisticated credit management with renewable + pay-as-you-go credits
+// FIXED: Changed INTEGER to DECIMAL(10,2) for fractional credit support
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -27,7 +28,7 @@ const initDB = async () => {
                 billing_model VARCHAR(20) NOT NULL,
                 price_cents INTEGER NOT NULL,
                 currency VARCHAR(3) DEFAULT 'USD',
-                renewable_credits INTEGER NOT NULL,
+                renewable_credits DECIMAL(10,2) NOT NULL,
                 is_pay_as_you_go BOOLEAN DEFAULT FALSE,
                 description TEXT,
                 features JSONB DEFAULT '[]'::JSONB,
@@ -37,17 +38,17 @@ const initDB = async () => {
             );
         `);
 
-        // INSERT REAL PLAN DATA (from sign-up.html)
+        // INSERT REAL PLAN DATA (from sign-up.html) - FIXED: Use DECIMAL values
         await pool.query(`
             INSERT INTO plans (plan_code, plan_name, billing_model, price_cents, renewable_credits, is_pay_as_you_go, description) 
             VALUES 
-                ('free', 'Free', 'monthly', 0, 7, FALSE, 'Free plan with 7 monthly renewable credits'),
-                ('silver-monthly', 'Silver Monthly', 'monthly', 1390, 30, FALSE, 'Silver monthly plan with 30 renewable credits'),
-                ('silver-payasyougo', 'Silver Pay-as-you-go', 'one_time', 1700, 30, TRUE, 'Silver one-time purchase of 30 non-expiring credits'),
-                ('gold-monthly', 'Gold Monthly', 'monthly', 3200, 100, FALSE, 'Gold monthly plan with 100 renewable credits'),
-                ('gold-payasyougo', 'Gold Pay-as-you-go', 'one_time', 3900, 100, TRUE, 'Gold one-time purchase of 100 non-expiring credits'),
-                ('platinum-monthly', 'Platinum Monthly', 'monthly', 6387, 250, FALSE, 'Platinum monthly plan with 250 renewable credits'),
-                ('platinum-payasyougo', 'Platinum Pay-as-you-go', 'one_time', 7800, 250, TRUE, 'Platinum one-time purchase of 250 non-expiring credits')
+                ('free', 'Free', 'monthly', 0, 7.0, FALSE, 'Free plan with 7 monthly renewable credits'),
+                ('silver-monthly', 'Silver Monthly', 'monthly', 1390, 30.0, FALSE, 'Silver monthly plan with 30 renewable credits'),
+                ('silver-payasyougo', 'Silver Pay-as-you-go', 'one_time', 1700, 30.0, TRUE, 'Silver one-time purchase of 30 non-expiring credits'),
+                ('gold-monthly', 'Gold Monthly', 'monthly', 3200, 100.0, FALSE, 'Gold monthly plan with 100 renewable credits'),
+                ('gold-payasyougo', 'Gold Pay-as-you-go', 'one_time', 3900, 100.0, TRUE, 'Gold one-time purchase of 100 non-expiring credits'),
+                ('platinum-monthly', 'Platinum Monthly', 'monthly', 6387, 250.0, FALSE, 'Platinum monthly plan with 250 renewable credits'),
+                ('platinum-payasyougo', 'Platinum Pay-as-you-go', 'one_time', 7800, 250.0, TRUE, 'Platinum one-time purchase of 250 non-expiring credits')
             ON CONFLICT (plan_code) DO UPDATE SET
                 plan_name = EXCLUDED.plan_name,
                 price_cents = EXCLUDED.price_cents,
@@ -55,7 +56,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE
+        // ENHANCED USERS TABLE - FIXED: Use DECIMAL for credit columns
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -69,17 +70,17 @@ const initDB = async () => {
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 
-                -- NEW: Dual Credit System
+                -- NEW: Dual Credit System - FIXED: DECIMAL support
                 plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
-                renewable_credits INTEGER DEFAULT 7,
-                payasyougo_credits INTEGER DEFAULT 0,
+                renewable_credits DECIMAL(10,2) DEFAULT 7.0,
+                payasyougo_credits DECIMAL(10,2) DEFAULT 0.0,
                 
                 -- NEW: Billing Cycle Management
                 subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 next_billing_date TIMESTAMP,
                 
-                -- Legacy field (will be calculated from dual credits)
-                credits_remaining INTEGER DEFAULT 7,
+                -- Legacy field (will be calculated from dual credits) - FIXED: DECIMAL
+                credits_remaining DECIMAL(10,2) DEFAULT 7.0,
                 
                 subscription_status VARCHAR(50) DEFAULT 'active',
                 linkedin_url TEXT,
@@ -221,7 +222,7 @@ const initDB = async () => {
             );
         `);
 
-        // Supporting tables (unchanged)
+        // Supporting tables - FIXED: Use DECIMAL for credits
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -230,7 +231,7 @@ const initDB = async () => {
                 target_url VARCHAR(500),
                 generated_message TEXT,
                 message_context TEXT,
-                credits_used INTEGER DEFAULT 1,
+                credits_used DECIMAL(10,2) DEFAULT 1.0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -268,10 +269,10 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
                 
-                // NEW: Dual Credit System columns
+                // NEW: Dual Credit System columns - FIXED: Use DECIMAL
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits DECIMAL(10,2) DEFAULT 7.0',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits DECIMAL(10,2) DEFAULT 0.0',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP'
             ];
@@ -315,6 +316,31 @@ const initDB = async () => {
             }
             
             console.log('Enhanced database columns updated successfully');
+            
+            // CRITICAL: Convert existing INTEGER credit columns to DECIMAL
+            console.log('-- CONVERTING INTEGER TO DECIMAL for existing credit columns');
+            const decimalConversions = [
+                'ALTER TABLE users ALTER COLUMN renewable_credits TYPE DECIMAL(10,2)',
+                'ALTER TABLE users ALTER COLUMN payasyougo_credits TYPE DECIMAL(10,2)', 
+                'ALTER TABLE users ALTER COLUMN credits_remaining TYPE DECIMAL(10,2)',
+                'ALTER TABLE plans ALTER COLUMN renewable_credits TYPE DECIMAL(10,2)',
+                'ALTER TABLE message_logs ALTER COLUMN credits_used TYPE DECIMAL(10,2)'
+            ];
+            
+            for (const conversionQuery of decimalConversions) {
+                try {
+                    await pool.query(conversionQuery);
+                    console.log(`✅ Converted column to DECIMAL: ${conversionQuery.split(' ')[3]}`);
+                } catch (err) {
+                    if (err.message.includes('column') && err.message.includes('does not exist')) {
+                        console.log(`Column doesn't exist yet: ${err.message}`);
+                    } else {
+                        console.log(`Column conversion info: ${err.message}`);
+                    }
+                }
+            }
+            
+            console.log('✅ Credit column type conversions completed');
         } catch (err) {
             console.log('Some enhanced columns might already exist:', err.message);
         }
