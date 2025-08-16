@@ -1,4 +1,4 @@
-// ✅ ENHANCED database.js - Added Plans Table + Dual Credit System
+// ENHANCED database.js - Added Plans Table + Dual Credit System
 // Sophisticated credit management with renewable + pay-as-you-go credits
 
 const { Pool } = require('pg');
@@ -16,7 +16,7 @@ const initDB = async () => {
     try {
         console.log('Creating enhanced database tables with dual credit system...');
 
-        // ✅ PLANS TABLE - FIXED: Drop and recreate with correct schema
+        // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
         
         await pool.query(`
@@ -37,7 +37,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ INSERT REAL PLAN DATA (from sign-up.html)
+        // INSERT REAL PLAN DATA (from sign-up.html)
         await pool.query(`
             INSERT INTO plans (plan_code, plan_name, billing_model, price_cents, renewable_credits, is_pay_as_you_go, description) 
             VALUES 
@@ -55,7 +55,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ✅ ENHANCED USERS TABLE
+        // ENHANCED USERS TABLE
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -69,12 +69,12 @@ const initDB = async () => {
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 
-                -- ✅ NEW: Dual Credit System
+                -- NEW: Dual Credit System
                 plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
                 renewable_credits INTEGER DEFAULT 7,
                 payasyougo_credits INTEGER DEFAULT 0,
                 
-                -- ✅ NEW: Billing Cycle Management
+                -- NEW: Billing Cycle Management
                 subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 next_billing_date TIMESTAMP,
                 
@@ -92,7 +92,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER_PROFILES TABLE (unchanged)
+        // USER_PROFILES TABLE (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -221,7 +221,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ Supporting tables (unchanged)
+        // Supporting tables (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -251,7 +251,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ Add missing columns (safe operation)
+        // Add missing columns (safe operation)
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -265,7 +265,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
                 
-                -- ✅ NEW: Dual Credit System columns
+                // NEW: Dual Credit System columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
@@ -290,7 +290,7 @@ const initDB = async () => {
                 console.log(`Password hash column already nullable: ${err.message}`);
             }
 
-            // ✅ Add enhanced fields to user_profiles only
+            // Add enhanced fields to user_profiles only
             const enhancedProfileColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS current_job_title TEXT',
@@ -316,7 +316,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // ✅ Create indexes
+        // Create indexes
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -340,7 +340,7 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        // ✅ Set next billing dates for existing free users
+        // Set next billing dates for existing free users
         try {
             await pool.query(`
                 UPDATE users 
@@ -360,7 +360,7 @@ const initDB = async () => {
 
 // ==================== DUAL CREDIT MANAGEMENT FUNCTIONS ====================
 
-// ✅ NEW: Get user plan with real data
+// NEW: Get user plan with real data
 const getUserPlan = async (userId) => {
     try {
         const result = await pool.query(`
@@ -438,7 +438,7 @@ const getUserPlan = async (userId) => {
     }
 };
 
-// ✅ NEW: Update user credits (dual system)
+// NEW: Update user credits (dual system)
 const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo') => {
     try {
         let updateQuery;
@@ -486,7 +486,7 @@ const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo'
     }
 };
 
-// ✅ NEW: Spend credits (pay-as-you-go first, then renewable)
+// NEW: Spend credits (pay-as-you-go first, then renewable)
 const spendUserCredits = async (userId, amount) => {
     try {
         const client = await pool.connect();
@@ -560,7 +560,7 @@ const spendUserCredits = async (userId, amount) => {
     }
 };
 
-// ✅ NEW: Reset renewable credits (monthly billing cycle)
+// NEW: Reset renewable credits (monthly billing cycle)
 const resetRenewableCredits = async (userId) => {
     try {
         const planResult = await pool.query(`
@@ -706,7 +706,7 @@ const parseLinkedInNumber = (str) => {
     }
 };
 
-// ✅ USER PROFILE ONLY: Process Gemini data (keeps working)
+// USER PROFILE ONLY: Process Gemini data (keeps working)
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
         console.log('Processing Gemini extracted data for USER profile...');
@@ -868,7 +868,7 @@ const getUserById = async (userId) => {
     return result.rows[0];
 };
 
-// ✅ USER PROFILE: Create user profile (UNCHANGED - still working)
+// USER PROFILE: Create user profile (UNCHANGED - still working)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
         console.log(`Creating USER PROFILE for user ${userId}`);
@@ -936,7 +936,7 @@ const testDatabase = async () => {
     }
 };
 
-// ✅ Enhanced export with dual credit system
+// Enhanced export with dual credit system
 module.exports = {
     // Database connection
     pool,
@@ -953,16 +953,16 @@ module.exports = {
     getUserById,
     createOrUpdateUserProfile,
     
-    // ✅ USER PROFILE functions only
+    // USER PROFILE functions only
     getUserProfile,
     
-    // ✅ NEW: Dual Credit Management
+    // NEW: Dual Credit Management
     getUserPlan,
     updateUserCredits,
     spendUserCredits,
     resetRenewableCredits,
     
-    // ✅ Data processing helpers (used by USER profiles only)
+    // Data processing helpers (used by USER profiles only)
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
