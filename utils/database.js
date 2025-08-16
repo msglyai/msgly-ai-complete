@@ -1,6 +1,6 @@
 // ENHANCED database.js - Added Plans Table + Dual Credit System
 // Sophisticated credit management with renewable + pay-as-you-go credits
-// FIXED: Changed INTEGER to DECIMAL(10,2) for fractional credit support
+// FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -38,7 +38,7 @@ const initDB = async () => {
             );
         `);
 
-        // INSERT REAL PLAN DATA (from sign-up.html) - Keep INTEGER values
+        // INSERT REAL PLAN DATA (from sign-up.html)
         await pool.query(`
             INSERT INTO plans (plan_code, plan_name, billing_model, price_cents, renewable_credits, is_pay_as_you_go, description) 
             VALUES 
@@ -56,7 +56,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE - Use existing INTEGER but handle with COALESCE in queries
+        // ENHANCED USERS TABLE
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -70,7 +70,7 @@ const initDB = async () => {
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 
-                -- NEW: Dual Credit System (keep INTEGER for compatibility)
+                -- NEW: Dual Credit System
                 plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
                 renewable_credits INTEGER DEFAULT 7,
                 payasyougo_credits INTEGER DEFAULT 0,
@@ -222,7 +222,7 @@ const initDB = async () => {
             );
         `);
 
-        // Supporting tables - FIXED: Use DECIMAL for credits
+        // Supporting tables (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -231,7 +231,7 @@ const initDB = async () => {
                 target_url VARCHAR(500),
                 generated_message TEXT,
                 message_context TEXT,
-                credits_used DECIMAL(10,2) DEFAULT 1.0,
+                credits_used INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -269,10 +269,10 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
                 
-                // NEW: Dual Credit System columns - FIXED: Use DECIMAL
+                // NEW: Dual Credit System columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits DECIMAL(10,2) DEFAULT 7.0',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits DECIMAL(10,2) DEFAULT 0.0',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP'
             ];
@@ -369,22 +369,22 @@ const initDB = async () => {
 
 // ==================== DUAL CREDIT MANAGEMENT FUNCTIONS ====================
 
-// NEW: Get user plan with real data
+// NEW: Get user plan with real data - FIXED
 const getUserPlan = async (userId) => {
     try {
         const result = await pool.query(`
             SELECT 
                 u.id,
                 u.plan_code,
-                COALESCE(u.renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
-                COALESCE(u.payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits,
+                COALESCE(u.renewable_credits, 0) as renewable_credits,
+                COALESCE(u.payasyougo_credits, 0) as payasyougo_credits,
                 u.subscription_starts_at,
                 u.next_billing_date,
                 u.subscription_status,
                 p.plan_name,
                 p.billing_model,
                 p.price_cents,
-                COALESCE(p.renewable_credits, 0)::DECIMAL(10,2) as plan_renewable_credits,
+                COALESCE(p.renewable_credits, 7) as plan_renewable_credits,
                 p.is_pay_as_you_go
             FROM users u
             LEFT JOIN plans p ON u.plan_code = p.plan_code
@@ -397,8 +397,10 @@ const getUserPlan = async (userId) => {
 
         const user = result.rows[0];
         
-        // Calculate total credits (pay-as-you-go + renewable) - FIXED: Use parseFloat
-        const totalCredits = parseFloat(user.renewable_credits || 0) + parseFloat(user.payasyougo_credits || 0);
+        // Calculate total credits (pay-as-you-go + renewable) - FIXED: Use Number conversion
+        const renewableCredits = Number(user.renewable_credits) || 0;
+        const payasyougoCredits = Number(user.payasyougo_credits) || 0;
+        const totalCredits = renewableCredits + payasyougoCredits;
         
         // Calculate next billing date for display
         let renewalDate = 'Never';
@@ -419,12 +421,12 @@ const getUserPlan = async (userId) => {
                 subscriptionStatus: user.subscription_status || 'active',
                 
                 // Credit breakdown
-                renewableCredits: user.renewable_credits || 0,
-                payasyougoCredits: user.payasyougo_credits || 0,
+                renewableCredits: renewableCredits,
+                payasyougoCredits: payasyougoCredits,
                 totalCredits: totalCredits,
                 
                 // Plan details
-                planRenewableCredits: user.plan_renewable_credits || 7,
+                planRenewableCredits: Number(user.plan_renewable_credits) || 7,
                 priceCents: user.price_cents || 0,
                 
                 // Billing info
@@ -433,9 +435,9 @@ const getUserPlan = async (userId) => {
                 renewalDate: renewalDate,
                 
                 // UI display data
-                creditsDisplay: `${totalCredits}/${user.plan_renewable_credits || 7} Credits`,
+                creditsDisplay: `${totalCredits}/${Number(user.plan_renewable_credits) || 7} Credits`,
                 renewalDisplay: `Renews ${renewalDate}`,
-                progressPercentage: Math.round(((user.renewable_credits || 0) / (user.plan_renewable_credits || 7)) * 100)
+                progressPercentage: Math.round((renewableCredits / (Number(user.plan_renewable_credits) || 7)) * 100)
             }
         };
     } catch (error) {
@@ -447,38 +449,42 @@ const getUserPlan = async (userId) => {
     }
 };
 
-// NEW: Update user credits (dual system)
+// NEW: Update user credits (dual system) - FIXED
 const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo') => {
     try {
-        let updateQuery;
+        // First get current credits
+        const currentResult = await pool.query(
+            'SELECT COALESCE(renewable_credits, 0) as renewable_credits, COALESCE(payasyougo_credits, 0) as payasyougo_credits FROM users WHERE id = $1',
+            [userId]
+        );
         
-        if (creditType === 'renewable') {
-            updateQuery = `
-                UPDATE users 
-                SET renewable_credits = GREATEST(0, COALESCE(renewable_credits, 0)::DECIMAL(10,2) + $1::DECIMAL(10,2)),
-                    credits_remaining = COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-                RETURNING 
-                    COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
-                    COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
-                    (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
-            `;
-        } else {
-            updateQuery = `
-                UPDATE users 
-                SET payasyougo_credits = GREATEST(0, COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) + $1::DECIMAL(10,2)),
-                    credits_remaining = COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-                RETURNING 
-                    COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
-                    COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
-                    (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
-            `;
+        if (currentResult.rows.length === 0) {
+            throw new Error('User not found');
         }
         
-        const result = await pool.query(updateQuery, [creditChange, userId]);
+        const current = currentResult.rows[0];
+        let newRenewable = Number(current.renewable_credits) || 0;
+        let newPayasyougo = Number(current.payasyougo_credits) || 0;
+        
+        // Calculate new values in JavaScript
+        if (creditType === 'renewable') {
+            newRenewable = Math.max(0, newRenewable + creditChange);
+        } else {
+            newPayasyougo = Math.max(0, newPayasyougo + creditChange);
+        }
+        
+        const newTotal = newRenewable + newPayasyougo;
+        
+        // Update with calculated values
+        const result = await pool.query(`
+            UPDATE users 
+            SET renewable_credits = $1,
+                payasyougo_credits = $2,
+                credits_remaining = $3,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $4
+            RETURNING renewable_credits, payasyougo_credits, credits_remaining
+        `, [newRenewable, newPayasyougo, newTotal, userId]);
         
         if (result.rows.length === 0) {
             throw new Error('User not found');
@@ -488,9 +494,9 @@ const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo'
         
         return {
             success: true,
-            renewableCredits: credits.renewable_credits,
-            payasyougoCredits: credits.payasyougo_credits,
-            totalCredits: credits.total_credits
+            renewableCredits: Number(credits.renewable_credits),
+            payasyougoCredits: Number(credits.payasyougo_credits),
+            totalCredits: Number(credits.credits_remaining)
         };
     } catch (error) {
         console.error('Error updating user credits:', error);
@@ -501,7 +507,7 @@ const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo'
     }
 };
 
-// NEW: Spend credits (pay-as-you-go first, then renewable)
+// NEW: Spend credits (pay-as-you-go first, then renewable) - FIXED
 const spendUserCredits = async (userId, amount) => {
     try {
         const client = await pool.connect();
@@ -509,48 +515,56 @@ const spendUserCredits = async (userId, amount) => {
         try {
             await client.query('BEGIN');
             
-            // Get current credits - FIXED: Use COALESCE and explicit casting
-            const userResult = await client.query(`
-                SELECT 
-                    COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
-                    COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits
-                FROM users WHERE id = $1
-            `, [userId]);
+            // Get current credits - FIXED: Handle NULL values
+            const userResult = await client.query(
+                'SELECT COALESCE(renewable_credits, 0) as renewable_credits, COALESCE(payasyougo_credits, 0) as payasyougo_credits FROM users WHERE id = $1',
+                [userId]
+            );
             
             if (userResult.rows.length === 0) {
                 throw new Error('User not found');
             }
             
             const { renewable_credits, payasyougo_credits } = userResult.rows[0];
-            const totalAvailable = parseFloat(renewable_credits) + parseFloat(payasyougo_credits);
+            // FIXED: Ensure we're working with numbers
+            const renewableNum = Number(renewable_credits) || 0;
+            const payasyougoNum = Number(payasyougo_credits) || 0;
+            const totalAvailable = renewableNum + payasyougoNum;
             
             if (totalAvailable < amount) {
                 throw new Error('Insufficient credits');
             }
             
-            let newPayasyougo = parseFloat(payasyougo_credits) || 0;
-            let newRenewable = parseFloat(renewable_credits) || 0;
+            let newPayasyougo = payasyougoNum;
+            let newRenewable = renewableNum;
             
             // Spend pay-as-you-go first
-            if (newPayasyougo >= amount) {
-                newPayasyougo = newPayasyougo - amount;
+            if (payasyougoNum >= amount) {
+                newPayasyougo = payasyougoNum - amount;
             } else {
                 // Spend all pay-as-you-go, then renewable
-                const remaining = amount - newPayasyougo;
+                const remaining = amount - payasyougoNum;
                 newPayasyougo = 0;
-                newRenewable = newRenewable - remaining;
+                newRenewable = renewableNum - remaining;
             }
             
-            // Update credits
+            // Ensure no negative credits
+            newPayasyougo = Math.max(0, newPayasyougo);
+            newRenewable = Math.max(0, newRenewable);
+            
+            // FIXED: Calculate total in JavaScript instead of SQL
+            const newTotal = newRenewable + newPayasyougo;
+            
+            // Update credits - FIXED: Pass calculated total instead of SQL arithmetic
             await client.query(`
                 UPDATE users 
                 SET 
                     renewable_credits = $1,
                     payasyougo_credits = $2,
-                    credits_remaining = $1 + $2,
+                    credits_remaining = $4,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $3
-            `, [newRenewable, newPayasyougo, userId]);
+            `, [newRenewable, newPayasyougo, userId, newTotal]);
             
             await client.query('COMMIT');
             
@@ -559,7 +573,7 @@ const spendUserCredits = async (userId, amount) => {
                 spent: amount,
                 newRenewableCredits: newRenewable,
                 newPayasyougoCredits: newPayasyougo,
-                newTotalCredits: newRenewable + newPayasyougo
+                newTotalCredits: newTotal
             };
             
         } catch (error) {
@@ -577,11 +591,11 @@ const spendUserCredits = async (userId, amount) => {
     }
 };
 
-// NEW: Reset renewable credits (monthly billing cycle)
+// NEW: Reset renewable credits (monthly billing cycle) - FIXED
 const resetRenewableCredits = async (userId) => {
     try {
         const planResult = await pool.query(`
-            SELECT COALESCE(p.renewable_credits, 0)::DECIMAL(10,2) as renewable_credits
+            SELECT COALESCE(p.renewable_credits, 7) as renewable_credits
             FROM users u
             JOIN plans p ON u.plan_code = p.plan_code
             WHERE u.id = $1
@@ -591,30 +605,36 @@ const resetRenewableCredits = async (userId) => {
             throw new Error('User or plan not found');
         }
         
-        const planRenewableCredits = parseFloat(planResult.rows[0].renewable_credits);
+        const planRenewableCredits = Number(planResult.rows[0].renewable_credits) || 7;
         
-        // Reset renewable credits to plan amount, keep pay-as-you-go unchanged
+        // Get current payasyougo credits
+        const currentResult = await pool.query(
+            'SELECT COALESCE(payasyougo_credits, 0) as payasyougo_credits FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        const currentPayasyougo = Number(currentResult.rows[0]?.payasyougo_credits) || 0;
+        const newTotal = planRenewableCredits + currentPayasyougo;
+        
+        // Reset renewable credits to plan amount, keep pay-as-you-go unchanged - FIXED
         const result = await pool.query(`
             UPDATE users 
             SET 
-                renewable_credits = $1::DECIMAL(10,2),
-                credits_remaining = $1::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2),
+                renewable_credits = $1,
+                credits_remaining = $3,
                 next_billing_date = next_billing_date + INTERVAL '1 month',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
-            RETURNING 
-                COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
-                COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
-                (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
-        `, [planRenewableCredits, userId]);
+            RETURNING renewable_credits, payasyougo_credits, credits_remaining
+        `, [planRenewableCredits, userId, newTotal]);
         
         const credits = result.rows[0];
         
         return {
             success: true,
-            renewableCredits: credits.renewable_credits,
-            payasyougoCredits: credits.payasyougo_credits,
-            totalCredits: credits.total_credits
+            renewableCredits: Number(credits.renewable_credits),
+            payasyougoCredits: Number(credits.payasyougo_credits),
+            totalCredits: Number(credits.credits_remaining)
         };
     } catch (error) {
         console.error('Error resetting renewable credits:', error);
