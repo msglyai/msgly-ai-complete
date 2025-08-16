@@ -14,7 +14,7 @@ const pool = new Pool({
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating enhanced database tables with dual credit system...');
+        console.log('Creating enhanced database tables with dual credit system...');
 
         // ✅ PLANS TABLE - Real pricing from sign-up.html
         await pool.query(`
@@ -263,13 +263,15 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
                 
-                -- ✅ NEW: Dual Credit System columns
+                // ✅ NEW: Dual Credit System columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP'
             ];
+            
+            console.log('-- NEW: Dual Credit System columns');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
@@ -307,7 +309,7 @@ const initDB = async () => {
                 }
             }
             
-            console.log('✅ Enhanced database columns updated successfully');
+            console.log('Enhanced database columns updated successfully');
         } catch (err) {
             console.log('Some enhanced columns might already exist:', err.message);
         }
@@ -331,7 +333,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_plans_plan_code ON plans(plan_code);
                 CREATE INDEX IF NOT EXISTS idx_plans_active ON plans(active);
             `);
-            console.log('✅ Database indexes created successfully');
+            console.log('Database indexes created successfully');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -347,9 +349,9 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system created successfully!');
+        console.log('Enhanced database with dual credit system created successfully!');
     } catch (error) {
-        console.error('❌ Database setup error:', error);
+        console.error('Database setup error:', error);
         throw error;
     }
 };
@@ -426,7 +428,7 @@ const getUserPlan = async (userId) => {
             }
         };
     } catch (error) {
-        console.error('❌ Error getting user plan:', error);
+        console.error('Error getting user plan:', error);
         return {
             success: false,
             error: error.message
@@ -474,7 +476,7 @@ const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo'
             totalCredits: credits.total_credits
         };
     } catch (error) {
-        console.error('❌ Error updating user credits:', error);
+        console.error('Error updating user credits:', error);
         return {
             success: false,
             error: error.message
@@ -548,7 +550,7 @@ const spendUserCredits = async (userId, amount) => {
             client.release();
         }
     } catch (error) {
-        console.error('❌ Error spending user credits:', error);
+        console.error('Error spending user credits:', error);
         return {
             success: false,
             error: error.message
@@ -593,7 +595,7 @@ const resetRenewableCredits = async (userId) => {
             totalCredits: credits.total_credits
         };
     } catch (error) {
-        console.error('❌ Error resetting renewable credits:', error);
+        console.error('Error resetting renewable credits:', error);
         return {
             success: false,
             error: error.message
@@ -705,13 +707,13 @@ const parseLinkedInNumber = (str) => {
 // ✅ USER PROFILE ONLY: Process Gemini data (keeps working)
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
-        console.log('📊 Processing Gemini extracted data for USER profile...');
+        console.log('Processing Gemini extracted data for USER profile...');
         
         const aiData = geminiResponse.data;
         const profile = aiData.profile || {};
         const engagement = aiData.engagement || {};
         
-        console.log('🔍 AI Data Structure Check:');
+        console.log('AI Data Structure Check:');
         console.log(`   - Profile name: ${profile.name || 'Not found'}`);
         console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
         console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
@@ -777,8 +779,8 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
         };
         
-        console.log('✅ Gemini data processed successfully for USER profile');
-        console.log(`📊 Processed data summary:`);
+        console.log('Gemini data processed successfully for USER profile');
+        console.log(`Processed data summary:`);
         console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
         console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
         console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
@@ -789,7 +791,7 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
         return processedData;
         
     } catch (error) {
-        console.error('❌ Error processing Gemini data for USER profile:', error);
+        console.error('Error processing Gemini data for USER profile:', error);
         throw new Error(`Gemini data processing failed: ${error.message}`);
     }
 };
@@ -867,8 +869,8 @@ const getUserById = async (userId) => {
 // ✅ USER PROFILE: Create user profile (UNCHANGED - still working)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
-        console.log(`🚀 Creating USER PROFILE for user ${userId}`);
-        console.log(`🔗 Original URL: ${linkedinUrl}`);
+        console.log(`Creating USER PROFILE for user ${userId}`);
+        console.log(`Original URL: ${linkedinUrl}`);
         
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
@@ -895,7 +897,7 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
             profile = result.rows[0];
         }
         
-        console.log(`✅ USER PROFILE created for user ${userId}`);
+        console.log(`USER PROFILE created for user ${userId}`);
         return profile;
         
     } catch (error) {
@@ -913,7 +915,7 @@ const getUserProfile = async (userId) => {
         );
         return result.rows[0] || null;
     } catch (error) {
-        console.error('❌ Error fetching user profile:', error);
+        console.error('Error fetching user profile:', error);
         throw error;
     }
 };
@@ -923,11 +925,11 @@ const getUserProfile = async (userId) => {
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ Enhanced database connected:', result.rows[0].now);
+        console.log('Enhanced database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
-        console.error('❌ Database connection failed:', error.message);
+        console.error('Database connection failed:', error.message);
         return false;
     }
 };
