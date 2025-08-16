@@ -1,5 +1,5 @@
-// credits.js - Complete Credit Management System
-// Handles credit holds, deductions, transactions, and validation
+// credits.js - Enhanced Credit Management System with Dual Credit Support
+// Handles renewable + pay-as-you-go credits, holds, deductions, transactions, and validation
 
 const { pool } = require('./utils/database');
 
@@ -12,25 +12,39 @@ class CreditManager {
         };
     }
 
-    // Check if user has sufficient credits
+    // ✅ ENHANCED: Check if user has sufficient credits (dual system)
     async checkCredits(userId, operationType) {
         try {
-            const result = await pool.query(
-                'SELECT credits_remaining FROM users WHERE id = $1',
-                [userId]
-            );
+            const result = await pool.query(`
+                SELECT 
+                    renewable_credits, 
+                    payasyougo_credits,
+                    (renewable_credits + payasyougo_credits) as total_credits
+                FROM users 
+                WHERE id = $1
+            `, [userId]);
 
             if (result.rows.length === 0) {
                 throw new Error('User not found');
             }
 
-            const currentCredits = parseFloat(result.rows[0].credits_remaining) || 0;
+            const { renewable_credits, payasyougo_credits, total_credits } = result.rows[0];
+            const currentCredits = parseFloat(total_credits) || 0;
             const requiredCredits = this.OPERATION_COSTS[operationType] || 0;
+
+            console.log(`💳 Credit check for user ${userId}:`);
+            console.log(`   - Renewable: ${renewable_credits || 0}`);
+            console.log(`   - Pay-as-you-go: ${payasyougo_credits || 0}`);
+            console.log(`   - Total: ${currentCredits}`);
+            console.log(`   - Required: ${requiredCredits}`);
+            console.log(`   - Has enough: ${currentCredits >= requiredCredits}`);
 
             return {
                 success: true,
                 hasCredits: currentCredits >= requiredCredits,
                 currentCredits: currentCredits,
+                renewableCredits: renewable_credits || 0,
+                payasyougoCredits: payasyougo_credits || 0,
                 requiredCredits: requiredCredits,
                 remaining: currentCredits - requiredCredits
             };
@@ -44,7 +58,7 @@ class CreditManager {
         }
     }
 
-    // Create credit hold before operation
+    // ✅ ENHANCED: Create credit hold before operation (dual system aware)
     async createHold(userId, operationType, operationData = {}) {
         try {
             const creditCheck = await this.checkCredits(userId, operationType);
@@ -62,6 +76,8 @@ class CreditManager {
                     error: 'insufficient_credits',
                     userMessage: `Insufficient credits. Required: ${creditCheck.requiredCredits}, Available: ${creditCheck.currentCredits}`,
                     currentCredits: creditCheck.currentCredits,
+                    renewableCredits: creditCheck.renewableCredits,
+                    payasyougoCredits: creditCheck.payasyougoCredits,
                     requiredCredits: creditCheck.requiredCredits
                 };
             }
@@ -69,7 +85,7 @@ class CreditManager {
             const holdId = this.generateHoldId();
             const requiredCredits = this.OPERATION_COSTS[operationType];
 
-            // Create hold record in credits_transactions
+            // ✅ Create hold record in credits_transactions with dual credit info
             await pool.query(`
                 INSERT INTO credits_transactions (
                     user_id, operation_type, amount, status, 
@@ -81,16 +97,27 @@ class CreditManager {
                 -requiredCredits,
                 'held',
                 holdId,
-                JSON.stringify(operationData)
+                JSON.stringify({
+                    ...operationData,
+                    creditBreakdown: {
+                        renewable: creditCheck.renewableCredits,
+                        payasyougo: creditCheck.payasyougoCredits,
+                        total: creditCheck.currentCredits
+                    }
+                })
             ]);
 
             console.log(`✅ Credit hold created: ${holdId} for ${requiredCredits} credits`);
+            console.log(`   - User has ${creditCheck.currentCredits} total credits`);
+            console.log(`   - Renewable: ${creditCheck.renewableCredits}, Pay-as-you-go: ${creditCheck.payasyougoCredits}`);
 
             return {
                 success: true,
                 holdId: holdId,
                 amountHeld: requiredCredits,
                 currentCredits: creditCheck.currentCredits,
+                renewableCredits: creditCheck.renewableCredits,
+                payasyougoCredits: creditCheck.payasyougoCredits,
                 remainingAfterHold: creditCheck.remaining
             };
 
@@ -104,7 +131,7 @@ class CreditManager {
         }
     }
 
-    // Complete operation and deduct credits
+    // ✅ ENHANCED: Complete operation and deduct credits (dual system)
     async completeOperation(userId, holdId, operationResult = {}) {
         try {
             // Start transaction
@@ -126,19 +153,53 @@ class CreditManager {
                 const hold = holdResult.rows[0];
                 const creditAmount = Math.abs(hold.amount);
 
-                // Deduct credits from user
+                // ✅ Get current credit breakdown before deduction
+                const beforeResult = await client.query(`
+                    SELECT renewable_credits, payasyougo_credits 
+                    FROM users WHERE id = $1
+                `, [userId]);
+
+                const beforeCredits = beforeResult.rows[0];
+                console.log(`💳 Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
+
+                // ✅ Use dual credit spending logic (pay-as-you-go first, then renewable)
+                let newPayasyougo = beforeCredits.payasyougo_credits || 0;
+                let newRenewable = beforeCredits.renewable_credits || 0;
+                
+                // Spend pay-as-you-go first
+                if (newPayasyougo >= creditAmount) {
+                    newPayasyougo = newPayasyougo - creditAmount;
+                } else {
+                    // Spend all pay-as-you-go, then renewable
+                    const remaining = creditAmount - newPayasyougo;
+                    newPayasyougo = 0;
+                    newRenewable = newRenewable - remaining;
+                }
+
+                // Ensure no negative credits
+                newPayasyougo = Math.max(0, newPayasyougo);
+                newRenewable = Math.max(0, newRenewable);
+
+                // ✅ Update user credits with dual system
                 const updateResult = await client.query(`
                     UPDATE users 
-                    SET credits_remaining = credits_remaining - $1, updated_at = NOW()
-                    WHERE id = $2 AND credits_remaining >= $1
-                    RETURNING credits_remaining
-                `, [creditAmount, userId]);
+                    SET 
+                        renewable_credits = $1,
+                        payasyougo_credits = $2,
+                        credits_remaining = $1 + $2,
+                        updated_at = NOW()
+                    WHERE id = $3 AND (renewable_credits + payasyougo_credits) >= $4
+                    RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+                `, [newRenewable, newPayasyougo, userId, creditAmount]);
 
                 if (updateResult.rows.length === 0) {
                     throw new Error('Insufficient credits or user not found');
                 }
 
-                const newBalance = parseFloat(updateResult.rows[0].credits_remaining);
+                const afterCredits = updateResult.rows[0];
+                const newBalance = parseFloat(afterCredits.total_credits);
+
+                console.log(`💰 After deduction - Renewable: ${afterCredits.renewable_credits}, Pay-as-you-go: ${afterCredits.payasyougo_credits}, Total: ${newBalance}`);
 
                 // Update hold to completed transaction
                 await client.query(`
@@ -150,7 +211,18 @@ class CreditManager {
                         processing_time_ms = $2
                     WHERE hold_id = $3
                 `, [
-                    JSON.stringify(operationResult),
+                    JSON.stringify({
+                        ...operationResult,
+                        creditBreakdownBefore: {
+                            renewable: beforeCredits.renewable_credits,
+                            payasyougo: beforeCredits.payasyougo_credits
+                        },
+                        creditBreakdownAfter: {
+                            renewable: afterCredits.renewable_credits,
+                            payasyougo: afterCredits.payasyougo_credits,
+                            total: newBalance
+                        }
+                    }),
                     operationResult.processingTimeMs || null,
                     holdId
                 ]);
@@ -163,6 +235,8 @@ class CreditManager {
                     success: true,
                     creditsDeducted: creditAmount,
                     newBalance: newBalance,
+                    renewableCredits: afterCredits.renewable_credits,
+                    payasyougoCredits: afterCredits.payasyougo_credits,
                     transactionId: hold.id
                 };
 
@@ -224,21 +298,35 @@ class CreditManager {
         }
     }
 
-    // Get current user credits
+    // ✅ ENHANCED: Get current user credits (dual system)
     async getCurrentCredits(userId) {
         try {
-            const result = await pool.query(
-                'SELECT credits_remaining FROM users WHERE id = $1',
-                [userId]
-            );
+            const result = await pool.query(`
+                SELECT 
+                    renewable_credits,
+                    payasyougo_credits,
+                    (renewable_credits + payasyougo_credits) as total_credits,
+                    plan_code,
+                    subscription_starts_at,
+                    next_billing_date
+                FROM users 
+                WHERE id = $1
+            `, [userId]);
 
             if (result.rows.length === 0) {
                 throw new Error('User not found');
             }
 
+            const user = result.rows[0];
+
             return {
                 success: true,
-                credits: parseFloat(result.rows[0].credits_remaining) || 0
+                credits: parseFloat(user.total_credits) || 0,
+                renewableCredits: user.renewable_credits || 0,
+                payasyougoCredits: user.payasyougo_credits || 0,
+                planCode: user.plan_code || 'free',
+                subscriptionStartsAt: user.subscription_starts_at,
+                nextBillingDate: user.next_billing_date
             };
 
         } catch (error) {
@@ -246,7 +334,9 @@ class CreditManager {
             return {
                 success: false,
                 error: error.message,
-                credits: 0
+                credits: 0,
+                renewableCredits: 0,
+                payasyougoCredits: 0
             };
         }
     }
@@ -323,6 +413,164 @@ class CreditManager {
         }
     }
 
+    // ✅ NEW: Add pay-as-you-go credits (for purchases)
+    async addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
+        try {
+            const client = await pool.connect();
+            
+            try {
+                await client.query('BEGIN');
+
+                // Add credits to user
+                const result = await client.query(`
+                    UPDATE users 
+                    SET 
+                        payasyougo_credits = payasyougo_credits + $1,
+                        credits_remaining = renewable_credits + payasyougo_credits + $1,
+                        updated_at = NOW()
+                    WHERE id = $2
+                    RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+                `, [amount, userId]);
+
+                if (result.rows.length === 0) {
+                    throw new Error('User not found');
+                }
+
+                const credits = result.rows[0];
+
+                // Record the credit addition transaction
+                await client.query(`
+                    INSERT INTO credits_transactions (
+                        user_id, operation_type, amount, status,
+                        operation_data, operation_result, created_at, completed_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+                `, [
+                    userId,
+                    'credit_purchase',
+                    amount,
+                    'completed',
+                    JSON.stringify(purchaseData),
+                    JSON.stringify({
+                        creditType: 'payasyougo',
+                        amountAdded: amount,
+                        newBalance: credits.total_credits
+                    })
+                ]);
+
+                await client.query('COMMIT');
+
+                console.log(`💰 Added ${amount} pay-as-you-go credits to user ${userId}`);
+                console.log(`   - New total: ${credits.total_credits}`);
+
+                return {
+                    success: true,
+                    amountAdded: amount,
+                    newBalance: credits.total_credits,
+                    renewableCredits: credits.renewable_credits,
+                    payasyougoCredits: credits.payasyougo_credits
+                };
+
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
+
+        } catch (error) {
+            console.error('❌ Error adding pay-as-you-go credits:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    // ✅ NEW: Reset renewable credits (monthly billing cycle)
+    async resetRenewableCredits(userId) {
+        try {
+            const client = await pool.connect();
+            
+            try {
+                await client.query('BEGIN');
+
+                // Get user's plan renewable credits
+                const planResult = await client.query(`
+                    SELECT p.renewable_credits
+                    FROM users u
+                    JOIN plans p ON u.plan_code = p.plan_code
+                    WHERE u.id = $1
+                `, [userId]);
+
+                if (planResult.rows.length === 0) {
+                    throw new Error('User or plan not found');
+                }
+
+                const planRenewableCredits = planResult.rows[0].renewable_credits;
+
+                // Reset renewable credits to plan amount, keep pay-as-you-go unchanged
+                const result = await client.query(`
+                    UPDATE users 
+                    SET 
+                        renewable_credits = $1,
+                        credits_remaining = $1 + payasyougo_credits,
+                        next_billing_date = next_billing_date + INTERVAL '1 month',
+                        updated_at = NOW()
+                    WHERE id = $2
+                    RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+                `, [planRenewableCredits, userId]);
+
+                const credits = result.rows[0];
+
+                // Record the renewal transaction
+                await client.query(`
+                    INSERT INTO credits_transactions (
+                        user_id, operation_type, amount, status,
+                        operation_data, operation_result, created_at, completed_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+                `, [
+                    userId,
+                    'monthly_renewal',
+                    planRenewableCredits,
+                    'completed',
+                    JSON.stringify({ planRenewableCredits }),
+                    JSON.stringify({
+                        creditType: 'renewable',
+                        resetTo: planRenewableCredits,
+                        newBalance: credits.total_credits,
+                        payasyougoCreditsKept: credits.payasyougo_credits
+                    })
+                ]);
+
+                await client.query('COMMIT');
+
+                console.log(`🔄 Reset renewable credits for user ${userId} to ${planRenewableCredits}`);
+                console.log(`   - Pay-as-you-go credits kept: ${credits.payasyougo_credits}`);
+                console.log(`   - New total: ${credits.total_credits}`);
+
+                return {
+                    success: true,
+                    renewableCredits: credits.renewable_credits,
+                    payasyougoCredits: credits.payasyougo_credits,
+                    totalCredits: credits.total_credits
+                };
+
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
+
+        } catch (error) {
+            console.error('❌ Error resetting renewable credits:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
     // Generate unique hold ID
     generateHoldId() {
         return 'hold_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -342,7 +590,7 @@ class CreditManager {
 // Create singleton instance
 const creditManager = new CreditManager();
 
-// Helper functions for easy import
+// ✅ ENHANCED: Helper functions for easy import (dual credit system aware)
 async function createCreditHold(userId, operationType, operationData = {}) {
     return await creditManager.createHold(userId, operationType, operationData);
 }
@@ -371,6 +619,15 @@ async function cleanupExpiredHolds() {
     return await creditManager.cleanupOldHolds();
 }
 
+// ✅ NEW: Helper functions for dual credit system
+async function addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
+    return await creditManager.addPayAsYouGoCredits(userId, amount, purchaseData);
+}
+
+async function resetRenewableCredits(userId) {
+    return await creditManager.resetRenewableCredits(userId);
+}
+
 function getOperationCost(operationType) {
     return creditManager.getOperationCost(operationType);
 }
@@ -390,8 +647,11 @@ module.exports = {
     getCurrentCredits,
     getTransactionHistory,
     cleanupExpiredHolds,
+    // ✅ NEW: Dual credit system functions
+    addPayAsYouGoCredits,
+    resetRenewableCredits,
     getOperationCost,
     isValidOperationType
 };
 
-console.log('💳 Credit Management System loaded successfully!');
+console.log('💳 Enhanced Credit Management System with Dual Credits loaded successfully!');
