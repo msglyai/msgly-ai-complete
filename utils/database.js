@@ -16,9 +16,11 @@ const initDB = async () => {
     try {
         console.log('Creating enhanced database tables with dual credit system...');
 
-        // ✅ PLANS TABLE - Real pricing from sign-up.html
+        // ✅ PLANS TABLE - FIXED: Drop and recreate with correct schema
+        await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
+        
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS plans (
+            CREATE TABLE plans (
                 id SERIAL PRIMARY KEY,
                 plan_code VARCHAR(50) UNIQUE NOT NULL,
                 plan_name VARCHAR(100) NOT NULL,
@@ -263,7 +265,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
                 
-                // ✅ NEW: Dual Credit System columns
+                -- ✅ NEW: Dual Credit System columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
