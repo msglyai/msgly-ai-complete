@@ -1,5 +1,5 @@
-// ✅ CLEAN database.js - Broken TARGET functions removed, USER functions kept intact
-// Only working USER profile functions remain
+// ✅ ENHANCED database.js - Added Plans Table + Dual Credit System
+// Sophisticated credit management with renewable + pay-as-you-go credits
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -14,9 +14,46 @@ const pool = new Pool({
 
 const initDB = async () => {
     try {
-        console.log('🗃️ Creating USER PROFILE database tables (JSON-first system)...');
+        console.log('🗃️ Creating enhanced database tables with dual credit system...');
 
-        // ✅ USERS TABLE (unchanged)
+        // ✅ PLANS TABLE - Real pricing from sign-up.html
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS plans (
+                id SERIAL PRIMARY KEY,
+                plan_code VARCHAR(50) UNIQUE NOT NULL,
+                plan_name VARCHAR(100) NOT NULL,
+                billing_model VARCHAR(20) NOT NULL,
+                price_cents INTEGER NOT NULL,
+                currency VARCHAR(3) DEFAULT 'USD',
+                renewable_credits INTEGER NOT NULL,
+                is_pay_as_you_go BOOLEAN DEFAULT FALSE,
+                description TEXT,
+                features JSONB DEFAULT '[]'::JSONB,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // ✅ INSERT REAL PLAN DATA (from sign-up.html)
+        await pool.query(`
+            INSERT INTO plans (plan_code, plan_name, billing_model, price_cents, renewable_credits, is_pay_as_you_go, description) 
+            VALUES 
+                ('free', 'Free', 'monthly', 0, 7, FALSE, 'Free plan with 7 monthly renewable credits'),
+                ('silver-monthly', 'Silver Monthly', 'monthly', 1390, 30, FALSE, 'Silver monthly plan with 30 renewable credits'),
+                ('silver-payasyougo', 'Silver Pay-as-you-go', 'one_time', 1700, 30, TRUE, 'Silver one-time purchase of 30 non-expiring credits'),
+                ('gold-monthly', 'Gold Monthly', 'monthly', 3200, 100, FALSE, 'Gold monthly plan with 100 renewable credits'),
+                ('gold-payasyougo', 'Gold Pay-as-you-go', 'one_time', 3900, 100, TRUE, 'Gold one-time purchase of 100 non-expiring credits'),
+                ('platinum-monthly', 'Platinum Monthly', 'monthly', 6387, 250, FALSE, 'Platinum monthly plan with 250 renewable credits'),
+                ('platinum-payasyougo', 'Platinum Pay-as-you-go', 'one_time', 7800, 250, TRUE, 'Platinum one-time purchase of 250 non-expiring credits')
+            ON CONFLICT (plan_code) DO UPDATE SET
+                plan_name = EXCLUDED.plan_name,
+                price_cents = EXCLUDED.price_cents,
+                renewable_credits = EXCLUDED.renewable_credits,
+                updated_at = CURRENT_TIMESTAMP;
+        `);
+
+        // ✅ ENHANCED USERS TABLE
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -29,7 +66,19 @@ const initDB = async () => {
                 last_name VARCHAR(100),
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
-                credits_remaining INTEGER DEFAULT 10,
+                
+                -- ✅ NEW: Dual Credit System
+                plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
+                renewable_credits INTEGER DEFAULT 7,
+                payasyougo_credits INTEGER DEFAULT 0,
+                
+                -- ✅ NEW: Billing Cycle Management
+                subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                next_billing_date TIMESTAMP,
+                
+                -- Legacy field (will be calculated from dual credits)
+                credits_remaining INTEGER DEFAULT 7,
+                
                 subscription_status VARCHAR(50) DEFAULT 'active',
                 linkedin_url TEXT,
                 profile_data JSONB,
@@ -41,7 +90,7 @@ const initDB = async () => {
             );
         `);
 
-        // ✅ USER_PROFILES TABLE - Only table needed (TARGET uses JSON files)
+        // ✅ USER_PROFILES TABLE (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -170,8 +219,6 @@ const initDB = async () => {
             );
         `);
 
-        // ❌ REMOVED: target_profiles table (TARGET now uses JSON files)
-
         // ✅ Supporting tables (unchanged)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
@@ -190,16 +237,21 @@ const initDB = async () => {
             CREATE TABLE IF NOT EXISTS credits_transactions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
-                transaction_type VARCHAR(50),
-                credits_change INTEGER,
-                description TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                operation_type VARCHAR(50),
+                amount DECIMAL(10,2),
+                status VARCHAR(20),
+                hold_id VARCHAR(100),
+                operation_data JSONB,
+                operation_result JSONB,
+                processing_time_ms INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP
             );
         `);
 
         // ✅ Add missing columns (safe operation)
         try {
-            const userColumns = [
+            const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500)',
@@ -209,10 +261,17 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_data JSONB',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT \'not_started\'',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false'
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
+                
+                -- ✅ NEW: Dual Credit System columns
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP'
             ];
             
-            for (const columnQuery of userColumns) {
+            for (const columnQuery of enhancedUserColumns) {
                 try {
                     await pool.query(columnQuery);
                 } catch (err) {
@@ -228,7 +287,7 @@ const initDB = async () => {
             }
 
             // ✅ Add enhanced fields to user_profiles only
-            const enhancedColumns = [
+            const enhancedProfileColumns = [
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS current_job_title TEXT',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
@@ -237,31 +296,10 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_companies JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_people JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_hashtags JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS following_newsletters JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS interests_industries JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS interests_topics JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS groups JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS featured JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS creator_info JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS services JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS business_info JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_raw_data JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_processed_at TIMESTAMP',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS gemini_token_usage JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS raw_gpt_response TEXT',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS input_tokens INTEGER',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_tokens INTEGER',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS processing_time_ms INTEGER',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS api_request_id TEXT',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS response_status TEXT DEFAULT \'success\''
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0'
             ];
 
-            for (const columnQuery of enhancedColumns) {
+            for (const columnQuery of enhancedProfileColumns) {
                 try {
                     await pool.query(columnQuery);
                 } catch (err) {
@@ -274,7 +312,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // ✅ Create indexes (USER profiles only)
+        // ✅ Create indexes
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -287,16 +325,279 @@ const initDB = async () => {
                 -- Users indexes
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
+                CREATE INDEX IF NOT EXISTS idx_users_plan_code ON users(plan_code);
+                
+                -- Plans indexes
+                CREATE INDEX IF NOT EXISTS idx_plans_plan_code ON plans(plan_code);
+                CREATE INDEX IF NOT EXISTS idx_plans_active ON plans(active);
             `);
             console.log('✅ Database indexes created successfully');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
 
-        console.log('✅ Clean database tables created successfully! (TARGET uses JSON files)');
+        // ✅ Set next billing dates for existing free users
+        try {
+            await pool.query(`
+                UPDATE users 
+                SET next_billing_date = subscription_starts_at + INTERVAL '1 month'
+                WHERE plan_code = 'free' AND next_billing_date IS NULL;
+            `);
+        } catch (err) {
+            console.log('Billing date update error:', err.message);
+        }
+
+        console.log('✅ Enhanced database with dual credit system created successfully!');
     } catch (error) {
         console.error('❌ Database setup error:', error);
         throw error;
+    }
+};
+
+// ==================== DUAL CREDIT MANAGEMENT FUNCTIONS ====================
+
+// ✅ NEW: Get user plan with real data
+const getUserPlan = async (userId) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                u.id,
+                u.plan_code,
+                u.renewable_credits,
+                u.payasyougo_credits,
+                u.subscription_starts_at,
+                u.next_billing_date,
+                u.subscription_status,
+                p.plan_name,
+                p.billing_model,
+                p.price_cents,
+                p.renewable_credits as plan_renewable_credits,
+                p.is_pay_as_you_go
+            FROM users u
+            LEFT JOIN plans p ON u.plan_code = p.plan_code
+            WHERE u.id = $1
+        `, [userId]);
+
+        if (result.rows.length === 0) {
+            throw new Error('User not found');
+        }
+
+        const user = result.rows[0];
+        
+        // Calculate total credits (pay-as-you-go + renewable)
+        const totalCredits = (user.renewable_credits || 0) + (user.payasyougo_credits || 0);
+        
+        // Calculate next billing date for display
+        let renewalDate = 'Never';
+        if (user.next_billing_date) {
+            renewalDate = new Date(user.next_billing_date).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        return {
+            success: true,
+            data: {
+                userId: user.id,
+                planCode: user.plan_code,
+                planName: user.plan_name || 'Free',
+                billingModel: user.billing_model || 'monthly',
+                subscriptionStatus: user.subscription_status || 'active',
+                
+                // Credit breakdown
+                renewableCredits: user.renewable_credits || 0,
+                payasyougoCredits: user.payasyougo_credits || 0,
+                totalCredits: totalCredits,
+                
+                // Plan details
+                planRenewableCredits: user.plan_renewable_credits || 7,
+                priceCents: user.price_cents || 0,
+                
+                // Billing info
+                subscriptionStartsAt: user.subscription_starts_at,
+                nextBillingDate: user.next_billing_date,
+                renewalDate: renewalDate,
+                
+                // UI display data
+                creditsDisplay: `${totalCredits}/${user.plan_renewable_credits || 7} Credits`,
+                renewalDisplay: `Renews ${renewalDate}`,
+                progressPercentage: Math.round(((user.renewable_credits || 0) / (user.plan_renewable_credits || 7)) * 100)
+            }
+        };
+    } catch (error) {
+        console.error('❌ Error getting user plan:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ✅ NEW: Update user credits (dual system)
+const updateUserCredits = async (userId, creditChange, creditType = 'payasyougo') => {
+    try {
+        let updateQuery;
+        
+        if (creditType === 'renewable') {
+            updateQuery = `
+                UPDATE users 
+                SET renewable_credits = GREATEST(0, renewable_credits + $1),
+                    credits_remaining = renewable_credits + payasyougo_credits,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+                RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+            `;
+        } else {
+            updateQuery = `
+                UPDATE users 
+                SET payasyougo_credits = GREATEST(0, payasyougo_credits + $1),
+                    credits_remaining = renewable_credits + payasyougo_credits,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+                RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+            `;
+        }
+        
+        const result = await pool.query(updateQuery, [creditChange, userId]);
+        
+        if (result.rows.length === 0) {
+            throw new Error('User not found');
+        }
+        
+        const credits = result.rows[0];
+        
+        return {
+            success: true,
+            renewableCredits: credits.renewable_credits,
+            payasyougoCredits: credits.payasyougo_credits,
+            totalCredits: credits.total_credits
+        };
+    } catch (error) {
+        console.error('❌ Error updating user credits:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ✅ NEW: Spend credits (pay-as-you-go first, then renewable)
+const spendUserCredits = async (userId, amount) => {
+    try {
+        const client = await pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Get current credits
+            const userResult = await client.query(
+                'SELECT renewable_credits, payasyougo_credits FROM users WHERE id = $1',
+                [userId]
+            );
+            
+            if (userResult.rows.length === 0) {
+                throw new Error('User not found');
+            }
+            
+            const { renewable_credits, payasyougo_credits } = userResult.rows[0];
+            const totalAvailable = renewable_credits + payasyougo_credits;
+            
+            if (totalAvailable < amount) {
+                throw new Error('Insufficient credits');
+            }
+            
+            let newPayasyougo = payasyougo_credits;
+            let newRenewable = renewable_credits;
+            
+            // Spend pay-as-you-go first
+            if (payasyougo_credits >= amount) {
+                newPayasyougo = payasyougo_credits - amount;
+            } else {
+                // Spend all pay-as-you-go, then renewable
+                const remaining = amount - payasyougo_credits;
+                newPayasyougo = 0;
+                newRenewable = renewable_credits - remaining;
+            }
+            
+            // Update credits
+            await client.query(`
+                UPDATE users 
+                SET 
+                    renewable_credits = $1,
+                    payasyougo_credits = $2,
+                    credits_remaining = $1 + $2,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $3
+            `, [newRenewable, newPayasyougo, userId]);
+            
+            await client.query('COMMIT');
+            
+            return {
+                success: true,
+                spent: amount,
+                newRenewableCredits: newRenewable,
+                newPayasyougoCredits: newPayasyougo,
+                newTotalCredits: newRenewable + newPayasyougo
+            };
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('❌ Error spending user credits:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ✅ NEW: Reset renewable credits (monthly billing cycle)
+const resetRenewableCredits = async (userId) => {
+    try {
+        const planResult = await pool.query(`
+            SELECT p.renewable_credits
+            FROM users u
+            JOIN plans p ON u.plan_code = p.plan_code
+            WHERE u.id = $1
+        `, [userId]);
+        
+        if (planResult.rows.length === 0) {
+            throw new Error('User or plan not found');
+        }
+        
+        const planRenewableCredits = planResult.rows[0].renewable_credits;
+        
+        // Reset renewable credits to plan amount, keep pay-as-you-go unchanged
+        const result = await pool.query(`
+            UPDATE users 
+            SET 
+                renewable_credits = $1,
+                credits_remaining = $1 + payasyougo_credits,
+                next_billing_date = next_billing_date + INTERVAL '1 month',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+        `, [planRenewableCredits, userId]);
+        
+        const credits = result.rows[0];
+        
+        return {
+            success: true,
+            renewableCredits: credits.renewable_credits,
+            payasyougoCredits: credits.payasyougo_credits,
+            totalCredits: credits.total_credits
+        };
+    } catch (error) {
+        console.error('❌ Error resetting renewable credits:', error);
+        return {
+            success: false,
+            error: error.message
+        };
     }
 };
 
@@ -493,42 +794,55 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     }
 };
 
-// ❌ REMOVED: processTargetGeminiData function (broken, TARGET now uses JSON files)
-
 // ==================== USER MANAGEMENT FUNCTIONS ====================
 
 const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
-    const creditsMap = {
-        'free': 7,
-        'silver': billingModel === 'payAsYouGo' ? 30 : 30,
-        'gold': billingModel === 'payAsYouGo' ? 100 : 100,
-        'platinum': billingModel === 'payAsYouGo' ? 250 : 250
-    };
-    
-    const credits = creditsMap[packageType] || 10;
-    
-    const result = await pool.query(
-        'INSERT INTO users (email, password_hash, package_type, billing_model, credits_remaining) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [email, passwordHash, packageType, billingModel, credits]
+    // Get credits from plans table
+    const planResult = await pool.query(
+        'SELECT renewable_credits FROM plans WHERE plan_code = $1',
+        [packageType]
     );
+    
+    const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
+    
+    const result = await pool.query(`
+        INSERT INTO users (
+            email, password_hash, package_type, billing_model, plan_code,
+            renewable_credits, payasyougo_credits, credits_remaining,
+            subscription_starts_at, next_billing_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+    `, [
+        email, passwordHash, packageType, billingModel, packageType,
+        renewableCredits, 0, renewableCredits,
+        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
+    ]);
+    
     return result.rows[0];
 };
 
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
-    const creditsMap = {
-        'free': 7,
-        'silver': billingModel === 'payAsYouGo' ? 30 : 30,
-        'gold': billingModel === 'payAsYouGo' ? 100 : 100,
-        'platinum': billingModel === 'payAsYouGo' ? 250 : 250
-    };
-    
-    const credits = creditsMap[packageType] || 10;
-    
-    const result = await pool.query(
-        `INSERT INTO users (email, google_id, display_name, profile_picture, package_type, billing_model, credits_remaining) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [email, googleId, displayName, profilePicture, packageType, billingModel, credits]
+    // Get credits from plans table
+    const planResult = await pool.query(
+        'SELECT renewable_credits FROM plans WHERE plan_code = $1',
+        [packageType]
     );
+    
+    const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
+    
+    const result = await pool.query(`
+        INSERT INTO users (
+            email, google_id, display_name, profile_picture, 
+            package_type, billing_model, plan_code,
+            renewable_credits, payasyougo_credits, credits_remaining,
+            subscription_starts_at, next_billing_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+    `, [
+        email, googleId, displayName, profilePicture, 
+        packageType, billingModel, packageType,
+        renewableCredits, 0, renewableCredits,
+        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
+    ]);
+    
     return result.rows[0];
 };
 
@@ -590,9 +904,7 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
     }
 };
 
-// ❌ REMOVED: createOrUpdateTargetProfile functions (broken, TARGET now uses JSON files)
-
-// ✅ Helper functions (USER only)
+// Helper functions
 const getUserProfile = async (userId) => {
     try {
         const result = await pool.query(
@@ -611,7 +923,7 @@ const getUserProfile = async (userId) => {
 const testDatabase = async () => {
     try {
         const result = await pool.query('SELECT NOW()');
-        console.log('✅ Clean database connected:', result.rows[0].now);
+        console.log('✅ Enhanced database connected:', result.rows[0].now);
         await initDB();
         return true;
     } catch (error) {
@@ -620,7 +932,7 @@ const testDatabase = async () => {
     }
 };
 
-// ✅ Clean export - Only USER profile functions (TARGET uses JSON files)
+// ✅ Enhanced export with dual credit system
 module.exports = {
     // Database connection
     pool,
@@ -640,12 +952,15 @@ module.exports = {
     // ✅ USER PROFILE functions only
     getUserProfile,
     
+    // ✅ NEW: Dual Credit Management
+    getUserPlan,
+    updateUserCredits,
+    spendUserCredits,
+    resetRenewableCredits,
+    
     // ✅ Data processing helpers (used by USER profiles only)
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData  // ✅ USER profile processing only
-    
-    // ❌ REMOVED: All TARGET profile functions (processTargetGeminiData, createOrUpdateTargetProfile, getTargetProfile)
-    // 🎯 TARGET profiles now use JSON files in server.js
+    processGeminiData
 };
