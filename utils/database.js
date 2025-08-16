@@ -235,6 +235,9 @@ const initDB = async () => {
             );
         `);
 
+        // CREDITS_TRANSACTIONS TABLE - FIXED: Drop and recreate with correct schema
+        await pool.query(`DROP TABLE IF EXISTS credits_transactions CASCADE;`);
+        
         await pool.query(`
             CREATE TABLE IF NOT EXISTS credits_transactions (
                 id SERIAL PRIMARY KEY,
@@ -334,6 +337,11 @@ const initDB = async () => {
                 -- Plans indexes
                 CREATE INDEX IF NOT EXISTS idx_plans_plan_code ON plans(plan_code);
                 CREATE INDEX IF NOT EXISTS idx_plans_active ON plans(active);
+                
+                -- Credits transactions indexes
+                CREATE INDEX IF NOT EXISTS idx_credits_transactions_user_id ON credits_transactions(user_id);
+                CREATE INDEX IF NOT EXISTS idx_credits_transactions_hold_id ON credits_transactions(hold_id);
+                CREATE INDEX IF NOT EXISTS idx_credits_transactions_status ON credits_transactions(status);
             `);
             console.log('Database indexes created successfully');
         } catch (err) {
