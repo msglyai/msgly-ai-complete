@@ -1,5 +1,6 @@
 // credits.js - Enhanced Credit Management System with Dual Credit Support
 // Handles renewable + pay-as-you-go credits, holds, deductions, transactions, and validation
+// FIXED: All SQL queries now handle INTEGER + DECIMAL operations properly
 
 const { pool } = require('./utils/database');
 
@@ -12,14 +13,14 @@ class CreditManager {
         };
     }
 
-    // ✅ ENHANCED: Check if user has sufficient credits (dual system)
+    // ✅ ENHANCED: Check if user has sufficient credits (dual system) - FIXED
     async checkCredits(userId, operationType) {
         try {
             const result = await pool.query(`
                 SELECT 
-                    renewable_credits, 
-                    payasyougo_credits,
-                    (renewable_credits + payasyougo_credits) as total_credits
+                    COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
+                    COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits,
+                    (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
                 FROM users 
                 WHERE id = $1
             `, [userId]);
@@ -43,8 +44,8 @@ class CreditManager {
                 success: true,
                 hasCredits: currentCredits >= requiredCredits,
                 currentCredits: currentCredits,
-                renewableCredits: renewable_credits || 0,
-                payasyougoCredits: payasyougo_credits || 0,
+                renewableCredits: parseFloat(renewable_credits) || 0,
+                payasyougoCredits: parseFloat(payasyougo_credits) || 0,
                 requiredCredits: requiredCredits,
                 remaining: currentCredits - requiredCredits
             };
@@ -131,7 +132,7 @@ class CreditManager {
         }
     }
 
-    // ✅ ENHANCED: Complete operation and deduct credits (dual system)
+    // ✅ ENHANCED: Complete operation and deduct credits (dual system) - FIXED
     async completeOperation(userId, holdId, operationResult = {}) {
         try {
             // Start transaction
@@ -153,9 +154,11 @@ class CreditManager {
                 const hold = holdResult.rows[0];
                 const creditAmount = Math.abs(hold.amount);
 
-                // ✅ Get current credit breakdown before deduction
+                // ✅ Get current credit breakdown before deduction - FIXED
                 const beforeResult = await client.query(`
-                    SELECT renewable_credits, payasyougo_credits 
+                    SELECT 
+                        COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
+                        COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits
                     FROM users WHERE id = $1
                 `, [userId]);
 
@@ -163,8 +166,8 @@ class CreditManager {
                 console.log(`💳 Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
 
                 // ✅ Use dual credit spending logic (pay-as-you-go first, then renewable)
-                let newPayasyougo = beforeCredits.payasyougo_credits || 0;
-                let newRenewable = beforeCredits.renewable_credits || 0;
+                let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits) || 0;
+                let newRenewable = parseFloat(beforeCredits.renewable_credits) || 0;
                 
                 // Spend pay-as-you-go first
                 if (newPayasyougo >= creditAmount) {
@@ -180,16 +183,19 @@ class CreditManager {
                 newPayasyougo = Math.max(0, newPayasyougo);
                 newRenewable = Math.max(0, newRenewable);
 
-                // ✅ Update user credits with dual system
+                // ✅ Update user credits with dual system - FIXED: Use explicit casting
                 const updateResult = await client.query(`
                     UPDATE users 
                     SET 
-                        renewable_credits = $1,
-                        payasyougo_credits = $2,
-                        credits_remaining = $1 + $2,
+                        renewable_credits = $1::DECIMAL(10,2),
+                        payasyougo_credits = $2::DECIMAL(10,2),
+                        credits_remaining = $1::DECIMAL(10,2) + $2::DECIMAL(10,2),
                         updated_at = NOW()
-                    WHERE id = $3 AND (renewable_credits + payasyougo_credits) >= $4
-                    RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+                    WHERE id = $3 AND (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) >= $4::DECIMAL(10,2)
+                    RETURNING 
+                        COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
+                        COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
+                        (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
                 `, [newRenewable, newPayasyougo, userId, creditAmount]);
 
                 if (updateResult.rows.length === 0) {
@@ -235,8 +241,8 @@ class CreditManager {
                     success: true,
                     creditsDeducted: creditAmount,
                     newBalance: newBalance,
-                    renewableCredits: afterCredits.renewable_credits,
-                    payasyougoCredits: afterCredits.payasyougo_credits,
+                    renewableCredits: parseFloat(afterCredits.renewable_credits),
+                    payasyougoCredits: parseFloat(afterCredits.payasyougo_credits),
                     transactionId: hold.id
                 };
 
@@ -298,14 +304,14 @@ class CreditManager {
         }
     }
 
-    // ✅ ENHANCED: Get current user credits (dual system)
+    // ✅ ENHANCED: Get current user credits (dual system) - FIXED
     async getCurrentCredits(userId) {
         try {
             const result = await pool.query(`
                 SELECT 
-                    renewable_credits,
-                    payasyougo_credits,
-                    (renewable_credits + payasyougo_credits) as total_credits,
+                    COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
+                    COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits,
+                    (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits,
                     plan_code,
                     subscription_starts_at,
                     next_billing_date
@@ -322,8 +328,8 @@ class CreditManager {
             return {
                 success: true,
                 credits: parseFloat(user.total_credits) || 0,
-                renewableCredits: user.renewable_credits || 0,
-                payasyougoCredits: user.payasyougo_credits || 0,
+                renewableCredits: parseFloat(user.renewable_credits) || 0,
+                payasyougoCredits: parseFloat(user.payasyougo_credits) || 0,
                 planCode: user.plan_code || 'free',
                 subscriptionStartsAt: user.subscription_starts_at,
                 nextBillingDate: user.next_billing_date
@@ -413,7 +419,7 @@ class CreditManager {
         }
     }
 
-    // ✅ NEW: Add pay-as-you-go credits (for purchases)
+    // ✅ NEW: Add pay-as-you-go credits (for purchases) - FIXED
     async addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
         try {
             const client = await pool.connect();
@@ -421,15 +427,18 @@ class CreditManager {
             try {
                 await client.query('BEGIN');
 
-                // Add credits to user
+                // Add credits to user - FIXED: Use explicit casting
                 const result = await client.query(`
                     UPDATE users 
                     SET 
-                        payasyougo_credits = payasyougo_credits + $1,
-                        credits_remaining = renewable_credits + payasyougo_credits + $1,
+                        payasyougo_credits = COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) + $1::DECIMAL(10,2),
+                        credits_remaining = COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) + $1::DECIMAL(10,2),
                         updated_at = NOW()
                     WHERE id = $2
-                    RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+                    RETURNING 
+                        COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
+                        COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
+                        (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
                 `, [amount, userId]);
 
                 if (result.rows.length === 0) {
@@ -453,7 +462,7 @@ class CreditManager {
                     JSON.stringify({
                         creditType: 'payasyougo',
                         amountAdded: amount,
-                        newBalance: credits.total_credits
+                        newBalance: parseFloat(credits.total_credits)
                     })
                 ]);
 
@@ -465,9 +474,9 @@ class CreditManager {
                 return {
                     success: true,
                     amountAdded: amount,
-                    newBalance: credits.total_credits,
-                    renewableCredits: credits.renewable_credits,
-                    payasyougoCredits: credits.payasyougo_credits
+                    newBalance: parseFloat(credits.total_credits),
+                    renewableCredits: parseFloat(credits.renewable_credits),
+                    payasyougoCredits: parseFloat(credits.payasyougo_credits)
                 };
 
             } catch (error) {
@@ -486,7 +495,7 @@ class CreditManager {
         }
     }
 
-    // ✅ NEW: Reset renewable credits (monthly billing cycle)
+    // ✅ NEW: Reset renewable credits (monthly billing cycle) - FIXED
     async resetRenewableCredits(userId) {
         try {
             const client = await pool.connect();
@@ -496,7 +505,7 @@ class CreditManager {
 
                 // Get user's plan renewable credits
                 const planResult = await client.query(`
-                    SELECT p.renewable_credits
+                    SELECT COALESCE(p.renewable_credits, 0)::DECIMAL(10,2) as renewable_credits
                     FROM users u
                     JOIN plans p ON u.plan_code = p.plan_code
                     WHERE u.id = $1
@@ -506,18 +515,21 @@ class CreditManager {
                     throw new Error('User or plan not found');
                 }
 
-                const planRenewableCredits = planResult.rows[0].renewable_credits;
+                const planRenewableCredits = parseFloat(planResult.rows[0].renewable_credits);
 
-                // Reset renewable credits to plan amount, keep pay-as-you-go unchanged
+                // Reset renewable credits to plan amount, keep pay-as-you-go unchanged - FIXED
                 const result = await client.query(`
                     UPDATE users 
                     SET 
-                        renewable_credits = $1,
-                        credits_remaining = $1 + payasyougo_credits,
+                        renewable_credits = $1::DECIMAL(10,2),
+                        credits_remaining = $1::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2),
                         next_billing_date = next_billing_date + INTERVAL '1 month',
                         updated_at = NOW()
                     WHERE id = $2
-                    RETURNING renewable_credits, payasyougo_credits, (renewable_credits + payasyougo_credits) as total_credits
+                    RETURNING 
+                        COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
+                        COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
+                        (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
                 `, [planRenewableCredits, userId]);
 
                 const credits = result.rows[0];
@@ -537,8 +549,8 @@ class CreditManager {
                     JSON.stringify({
                         creditType: 'renewable',
                         resetTo: planRenewableCredits,
-                        newBalance: credits.total_credits,
-                        payasyougoCreditsKept: credits.payasyougo_credits
+                        newBalance: parseFloat(credits.total_credits),
+                        payasyougoCreditsKept: parseFloat(credits.payasyougo_credits)
                     })
                 ]);
 
@@ -550,9 +562,9 @@ class CreditManager {
 
                 return {
                     success: true,
-                    renewableCredits: credits.renewable_credits,
-                    payasyougoCredits: credits.payasyougo_credits,
-                    totalCredits: credits.total_credits
+                    renewableCredits: parseFloat(credits.renewable_credits),
+                    payasyougoCredits: parseFloat(credits.payasyougo_credits),
+                    totalCredits: parseFloat(credits.total_credits)
                 };
 
             } catch (error) {
