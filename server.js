@@ -239,12 +239,12 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
                     output_tokens,
                     total_tokens,
                     created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ) VALUES ($1, $2, $3::TEXT, $4, $5, $6, NOW())
                 RETURNING id, created_at
             `, [
                 userId,
                 cleanUrl,
-                JSON.stringify(rawJsonData), // Convert to valid JSON string
+                JSON.stringify(rawJsonData), // Convert to valid JSON string, then force as TEXT
                 cleanedInput,
                 cleanedOutput,
                 cleanedTotal
