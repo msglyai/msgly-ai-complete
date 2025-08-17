@@ -1,10 +1,10 @@
 // What changed in Stage G
-// âœ… FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
+// ✅ FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
 // routes/profiles.js - Chrome extension and API routes (JWT authentication only)
 
 const express = require('express');
 
-// What changed in Stage G â€" numeric sanitizers
+// What changed in Stage G – numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -38,11 +38,11 @@ function toFloatSafe(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// âœ… Export initialization function with dependency injection
+// ✅ Export initialization function with dependency injection
 function initProfileRoutes(dependencies) {
     const router = express.Router();
     
-    // âœ… Extract dependencies with LLM orchestrator
+    // ✅ Extract dependencies with LLM orchestrator
     const {
         pool,
         authenticateToken,
@@ -57,12 +57,12 @@ function initProfileRoutes(dependencies) {
 
     // ==================== CHROME EXTENSION ROUTES (JWT-ONLY) ====================
 
-    // âœ… User profile scraping with LLM orchestrator and numeric sanitization
+    // ✅ User profile scraping with LLM orchestrator and numeric sanitization
     router.post('/profile/user', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`ðŸ"' User profile scraping request from user ${req.user.id} (Stage G)`);
+            console.log(`🔒 User profile scraping request from user ${req.user.id} (Stage G)`);
             
             const { html, profileUrl, isUserProfile } = req.body;
             
@@ -95,7 +95,7 @@ function initProfileRoutes(dependencies) {
                 }
             }
             
-            console.log('ðŸ¤– Using LLM orchestrator for user profile extraction...');
+            console.log('🤖 Using LLM orchestrator for user profile extraction...');
             
             // Use LLM orchestrator instead of direct sendToGemini
             const result = await processProfileWithLLM({ 
@@ -247,7 +247,7 @@ function initProfileRoutes(dependencies) {
             // Commit transaction
             await client.query('COMMIT');
             
-            console.log(`ðŸŽ‰ User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
+            console.log(`🎉 User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
             res.json({
                 success: true,
@@ -279,7 +279,7 @@ function initProfileRoutes(dependencies) {
             
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('âŒ User profile scraping error:', error);
+            console.error('❌ User profile scraping error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to save user profile',
@@ -290,221 +290,29 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // âŒ DISABLED: Target profile scraping - Use server.js simple system instead
+    // ⛔ DISABLED: Target profile scraping - Use server.js simple system instead
     /*
     router.post('/profile/target', authenticateToken, async (req, res) => {
-        const client = await pool.connect();
+        // DISABLED: This complex route with individual field processing
+        // conflicts with the simple server.js target profile system
+        // Use server.js /target-profile/analyze-json instead
         
-        try {
-            console.log(`ðŸŽ¯ Target profile scraping request from user ${req.user.id} (Stage G)`);
-            
-            const { html, profileUrl, isUserProfile } = req.body;
-            
-            if (!html || !profileUrl) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'HTML content and profileUrl are required'
-                });
-            }
-            
-            // Clean and validate URL
-            const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
-            
-            if (!cleanProfileUrl || !cleanProfileUrl.includes('linkedin.com/in/')) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Invalid LinkedIn profile URL'
-                });
-            }
-            
-            // Validate this is NOT the user's own profile
-            const userLinkedInUrl = req.user.linkedin_url;
-            if (userLinkedInUrl) {
-                const cleanUserUrl = cleanLinkedInUrl(userLinkedInUrl);
-                if (cleanUserUrl === cleanProfileUrl) {
-                    return res.status(400).json({
-                        success: false,
-                        error: 'This appears to be your own profile. Use /profile/user endpoint for your own profile.'
-                    });
-                }
-            }
-            
-            console.log('ðŸ¤– Using LLM orchestrator for target profile extraction...');
-            
-            // Use LLM orchestrator instead of direct sendToGemini  
-            const result = await processProfileWithLLM({ 
-                html, 
-                url: cleanProfileUrl, 
-                isUserProfile: false 
-            });
-
-            if (!result.success) {
-                const soft = result.transient || [408,429,500,502,503,504].includes(result.status || 0);
-                if (soft) {
-                    return res.status(200).json({ 
-                        success: false, 
-                        transient: true, 
-                        userMessage: result.userMessage || 'Please try again shortly.' 
-                    });
-                }
-                return res.status(200).json({ 
-                    success: false, 
-                    userMessage: result.userMessage || 'Failed to process profile' 
-                });
-            }
-
-            // Process the AI result
-            const aiResult = result;
-            const p = aiResult.data;
-            
-            // Apply numeric sanitization before DB insert
-            const numeric = {
-                followers_count: toIntSafe(p?.profile?.followersCount),
-                connections_count: toIntSafe(p?.profile?.connectionsCount),
-                total_likes: toIntSafe(p?.engagement?.totalLikes),
-                total_comments: toIntSafe(p?.engagement?.totalComments),
-                total_shares: toIntSafe(p?.engagement?.totalShares),
-                average_likes: toFloatSafe(p?.engagement?.averageLikes)
-            };
-            
-            console.log('[DB-INSERT] target numeric sanitized:', numeric);
-            
-            // âœ… FIXED: Start transaction for target profile
-            await client.query('BEGIN');
-            
-            // Check if this target profile already exists for this user
-            const existingTarget = await client.query(
-                'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
-                [req.user.id, cleanProfileUrl]
-            );
-            
-            let targetProfile;
-            if (existingTarget.rows.length > 0) {
-                // Update with sanitized numeric values
-                const result = await client.query(`
-                    UPDATE target_profiles SET 
-                        full_name = $1,
-                        headline = $2,
-                        "current_role" = $3,
-                        current_company = $4,
-                        location = $5,
-                        about = $6,
-                        connections_count = $7,
-                        followers_count = $8,
-                        total_likes = $9,
-                        total_comments = $10,
-                        total_shares = $11,
-                        average_likes = $12,
-                        experience = $13,
-                        education = $14,
-                        skills = $15,
-                        certifications = $16,
-                        awards = $17,
-                        volunteer_experience = $18,
-                        data_json = $19,
-                        ai_provider = $20,
-                        ai_model = $21,
-                        input_tokens = $22,
-                        output_tokens = $23,
-                        total_tokens = $24,
-                        scraped_at = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $25 AND linkedin_url = $26
-                    RETURNING *
-                `, [
-                    p?.profile?.name || '', p?.profile?.headline || '', p?.profile?.currentRole || '',
-                    p?.profile?.currentCompany || '', p?.profile?.location || '', p?.profile?.about || '',
-                    numeric.connections_count, numeric.followers_count, numeric.total_likes,
-                    numeric.total_comments, numeric.total_shares, numeric.average_likes,
-                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []),
-                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []),
-                    JSON.stringify(p?.awards || []), JSON.stringify(p?.volunteer || []),
-                    JSON.stringify(p), aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
-                    aiResult.usage?.input_tokens || 0, aiResult.usage?.output_tokens || 0, aiResult.usage?.total_tokens || 0,
-                    req.user.id, cleanProfileUrl
-                ]);
-                
-                targetProfile = result.rows[0];
-                console.log(`âœ… Updated existing target profile ${targetProfile.id} for user ${req.user.id}`);
-            } else {
-                // Insert with sanitized numeric values
-                const result = await client.query(`
-                    INSERT INTO target_profiles (
-                        user_id, linkedin_url, full_name, headline, "current_role", 
-                        current_company, location, about, connections_count, followers_count,
-                        total_likes, total_comments, total_shares, average_likes,
-                        experience, education, skills, certifications, awards, volunteer_experience,
-                        data_json, ai_provider, ai_model, input_tokens, output_tokens, total_tokens
-                    ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
-                    ) RETURNING *
-                `, [
-                    req.user.id, cleanProfileUrl, p?.profile?.name || '', p?.profile?.headline || '',
-                    p?.profile?.currentRole || '', p?.profile?.currentCompany || '', p?.profile?.location || '',
-                    p?.profile?.about || '', numeric.connections_count, numeric.followers_count,
-                    numeric.total_likes, numeric.total_comments, numeric.total_shares, numeric.average_likes,
-                    JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []),
-                    JSON.stringify(p?.skills || []), JSON.stringify(p?.certifications || []),
-                    JSON.stringify(p?.awards || []), JSON.stringify(p?.volunteer || []),
-                    JSON.stringify(p), aiResult.provider || 'gemini', aiResult.model || 'gemini-1.5-flash',
-                    aiResult.usage?.input_tokens || 0, aiResult.usage?.output_tokens || 0, aiResult.usage?.total_tokens || 0
-                ]);
-                
-                targetProfile = result.rows[0];
-                console.log(`âœ… Inserted new target profile ${targetProfile.id} for user ${req.user.id}`);
-            }
-            
-            // âœ… FIXED: Commit transaction
-            await client.query('COMMIT');
-            
-            console.log(`ðŸŽ¯ Target profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
-            
-            res.json({
-                success: true,
-                message: 'Target profile saved successfully with LLM fallback and numeric sanitization!',
-                data: {
-                    targetProfile: {
-                        id: targetProfile.id,
-                        linkedinUrl: targetProfile.linkedin_url,
-                        fullName: targetProfile.full_name,
-                        headline: targetProfile.headline,
-                        currentRole: targetProfile.current_role,
-                        currentCompany: targetProfile.current_company,
-                        location: targetProfile.location,
-                        profileImageUrl: targetProfile.profile_image_url,
-                        scrapedAt: targetProfile.scraped_at,
-                        numericData: numeric
-                    },
-                    aiProvider: aiResult.provider,
-                    aiModel: aiResult.model,
-                    tokenUsage: aiResult.usage
-                }
-            });
-            
-        } catch (error) {
-            // âœ… FIXED: Rollback transaction on error
-            await client.query('ROLLBACK');
-            console.error('âŒ Target profile scraping error:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to save target profile',
-                details: error.message
-            });
-        } finally {
-            // âœ… FIXED: Release client connection
-            client.release();
-        }
+        return res.status(410).json({
+            success: false,
+            error: 'This endpoint has been disabled. Use the simple target profile system in server.js instead.',
+            redirectTo: '/target-profile/analyze-json'
+        });
     });
     */
 
     // ==================== API ROUTES (JWT-ONLY) ====================
 
-    // âœ… Generate message endpoint with proper credit deduction and transaction management
+    // ✅ Generate message endpoint with proper credit deduction and transaction management
     router.post('/generate-message', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`ðŸ¤– Message generation request from user ${req.user.id}`);
+            console.log(`🤖 Message generation request from user ${req.user.id}`);
             
             const { targetProfile, context, messageType } = req.body;
             
@@ -565,7 +373,7 @@ function initProfileRoutes(dependencies) {
             // Commit credit deduction before potentially long API call
             await client.query('COMMIT');
             
-            console.log(`ðŸ'³ Credit deducted for user ${req.user.id}: ${currentCredits} â†' ${newCredits}`);
+            console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
             
             // Generate message (placeholder for now - integrate with GPT-4.1 later)
             const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
@@ -584,7 +392,7 @@ Best regards`;
                 [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, simulatedMessage, context, 1]
             );
             
-            console.log(`âœ… Message generated successfully for user ${req.user.id}`);
+            console.log(`✅ Message generated successfully for user ${req.user.id}`);
             
             res.json({
                 success: true,
@@ -607,10 +415,10 @@ Best regards`;
             try {
                 await client.query('ROLLBACK');
             } catch (rollbackError) {
-                console.error('âŒ Rollback error:', rollbackError);
+                console.error('❌ Rollback error:', rollbackError);
             }
             
-            console.error('âŒ Message generation error:', error);
+            console.error('❌ Message generation error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to generate message',
@@ -621,117 +429,39 @@ Best regards`;
         }
     });
 
-    // âœ… Get target profiles for user
+    // ⛔ DISABLED: Get target profiles - This tries to read individual columns that cause "43,863" error
+    /*
     router.get('/target-profiles', authenticateToken, async (req, res) => {
-        try {
-            console.log(`ðŸ"‹ Fetching target profiles for user ${req.user.id}`);
-            
-            const result = await pool.query(`
-                SELECT 
-                    id,
-                    linkedin_url,
-                    full_name,
-                    headline,
-                    "current_role",
-                    current_company,
-                    location,
-                    profile_image_url,
-                    total_likes,
-                    total_comments,
-                    followers_count,
-                    ai_provider,
-                    ai_model,
-                    scraped_at,
-                    updated_at
-                FROM target_profiles 
-                WHERE user_id = $1 
-                ORDER BY scraped_at DESC
-            `, [req.user.id]);
-            
-            const profiles = result.rows.map(profile => ({
-                id: profile.id,
-                linkedinUrl: profile.linkedin_url,
-                fullName: profile.full_name,
-                headline: profile.headline,
-                currentRole: profile.current_role,
-                currentCompany: profile.current_company,
-                location: profile.location,
-                profileImageUrl: profile.profile_image_url,
-                totalLikes: profile.total_likes,
-                totalComments: profile.total_comments,
-                followersCount: profile.followers_count,
-                aiProvider: profile.ai_provider,
-                aiModel: profile.ai_model,
-                scrapedAt: profile.scraped_at,
-                updatedAt: profile.updated_at
-            }));
-            
-            console.log(`âœ… Found ${profiles.length} target profiles for user ${req.user.id}`);
-            
-            res.json({
-                success: true,
-                data: {
-                    profiles: profiles,
-                    count: profiles.length
-                }
-            });
-            
-        } catch (error) {
-            console.error('âŒ Error fetching target profiles:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to fetch target profiles',
-                details: error.message
-            });
-        }
+        // DISABLED: This route tries to SELECT individual columns like:
+        // total_likes, total_comments, followers_count, etc.
+        // These columns don't exist in the simple target_profiles schema
+        // and cause the "43,863" integer parsing error
+        
+        return res.status(410).json({
+            success: false,
+            error: 'This endpoint has been disabled. Target profiles are now handled by server.js simple system.',
+            message: 'Use the server.js endpoints for target profile functionality.'
+        });
     });
+    */
 
-    // âœ… Delete target profile
+    // ⛔ DISABLED: Delete target profile - This accesses target_profiles table that may cause issues
+    /*
     router.delete('/target-profiles/:id', authenticateToken, async (req, res) => {
-        try {
-            const { id } = req.params;
-            
-            console.log(`ðŸ—'ï¸ Deleting target profile ${id} for user ${req.user.id}`);
-            
-            // Verify the profile belongs to the user
-            const checkResult = await pool.query(
-                'SELECT id FROM target_profiles WHERE id = $1 AND user_id = $2',
-                [id, req.user.id]
-            );
-            
-            if (checkResult.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'Target profile not found or unauthorized'
-                });
-            }
-            
-            // Delete the profile
-            await pool.query(
-                'DELETE FROM target_profiles WHERE id = $1 AND user_id = $2',
-                [id, req.user.id]
-            );
-            
-            console.log(`âœ… Deleted target profile ${id} for user ${req.user.id}`);
-            
-            res.json({
-                success: true,
-                message: 'Target profile deleted successfully'
-            });
-            
-        } catch (error) {
-            console.error('âŒ Error deleting target profile:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to delete target profile',
-                details: error.message
-            });
-        }
+        // DISABLED: This route accesses target_profiles table
+        // Could cause conflicts with the simple server.js system
+        
+        return res.status(410).json({
+            success: false,
+            error: 'This endpoint has been disabled. Target profiles are now handled by server.js simple system.',
+            message: 'Target profile management is now handled by the simple server.js system.'
+        });
     });
+    */
 
-    // âœ… Return the configured router
+    // ✅ Return the configured router
     return router;
 }
 
-// âœ… Export the initialization function
+// ✅ Export the initialization function
 module.exports = { initProfileRoutes };
