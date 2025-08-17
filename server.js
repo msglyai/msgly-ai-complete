@@ -1,5 +1,5 @@
 // server.js - Enhanced with Real Plan Data & Dual Credit System
-// JSON-First TARGET PROFILE system with sophisticated credit management
+// DATABASE-First TARGET PROFILE system with sophisticated credit management
 
 const express = require('express');
 const cors = require('cors');
@@ -87,117 +87,118 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ NEW: JSON-First System Functions
+// ✅ NEW: DATABASE-First System Functions
 
-// Create analyzed_profiles directory if it doesn't exist
-const PROFILES_DIR = path.join(__dirname, 'analyzed_profiles');
-
-async function ensureProfilesDirectory() {
+// Check if profile exists in database
+async function checkIfProfileExistsInDB(linkedinUrl) {
     try {
-        await fs.access(PROFILES_DIR);
-    } catch (error) {
-        console.log('📁 Creating analyzed_profiles directory...');
-        await fs.mkdir(PROFILES_DIR, { recursive: true });
-        console.log('✅ analyzed_profiles directory created');
-    }
-}
-
-// Convert LinkedIn URL to safe filename
-function cleanLinkedInUrlToFilename(linkedinUrl) {
-    try {
-        // Clean the URL using existing helper
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        // Extract the profile part and make it filename-safe
-        const profilePart = cleanUrl
-            .replace(/^.*linkedin\.com\/in\//, '')
-            .replace(/\/.*$/, '')
-            .replace(/[^a-zA-Z0-9\-]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '')
-            .toLowerCase();
-            
-        return `${profilePart}.json`;
+        const result = await pool.query(`
+            SELECT 
+                id,
+                user_id,
+                linkedin_url,
+                data_json,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                created_at
+            FROM target_profiles 
+            WHERE linkedin_url = $1
+            ORDER BY created_at DESC 
+            LIMIT 1
+        `, [cleanUrl]);
+        
+        if (result.rows.length > 0) {
+            const profile = result.rows[0];
+            console.log(`✅ Profile already exists in database: ID ${profile.id}`);
+            return {
+                exists: true,
+                data: {
+                    id: profile.id,
+                    analyzedBy: profile.user_id,
+                    analyzedAt: profile.created_at,
+                    analysis: profile.data_json,
+                    tokenUsage: {
+                        inputTokens: profile.input_tokens,
+                        outputTokens: profile.output_tokens,
+                        totalTokens: profile.total_tokens
+                    }
+                }
+            };
+        } else {
+            console.log(`🆕 Profile is new in database: ${cleanUrl}`);
+            return {
+                exists: false,
+                data: null
+            };
+        }
     } catch (error) {
-        console.error('❌ Error creating filename:', error);
-        // Fallback to timestamp-based filename
-        return `profile-${Date.now()}.json`;
-    }
-}
-
-// Check if profile JSON already exists
-async function checkIfProfileExists(linkedinUrl) {
-    try {
-        await ensureProfilesDirectory();
-        const filename = cleanLinkedInUrlToFilename(linkedinUrl);
-        const filepath = path.join(PROFILES_DIR, filename);
-        
-        await fs.access(filepath);
-        
-        // File exists, read and return the data
-        const jsonContent = await fs.readFile(filepath, 'utf8');
-        const profileData = JSON.parse(jsonContent);
-        
-        console.log(`✅ Profile already exists: ${filename}`);
-        return {
-            exists: true,
-            data: profileData,
-            filename: filename,
-            filepath: filepath
-        };
-    } catch (error) {
-        // File doesn't exist or error reading
-        console.log(`🆕 Profile is new: ${cleanLinkedInUrlToFilename(linkedinUrl)}`);
+        console.error('❌ Error checking profile in database:', error);
         return {
             exists: false,
-            data: null,
-            filename: cleanLinkedInUrlToFilename(linkedinUrl),
-            filepath: path.join(PROFILES_DIR, cleanLinkedInUrlToFilename(linkedinUrl))
+            data: null
         };
     }
 }
 
-// Save profile analysis to JSON file
-async function saveProfileToJSON(linkedinUrl, analysisData, userId) {
+// Save profile analysis to database
+async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}) {
     try {
-        await ensureProfilesDirectory();
-        const filename = cleanLinkedInUrlToFilename(linkedinUrl);
-        const filepath = path.join(PROFILES_DIR, filename);
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        const profileRecord = {
-            linkedinUrl: linkedinUrl,
-            analyzedBy: userId,
-            analyzedAt: new Date().toISOString(),
-            filename: filename,
-            analysis: analysisData,
-            metadata: {
-                version: '1.0',
-                system: 'json-first',
-                credits_charged: 0.25
-            }
-        };
+        const result = await pool.query(`
+            INSERT INTO target_profiles (
+                user_id,
+                linkedin_url, 
+                data_json,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                ai_provider,
+                ai_model,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            RETURNING id, created_at
+        `, [
+            userId,
+            cleanUrl,
+            JSON.stringify(analysisData),
+            tokenData.inputTokens || null,
+            tokenData.outputTokens || null,
+            tokenData.totalTokens || null,
+            'google',
+            'gemini-1.5-flash'
+        ]);
         
-        await fs.writeFile(filepath, JSON.stringify(profileRecord, null, 2), 'utf8');
+        const savedProfile = result.rows[0];
         
-        console.log(`💾 Profile saved to JSON: ${filename}`);
+        console.log(`💾 Profile saved to database: ID ${savedProfile.id}`);
         return {
             success: true,
-            filename: filename,
-            filepath: filepath,
-            data: profileRecord
+            id: savedProfile.id,
+            createdAt: savedProfile.created_at,
+            data: {
+                linkedinUrl: cleanUrl,
+                analyzedBy: userId,
+                analyzedAt: savedProfile.created_at,
+                analysis: analysisData,
+                tokenUsage: tokenData
+            }
         };
     } catch (error) {
-        console.error('❌ Error saving profile to JSON:', error);
+        console.error('❌ Error saving profile to database:', error);
         throw error;
     }
 }
 
-// ✅ ENHANCED: JSON-First TARGET PROFILE handler with dual credit system
+// ✅ ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
 async function handleTargetProfileJSON(req, res) {
     let holdId = null;
     
     try {
-        console.log('🎯 === JSON-FIRST TARGET PROFILE PROCESSING ===');
+        console.log('🎯 === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
         console.log(`👤 User ID: ${req.user.id}`);
         console.log(`🔗 URL: ${req.body.profileUrl}`);
         
@@ -214,9 +215,9 @@ async function handleTargetProfileJSON(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        // ✅ STEP 1: Check if profile already exists
-        console.log('🔍 Checking if profile already exists...');
-        const existsCheck = await checkIfProfileExists(cleanProfileUrl);
+        // ✅ STEP 1: Check if profile already exists in database
+        console.log('🔍 Checking if profile already exists in database...');
+        const existsCheck = await checkIfProfileExistsInDB(cleanProfileUrl);
         
         if (existsCheck.exists) {
             // ✅ ALREADY ANALYZED: Return marketing message, no credits charged
@@ -229,11 +230,12 @@ async function handleTargetProfileJSON(req, res) {
                 data: {
                     profileUrl: cleanProfileUrl,
                     analyzedAt: existsCheck.data.analyzedAt,
-                    filename: existsCheck.filename,
+                    id: existsCheck.data.id,
                     // Basic profile info for message generation
                     fullName: existsCheck.data.analysis?.profile?.name || 'LinkedIn User',
                     headline: existsCheck.data.analysis?.profile?.headline || '',
-                    currentCompany: existsCheck.data.analysis?.profile?.currentCompany || ''
+                    currentCompany: existsCheck.data.analysis?.profile?.currentCompany || '',
+                    tokenUsage: existsCheck.data.tokenUsage
                 },
                 credits: {
                     charged: false,
@@ -294,17 +296,22 @@ async function handleTargetProfileJSON(req, res) {
         
         console.log('✅ GPT-5 nano processing successful for TARGET profile');
         
-        // ✅ STEP 3: Save analysis result to JSON file
-        console.log('💾 Saving analysis to JSON file...');
-        const saveResult = await saveProfileToJSON(cleanProfileUrl, geminiResult.data, userId);
+        // ✅ STEP 3: Save analysis result to database
+        console.log('💾 Saving analysis to database...');
+        const saveResult = await saveProfileToDB(
+            cleanProfileUrl, 
+            geminiResult.data, 
+            userId, 
+            geminiResult.tokenData || {}
+        );
         
         if (!saveResult.success) {
             // Release hold on save failure
-            await releaseCreditHold(userId, holdId, 'json_save_failed');
+            await releaseCreditHold(userId, holdId, 'database_save_failed');
             
             return res.status(500).json({
                 success: false,
-                error: 'Failed to save analysis to JSON file'
+                error: 'Failed to save analysis to database'
             });
         }
         
@@ -325,15 +332,15 @@ async function handleTargetProfileJSON(req, res) {
         // Complete the credit hold
         const completionResult = await completeOperation(userId, holdId, {
             profileUrl: cleanProfileUrl,
-            filename: saveResult.filename,
+            databaseId: saveResult.id,
             analysisData: geminiResult.data,
             tokenUsage: geminiResult.tokenData || {},
             spentCredits: spendResult.spent,
             newCredits: spendResult.newTotalCredits
         });
 
-        console.log('✅ TARGET profile saved to JSON file successfully');
-        console.log(`📊 Analysis saved: ${saveResult.filename}`);
+        console.log('✅ TARGET profile saved to database successfully');
+        console.log(`📊 Analysis saved: Database ID ${saveResult.id}`);
         console.log(`💰 Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
         
         // Extract basic profile info for response
@@ -345,8 +352,8 @@ async function handleTargetProfileJSON(req, res) {
             message: 'Target profile analyzed and saved successfully',
             data: {
                 profileUrl: cleanProfileUrl,
-                filename: saveResult.filename,
-                analyzedAt: saveResult.data.analyzedAt,
+                databaseId: saveResult.id,
+                analyzedAt: saveResult.createdAt,
                 // Basic profile info for message generation
                 fullName: profileData.name || 'LinkedIn User',
                 headline: profileData.headline || '',
@@ -366,7 +373,7 @@ async function handleTargetProfileJSON(req, res) {
         });
         
     } catch (error) {
-        console.error('❌ JSON-First TARGET profile processing error:', error);
+        console.error('❌ DATABASE-First TARGET profile processing error:', error);
         
         // ✅ Release hold on any error
         if (holdId) {
@@ -923,7 +930,7 @@ app.use('/', userRoutes);
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension Auth Request:', {
+    console.log('🔍 Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -1051,8 +1058,8 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
         
         return handleUserProfile(req, res);
     } else {
-        console.log('🔍 selectedHandler=TARGET_JSON');
-        console.log('🎯 TARGET JSON handler start');
+        console.log('🔍 selectedHandler=TARGET_DATABASE');
+        console.log('🎯 TARGET DATABASE handler start');
         console.log(`🔍 userId=${req.user.id}`);
         console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
@@ -1060,10 +1067,10 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
     }
 });
 
-// ✅ NEW: JSON-First TARGET PROFILE endpoint
+// ✅ NEW: DATABASE-First TARGET PROFILE endpoint
 app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
     console.log('🎯 route=/target-profile/analyze-json');
-    console.log('🎯 JSON-FIRST TARGET PROFILE ANALYSIS handler start');
+    console.log('🎯 DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
     console.log(`🔍 userId=${req.user.id}`);
     console.log(`🔍 truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
     
@@ -1264,7 +1271,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced JSON-FIRST TARGET + USER PROFILE mode active with dual credit system.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1308,7 +1315,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'JSON_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS'
                 }
             }
         });
@@ -1386,7 +1393,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - JSON-FIRST TARGET + USER PROFILE mode with dual credits'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits'
             };
         }
 
@@ -1484,7 +1491,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'JSON_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS'
             }
         });
     } catch (error) {
@@ -1536,7 +1543,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'JSON_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -1560,7 +1567,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '7 free credits monthly',
-                features: ['7 Credits per month', 'Enhanced Chrome extension', 'JSON-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             }
         ],
@@ -1573,7 +1580,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '7 free credits monthly',
-                features: ['7 Credits per month', 'Enhanced Chrome extension', 'JSON-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             }
         ]
@@ -1611,7 +1618,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'JSON-FIRST TARGET + USER PROFILE mode active with Dual Credit System',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1629,7 +1636,7 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
-            'POST /target-profile/analyze-json (NEW: JSON-first system)',
+            'POST /target-profile/analyze-json (NEW: DATABASE-first system)',
             'POST /generate-message (NEW: 1 credit with dual system)',
             'POST /generate-connection (NEW: 1 credit with dual system)',
             'GET /user/plan (NEW: Real plan data - NO MOCK!)',
@@ -1656,28 +1663,25 @@ const startServer = async () => {
             process.exit(1);
         }
         
-        // ✅ Ensure profiles directory exists on startup
-        await ensureProfilesDirectory();
-        
         app.listen(PORT, '0.0.0.0', () => {
             console.log('🚀 Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM ACTIVE!');
             console.log(`🔍 Port: ${PORT}`);
             console.log(`🗃️ Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
-            console.log(`📁 JSON Storage: ${PROFILES_DIR}`);
-            console.log(`🔐 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`🗄️ Target Storage: DATABASE (target_profiles table)`);
+            console.log(`🔍 Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`🚦 TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`✅ JSON-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS:`);
-            console.log(`   🔵 USER PROFILE: Automatic analysis on own LinkedIn profile (database)`);
-            console.log(`   🎯 TARGET PROFILE: Manual analysis via "Analyze" button click (JSON files)`);
+            console.log(`✅ DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS:`);
+            console.log(`   🔵 USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
+            console.log(`   🎯 TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   💫 SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
             console.log(`   🔍 /scrape-html: Intelligent routing based on isUserProfile parameter`);
-            console.log(`   🎯 /target-profile/analyze-json: JSON-first TARGET PROFILE endpoint`);
-            console.log(`   🗃️ Database: user_profiles table for USER only`);
-            console.log(`   📄 JSON Files: analyzed_profiles/ directory for TARGET profiles`);
+            console.log(`   🎯 /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint`);
+            console.log(`   🗃️ Database: user_profiles table for USER profiles`);
+            console.log(`   🗄️ Database: target_profiles table for TARGET profiles`);
             console.log(`   🚦 Traffic Light system tracks User profile completion only`);
             console.log(`💳 DUAL CREDIT SYSTEM:`);
             console.log(`   🔄 RENEWABLE CREDITS: Reset monthly to plan amount`);
-            console.log(`   ♾️  PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
+            console.log(`   ♾️ PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
             console.log(`   💰 SPENDING ORDER: Pay-as-you-go first, then renewable`);
             console.log(`   📅 BILLING CYCLE: Only renewable credits reset`);
             console.log(`   🎯 Target Analysis: 0.25 credits (only for NEW profiles)`);
@@ -1691,18 +1695,18 @@ const startServer = async () => {
             console.log(`   🧹 Automatic cleanup of expired holds`);
             console.log(`✅ REAL PLAN DATA ENDPOINTS (NO MORE MOCK!):`);
             console.log(`   GET /user/plan (Real plan data from database)`);
-            console.log(`   POST /target-profile/analyze-json (JSON-first system)`);
+            console.log(`   POST /target-profile/analyze-json (DATABASE-first system)`);
             console.log(`   POST /generate-message (1 credit with dual system)`);
             console.log(`   POST /generate-connection (1 credit with dual system)`);
             console.log(`   GET /credits/balance (Dual credit breakdown)`);
             console.log(`   GET /credits/history (Full transaction history)`);
             console.log(`✅ TOKEN TRACKING SYSTEM:`);
-            console.log(`   📊 USER profiles save GPT-5 nano data to database`);
-            console.log(`   📄 TARGET profiles save GPT-5 nano data to JSON files`);
+            console.log(`   📊 USER profiles save GPT-5 nano data to user_profiles table`);
+            console.log(`   🗄️ TARGET profiles save GPT-5 nano data to target_profiles table`);
             console.log(`   📢 Input/output/total token counts tracked for all profiles`);
             console.log(`   ⏱️ Processing time and API request IDs logged`);
             console.log(`   💾 Raw responses stored for debugging and analysis`);
-            console.log(`✅ PRODUCTION-READY DUAL CREDIT SYSTEM WITH ZERO MOCK DATA!`);
+            console.log(`✅ PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH ZERO MOCK DATA!`);
         });
         
     } catch (error) {
