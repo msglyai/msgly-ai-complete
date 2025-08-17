@@ -1,10 +1,10 @@
 // What changed in Stage G
-// ✅ FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
+// âœ… FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
 // routes/profiles.js - Chrome extension and API routes (JWT authentication only)
 
 const express = require('express');
 
-// What changed in Stage G – numeric sanitizers
+// What changed in Stage G â€" numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -38,11 +38,11 @@ function toFloatSafe(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// ✅ Export initialization function with dependency injection
+// âœ… Export initialization function with dependency injection
 function initProfileRoutes(dependencies) {
     const router = express.Router();
     
-    // ✅ Extract dependencies with LLM orchestrator
+    // âœ… Extract dependencies with LLM orchestrator
     const {
         pool,
         authenticateToken,
@@ -57,12 +57,12 @@ function initProfileRoutes(dependencies) {
 
     // ==================== CHROME EXTENSION ROUTES (JWT-ONLY) ====================
 
-    // ✅ User profile scraping with LLM orchestrator and numeric sanitization
+    // âœ… User profile scraping with LLM orchestrator and numeric sanitization
     router.post('/profile/user', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`🔑 User profile scraping request from user ${req.user.id} (Stage G)`);
+            console.log(`ðŸ"' User profile scraping request from user ${req.user.id} (Stage G)`);
             
             const { html, profileUrl, isUserProfile } = req.body;
             
@@ -95,7 +95,7 @@ function initProfileRoutes(dependencies) {
                 }
             }
             
-            console.log('🤖 Using LLM orchestrator for user profile extraction...');
+            console.log('ðŸ¤– Using LLM orchestrator for user profile extraction...');
             
             // Use LLM orchestrator instead of direct sendToGemini
             const result = await processProfileWithLLM({ 
@@ -247,7 +247,7 @@ function initProfileRoutes(dependencies) {
             // Commit transaction
             await client.query('COMMIT');
             
-            console.log(`🎉 User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
+            console.log(`ðŸŽ‰ User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
             res.json({
                 success: true,
@@ -279,7 +279,7 @@ function initProfileRoutes(dependencies) {
             
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('❌ User profile scraping error:', error);
+            console.error('âŒ User profile scraping error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to save user profile',
@@ -290,12 +290,13 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ Target profile scraping with LLM orchestrator and numeric sanitization - FIXED WITH TRANSACTIONS
+    // âŒ DISABLED: Target profile scraping - Use server.js simple system instead
+    /*
     router.post('/profile/target', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`🎯 Target profile scraping request from user ${req.user.id} (Stage G)`);
+            console.log(`ðŸŽ¯ Target profile scraping request from user ${req.user.id} (Stage G)`);
             
             const { html, profileUrl, isUserProfile } = req.body;
             
@@ -328,7 +329,7 @@ function initProfileRoutes(dependencies) {
                 }
             }
             
-            console.log('🤖 Using LLM orchestrator for target profile extraction...');
+            console.log('ðŸ¤– Using LLM orchestrator for target profile extraction...');
             
             // Use LLM orchestrator instead of direct sendToGemini  
             const result = await processProfileWithLLM({ 
@@ -368,7 +369,7 @@ function initProfileRoutes(dependencies) {
             
             console.log('[DB-INSERT] target numeric sanitized:', numeric);
             
-            // ✅ FIXED: Start transaction for target profile
+            // âœ… FIXED: Start transaction for target profile
             await client.query('BEGIN');
             
             // Check if this target profile already exists for this user
@@ -424,7 +425,7 @@ function initProfileRoutes(dependencies) {
                 ]);
                 
                 targetProfile = result.rows[0];
-                console.log(`✅ Updated existing target profile ${targetProfile.id} for user ${req.user.id}`);
+                console.log(`âœ… Updated existing target profile ${targetProfile.id} for user ${req.user.id}`);
             } else {
                 // Insert with sanitized numeric values
                 const result = await client.query(`
@@ -450,13 +451,13 @@ function initProfileRoutes(dependencies) {
                 ]);
                 
                 targetProfile = result.rows[0];
-                console.log(`✅ Inserted new target profile ${targetProfile.id} for user ${req.user.id}`);
+                console.log(`âœ… Inserted new target profile ${targetProfile.id} for user ${req.user.id}`);
             }
             
-            // ✅ FIXED: Commit transaction
+            // âœ… FIXED: Commit transaction
             await client.query('COMMIT');
             
-            console.log(`🎯 Target profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
+            console.log(`ðŸŽ¯ Target profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
             res.json({
                 success: true,
@@ -481,28 +482,29 @@ function initProfileRoutes(dependencies) {
             });
             
         } catch (error) {
-            // ✅ FIXED: Rollback transaction on error
+            // âœ… FIXED: Rollback transaction on error
             await client.query('ROLLBACK');
-            console.error('❌ Target profile scraping error:', error);
+            console.error('âŒ Target profile scraping error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to save target profile',
                 details: error.message
             });
         } finally {
-            // ✅ FIXED: Release client connection
+            // âœ… FIXED: Release client connection
             client.release();
         }
     });
+    */
 
     // ==================== API ROUTES (JWT-ONLY) ====================
 
-    // ✅ Generate message endpoint with proper credit deduction and transaction management
+    // âœ… Generate message endpoint with proper credit deduction and transaction management
     router.post('/generate-message', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`🤖 Message generation request from user ${req.user.id}`);
+            console.log(`ðŸ¤– Message generation request from user ${req.user.id}`);
             
             const { targetProfile, context, messageType } = req.body;
             
@@ -563,7 +565,7 @@ function initProfileRoutes(dependencies) {
             // Commit credit deduction before potentially long API call
             await client.query('COMMIT');
             
-            console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
+            console.log(`ðŸ'³ Credit deducted for user ${req.user.id}: ${currentCredits} â†' ${newCredits}`);
             
             // Generate message (placeholder for now - integrate with GPT-4.1 later)
             const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
@@ -582,7 +584,7 @@ Best regards`;
                 [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, simulatedMessage, context, 1]
             );
             
-            console.log(`✅ Message generated successfully for user ${req.user.id}`);
+            console.log(`âœ… Message generated successfully for user ${req.user.id}`);
             
             res.json({
                 success: true,
@@ -605,10 +607,10 @@ Best regards`;
             try {
                 await client.query('ROLLBACK');
             } catch (rollbackError) {
-                console.error('❌ Rollback error:', rollbackError);
+                console.error('âŒ Rollback error:', rollbackError);
             }
             
-            console.error('❌ Message generation error:', error);
+            console.error('âŒ Message generation error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to generate message',
@@ -619,10 +621,10 @@ Best regards`;
         }
     });
 
-    // ✅ Get target profiles for user
+    // âœ… Get target profiles for user
     router.get('/target-profiles', authenticateToken, async (req, res) => {
         try {
-            console.log(`📋 Fetching target profiles for user ${req.user.id}`);
+            console.log(`ðŸ"‹ Fetching target profiles for user ${req.user.id}`);
             
             const result = await pool.query(`
                 SELECT 
@@ -664,7 +666,7 @@ Best regards`;
                 updatedAt: profile.updated_at
             }));
             
-            console.log(`✅ Found ${profiles.length} target profiles for user ${req.user.id}`);
+            console.log(`âœ… Found ${profiles.length} target profiles for user ${req.user.id}`);
             
             res.json({
                 success: true,
@@ -675,7 +677,7 @@ Best regards`;
             });
             
         } catch (error) {
-            console.error('❌ Error fetching target profiles:', error);
+            console.error('âŒ Error fetching target profiles:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to fetch target profiles',
@@ -684,12 +686,12 @@ Best regards`;
         }
     });
 
-    // ✅ Delete target profile
+    // âœ… Delete target profile
     router.delete('/target-profiles/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             
-            console.log(`🗑️ Deleting target profile ${id} for user ${req.user.id}`);
+            console.log(`ðŸ—'ï¸ Deleting target profile ${id} for user ${req.user.id}`);
             
             // Verify the profile belongs to the user
             const checkResult = await pool.query(
@@ -710,7 +712,7 @@ Best regards`;
                 [id, req.user.id]
             );
             
-            console.log(`✅ Deleted target profile ${id} for user ${req.user.id}`);
+            console.log(`âœ… Deleted target profile ${id} for user ${req.user.id}`);
             
             res.json({
                 success: true,
@@ -718,7 +720,7 @@ Best regards`;
             });
             
         } catch (error) {
-            console.error('❌ Error deleting target profile:', error);
+            console.error('âŒ Error deleting target profile:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to delete target profile',
@@ -727,9 +729,9 @@ Best regards`;
         }
     });
 
-    // ✅ Return the configured router
+    // âœ… Return the configured router
     return router;
 }
 
-// ✅ Export the initialization function
+// âœ… Export the initialization function
 module.exports = { initProfileRoutes };
