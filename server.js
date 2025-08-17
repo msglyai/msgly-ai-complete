@@ -87,39 +87,16 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ NEW: Robust token number cleaner with extensive debugging
-function cleanTokenNumber(value) {
-    console.log('🔧 Cleaning token:', { original: value, type: typeof value });
+// ✅ SIMPLE: Direct number conversion function
+function forceToInteger(value) {
+    // If null, undefined, or empty - return null
+    if (value == null || value === '') return null;
     
-    if (value === null || value === undefined || value === '') {
-        console.log('🔧 Token is null/undefined/empty, returning null');
-        return null;
-    }
+    // Convert to number and remove any formatting
+    const num = Number(String(value).replace(/[^0-9.-]/g, ''));
     
-    // Handle various input types
-    let stringValue;
-    if (typeof value === 'number') {
-        stringValue = value.toString();
-    } else {
-        stringValue = String(value);
-    }
-    
-    // Remove all non-numeric characters except negative sign
-    const cleaned = stringValue.replace(/[^0-9-]/g, '');
-    console.log('🔧 After cleaning:', { cleaned, isEmpty: cleaned === '' });
-    
-    if (cleaned === '' || cleaned === '-') {
-        console.log('🔧 Cleaned value is empty, returning null');
-        return null;
-    }
-    
-    // Convert to integer
-    const result = parseInt(cleaned, 10);
-    const isValid = !isNaN(result) && isFinite(result);
-    
-    console.log('🔧 Final conversion:', { result, isValid });
-    
-    return isValid ? result : null;
+    // If it's a valid number, return integer, otherwise null
+    return (isNaN(num) || !isFinite(num)) ? null : Math.floor(num);
 }
 
 // ✅ NEW: DATABASE-First System Functions
@@ -187,80 +164,43 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
         console.log('🔍 saveProfileToDB received tokenData:', {
             inputTokens: tokenData.inputTokens,
             outputTokens: tokenData.outputTokens,
-            totalTokens: tokenData.totalTokens,
-            types: {
-                input: typeof tokenData.inputTokens,
-                output: typeof tokenData.outputTokens,
-                total: typeof tokenData.totalTokens
-            }
+            totalTokens: tokenData.totalTokens
         });
         
-        // Clean token values
-        const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
-        const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
-        const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
+        // Clean token values with direct conversion
+        const cleanedInput = forceToInteger(tokenData.inputTokens);
+        const cleanedOutput = forceToInteger(tokenData.outputTokens);
+        const cleanedTotal = forceToInteger(tokenData.totalTokens);
         
-        console.log('🔍 Final values going to database:', {
-            inputTokens: cleanedInput,
-            outputTokens: cleanedOutput,
-            totalTokens: cleanedTotal
+        console.log('✅ Token values cleaned:', {
+            input: `${tokenData.inputTokens} → ${cleanedInput}`,
+            output: `${tokenData.outputTokens} → ${cleanedOutput}`,
+            total: `${tokenData.totalTokens} → ${cleanedTotal}`
         });
         
-        // ✅ DEBUGGING: Add error tracing before database insert
-        console.log('🎯 ABOUT TO EXECUTE TARGET PROFILE INSERT');
-        console.log('🎯 SQL VALUES GOING TO DATABASE:');
-        console.log('   userId:', userId, typeof userId);
-        console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-        console.log('   analysisData length:', JSON.stringify(analysisData).length);
-        console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
-        console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
-        console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
-
-        let result;
-        try {
-            result = await pool.query(`
-                INSERT INTO target_profiles (
-                    user_id,
-                    linkedin_url, 
-                    data_json,
-                    input_tokens,
-                    output_tokens,
-                    total_tokens,
-                    ai_provider,
-                    ai_model,
-                    created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-                RETURNING id, created_at
-            `, [
-                userId,
-                cleanUrl,
-                JSON.stringify(analysisData),
-                cleanedInput,
-                cleanedOutput,
-                cleanedTotal,
-                'google',
-                'gemini-1.5-flash'
-            ]);
-            
-            console.log('🎯 TARGET PROFILE INSERT SUCCESS!');
-            
-        } catch (dbError) {
-            console.log('🎯 TARGET PROFILE INSERT FAILED!');
-            console.log('🎯 DATABASE ERROR:', dbError.message);
-            console.log('🎯 ERROR DETAIL:', dbError.detail);
-            console.log('🎯 SQL STATE:', dbError.code);
-            console.log('🎯 PROBLEMATIC VALUES:', {
-                param1: userId,
-                param2: cleanUrl,
-                param3: JSON.stringify(analysisData).substring(0, 100) + '...',
-                param4: cleanedInput,
-                param5: cleanedOutput,
-                param6: cleanedTotal,
-                param7: 'google',
-                param8: 'gemini-1.5-flash'
-            });
-            throw dbError;
-        }
+        const result = await pool.query(`
+            INSERT INTO target_profiles (
+                user_id,
+                linkedin_url, 
+                data_json,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                ai_provider,
+                ai_model,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            RETURNING id, created_at
+        `, [
+            userId,
+            cleanUrl,
+            JSON.stringify(analysisData),
+            cleanedInput,
+            cleanedOutput,
+            cleanedTotal,
+            'google',
+            'gemini-1.5-flash'
+        ]);
         
         const savedProfile = result.rows[0];
         
