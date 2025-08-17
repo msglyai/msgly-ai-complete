@@ -87,23 +87,39 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ NEW: Helper function to clean token numbers for database insertion
+// ✅ NEW: Robust token number cleaner with extensive debugging
 function cleanTokenNumber(value) {
-    if (!value || value === null || value === undefined || value === '') return null;
+    console.log('🔧 Cleaning token:', { original: value, type: typeof value });
     
-    // Convert to string, remove all formatting (commas, spaces, quotes)
-    const cleanValue = String(value)
-        .replace(/[,\s"']/g, '')  // Remove commas, spaces, quotes
-        .trim();
+    if (value === null || value === undefined || value === '') {
+        console.log('🔧 Token is null/undefined/empty, returning null');
+        return null;
+    }
     
-    // Return null if empty after cleaning
-    if (!cleanValue) return null;
+    // Handle various input types
+    let stringValue;
+    if (typeof value === 'number') {
+        stringValue = value.toString();
+    } else {
+        stringValue = String(value);
+    }
     
-    // Convert to integer using parseInt with base 10
-    const intValue = parseInt(cleanValue, 10);
+    // Remove all non-numeric characters except negative sign
+    const cleaned = stringValue.replace(/[^0-9-]/g, '');
+    console.log('🔧 After cleaning:', { cleaned, isEmpty: cleaned === '' });
     
-    // Return null if conversion failed or result is NaN
-    return (isNaN(intValue) || !isFinite(intValue)) ? null : intValue;
+    if (cleaned === '' || cleaned === '-') {
+        console.log('🔧 Cleaned value is empty, returning null');
+        return null;
+    }
+    
+    // Convert to integer
+    const result = parseInt(cleaned, 10);
+    const isValid = !isNaN(result) && isFinite(result);
+    
+    console.log('🔧 Final conversion:', { result, isValid });
+    
+    return isValid ? result : null;
 }
 
 // ✅ NEW: DATABASE-First System Functions
@@ -167,6 +183,29 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
+        // ✅ DEBUG: Log token data before cleaning
+        console.log('🔍 saveProfileToDB received tokenData:', {
+            inputTokens: tokenData.inputTokens,
+            outputTokens: tokenData.outputTokens,
+            totalTokens: tokenData.totalTokens,
+            types: {
+                input: typeof tokenData.inputTokens,
+                output: typeof tokenData.outputTokens,
+                total: typeof tokenData.totalTokens
+            }
+        });
+        
+        // Clean token values
+        const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
+        const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
+        const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
+        
+        console.log('🔍 Final values going to database:', {
+            inputTokens: cleanedInput,
+            outputTokens: cleanedOutput,
+            totalTokens: cleanedTotal
+        });
+        
         const result = await pool.query(`
             INSERT INTO target_profiles (
                 user_id,
@@ -184,9 +223,9 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
             userId,
             cleanUrl,
             JSON.stringify(analysisData),
-            cleanTokenNumber(tokenData.inputTokens),      // ✅ FIXED: Clean comma formatting
-            cleanTokenNumber(tokenData.outputTokens),     // ✅ FIXED: Clean comma formatting
-            cleanTokenNumber(tokenData.totalTokens),      // ✅ FIXED: Clean comma formatting
+            cleanedInput,      // ✅ Using cleaned values
+            cleanedOutput,     // ✅ Using cleaned values
+            cleanedTotal,      // ✅ Using cleaned values
             'google',
             'gemini-1.5-flash'
         ]);
@@ -317,33 +356,11 @@ async function handleTargetProfileJSON(req, res) {
         
         // ✅ STEP 3: Save analysis result to database
         console.log('💾 Saving analysis to database...');
-        
-        // ✅ EXTRA SAFETY: Clean token data before saving
-        const cleanedTokenData = {
-            ...geminiResult.tokenData,
-            inputTokens: cleanTokenNumber(geminiResult.tokenData?.inputTokens),
-            outputTokens: cleanTokenNumber(geminiResult.tokenData?.outputTokens),
-            totalTokens: cleanTokenNumber(geminiResult.tokenData?.totalTokens)
-        };
-        
-        console.log('🔧 Token data cleaning:', {
-            original: {
-                input: geminiResult.tokenData?.inputTokens,
-                output: geminiResult.tokenData?.outputTokens,
-                total: geminiResult.tokenData?.totalTokens
-            },
-            cleaned: {
-                input: cleanedTokenData.inputTokens,
-                output: cleanedTokenData.outputTokens,
-                total: cleanedTokenData.totalTokens
-            }
-        });
-        
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
             geminiResult.data, 
             userId, 
-            cleanedTokenData
+            geminiResult.tokenData || {}
         );
         
         if (!saveResult.success) {
