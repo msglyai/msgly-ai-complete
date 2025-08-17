@@ -206,29 +206,61 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
             totalTokens: cleanedTotal
         });
         
-        const result = await pool.query(`
-            INSERT INTO target_profiles (
-                user_id,
-                linkedin_url, 
-                data_json,
-                input_tokens,
-                output_tokens,
-                total_tokens,
-                ai_provider,
-                ai_model,
-                created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            RETURNING id, created_at
-        `, [
-            userId,
-            cleanUrl,
-            JSON.stringify(analysisData),
-            cleanedInput,      // ✅ Using cleaned values
-            cleanedOutput,     // ✅ Using cleaned values
-            cleanedTotal,      // ✅ Using cleaned values
-            'google',
-            'gemini-1.5-flash'
-        ]);
+        // ✅ DEBUGGING: Add error tracing before database insert
+        console.log('🎯 ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        console.log('🎯 SQL VALUES GOING TO DATABASE:');
+        console.log('   userId:', userId, typeof userId);
+        console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
+        console.log('   analysisData length:', JSON.stringify(analysisData).length);
+        console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
+        console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
+        console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
+
+        let result;
+        try {
+            result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id,
+                    linkedin_url, 
+                    data_json,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    ai_provider,
+                    ai_model,
+                    created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                RETURNING id, created_at
+            `, [
+                userId,
+                cleanUrl,
+                JSON.stringify(analysisData),
+                cleanedInput,
+                cleanedOutput,
+                cleanedTotal,
+                'google',
+                'gemini-1.5-flash'
+            ]);
+            
+            console.log('🎯 TARGET PROFILE INSERT SUCCESS!');
+            
+        } catch (dbError) {
+            console.log('🎯 TARGET PROFILE INSERT FAILED!');
+            console.log('🎯 DATABASE ERROR:', dbError.message);
+            console.log('🎯 ERROR DETAIL:', dbError.detail);
+            console.log('🎯 SQL STATE:', dbError.code);
+            console.log('🎯 PROBLEMATIC VALUES:', {
+                param1: userId,
+                param2: cleanUrl,
+                param3: JSON.stringify(analysisData).substring(0, 100) + '...',
+                param4: cleanedInput,
+                param5: cleanedOutput,
+                param6: cleanedTotal,
+                param7: 'google',
+                param8: 'gemini-1.5-flash'
+            });
+            throw dbError;
+        }
         
         const savedProfile = result.rows[0];
         
