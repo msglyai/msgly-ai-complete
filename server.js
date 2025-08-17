@@ -13,11 +13,11 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
 
-// âœ… FIXED: Import sendToGemini from correct path (project root)
+// FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
 require('dotenv').config();
 
-// âœ… ENHANCED: Import USER PROFILE database functions + dual credit system
+// ENHANCED: Import USER PROFILE database functions + dual credit system
 const {
     pool,
     initDB,
@@ -32,14 +32,14 @@ const {
     ensureValidJSONArray,
     parseLinkedInNumber,
     processGeminiData,
-    // âœ… NEW: Dual Credit Management
+    // NEW: Dual Credit Management
     getUserPlan,
     updateUserCredits,
     spendUserCredits,
     resetRenewableCredits
 } = require('./utils/database');
 
-// âœ… NEW: Import enhanced credit management system
+// NEW: Import enhanced credit management system
 const {
     createCreditHold,
     completeOperation,
@@ -51,7 +51,7 @@ const {
     getOperationCost
 } = require('./credits');
 
-// âœ… STEP 2B: Import all utility functions from utils/helpers.js
+// STEP 2B: Import all utility functions from utils/helpers.js
 const {
     cleanLinkedInUrl,
     isValidLinkedInUrl,
@@ -72,7 +72,7 @@ const {
     logWithEmoji
 } = require('./utils/helpers');
 
-// âœ… STEP 2D: Import authentication middleware
+// STEP 2D: Import authentication middleware
 const {
     initAuthMiddleware,
     authenticateToken,
@@ -80,19 +80,19 @@ const {
     requireAdmin
 } = require('./middleware/auth');
 
-// âœ… STEP 2E: Import user routes initialization function
+// STEP 2E: Import user routes initialization function
 const { initUserRoutes } = require('./routes/users');
 
-// âœ… STEP 2C: Import modularized routes
+// STEP 2C: Import modularized routes
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// âœ… NEW: Robust token number cleaner with extensive debugging
+// NEW: Robust token number cleaner with extensive debugging
 function cleanTokenNumber(value) {
-    console.log('ðŸ"§ Cleaning token:', { original: value, type: typeof value });
+    console.log('[TOOL] Cleaning token:', { original: value, type: typeof value });
     
     if (value === null || value === undefined || value === '') {
-        console.log('ðŸ"§ Token is null/undefined/empty, returning null');
+        console.log('[TOOL] Token is null/undefined/empty, returning null');
         return null;
     }
     
@@ -106,10 +106,10 @@ function cleanTokenNumber(value) {
     
     // Remove all non-numeric characters except negative sign
     const cleaned = stringValue.replace(/[^0-9-]/g, '');
-    console.log('ðŸ"§ After cleaning:', { cleaned, isEmpty: cleaned === '' });
+    console.log('[TOOL] After cleaning:', { cleaned, isEmpty: cleaned === '' });
     
     if (cleaned === '' || cleaned === '-') {
-        console.log('ðŸ"§ Cleaned value is empty, returning null');
+        console.log('[TOOL] Cleaned value is empty, returning null');
         return null;
     }
     
@@ -117,12 +117,12 @@ function cleanTokenNumber(value) {
     const result = parseInt(cleaned, 10);
     const isValid = !isNaN(result) && isFinite(result);
     
-    console.log('ðŸ"§ Final conversion:', { result, isValid });
+    console.log('[TOOL] Final conversion:', { result, isValid });
     
     return isValid ? result : null;
 }
 
-// âœ… NEW: DATABASE-First System Functions
+// NEW: DATABASE-First System Functions
 
 // Check if profile exists in database
 async function checkIfProfileExistsInDB(linkedinUrl) {
@@ -147,7 +147,7 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
         
         if (result.rows.length > 0) {
             const profile = result.rows[0];
-            console.log(`âœ… Profile already exists in database: ID ${profile.id}`);
+            console.log(`[SUCCESS] Profile already exists in database: ID ${profile.id}`);
             return {
                 exists: true,
                 data: {
@@ -163,14 +163,14 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
                 }
             };
         } else {
-            console.log(`ðŸ†• Profile is new in database: ${cleanUrl}`);
+            console.log(`[NEW] Profile is new in database: ${cleanUrl}`);
             return {
                 exists: false,
                 data: null
             };
         }
     } catch (error) {
-        console.error('âŒ Error checking profile in database:', error);
+        console.error('[ERROR] Error checking profile in database:', error);
         return {
             exists: false,
             data: null
@@ -180,8 +180,8 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
 
 // Save profile analysis to database
 async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}) {
-    console.log('ðŸ"¥ saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
-    console.log('ðŸ" saveProfileToDB function entry - detailed parameters:');
+    console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
+    console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
     console.log('   linkedinUrl:', linkedinUrl);
     console.log('   analysisData type:', typeof analysisData);
     console.log('   analysisData length:', JSON.stringify(analysisData || {}).length);
@@ -191,8 +191,8 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        // âœ… DEBUG: Log token data before cleaning
-        console.log('ðŸ" saveProfileToDB received tokenData:', {
+        // DEBUG: Log token data before cleaning
+        console.log('[CHECK] saveProfileToDB received tokenData:', {
             inputTokens: tokenData.inputTokens,
             outputTokens: tokenData.outputTokens,
             totalTokens: tokenData.totalTokens,
@@ -204,22 +204,22 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
         });
         
         // Clean token values
-        console.log('ðŸ"§ About to clean input tokens...');
+        console.log('[TOOL] About to clean input tokens...');
         const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
-        console.log('ðŸ"§ About to clean output tokens...');
+        console.log('[TOOL] About to clean output tokens...');
         const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
-        console.log('ðŸ"§ About to clean total tokens...');
+        console.log('[TOOL] About to clean total tokens...');
         const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
         
-        console.log('ðŸ" Final values going to database:', {
+        console.log('[CHECK] Final values going to database:', {
             inputTokens: cleanedInput,
             outputTokens: cleanedOutput,
             totalTokens: cleanedTotal
         });
         
-        // âœ… DEBUGGING: Add error tracing before database insert
-        console.log('ðŸŽ¯ ABOUT TO EXECUTE TARGET PROFILE INSERT');
-        console.log('ðŸŽ¯ SQL VALUES GOING TO DATABASE:');
+        // DEBUGGING: Add error tracing before database insert
+        console.log('[TARGET] ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
         console.log('   userId:', userId, typeof userId);
         console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
         console.log('   analysisData length:', JSON.stringify(analysisData).length);
@@ -229,7 +229,7 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
 
         let result;
         try {
-            console.log('ðŸ" About to execute PostgreSQL INSERT query...');
+            console.log('[CHECK] About to execute PostgreSQL INSERT query...');
             result = await pool.query(`
                 INSERT INTO target_profiles (
                     user_id,
@@ -250,14 +250,14 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
                 cleanedTotal
             ]);
             
-            console.log('ðŸŽ¯ TARGET PROFILE INSERT SUCCESS!');
+            console.log('[TARGET] TARGET PROFILE INSERT SUCCESS!');
             
         } catch (dbError) {
-            console.log('ðŸŽ¯ TARGET PROFILE INSERT FAILED!');
-            console.log('ðŸŽ¯ DATABASE ERROR:', dbError.message);
-            console.log('ðŸŽ¯ ERROR DETAIL:', dbError.detail);
-            console.log('ðŸŽ¯ SQL STATE:', dbError.code);
-            console.log('ðŸŽ¯ PROBLEMATIC VALUES - DETAILED:');
+            console.log('[TARGET] TARGET PROFILE INSERT FAILED!');
+            console.log('[TARGET] DATABASE ERROR:', dbError.message);
+            console.log('[TARGET] ERROR DETAIL:', dbError.detail);
+            console.log('[TARGET] SQL STATE:', dbError.code);
+            console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
             console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
             console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
             console.log('   param3 (analysisData):', { type: typeof analysisData, jsonLength: JSON.stringify(analysisData).length });
@@ -269,7 +269,7 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
         
         const savedProfile = result.rows[0];
         
-        console.log(`ðŸ'¾ Profile saved to database: ID ${savedProfile.id}`);
+        console.log(`[SAVE] Profile saved to database: ID ${savedProfile.id}`);
         return {
             success: true,
             id: savedProfile.id,
@@ -283,23 +283,23 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
             }
         };
     } catch (error) {
-        console.error('âŒ Error saving profile to database:', error);
+        console.error('[ERROR] Error saving profile to database:', error);
         throw error;
     }
 }
 
-// âœ… ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
+// ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
 async function handleTargetProfileJSON(req, res) {
-    console.log('ðŸ"¥ handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
-    console.log('ðŸŽ¯ === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
-    console.log('ðŸ" Request body keys:', Object.keys(req.body || {}));
-    console.log('ðŸ" User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
+    console.log('[FIRE] handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
+    console.log('[TARGET] === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
+    console.log('[CHECK] Request body keys:', Object.keys(req.body || {}));
+    console.log('[CHECK] User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
     
     let holdId = null;
     
     try {
-        console.log(`ðŸ'¤ User ID: ${req.user.id}`);
-        console.log(`ðŸ"— URL: ${req.body.profileUrl}`);
+        console.log(`[USER] User ID: ${req.user.id}`);
+        console.log(`[LINK] URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -314,18 +314,18 @@ async function handleTargetProfileJSON(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        // âœ… STEP 1: Check if profile already exists in database
-        console.log('ðŸ" Checking if profile already exists in database...');
+        // STEP 1: Check if profile already exists in database
+        console.log('[CHECK] Checking if profile already exists in database...');
         const existsCheck = await checkIfProfileExistsInDB(cleanProfileUrl);
         
         if (existsCheck.exists) {
-            // âœ… ALREADY ANALYZED: Return marketing message, no credits charged
-            console.log('ðŸ'« Profile already analyzed - showing marketing message');
+            // ALREADY ANALYZED: Return marketing message, no credits charged
+            console.log('[BOOM] Profile already analyzed - showing marketing message');
             
             return res.json({
                 success: true,
                 alreadyAnalyzed: true,
-                message: 'ðŸ'« Boom! This profile is already analyzed and ready. Jump straight to message magic - your personalized outreach awaits!',
+                message: '[BOOM] Boom! This profile is already analyzed and ready. Jump straight to message magic - your personalized outreach awaits!',
                 data: {
                     profileUrl: cleanProfileUrl,
                     analyzedAt: existsCheck.data.analyzedAt,
@@ -343,8 +343,8 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
 
-        // âœ… STEP 2: NEW PROFILE - Create credit hold and analyze
-        console.log('ðŸ'³ Creating credit hold for new profile analysis...');
+        // STEP 2: NEW PROFILE - Create credit hold and analyze
+        console.log('[CREDIT] Creating credit hold for new profile analysis...');
         const holdResult = await createCreditHold(userId, 'target_analysis', {
             profileUrl: cleanProfileUrl,
             timestamp: new Date().toISOString()
@@ -369,21 +369,21 @@ async function handleTargetProfileJSON(req, res) {
         }
 
         holdId = holdResult.holdId;
-        console.log(`âœ… Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
         
-        console.log('ðŸ¤– Processing HTML with GPT-5 nano for NEW TARGET profile...');
+        console.log('[AI] Processing HTML with GPT-5 nano for NEW TARGET profile...');
         
         // Process HTML with GPT-5 nano
         const geminiResult = await sendToGemini({
             html: html,
             url: cleanProfileUrl,
-            isUserProfile: false  // âœ… FALSE for target profiles
+            isUserProfile: false  // FALSE for target profiles
         });
         
         if (!geminiResult.success) {
-            console.error('âŒ GPT-5 nano processing failed for TARGET profile:', geminiResult.userMessage);
+            console.error('[ERROR] GPT-5 nano processing failed for TARGET profile:', geminiResult.userMessage);
             
-            // âœ… Release hold on failure
+            // Release hold on failure
             await releaseCreditHold(userId, holdId, 'gemini_processing_failed');
             
             return res.status(500).json({
@@ -393,11 +393,11 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
         
-        console.log('âœ… GPT-5 nano processing successful for TARGET profile');
+        console.log('[SUCCESS] GPT-5 nano processing successful for TARGET profile');
         
-        // âœ… STEP 3: Save analysis result to database
-        console.log('ðŸ'¾ Saving analysis to database...');
-        console.log('ðŸ" About to call saveProfileToDB with:');
+        // STEP 3: Save analysis result to database
+        console.log('[SAVE] Saving analysis to database...');
+        console.log('[CHECK] About to call saveProfileToDB with:');
         console.log('   cleanProfileUrl:', cleanProfileUrl);
         console.log('   geminiResult.data type:', typeof geminiResult.data);
         console.log('   userId:', userId);
@@ -420,12 +420,12 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
         
-        // âœ… STEP 4: Complete operation using dual credit system
-        console.log('ðŸ'³ Completing operation with dual credit deduction...');
+        // STEP 4: Complete operation using dual credit system
+        console.log('[CREDIT] Completing operation with dual credit deduction...');
         const spendResult = await spendUserCredits(userId, 0.25);
         
         if (!spendResult.success) {
-            console.error('âŒ Failed to spend credits:', spendResult.error);
+            console.error('[ERROR] Failed to spend credits:', spendResult.error);
             await releaseCreditHold(userId, holdId, 'credit_deduction_failed');
             
             return res.status(500).json({
@@ -444,9 +444,9 @@ async function handleTargetProfileJSON(req, res) {
             newCredits: spendResult.newTotalCredits
         });
 
-        console.log('âœ… TARGET profile saved to database successfully');
-        console.log(`ðŸ"Š Analysis saved: Database ID ${saveResult.id}`);
-        console.log(`ðŸ'° Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        console.log('[SUCCESS] TARGET profile saved to database successfully');
+        console.log(`[DATA] Analysis saved: Database ID ${saveResult.id}`);
+        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
         
         // Extract basic profile info for response
         const profileData = geminiResult.data?.profile || {};
@@ -478,9 +478,9 @@ async function handleTargetProfileJSON(req, res) {
         });
         
     } catch (error) {
-        console.error('âŒ DATABASE-First TARGET profile processing error:', error);
+        console.error('[ERROR] DATABASE-First TARGET profile processing error:', error);
         
-        // âœ… Release hold on any error
+        // Release hold on any error
         if (holdId) {
             await releaseCreditHold(req.user.id, holdId, 'processing_error');
         }
@@ -493,12 +493,12 @@ async function handleTargetProfileJSON(req, res) {
     }
 }
 
-// âœ… USER PROFILE HANDLER: Enhanced with token tracking (UNCHANGED)
+// USER PROFILE HANDLER: Enhanced with token tracking (UNCHANGED)
 async function handleUserProfile(req, res) {
     try {
-        console.log('ðŸ"µ === USER PROFILE PROCESSING ===');
-        console.log(`ðŸ'¤ User ID: ${req.user.id}`);
-        console.log(`ðŸ"— URL: ${req.body.profileUrl}`);
+        console.log('[BLUE] === USER PROFILE PROCESSING ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
+        console.log(`[LINK] URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -513,7 +513,7 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('ðŸ¤– Processing HTML with GPT-5 nano for USER profile...');
+        console.log('[AI] Processing HTML with GPT-5 nano for USER profile...');
         
         // Process HTML with GPT-5 nano
         const geminiResult = await sendToGemini({
@@ -523,7 +523,7 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('âŒ GPT-5 nano processing failed for USER profile:', geminiResult.error);
+            console.error('[ERROR] GPT-5 nano processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with GPT-5 nano',
@@ -531,7 +531,7 @@ async function handleUserProfile(req, res) {
             });
         }
         
-        console.log('âœ… GPT-5 nano processing successful for USER profile');
+        console.log('[SUCCESS] GPT-5 nano processing successful for USER profile');
         
         // Process GPT-5 nano data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -539,7 +539,7 @@ async function handleUserProfile(req, res) {
         // Save to user_profiles table only
         const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
         
-        // âœ… ENHANCED: Update user_profiles with processed data + token tracking
+        // ENHANCED: Update user_profiles with processed data + token tracking
         await pool.query(`
             UPDATE user_profiles SET 
                 full_name = $1,
@@ -591,7 +591,7 @@ async function handleUserProfile(req, res) {
             JSON.stringify(processedProfile.activity),
             JSON.stringify(processedProfile.engagementData),
             JSON.stringify(processedProfile.geminiRawData),
-            // âœ… NEW: Token tracking data
+            // NEW: Token tracking data
             geminiResult.tokenData?.rawGptResponse || null,
             geminiResult.tokenData?.inputTokens || null,
             geminiResult.tokenData?.outputTokens || null,
@@ -608,8 +608,8 @@ async function handleUserProfile(req, res) {
             ['completed', userId]
         );
         
-        console.log('âœ… USER profile saved to user_profiles table successfully');
-        console.log(`ðŸ"Š Token usage: ${geminiResult.tokenData?.inputTokens || 'N/A'} input, ${geminiResult.tokenData?.outputTokens || 'N/A'} output, ${geminiResult.tokenData?.totalTokens || 'N/A'} total`);
+        console.log('[SUCCESS] USER profile saved to user_profiles table successfully');
+        console.log(`[DATA] Token usage: ${geminiResult.tokenData?.inputTokens || 'N/A'} input, ${geminiResult.tokenData?.outputTokens || 'N/A'} output, ${geminiResult.tokenData?.totalTokens || 'N/A'} total`);
         
         res.json({
             success: true,
@@ -631,7 +631,7 @@ async function handleUserProfile(req, res) {
         });
         
     } catch (error) {
-        console.error('âŒ USER profile processing error:', error);
+        console.error('[ERROR] USER profile processing error:', error);
         
         res.status(500).json({
             success: false,
@@ -641,13 +641,13 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// âœ… ENHANCED: Message Generation with dual credit system
+// ENHANCED: Message Generation with dual credit system
 async function handleGenerateMessage(req, res) {
     let holdId = null;
     
     try {
-        console.log('ðŸ"§ === MESSAGE GENERATION WITH DUAL CREDITS ===');
-        console.log(`ðŸ'¤ User ID: ${req.user.id}`);
+        console.log('[MESSAGE] === MESSAGE GENERATION WITH DUAL CREDITS ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
         
         const { targetProfileUrl, outreachContext } = req.body;
         const userId = req.user.id;
@@ -659,8 +659,8 @@ async function handleGenerateMessage(req, res) {
             });
         }
 
-        // âœ… Create credit hold
-        console.log('ðŸ'³ Creating credit hold for message generation...');
+        // Create credit hold
+        console.log('[CREDIT] Creating credit hold for message generation...');
         const holdResult = await createCreditHold(userId, 'message_generation', {
             targetProfileUrl: targetProfileUrl,
             outreachContext: outreachContext,
@@ -686,7 +686,7 @@ async function handleGenerateMessage(req, res) {
         }
 
         holdId = holdResult.holdId;
-        console.log(`âœ… Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
         // TODO: Implement actual message generation with AI
         // For now, return a placeholder
@@ -697,12 +697,12 @@ I noticed your experience in ${outreachContext} and would love to connect. I bel
 Best regards,
 [Your Name]`;
 
-        // âœ… Spend credits using dual credit system
-        console.log('ðŸ'³ Spending credits with dual credit system...');
+        // Spend credits using dual credit system
+        console.log('[CREDIT] Spending credits with dual credit system...');
         const spendResult = await spendUserCredits(userId, 1.0);
 
         if (!spendResult.success) {
-            console.error('âŒ Failed to spend credits:', spendResult.error);
+            console.error('[ERROR] Failed to spend credits:', spendResult.error);
             await releaseCreditHold(userId, holdId, 'credit_deduction_failed');
             
             return res.status(500).json({
@@ -720,7 +720,7 @@ Best regards,
             newCredits: spendResult.newTotalCredits
         });
 
-        console.log(`ðŸ'° Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
 
         res.json({
             success: true,
@@ -740,7 +740,7 @@ Best regards,
         });
 
     } catch (error) {
-        console.error('âŒ Message generation error:', error);
+        console.error('[ERROR] Message generation error:', error);
         
         if (holdId) {
             await releaseCreditHold(req.user.id, holdId, 'processing_error');
@@ -754,13 +754,13 @@ Best regards,
     }
 }
 
-// âœ… ENHANCED: Connection Request Generation with dual credit system
+// ENHANCED: Connection Request Generation with dual credit system
 async function handleGenerateConnection(req, res) {
     let holdId = null;
     
     try {
-        console.log('ðŸ¤ === CONNECTION GENERATION WITH DUAL CREDITS ===');
-        console.log(`ðŸ'¤ User ID: ${req.user.id}`);
+        console.log('[CONNECT] === CONNECTION GENERATION WITH DUAL CREDITS ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
         
         const { targetProfileUrl, outreachContext } = req.body;
         const userId = req.user.id;
@@ -772,8 +772,8 @@ async function handleGenerateConnection(req, res) {
             });
         }
 
-        // âœ… Create credit hold
-        console.log('ðŸ'³ Creating credit hold for connection generation...');
+        // Create credit hold
+        console.log('[CREDIT] Creating credit hold for connection generation...');
         const holdResult = await createCreditHold(userId, 'connection_generation', {
             targetProfileUrl: targetProfileUrl,
             outreachContext: outreachContext,
@@ -799,18 +799,18 @@ async function handleGenerateConnection(req, res) {
         }
 
         holdId = holdResult.holdId;
-        console.log(`âœ… Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
         // TODO: Implement actual connection message generation with AI
         // For now, return a placeholder
         const generatedConnection = `I'd love to connect with you given your background in ${outreachContext}. Looking forward to potential collaboration opportunities.`;
 
-        // âœ… Spend credits using dual credit system
-        console.log('ðŸ'³ Spending credits with dual credit system...');
+        // Spend credits using dual credit system
+        console.log('[CREDIT] Spending credits with dual credit system...');
         const spendResult = await spendUserCredits(userId, 1.0);
 
         if (!spendResult.success) {
-            console.error('âŒ Failed to spend credits:', spendResult.error);
+            console.error('[ERROR] Failed to spend credits:', spendResult.error);
             await releaseCreditHold(userId, holdId, 'credit_deduction_failed');
             
             return res.status(500).json({
@@ -828,7 +828,7 @@ async function handleGenerateConnection(req, res) {
             newCredits: spendResult.newTotalCredits
         });
 
-        console.log(`ðŸ'° Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
 
         res.json({
             success: true,
@@ -848,7 +848,7 @@ async function handleGenerateConnection(req, res) {
         });
 
     } catch (error) {
-        console.error('âŒ Connection generation error:', error);
+        console.error('[ERROR] Connection generation error:', error);
         
         if (holdId) {
             await releaseCreditHold(req.user.id, holdId, 'processing_error');
@@ -870,10 +870,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'msgly-simple-secret-2024';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
-// âœ… STEP 2D: Initialize authentication middleware with database functions
+// STEP 2D: Initialize authentication middleware with database functions
 initAuthMiddleware({ getUserById });
 
-// ðŸ"§ DUAL AUTHENTICATION HELPER FUNCTION
+// DUAL AUTHENTICATION HELPER FUNCTION
 const authenticateDual = async (req, res, next) => {
     // First try JWT authentication
     const authHeader = req.headers.authorization;
@@ -905,7 +905,7 @@ const authenticateDual = async (req, res, next) => {
     });
 };
 
-// âœ… STEP 2E: Initialize user routes with dependencies and get router
+// STEP 2E: Initialize user routes with dependencies and get router
 const userRoutes = initUserRoutes({
     pool,
     authenticateToken,
@@ -946,7 +946,7 @@ const corsOptions = {
     credentials: true
 };
 
-// âœ… MIDDLEWARE SETUP - PROPERLY POSITIONED
+// MIDDLEWARE SETUP - PROPERLY POSITIONED
 app.use(cors(corsOptions));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
@@ -1023,19 +1023,19 @@ app.use((req, res, next) => {
     next();
 });
 
-// âœ… STEP 2C: Mount static routes FIRST (before other routes)
+// STEP 2C: Mount static routes FIRST (before other routes)
 app.use('/', staticRoutes);
 
-// âœ… MODULARIZATION: Mount health routes
+// MODULARIZATION: Mount health routes
 app.use('/', healthRoutes);
 
-// âœ… STEP 2E: Mount user routes
+// STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
 // ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('ðŸ" Chrome Extension Auth Request:', {
+    console.log('[CHECK] Chrome Extension Auth Request:', {
         hasGoogleToken: !!req.body.googleAccessToken,
         clientType: req.body.clientType,
         extensionId: req.body.extensionId
@@ -1059,7 +1059,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        console.log('ðŸ" Verifying Google token...');
+        console.log('[CHECK] Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -1072,7 +1072,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         const googleUser = googleResponse.data;
-        console.log('âœ… Google user verified:', {
+        console.log('[SUCCESS] Google user verified:', {
             email: googleUser.email,
             name: googleUser.name,
             verified: googleUser.verified_email
@@ -1083,7 +1083,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         let isNewUser = false;
         
         if (!user) {
-            console.log('ðŸ'¤ Creating new user...');
+            console.log('[USER] Creating new user...');
             user = await createGoogleUser(
                 googleUser.email,
                 googleUser.name,
@@ -1092,7 +1092,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             );
             isNewUser = true;
         } else if (!user.google_id) {
-            console.log('ðŸ"— Linking Google account to existing user...');
+            console.log('[LINK] Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
         }
@@ -1106,7 +1106,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             { expiresIn: '30d' }
         );
         
-        console.log('âœ… Chrome extension authentication successful');
+        console.log('[SUCCESS] Chrome extension authentication successful');
         
         res.json({
             success: true,
@@ -1119,7 +1119,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     displayName: user.display_name,
                     profilePicture: user.profile_picture,
                     packageType: user.package_type,
-                    // âœ… Calculate total credits from dual system
+                    // Calculate total credits from dual system
                     credits: (user.renewable_credits || 0) + (user.payasyougo_credits || 0),
                     linkedinUrl: user.linkedin_url,
                     registrationCompleted: user.registration_completed
@@ -1129,7 +1129,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('âŒ Chrome extension auth error:', error);
+        console.error('[ERROR] Chrome extension auth error:', error);
         
         if (error.response && error.response.status === 401) {
             return res.status(401).json({
@@ -1148,48 +1148,48 @@ app.post('/auth/chrome-extension', async (req, res) => {
 
 // ==================== ENHANCED PROFILE PROCESSING ROUTES ====================
 
-// âœ… Enhanced /scrape-html route with intelligent routing
+// Enhanced /scrape-html route with intelligent routing
 app.post('/scrape-html', authenticateToken, (req, res) => {
-    // âœ… REQUIRED LOGGING: Route entry
-    console.log('ðŸ" route=/scrape-html');
-    console.log(`ðŸ" isUserProfile=${req.body.isUserProfile}`);
+    // REQUIRED LOGGING: Route entry
+    console.log('[CHECK] route=/scrape-html');
+    console.log(`[CHECK] isUserProfile=${req.body.isUserProfile}`);
     
-    // âœ… Enhanced: Route based on isUserProfile parameter
+    // Enhanced: Route based on isUserProfile parameter
     if (req.body.isUserProfile === true) {
-        console.log('ðŸ" selectedHandler=USER');
-        console.log('ðŸ"µ USER handler start');
-        console.log(`ðŸ" userId=${req.user.id}`);
-        console.log(`ðŸ" truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('[CHECK] selectedHandler=USER');
+        console.log('[BLUE] USER handler start');
+        console.log(`[CHECK] userId=${req.user.id}`);
+        console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         return handleUserProfile(req, res);
     } else {
-        console.log('ðŸ" selectedHandler=TARGET_DATABASE');
-        console.log('ðŸŽ¯ TARGET DATABASE handler start');
-        console.log(`ðŸ" userId=${req.user.id}`);
-        console.log(`ðŸ" truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        console.log('[CHECK] selectedHandler=TARGET_DATABASE');
+        console.log('[TARGET] TARGET DATABASE handler start');
+        console.log(`[CHECK] userId=${req.user.id}`);
+        console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         return handleTargetProfileJSON(req, res);
     }
 });
 
-// âœ… NEW: DATABASE-First TARGET PROFILE endpoint
+// NEW: DATABASE-First TARGET PROFILE endpoint
 app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
-    console.log('ðŸŽ¯ route=/target-profile/analyze-json');
-    console.log('ðŸŽ¯ DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
-    console.log(`ðŸ" userId=${req.user.id}`);
-    console.log(`ðŸ" truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+    console.log('[TARGET] route=/target-profile/analyze-json');
+    console.log('[TARGET] DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
+    console.log(`[CHECK] userId=${req.user.id}`);
+    console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
     
     return handleTargetProfileJSON(req, res);
 });
 
-// âœ… ENHANCED: Message Generation Endpoints with dual credits
+// ENHANCED: Message Generation Endpoints with dual credits
 app.post('/generate-message', authenticateToken, handleGenerateMessage);
 app.post('/generate-connection', authenticateToken, handleGenerateConnection);
 
-// âœ… NEW: User Plan Endpoint - Returns real plan data (NO MORE MOCK DATA!)
+// NEW: User Plan Endpoint - Returns real plan data (NO MORE MOCK DATA!)
 app.get('/user/plan', authenticateToken, async (req, res) => {
     try {
-        console.log(`ðŸ'³ Getting real plan data for user ${req.user.id}`);
+        console.log(`[CREDIT] Getting real plan data for user ${req.user.id}`);
         
         const planResult = await getUserPlan(req.user.id);
         
@@ -1200,14 +1200,14 @@ app.get('/user/plan', authenticateToken, async (req, res) => {
             });
         }
 
-        console.log(`âœ… Real plan data retrieved: ${planResult.data.planName}, Total: ${planResult.data.totalCredits}`);
+        console.log(`[SUCCESS] Real plan data retrieved: ${planResult.data.planName}, Total: ${planResult.data.totalCredits}`);
 
         res.json({
             success: true,
             data: planResult.data
         });
     } catch (error) {
-        console.error('âŒ Error getting user plan:', error);
+        console.error('[ERROR] Error getting user plan:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get user plan'
@@ -1215,7 +1215,7 @@ app.get('/user/plan', authenticateToken, async (req, res) => {
     }
 });
 
-// âœ… ENHANCED: Credit Management Endpoints with dual system
+// ENHANCED: Credit Management Endpoints with dual system
 app.get('/credits/balance', authenticateToken, async (req, res) => {
     try {
         const planResult = await getUserPlan(req.user.id);
@@ -1238,7 +1238,7 @@ app.get('/credits/balance', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('âŒ Error getting credit balance:', error);
+        console.error('[ERROR] Error getting credit balance:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get credit balance'
@@ -1266,7 +1266,7 @@ app.get('/credits/history', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('âŒ Error getting transaction history:', error);
+        console.error('[ERROR] Error getting transaction history:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get transaction history'
@@ -1276,7 +1276,7 @@ app.get('/credits/history', authenticateToken, async (req, res) => {
 
 // ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
 
-// âœ… KEPT IN SERVER: Google OAuth Routes (Session creation/management)
+// KEPT IN SERVER: Google OAuth Routes (Session creation/management)
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
@@ -1306,7 +1306,7 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            console.log(`ðŸ" OAuth callback - User: ${req.user.email}`);
+            console.log(`[CHECK] OAuth callback - User: ${req.user.email}`);
             console.log(`   - Is new user: ${req.user.isNewUser || false}`);
             console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
             console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
@@ -1314,10 +1314,10 @@ app.get('/auth/google/callback',
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
             if (needsOnboarding) {
-                console.log(`âž¡ï¸ Redirecting to sign-up for onboarding`);
+                console.log(`[ARROW] Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                console.log(`âž¡ï¸ Redirecting to dashboard`);
+                console.log(`[ARROW] Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
@@ -1332,10 +1332,10 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// ðŸš¦ ENHANCED TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY
+// ENHANCED TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸš¦ Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`[LIGHT] Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1364,7 +1364,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             });
         }
 
-        // ðŸš¦ DETERMINE TRAFFIC LIGHT STATUS - USER PROFILE ONLY
+        // DETERMINE TRAFFIC LIGHT STATUS - USER PROFILE ONLY
         const isRegistrationComplete = data.registration_completed || false;
         const isInitialScrapingDone = data.initial_scraping_done || false;
         const extractionStatus = data.data_extraction_status || 'pending';
@@ -1392,7 +1392,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             actionRequired = 'COMPLETE_REGISTRATION';
         }
 
-        console.log(`ðŸš¦ User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
+        console.log(`[LIGHT] User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
         console.log(`   - Registration Complete: ${isRegistrationComplete}`);
         console.log(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
         console.log(`   - Extraction Status: ${extractionStatus}`);
@@ -1426,7 +1426,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('âŒ Traffic light status error:', error);
+        console.error('[ERROR] Traffic light status error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to check traffic light status'
@@ -1434,10 +1434,10 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// ðŸ"§ ENHANCED: Get User Profile with dual credit info
+// ENHANCED: Get User Profile with dual credit info
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸ" Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`[CHECK] Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1502,7 +1502,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
             };
         }
 
-        // âœ… Calculate total credits from dual system
+        // Calculate total credits from dual system
         const totalCredits = (profile?.renewable_credits || 0) + (profile?.payasyougo_credits || 0);
 
         res.json({
@@ -1515,7 +1515,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     profilePicture: req.user.profile_picture,
                     packageType: req.user.package_type,
                     billingModel: req.user.billing_model,
-                    // âœ… Enhanced credit info
+                    // Enhanced credit info
                     credits: totalCredits,
                     renewableCredits: profile?.renewable_credits || 0,
                     payasyougoCredits: profile?.payasyougo_credits || 0,
@@ -1587,7 +1587,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     extractionError: profile.extraction_error,
                     extractionRetryCount: profile.extraction_retry_count,
                     profileAnalyzed: profile.profile_analyzed,
-                    // âœ… NEW: Token tracking data
+                    // NEW: Token tracking data
                     inputTokens: profile.input_tokens,
                     outputTokens: profile.output_tokens,
                     totalTokens: profile.total_tokens,
@@ -1600,7 +1600,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('âŒ Enhanced profile fetch error:', error);
+        console.error('[ERROR] Enhanced profile fetch error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch profile'
@@ -1608,10 +1608,10 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// ðŸ"§ FIXED: Check profile extraction status - USER PROFILE ONLY (UNCHANGED)
+// FIXED: Check profile extraction status - USER PROFILE ONLY (UNCHANGED)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        console.log(`ðŸ" Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+        console.log(`[CHECK] Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1697,18 +1697,18 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// âœ… NEW: Cleanup expired holds (run periodically)
+// NEW: Cleanup expired holds (run periodically)
 setInterval(async () => {
     try {
         await cleanupExpiredHolds();
     } catch (error) {
-        console.error('âŒ Error during scheduled cleanup:', error);
+        console.error('[ERROR] Error during scheduled cleanup:', error);
     }
 }, 30 * 60 * 1000); // Run every 30 minutes
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-    console.error('âŒ Unhandled Error:', error);
+    console.error('[ERROR] Unhandled Error:', error);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -1764,71 +1764,71 @@ const startServer = async () => {
         
         const dbOk = await testDatabase();
         if (!dbOk) {
-            console.error('âŒ Cannot start server without database');
+            console.error('[ERROR] Cannot start server without database');
             process.exit(1);
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('ðŸš€ Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM ACTIVE!');
-            console.log(`ðŸ" Port: ${PORT}`);
-            console.log(`ðŸ—ƒï¸ Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
-            console.log(`ðŸ—„ï¸ Target Storage: DATABASE (target_profiles table)`);
-            console.log(`ðŸ" Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
-            console.log(`ðŸš¦ TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`âœ… DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS:`);
-            console.log(`   ðŸ"µ USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
-            console.log(`   ðŸŽ¯ TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
-            console.log(`   ðŸ'« SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
-            console.log(`   ðŸ" /scrape-html: Intelligent routing based on isUserProfile parameter`);
-            console.log(`   ðŸŽ¯ /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint`);
-            console.log(`   ðŸ—ƒï¸ Database: user_profiles table for USER profiles`);
-            console.log(`   ðŸ—„ï¸ Database: target_profiles table for TARGET profiles`);
-            console.log(`   ðŸš¦ Traffic Light system tracks User profile completion only`);
-            console.log(`ðŸ'³ DUAL CREDIT SYSTEM:`);
-            console.log(`   ðŸ"„ RENEWABLE CREDITS: Reset monthly to plan amount`);
-            console.log(`   â™¾ï¸ PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
-            console.log(`   ðŸ'° SPENDING ORDER: Pay-as-you-go first, then renewable`);
-            console.log(`   ðŸ"… BILLING CYCLE: Only renewable credits reset`);
-            console.log(`   ðŸŽ¯ Target Analysis: 0.25 credits (only for NEW profiles)`);
-            console.log(`   ðŸ'« Already Analyzed: FREE with marketing message`);
-            console.log(`   ðŸ"§ Message Generation: 1.0 credits`);
-            console.log(`   ðŸ¤ Connection Generation: 1.0 credits`);
-            console.log(`   ðŸ"' Credit holds prevent double-spending`);
-            console.log(`   ðŸ'° Deduction AFTER successful operations`);
-            console.log(`   ðŸ"Š Complete transaction audit trail`);
-            console.log(`   âš¡ Real-time credit balance updates`);
-            console.log(`   ðŸ§¹ Automatic cleanup of expired holds`);
-            console.log(`âœ… REAL PLAN DATA ENDPOINTS (NO MORE MOCK!):`);
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM ACTIVE!');
+            console.log(`[CHECK] Port: ${PORT}`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
+            console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
+            console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS:`);
+            console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
+            console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
+            console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
+            console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
+            console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint`);
+            console.log(`   [DB] Database: user_profiles table for USER profiles`);
+            console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
+            console.log(`   [LIGHT] Traffic Light system tracks User profile completion only`);
+            console.log(`[CREDIT] DUAL CREDIT SYSTEM:`);
+            console.log(`   [CYCLE] RENEWABLE CREDITS: Reset monthly to plan amount`);
+            console.log(`   [INFINITY] PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
+            console.log(`   [MONEY] SPENDING ORDER: Pay-as-you-go first, then renewable`);
+            console.log(`   [CALENDAR] BILLING CYCLE: Only renewable credits reset`);
+            console.log(`   [TARGET] Target Analysis: 0.25 credits (only for NEW profiles)`);
+            console.log(`   [BOOM] Already Analyzed: FREE with marketing message`);
+            console.log(`   [MESSAGE] Message Generation: 1.0 credits`);
+            console.log(`   [CONNECT] Connection Generation: 1.0 credits`);
+            console.log(`   [LOCK] Credit holds prevent double-spending`);
+            console.log(`   [MONEY] Deduction AFTER successful operations`);
+            console.log(`   [DATA] Complete transaction audit trail`);
+            console.log(`   [LIGHTNING] Real-time credit balance updates`);
+            console.log(`   [CLEAN] Automatic cleanup of expired holds`);
+            console.log(`[SUCCESS] REAL PLAN DATA ENDPOINTS (NO MORE MOCK!):`);
             console.log(`   GET /user/plan (Real plan data from database)`);
             console.log(`   POST /target-profile/analyze-json (DATABASE-first system)`);
             console.log(`   POST /generate-message (1 credit with dual system)`);
             console.log(`   POST /generate-connection (1 credit with dual system)`);
             console.log(`   GET /credits/balance (Dual credit breakdown)`);
             console.log(`   GET /credits/history (Full transaction history)`);
-            console.log(`âœ… TOKEN TRACKING SYSTEM:`);
-            console.log(`   ðŸ"Š USER profiles save GPT-5 nano data to user_profiles table`);
-            console.log(`   ðŸ—„ï¸ TARGET profiles save GPT-5 nano data to target_profiles table`);
-            console.log(`   ðŸ"¢ Input/output/total token counts tracked for all profiles`);
-            console.log(`   â±ï¸ Processing time and API request IDs logged`);
-            console.log(`   ðŸ'¾ Raw responses stored for debugging and analysis`);
-            console.log(`âœ… PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH ZERO MOCK DATA!`);
+            console.log(`[SUCCESS] TOKEN TRACKING SYSTEM:`);
+            console.log(`   [DATA] USER profiles save GPT-5 nano data to user_profiles table`);
+            console.log(`   [FILE] TARGET profiles save GPT-5 nano data to target_profiles table`);
+            console.log(`   [NUMBERS] Input/output/total token counts tracked for all profiles`);
+            console.log(`   [TIME] Processing time and API request IDs logged`);
+            console.log(`   [SAVE] Raw responses stored for debugging and analysis`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH ZERO MOCK DATA!`);
         });
         
     } catch (error) {
-        console.error('âŒ Startup failed:', error);
+        console.error('[ERROR] Startup failed:', error);
         process.exit(1);
     }
 };
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-    console.log('ðŸ›' Gracefully shutting down...');
+    console.log('[STOP] Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('ðŸ›' Gracefully shutting down...');
+    console.log('[STOP] Gracefully shutting down...');
     await pool.end();
     process.exit(0);
 });
