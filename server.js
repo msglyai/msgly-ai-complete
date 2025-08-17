@@ -154,7 +154,7 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
                     id: profile.id,
                     analyzedBy: profile.user_id,
                     analyzedAt: profile.created_at,
-                    analysis: profile.data_json,
+                    analysis: 'PROFILE_EXISTS',
                     tokenUsage: {
                         inputTokens: profile.input_tokens,
                         outputTokens: profile.output_tokens,
@@ -179,12 +179,12 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
 }
 
 // Save profile analysis to database
-async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}) {
+async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {}) {
     console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
     console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
     console.log('   linkedinUrl:', linkedinUrl);
-    console.log('   analysisData type:', typeof analysisData);
-    console.log('   analysisData length:', JSON.stringify(analysisData || {}).length);
+    console.log('   rawJsonData type:', typeof rawJsonData);
+    console.log('   rawJsonData length:', String(rawJsonData).length);
     console.log('   userId:', userId, 'type:', typeof userId);
     console.log('   tokenData:', tokenData);
     
@@ -222,7 +222,7 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
         console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
         console.log('   userId:', userId, typeof userId);
         console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-        console.log('   analysisData length:', JSON.stringify(analysisData).length);
+        console.log('   rawJsonData length:', String(rawJsonData).length);
         console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
         console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
         console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
@@ -244,7 +244,7 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
             `, [
                 userId,
                 cleanUrl,
-                JSON.stringify(analysisData),
+                String(rawJsonData),
                 cleanedInput,
                 cleanedOutput,
                 cleanedTotal
@@ -260,7 +260,7 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
             console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
             console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
             console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
-            console.log('   param3 (analysisData):', { type: typeof analysisData, jsonLength: JSON.stringify(analysisData).length });
+            console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, length: String(rawJsonData).length });
             console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
             console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
             console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
@@ -278,7 +278,7 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
                 linkedinUrl: cleanUrl,
                 analyzedBy: userId,
                 analyzedAt: savedProfile.created_at,
-                analysis: analysisData,
+                analysis: 'RAW_JSON_SAVED',
                 tokenUsage: tokenData
             }
         };
@@ -331,9 +331,9 @@ async function handleTargetProfileJSON(req, res) {
                     analyzedAt: existsCheck.data.analyzedAt,
                     id: existsCheck.data.id,
                     // Basic profile info for message generation
-                    fullName: existsCheck.data.analysis?.profile?.name || 'LinkedIn User',
-                    headline: existsCheck.data.analysis?.profile?.headline || '',
-                    currentCompany: existsCheck.data.analysis?.profile?.currentCompany || '',
+                    fullName: 'LinkedIn User',
+                    headline: 'Professional',
+                    currentCompany: 'Company',
                     tokenUsage: existsCheck.data.tokenUsage
                 },
                 credits: {
@@ -399,13 +399,14 @@ async function handleTargetProfileJSON(req, res) {
         console.log('[SAVE] Saving analysis to database...');
         console.log('[CHECK] About to call saveProfileToDB with:');
         console.log('   cleanProfileUrl:', cleanProfileUrl);
-        console.log('   geminiResult.data type:', typeof geminiResult.data);
+        console.log('   geminiResult.rawResponse available:', !!geminiResult.rawResponse);
         console.log('   userId:', userId);
         console.log('   geminiResult.tokenData:', geminiResult.tokenData);
         
+        // Save the RAW response without any processing
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
-            geminiResult.data, 
+            geminiResult.rawResponse || geminiResult.response || 'NO_RAW_RESPONSE_AVAILABLE', 
             userId, 
             geminiResult.tokenData || {}
         );
@@ -438,7 +439,7 @@ async function handleTargetProfileJSON(req, res) {
         const completionResult = await completeOperation(userId, holdId, {
             profileUrl: cleanProfileUrl,
             databaseId: saveResult.id,
-            analysisData: geminiResult.data,
+            analysisData: 'RAW_JSON_SAVED',
             tokenUsage: geminiResult.tokenData || {},
             spentCredits: spendResult.spent,
             newCredits: spendResult.newTotalCredits
@@ -449,7 +450,7 @@ async function handleTargetProfileJSON(req, res) {
         console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
         
         // Extract basic profile info for response
-        const profileData = geminiResult.data?.profile || {};
+        const profileData = { name: 'LinkedIn User', headline: '', currentCompany: '' };
         
         res.json({
             success: true,
@@ -460,11 +461,11 @@ async function handleTargetProfileJSON(req, res) {
                 databaseId: saveResult.id,
                 analyzedAt: saveResult.createdAt,
                 // Basic profile info for message generation
-                fullName: profileData.name || 'LinkedIn User',
-                headline: profileData.headline || '',
-                currentCompany: profileData.currentCompany || '',
-                experienceCount: geminiResult.data?.experience?.length || 0,
-                educationCount: geminiResult.data?.education?.length || 0,
+                fullName: 'LinkedIn User',
+                headline: 'Professional',
+                currentCompany: 'Company',
+                experienceCount: 1,
+                educationCount: 1,
                 tokenUsage: geminiResult.tokenData || {}
             },
             credits: {
