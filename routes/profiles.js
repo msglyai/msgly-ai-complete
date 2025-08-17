@@ -4,7 +4,7 @@
 
 const express = require('express');
 
-// What changed in Stage G — numeric sanitizers
+// What changed in Stage G – numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -62,7 +62,7 @@ function initProfileRoutes(dependencies) {
         const client = await pool.connect();
         
         try {
-            console.log(`🔒 User profile scraping request from user ${req.user.id} (Stage G)`);
+            console.log(`🔑 User profile scraping request from user ${req.user.id} (Stage G)`);
             
             const { html, profileUrl, isUserProfile } = req.body;
             
@@ -290,8 +290,10 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ✅ Target profile scraping with LLM orchestrator and numeric sanitization
+    // ✅ Target profile scraping with LLM orchestrator and numeric sanitization - FIXED WITH TRANSACTIONS
     router.post('/profile/target', authenticateToken, async (req, res) => {
+        const client = await pool.connect();
+        
         try {
             console.log(`🎯 Target profile scraping request from user ${req.user.id} (Stage G)`);
             
@@ -366,8 +368,11 @@ function initProfileRoutes(dependencies) {
             
             console.log('[DB-INSERT] target numeric sanitized:', numeric);
             
+            // ✅ FIXED: Start transaction for target profile
+            await client.query('BEGIN');
+            
             // Check if this target profile already exists for this user
-            const existingTarget = await pool.query(
+            const existingTarget = await client.query(
                 'SELECT * FROM target_profiles WHERE user_id = $1 AND linkedin_url = $2',
                 [req.user.id, cleanProfileUrl]
             );
@@ -375,7 +380,7 @@ function initProfileRoutes(dependencies) {
             let targetProfile;
             if (existingTarget.rows.length > 0) {
                 // Update with sanitized numeric values
-                const result = await pool.query(`
+                const result = await client.query(`
                     UPDATE target_profiles SET 
                         full_name = $1,
                         headline = $2,
@@ -419,9 +424,10 @@ function initProfileRoutes(dependencies) {
                 ]);
                 
                 targetProfile = result.rows[0];
+                console.log(`✅ Updated existing target profile ${targetProfile.id} for user ${req.user.id}`);
             } else {
                 // Insert with sanitized numeric values
-                const result = await pool.query(`
+                const result = await client.query(`
                     INSERT INTO target_profiles (
                         user_id, linkedin_url, full_name, headline, "current_role", 
                         current_company, location, about, connections_count, followers_count,
@@ -444,7 +450,11 @@ function initProfileRoutes(dependencies) {
                 ]);
                 
                 targetProfile = result.rows[0];
+                console.log(`✅ Inserted new target profile ${targetProfile.id} for user ${req.user.id}`);
             }
+            
+            // ✅ FIXED: Commit transaction
+            await client.query('COMMIT');
             
             console.log(`🎯 Target profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
@@ -471,12 +481,17 @@ function initProfileRoutes(dependencies) {
             });
             
         } catch (error) {
+            // ✅ FIXED: Rollback transaction on error
+            await client.query('ROLLBACK');
             console.error('❌ Target profile scraping error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to save target profile',
                 details: error.message
             });
+        } finally {
+            // ✅ FIXED: Release client connection
+            client.release();
         }
     });
 
