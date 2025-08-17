@@ -89,16 +89,21 @@ const staticRoutes = require('./routes/static');
 
 // ✅ NEW: Helper function to clean token numbers for database insertion
 function cleanTokenNumber(value) {
-    if (!value) return null;
+    if (!value || value === null || value === undefined || value === '') return null;
     
-    // Convert to string and remove commas
-    const cleanValue = String(value).replace(/,/g, '');
+    // Convert to string, remove all formatting (commas, spaces, quotes)
+    const cleanValue = String(value)
+        .replace(/[,\s"']/g, '')  // Remove commas, spaces, quotes
+        .trim();
     
-    // Convert to integer
-    const intValue = parseInt(cleanValue);
+    // Return null if empty after cleaning
+    if (!cleanValue) return null;
     
-    // Return null if invalid number
-    return isNaN(intValue) ? null : intValue;
+    // Convert to integer using parseInt with base 10
+    const intValue = parseInt(cleanValue, 10);
+    
+    // Return null if conversion failed or result is NaN
+    return (isNaN(intValue) || !isFinite(intValue)) ? null : intValue;
 }
 
 // ✅ NEW: DATABASE-First System Functions
@@ -312,11 +317,33 @@ async function handleTargetProfileJSON(req, res) {
         
         // ✅ STEP 3: Save analysis result to database
         console.log('💾 Saving analysis to database...');
+        
+        // ✅ EXTRA SAFETY: Clean token data before saving
+        const cleanedTokenData = {
+            ...geminiResult.tokenData,
+            inputTokens: cleanTokenNumber(geminiResult.tokenData?.inputTokens),
+            outputTokens: cleanTokenNumber(geminiResult.tokenData?.outputTokens),
+            totalTokens: cleanTokenNumber(geminiResult.tokenData?.totalTokens)
+        };
+        
+        console.log('🔧 Token data cleaning:', {
+            original: {
+                input: geminiResult.tokenData?.inputTokens,
+                output: geminiResult.tokenData?.outputTokens,
+                total: geminiResult.tokenData?.totalTokens
+            },
+            cleaned: {
+                input: cleanedTokenData.inputTokens,
+                output: cleanedTokenData.outputTokens,
+                total: cleanedTokenData.totalTokens
+            }
+        });
+        
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
             geminiResult.data, 
             userId, 
-            geminiResult.tokenData || {}
+            cleanedTokenData
         );
         
         if (!saveResult.success) {
