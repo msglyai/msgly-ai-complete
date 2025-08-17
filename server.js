@@ -87,16 +87,39 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// ✅ SIMPLE: Direct number conversion function
-function forceToInteger(value) {
-    // If null, undefined, or empty - return null
-    if (value == null || value === '') return null;
+// ✅ NEW: Robust token number cleaner with extensive debugging
+function cleanTokenNumber(value) {
+    console.log('🔧 Cleaning token:', { original: value, type: typeof value });
     
-    // Convert to number and remove any formatting
-    const num = Number(String(value).replace(/[^0-9.-]/g, ''));
+    if (value === null || value === undefined || value === '') {
+        console.log('🔧 Token is null/undefined/empty, returning null');
+        return null;
+    }
     
-    // If it's a valid number, return integer, otherwise null
-    return (isNaN(num) || !isFinite(num)) ? null : Math.floor(num);
+    // Handle various input types
+    let stringValue;
+    if (typeof value === 'number') {
+        stringValue = value.toString();
+    } else {
+        stringValue = String(value);
+    }
+    
+    // Remove all non-numeric characters except negative sign
+    const cleaned = stringValue.replace(/[^0-9-]/g, '');
+    console.log('🔧 After cleaning:', { cleaned, isEmpty: cleaned === '' });
+    
+    if (cleaned === '' || cleaned === '-') {
+        console.log('🔧 Cleaned value is empty, returning null');
+        return null;
+    }
+    
+    // Convert to integer
+    const result = parseInt(cleaned, 10);
+    const isValid = !isNaN(result) && isFinite(result);
+    
+    console.log('🔧 Final conversion:', { result, isValid });
+    
+    return isValid ? result : null;
 }
 
 // ✅ NEW: DATABASE-First System Functions
@@ -157,6 +180,14 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
 
 // Save profile analysis to database
 async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}) {
+    console.log('🔥 saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
+    console.log('🔍 saveProfileToDB function entry - detailed parameters:');
+    console.log('   linkedinUrl:', linkedinUrl);
+    console.log('   analysisData type:', typeof analysisData);
+    console.log('   analysisData length:', JSON.stringify(analysisData || {}).length);
+    console.log('   userId:', userId, 'type:', typeof userId);
+    console.log('   tokenData:', tokenData);
+    
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
@@ -164,43 +195,83 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
         console.log('🔍 saveProfileToDB received tokenData:', {
             inputTokens: tokenData.inputTokens,
             outputTokens: tokenData.outputTokens,
-            totalTokens: tokenData.totalTokens
+            totalTokens: tokenData.totalTokens,
+            types: {
+                input: typeof tokenData.inputTokens,
+                output: typeof tokenData.outputTokens,
+                total: typeof tokenData.totalTokens
+            }
         });
         
-        // Clean token values with direct conversion
-        const cleanedInput = forceToInteger(tokenData.inputTokens);
-        const cleanedOutput = forceToInteger(tokenData.outputTokens);
-        const cleanedTotal = forceToInteger(tokenData.totalTokens);
+        // Clean token values
+        console.log('🔧 About to clean input tokens...');
+        const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
+        console.log('🔧 About to clean output tokens...');
+        const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
+        console.log('🔧 About to clean total tokens...');
+        const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
         
-        console.log('✅ Token values cleaned:', {
-            input: `${tokenData.inputTokens} → ${cleanedInput}`,
-            output: `${tokenData.outputTokens} → ${cleanedOutput}`,
-            total: `${tokenData.totalTokens} → ${cleanedTotal}`
+        console.log('🔍 Final values going to database:', {
+            inputTokens: cleanedInput,
+            outputTokens: cleanedOutput,
+            totalTokens: cleanedTotal
         });
         
-        const result = await pool.query(`
-            INSERT INTO target_profiles (
-                user_id,
-                linkedin_url, 
-                data_json,
-                input_tokens,
-                output_tokens,
-                total_tokens,
-                ai_provider,
-                ai_model,
-                created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            RETURNING id, created_at
-        `, [
-            userId,
-            cleanUrl,
-            JSON.stringify(analysisData),
-            cleanedInput,
-            cleanedOutput,
-            cleanedTotal,
-            'google',
-            'gemini-1.5-flash'
-        ]);
+        // ✅ DEBUGGING: Add error tracing before database insert
+        console.log('🎯 ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        console.log('🎯 SQL VALUES GOING TO DATABASE:');
+        console.log('   userId:', userId, typeof userId);
+        console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
+        console.log('   analysisData length:', JSON.stringify(analysisData).length);
+        console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
+        console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
+        console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
+
+        let result;
+        try {
+            console.log('🔍 About to execute PostgreSQL INSERT query...');
+            result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id,
+                    linkedin_url, 
+                    data_json,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    ai_provider,
+                    ai_model,
+                    created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                RETURNING id, created_at
+            `, [
+                userId,
+                cleanUrl,
+                JSON.stringify(analysisData),
+                cleanedInput,
+                cleanedOutput,
+                cleanedTotal,
+                'google',
+                'gemini-1.5-flash'
+            ]);
+            
+            console.log('🎯 TARGET PROFILE INSERT SUCCESS!');
+            
+        } catch (dbError) {
+            console.log('🎯 TARGET PROFILE INSERT FAILED!');
+            console.log('🎯 DATABASE ERROR:', dbError.message);
+            console.log('🎯 ERROR DETAIL:', dbError.detail);
+            console.log('🎯 SQL STATE:', dbError.code);
+            console.log('🎯 PROBLEMATIC VALUES - DETAILED:');
+            console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
+            console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
+            console.log('   param3 (analysisData):', { type: typeof analysisData, jsonLength: JSON.stringify(analysisData).length });
+            console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
+            console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
+            console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
+            console.log('   param7 (ai_provider):', 'google');
+            console.log('   param8 (ai_model):', 'gemini-1.5-flash');
+            throw dbError;
+        }
         
         const savedProfile = result.rows[0];
         
@@ -225,10 +296,14 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
 
 // ✅ ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
 async function handleTargetProfileJSON(req, res) {
+    console.log('🔥 handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
+    console.log('🎯 === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
+    console.log('🔍 Request body keys:', Object.keys(req.body || {}));
+    console.log('🔍 User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
+    
     let holdId = null;
     
     try {
-        console.log('🎯 === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
         console.log(`👤 User ID: ${req.user.id}`);
         console.log(`🔗 URL: ${req.body.profileUrl}`);
         
@@ -328,6 +403,12 @@ async function handleTargetProfileJSON(req, res) {
         
         // ✅ STEP 3: Save analysis result to database
         console.log('💾 Saving analysis to database...');
+        console.log('🔍 About to call saveProfileToDB with:');
+        console.log('   cleanProfileUrl:', cleanProfileUrl);
+        console.log('   geminiResult.data type:', typeof geminiResult.data);
+        console.log('   userId:', userId);
+        console.log('   geminiResult.tokenData:', geminiResult.tokenData);
+        
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
             geminiResult.data, 
@@ -1733,7 +1814,7 @@ const startServer = async () => {
             console.log(`✅ TOKEN TRACKING SYSTEM:`);
             console.log(`   📊 USER profiles save GPT-5 nano data to user_profiles table`);
             console.log(`   🗄️ TARGET profiles save GPT-5 nano data to target_profiles table`);
-            console.log(`   📢 Input/output/total token counts tracked for all profiles`);
+            console.log(`   🔢 Input/output/total token counts tracked for all profiles`);
             console.log(`   ⏱️ Processing time and API request IDs logged`);
             console.log(`   💾 Raw responses stored for debugging and analysis`);
             console.log(`✅ PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH ZERO MOCK DATA!`);
