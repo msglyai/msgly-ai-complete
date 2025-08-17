@@ -184,7 +184,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
     console.log('   linkedinUrl:', linkedinUrl);
     console.log('   rawJsonData type:', typeof rawJsonData);
-    console.log('   rawJsonData length:', String(rawJsonData).length);
+    console.log('   rawJsonData length:', JSON.stringify(rawJsonData).length);
     console.log('   userId:', userId, 'type:', typeof userId);
     console.log('   tokenData:', tokenData);
     
@@ -222,7 +222,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
         console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
         console.log('   userId:', userId, typeof userId);
         console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-        console.log('   rawJsonData length:', String(rawJsonData).length);
+        console.log('   rawJsonData length:', JSON.stringify(rawJsonData).length);
         console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
         console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
         console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
@@ -244,7 +244,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
             `, [
                 userId,
                 cleanUrl,
-                String(rawJsonData),
+                JSON.stringify(rawJsonData), // Convert to valid JSON string
                 cleanedInput,
                 cleanedOutput,
                 cleanedTotal
@@ -260,7 +260,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
             console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
             console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
             console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
-            console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, length: String(rawJsonData).length });
+            console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, jsonLength: JSON.stringify(rawJsonData).length });
             console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
             console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
             console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
@@ -406,7 +406,7 @@ async function handleTargetProfileJSON(req, res) {
         // Save the RAW response without any processing
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
-            geminiResult.rawResponse || geminiResult.response || 'NO_RAW_RESPONSE_AVAILABLE', 
+            geminiResult.data, // Use the actual JSON data
             userId, 
             geminiResult.tokenData || {}
         );
