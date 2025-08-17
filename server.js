@@ -87,6 +87,20 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
+// ✅ NEW: Helper function to clean token numbers for database insertion
+function cleanTokenNumber(value) {
+    if (!value) return null;
+    
+    // Convert to string and remove commas
+    const cleanValue = String(value).replace(/,/g, '');
+    
+    // Convert to integer
+    const intValue = parseInt(cleanValue);
+    
+    // Return null if invalid number
+    return isNaN(intValue) ? null : intValue;
+}
+
 // ✅ NEW: DATABASE-First System Functions
 
 // Check if profile exists in database
@@ -165,9 +179,9 @@ async function saveProfileToDB(linkedinUrl, analysisData, userId, tokenData = {}
             userId,
             cleanUrl,
             JSON.stringify(analysisData),
-            tokenData.inputTokens || null,
-            tokenData.outputTokens || null,
-            tokenData.totalTokens || null,
+            cleanTokenNumber(tokenData.inputTokens),      // ✅ FIXED: Clean comma formatting
+            cleanTokenNumber(tokenData.outputTokens),     // ✅ FIXED: Clean comma formatting
+            cleanTokenNumber(tokenData.totalTokens),      // ✅ FIXED: Clean comma formatting
             'google',
             'gemini-1.5-flash'
         ]);
