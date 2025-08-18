@@ -239,12 +239,12 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
                     output_tokens,
                     total_tokens,
                     created_at
-                ) VALUES ($1, $2, $3::TEXT, $4, $5, $6, NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
                 RETURNING id, created_at
             `, [
                 userId,
                 cleanUrl,
-                JSON.stringify(rawJsonData), // Convert to valid JSON string, then force as TEXT
+                JSON.stringify(rawJsonData), // Same pattern as user profile: JSON.stringify(processedProfile.geminiRawData)
                 cleanedInput,
                 cleanedOutput,
                 cleanedTotal
@@ -403,10 +403,13 @@ async function handleTargetProfileJSON(req, res) {
         console.log('   userId:', userId);
         console.log('   geminiResult.tokenData:', geminiResult.tokenData);
         
-        // Save the RAW response without any processing
+        // COPY USER PROFILE PATTERN: Process the data first
+        const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
+        
+        // Save using the same pattern as user profile
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
-            geminiResult.data, // Use the actual JSON data
+            processedProfile.geminiRawData, // Use processed data like user profile
             userId, 
             geminiResult.tokenData || {}
         );
