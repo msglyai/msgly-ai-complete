@@ -87,9 +87,12 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// Token number cleaner (debug removed)
+// NEW: Robust token number cleaner with extensive debugging
 function cleanTokenNumber(value) {
+    console.log('[TOOL] Cleaning token:', { original: value, type: typeof value });
+    
     if (value === null || value === undefined || value === '') {
+        console.log('[TOOL] Token is null/undefined/empty, returning null');
         return null;
     }
     
@@ -103,14 +106,18 @@ function cleanTokenNumber(value) {
     
     // Remove all non-numeric characters except negative sign
     const cleaned = stringValue.replace(/[^0-9-]/g, '');
+    console.log('[TOOL] After cleaning:', { cleaned, isEmpty: cleaned === '' });
     
     if (cleaned === '' || cleaned === '-') {
+        console.log('[TOOL] Cleaned value is empty, returning null');
         return null;
     }
     
     // Convert to integer
     const result = parseInt(cleaned, 10);
     const isValid = !isNaN(result) && isFinite(result);
+    
+    console.log('[TOOL] Final conversion:', { result, isValid });
     
     return isValid ? result : null;
 }
@@ -171,35 +178,94 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
     }
 }
 
-// Save profile analysis to database (debug removed)
+// Save profile analysis to database
 async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {}) {
+    console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
+    console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
+    console.log('   linkedinUrl:', linkedinUrl);
+    console.log('   rawJsonData type:', typeof rawJsonData);
+    console.log('   rawJsonData length:', JSON.stringify(rawJsonData).length);
+    console.log('   userId:', userId, 'type:', typeof userId);
+    console.log('   tokenData:', tokenData);
+    
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
+        // DEBUG: Log token data before cleaning
+        console.log('[CHECK] saveProfileToDB received tokenData:', {
+            inputTokens: tokenData.inputTokens,
+            outputTokens: tokenData.outputTokens,
+            totalTokens: tokenData.totalTokens,
+            types: {
+                input: typeof tokenData.inputTokens,
+                output: typeof tokenData.outputTokens,
+                total: typeof tokenData.totalTokens
+            }
+        });
+        
         // Clean token values
+        console.log('[TOOL] About to clean input tokens...');
         const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
+        console.log('[TOOL] About to clean output tokens...');
         const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
+        console.log('[TOOL] About to clean total tokens...');
         const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
+        
+        console.log('[CHECK] Final values going to database:', {
+            inputTokens: cleanedInput,
+            outputTokens: cleanedOutput,
+            totalTokens: cleanedTotal
+        });
+        
+        // DEBUGGING: Add error tracing before database insert
+        console.log('[TARGET] ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
+        console.log('   userId:', userId, typeof userId);
+        console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
+        console.log('   rawJsonData length:', JSON.stringify(rawJsonData).length);
+        console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
+        console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
+        console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
 
-        const result = await pool.query(`
-            INSERT INTO target_profiles (
-                user_id,
-                linkedin_url, 
-                data_json,
-                input_tokens,
-                output_tokens,
-                total_tokens,
-                created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            RETURNING id, created_at
-        `, [
-            userId,
-            cleanUrl,
-            JSON.stringify(rawJsonData), // Same pattern as user profile: JSON.stringify(processedProfile.geminiRawData)
-            cleanedInput,
-            cleanedOutput,
-            cleanedTotal
-        ]);
+        let result;
+        try {
+            console.log('[CHECK] About to execute PostgreSQL INSERT query...');
+            result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id,
+                    linkedin_url, 
+                    data_json,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                RETURNING id, created_at
+            `, [
+                userId,
+                cleanUrl,
+                JSON.stringify(rawJsonData), // Same pattern as user profile: JSON.stringify(processedProfile.geminiRawData)
+                cleanedInput,
+                cleanedOutput,
+                cleanedTotal
+            ]);
+            
+            console.log('[TARGET] TARGET PROFILE INSERT SUCCESS!');
+            
+        } catch (dbError) {
+            console.log('[TARGET] TARGET PROFILE INSERT FAILED!');
+            console.log('[TARGET] DATABASE ERROR:', dbError.message);
+            console.log('[TARGET] ERROR DETAIL:', dbError.detail);
+            console.log('[TARGET] SQL STATE:', dbError.code);
+            console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
+            console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
+            console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
+            console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, jsonLength: JSON.stringify(rawJsonData).length });
+            console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
+            console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
+            console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
+            throw dbError;
+        }
         
         const savedProfile = result.rows[0];
         
@@ -222,8 +288,13 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     }
 }
 
-// ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system (debug reduced)
+// ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
 async function handleTargetProfileJSON(req, res) {
+    console.log('[FIRE] handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
+    console.log('[TARGET] === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
+    console.log('[CHECK] Request body keys:', Object.keys(req.body || {}));
+    console.log('[CHECK] User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
+    
     let holdId = null;
     
     try {
@@ -326,6 +397,11 @@ async function handleTargetProfileJSON(req, res) {
         
         // STEP 3: Save analysis result to database
         console.log('[SAVE] Saving analysis to database...');
+        console.log('[CHECK] About to call saveProfileToDB with:');
+        console.log('   cleanProfileUrl:', cleanProfileUrl);
+        console.log('   geminiResult.rawResponse available:', !!geminiResult.rawResponse);
+        console.log('   userId:', userId);
+        console.log('   geminiResult.tokenData:', geminiResult.tokenData);
         
         // COPY USER PROFILE PATTERN: Process the data first
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -960,7 +1036,7 @@ app.use('/', healthRoutes);
 // STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT (UNCHANGED) ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
     console.log('[CHECK] Chrome Extension Auth Request:', {
