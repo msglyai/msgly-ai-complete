@@ -87,7 +87,7 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// Token number cleaner
+// Token number cleaner (debug removed)
 function cleanTokenNumber(value) {
     if (value === null || value === undefined || value === '') {
         return null;
@@ -115,6 +115,8 @@ function cleanTokenNumber(value) {
     return isValid ? result : null;
 }
 
+// NEW: DATABASE-First System Functions
+
 // Check if profile exists in database
 async function checkIfProfileExistsInDB(linkedinUrl) {
     try {
@@ -138,6 +140,7 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
         
         if (result.rows.length > 0) {
             const profile = result.rows[0];
+            console.log(`[SUCCESS] Profile already exists in database: ID ${profile.id}`);
             return {
                 exists: true,
                 data: {
@@ -153,6 +156,7 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
                 }
             };
         } else {
+            console.log(`[NEW] Profile is new in database: ${cleanUrl}`);
             return {
                 exists: false,
                 data: null
@@ -167,7 +171,7 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
     }
 }
 
-// Save profile analysis to database
+// Save profile analysis to database (debug removed)
 async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {}) {
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
@@ -191,7 +195,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
         `, [
             userId,
             cleanUrl,
-            JSON.stringify(rawJsonData),
+            JSON.stringify(rawJsonData), // Same pattern as user profile: JSON.stringify(processedProfile.geminiRawData)
             cleanedInput,
             cleanedOutput,
             cleanedTotal
@@ -199,6 +203,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
         
         const savedProfile = result.rows[0];
         
+        console.log(`[SAVE] Profile saved to database: ID ${savedProfile.id}`);
         return {
             success: true,
             id: savedProfile.id,
@@ -217,11 +222,14 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     }
 }
 
-// ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
+// ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system (debug reduced)
 async function handleTargetProfileJSON(req, res) {
     let holdId = null;
     
     try {
+        console.log(`[USER] User ID: ${req.user.id}`);
+        console.log(`[LINK] URL: ${req.body.profileUrl}`);
+        
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
         
@@ -236,10 +244,13 @@ async function handleTargetProfileJSON(req, res) {
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
         // STEP 1: Check if profile already exists in database
+        console.log('[CHECK] Checking if profile already exists in database...');
         const existsCheck = await checkIfProfileExistsInDB(cleanProfileUrl);
         
         if (existsCheck.exists) {
             // ALREADY ANALYZED: Return marketing message, no credits charged
+            console.log('[BOOM] Profile already analyzed - showing marketing message');
+            
             return res.json({
                 success: true,
                 alreadyAnalyzed: true,
@@ -262,6 +273,7 @@ async function handleTargetProfileJSON(req, res) {
         }
 
         // STEP 2: NEW PROFILE - Create credit hold and analyze
+        console.log('[CREDIT] Creating credit hold for new profile analysis...');
         const holdResult = await createCreditHold(userId, 'target_analysis', {
             profileUrl: cleanProfileUrl,
             timestamp: new Date().toISOString()
@@ -286,6 +298,9 @@ async function handleTargetProfileJSON(req, res) {
         }
 
         holdId = holdResult.holdId;
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+        
+        console.log('[AI] Processing HTML with GPT-5 nano for NEW TARGET profile...');
         
         // Process HTML with GPT-5 nano
         const geminiResult = await sendToGemini({
@@ -307,13 +322,18 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
         
+        console.log('[SUCCESS] GPT-5 nano processing successful for TARGET profile');
+        
         // STEP 3: Save analysis result to database
+        console.log('[SAVE] Saving analysis to database...');
+        
+        // COPY USER PROFILE PATTERN: Process the data first
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
         
         // Save using the same pattern as user profile
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
-            processedProfile.geminiRawData,
+            processedProfile.geminiRawData, // Use processed data like user profile
             userId, 
             geminiResult.tokenData || {}
         );
@@ -329,6 +349,7 @@ async function handleTargetProfileJSON(req, res) {
         }
         
         // STEP 4: Complete operation using dual credit system
+        console.log('[CREDIT] Completing operation with dual credit deduction...');
         const spendResult = await spendUserCredits(userId, 0.25);
         
         if (!spendResult.success) {
@@ -351,6 +372,13 @@ async function handleTargetProfileJSON(req, res) {
             newCredits: spendResult.newTotalCredits
         });
 
+        console.log('[SUCCESS] TARGET profile saved to database successfully');
+        console.log(`[DATA] Analysis saved: Database ID ${saveResult.id}`);
+        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        
+        // Extract basic profile info for response
+        const profileData = { name: 'LinkedIn User', headline: '', currentCompany: '' };
+        
         res.json({
             success: true,
             alreadyAnalyzed: false,
@@ -393,9 +421,13 @@ async function handleTargetProfileJSON(req, res) {
     }
 }
 
-// USER PROFILE HANDLER: Enhanced with token tracking
+// USER PROFILE HANDLER: Enhanced with token tracking (UNCHANGED)
 async function handleUserProfile(req, res) {
     try {
+        console.log('[BLUE] === USER PROFILE PROCESSING ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
+        console.log(`[LINK] URL: ${req.body.profileUrl}`);
+        
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
         
@@ -408,6 +440,8 @@ async function handleUserProfile(req, res) {
         
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
+        
+        console.log('[AI] Processing HTML with GPT-5 nano for USER profile...');
         
         // Process HTML with GPT-5 nano
         const geminiResult = await sendToGemini({
@@ -424,6 +458,8 @@ async function handleUserProfile(req, res) {
                 details: geminiResult.error || 'Unknown error'
             });
         }
+        
+        console.log('[SUCCESS] GPT-5 nano processing successful for USER profile');
         
         // Process GPT-5 nano data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -500,6 +536,9 @@ async function handleUserProfile(req, res) {
             ['completed', userId]
         );
         
+        console.log('[SUCCESS] USER profile saved to user_profiles table successfully');
+        console.log(`[DATA] Token usage: ${geminiResult.tokenData?.inputTokens || 'N/A'} input, ${geminiResult.tokenData?.outputTokens || 'N/A'} output, ${geminiResult.tokenData?.totalTokens || 'N/A'} total`);
+        
         res.json({
             success: true,
             message: 'User profile processed and saved successfully',
@@ -535,6 +574,9 @@ async function handleGenerateMessage(req, res) {
     let holdId = null;
     
     try {
+        console.log('[MESSAGE] === MESSAGE GENERATION WITH DUAL CREDITS ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
+        
         const { targetProfileUrl, outreachContext } = req.body;
         const userId = req.user.id;
         
@@ -546,6 +588,7 @@ async function handleGenerateMessage(req, res) {
         }
 
         // Create credit hold
+        console.log('[CREDIT] Creating credit hold for message generation...');
         const holdResult = await createCreditHold(userId, 'message_generation', {
             targetProfileUrl: targetProfileUrl,
             outreachContext: outreachContext,
@@ -571,6 +614,7 @@ async function handleGenerateMessage(req, res) {
         }
 
         holdId = holdResult.holdId;
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
         // TODO: Implement actual message generation with AI
         // For now, return a placeholder
@@ -582,6 +626,7 @@ Best regards,
 [Your Name]`;
 
         // Spend credits using dual credit system
+        console.log('[CREDIT] Spending credits with dual credit system...');
         const spendResult = await spendUserCredits(userId, 1.0);
 
         if (!spendResult.success) {
@@ -602,6 +647,8 @@ Best regards,
             spentCredits: spendResult.spent,
             newCredits: spendResult.newTotalCredits
         });
+
+        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
 
         res.json({
             success: true,
@@ -640,6 +687,9 @@ async function handleGenerateConnection(req, res) {
     let holdId = null;
     
     try {
+        console.log('[CONNECT] === CONNECTION GENERATION WITH DUAL CREDITS ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
+        
         const { targetProfileUrl, outreachContext } = req.body;
         const userId = req.user.id;
         
@@ -651,6 +701,7 @@ async function handleGenerateConnection(req, res) {
         }
 
         // Create credit hold
+        console.log('[CREDIT] Creating credit hold for connection generation...');
         const holdResult = await createCreditHold(userId, 'connection_generation', {
             targetProfileUrl: targetProfileUrl,
             outreachContext: outreachContext,
@@ -676,12 +727,14 @@ async function handleGenerateConnection(req, res) {
         }
 
         holdId = holdResult.holdId;
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
         // TODO: Implement actual connection message generation with AI
         // For now, return a placeholder
         const generatedConnection = `I'd love to connect with you given your background in ${outreachContext}. Looking forward to potential collaboration opportunities.`;
 
         // Spend credits using dual credit system
+        console.log('[CREDIT] Spending credits with dual credit system...');
         const spendResult = await spendUserCredits(userId, 1.0);
 
         if (!spendResult.success) {
@@ -702,6 +755,8 @@ async function handleGenerateConnection(req, res) {
             spentCredits: spendResult.spent,
             newCredits: spendResult.newTotalCredits
         });
+
+        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
 
         res.json({
             success: true,
@@ -905,9 +960,15 @@ app.use('/', healthRoutes);
 // STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT (UNCHANGED) ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
+    console.log('[CHECK] Chrome Extension Auth Request:', {
+        hasGoogleToken: !!req.body.googleAccessToken,
+        clientType: req.body.clientType,
+        extensionId: req.body.extensionId
+    });
+    
     try {
         const { googleAccessToken, clientType, extensionId } = req.body;
         
@@ -926,6 +987,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
+        console.log('[CHECK] Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -938,12 +1000,18 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         const googleUser = googleResponse.data;
+        console.log('[SUCCESS] Google user verified:', {
+            email: googleUser.email,
+            name: googleUser.name,
+            verified: googleUser.verified_email
+        });
         
         // Find or create user
         let user = await getUserByEmail(googleUser.email);
         let isNewUser = false;
         
         if (!user) {
+            console.log('[USER] Creating new user...');
             user = await createGoogleUser(
                 googleUser.email,
                 googleUser.name,
@@ -952,6 +1020,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             );
             isNewUser = true;
         } else if (!user.google_id) {
+            console.log('[LINK] Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
         }
@@ -964,6 +1033,8 @@ app.post('/auth/chrome-extension', async (req, res) => {
             JWT_SECRET,
             { expiresIn: '30d' }
         );
+        
+        console.log('[SUCCESS] Chrome extension authentication successful');
         
         res.json({
             success: true,
@@ -1007,16 +1078,35 @@ app.post('/auth/chrome-extension', async (req, res) => {
 
 // Enhanced /scrape-html route with intelligent routing
 app.post('/scrape-html', authenticateToken, (req, res) => {
+    // REQUIRED LOGGING: Route entry
+    console.log('[CHECK] route=/scrape-html');
+    console.log(`[CHECK] isUserProfile=${req.body.isUserProfile}`);
+    
     // Enhanced: Route based on isUserProfile parameter
     if (req.body.isUserProfile === true) {
+        console.log('[CHECK] selectedHandler=USER');
+        console.log('[BLUE] USER handler start');
+        console.log(`[CHECK] userId=${req.user.id}`);
+        console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        
         return handleUserProfile(req, res);
     } else {
+        console.log('[CHECK] selectedHandler=TARGET_DATABASE');
+        console.log('[TARGET] TARGET DATABASE handler start');
+        console.log(`[CHECK] userId=${req.user.id}`);
+        console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+        
         return handleTargetProfileJSON(req, res);
     }
 });
 
 // NEW: DATABASE-First TARGET PROFILE endpoint
 app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
+    console.log('[TARGET] route=/target-profile/analyze-json');
+    console.log('[TARGET] DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
+    console.log(`[CHECK] userId=${req.user.id}`);
+    console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
+    
     return handleTargetProfileJSON(req, res);
 });
 
@@ -1024,9 +1114,11 @@ app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
 app.post('/generate-message', authenticateToken, handleGenerateMessage);
 app.post('/generate-connection', authenticateToken, handleGenerateConnection);
 
-// NEW: User Plan Endpoint - Returns real plan data
+// NEW: User Plan Endpoint - Returns real plan data (NO MORE MOCK DATA!)
 app.get('/user/plan', authenticateToken, async (req, res) => {
     try {
+        console.log(`[CREDIT] Getting real plan data for user ${req.user.id}`);
+        
         const planResult = await getUserPlan(req.user.id);
         
         if (!planResult.success) {
@@ -1035,6 +1127,8 @@ app.get('/user/plan', authenticateToken, async (req, res) => {
                 error: planResult.error
             });
         }
+
+        console.log(`[SUCCESS] Real plan data retrieved: ${planResult.data.planName}, Total: ${planResult.data.totalCredits}`);
 
         res.json({
             success: true,
@@ -1108,9 +1202,9 @@ app.get('/credits/history', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== SESSION-DEPENDENT ROUTES ====================
+// ==================== SESSION-DEPENDENT ROUTES (STAY IN SERVER.JS) ====================
 
-// Google OAuth Routes
+// KEPT IN SERVER: Google OAuth Routes (Session creation/management)
 app.get('/auth/google', (req, res, next) => {
     if (req.query.package) {
         req.session.selectedPackage = req.query.package;
@@ -1140,9 +1234,18 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
+            console.log(`[CHECK] OAuth callback - User: ${req.user.email}`);
+            console.log(`   - Is new user: ${req.user.isNewUser || false}`);
+            console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
+            console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
+            console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
+            console.log(`   - Needs onboarding: ${needsOnboarding}`);
+            
             if (needsOnboarding) {
+                console.log(`[ARROW] Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
+                console.log(`[ARROW] Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
@@ -1157,9 +1260,11 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// ENHANCED TRAFFIC LIGHT STATUS ENDPOINT
+// ENHANCED TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
+        console.log(`[LIGHT] Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
+
         const profileResult = await pool.query(`
             SELECT 
                 u.registration_completed,
@@ -1187,7 +1292,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             });
         }
 
-        // DETERMINE TRAFFIC LIGHT STATUS
+        // DETERMINE TRAFFIC LIGHT STATUS - USER PROFILE ONLY
         const isRegistrationComplete = data.registration_completed || false;
         const isInitialScrapingDone = data.initial_scraping_done || false;
         const extractionStatus = data.data_extraction_status || 'pending';
@@ -1214,6 +1319,12 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             statusMessage = 'Please complete your registration by providing your LinkedIn URL.';
             actionRequired = 'COMPLETE_REGISTRATION';
         }
+
+        console.log(`[LIGHT] User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
+        console.log(`   - Registration Complete: ${isRegistrationComplete}`);
+        console.log(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
+        console.log(`   - Extraction Status: ${extractionStatus}`);
+        console.log(`   - Has Experience: ${hasExperience}`);
 
         res.json({
             success: true,
@@ -1251,9 +1362,11 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     }
 });
 
-// Get User Profile with dual credit info
+// ENHANCED: Get User Profile with dual credit info
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
+        console.log(`[CHECK] Profile request from user ${req.user.id} using ${req.authMethod} auth`);
+
         const profileResult = await pool.query(`
             SELECT 
                 up.*,
@@ -1423,9 +1536,11 @@ app.get('/profile', authenticateDual, async (req, res) => {
     }
 });
 
-// Check profile extraction status
+// FIXED: Check profile extraction status - USER PROFILE ONLY (UNCHANGED)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
+        console.log(`[CHECK] Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
+
         const userQuery = `
             SELECT 
                 u.extraction_status,
@@ -1510,7 +1625,7 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// Cleanup expired holds (run periodically)
+// NEW: Cleanup expired holds (run periodically)
 setInterval(async () => {
     try {
         await cleanupExpiredHolds();
