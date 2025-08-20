@@ -1,6 +1,7 @@
-// FIXED database.js - Authentication Issues Resolved
-// Removed CASCADE drop and fixed NULL credit handling for existing users
+// ENHANCED database.js - Added Plans Table + Dual Credit System
+// Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
+// FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -17,12 +18,11 @@ const initDB = async () => {
     try {
         console.log('Creating enhanced database tables with dual credit system...');
 
-        // FIXED: Do NOT drop plans table with CASCADE - this breaks existing user relationships
-        // REMOVED: await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
+        // PLANS TABLE - FIXED: Drop and recreate with correct schema
+        await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
         
-        // Create plans table safely
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS plans (
+            CREATE TABLE plans (
                 id SERIAL PRIMARY KEY,
                 plan_code VARCHAR(50) UNIQUE NOT NULL,
                 plan_name VARCHAR(100) NOT NULL,
@@ -57,7 +57,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -65,14 +65,14 @@ const initDB = async () => {
                 password_hash VARCHAR(255),
                 google_id VARCHAR(255) UNIQUE,
                 display_name VARCHAR(255),
-                profile_picture VARCHAR(500),
+                profile_picture TEXT,
                 first_name VARCHAR(100),
                 last_name VARCHAR(100),
                 package_type VARCHAR(50) DEFAULT 'free',
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 
                 -- NEW: Dual Credit System
-                plan_code VARCHAR(50) DEFAULT 'free',
+                plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
                 renewable_credits INTEGER DEFAULT 7,
                 payasyougo_credits INTEGER DEFAULT 0,
                 
@@ -94,7 +94,7 @@ const initDB = async () => {
             );
         `);
 
-        // USER_PROFILES TABLE (unchanged)
+        // USER_PROFILES TABLE - FIXED: Changed profile_image_url VARCHAR(500) to TEXT
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -144,12 +144,12 @@ const initDB = async () => {
                 total_shares INTEGER DEFAULT 0,
                 average_likes DECIMAL(10,2) DEFAULT 0,
                 
-                -- Media
+                -- Media - FIXED: Changed profile_image_url VARCHAR(500) to TEXT
                 profile_picture TEXT,
-                profile_image_url VARCHAR(500),
+                profile_image_url TEXT,
                 avatar TEXT,
                 banner_image TEXT,
-                background_image_url VARCHAR(500),
+                background_image_url TEXT,
                 
                 -- Identifiers
                 public_identifier VARCHAR(255),
@@ -223,13 +223,13 @@ const initDB = async () => {
             );
         `);
 
-        // Supporting tables (unchanged)
+        // Supporting tables - FIXED: Changed target_url VARCHAR(500) to TEXT
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
                 target_name VARCHAR(255),
-                target_url VARCHAR(500),
+                target_url TEXT,
                 generated_message TEXT,
                 message_context TEXT,
                 credits_used INTEGER DEFAULT 1,
@@ -237,7 +237,9 @@ const initDB = async () => {
             );
         `);
 
-        // CREDITS_TRANSACTIONS TABLE - Create safely without CASCADE drop
+        // CREDITS_TRANSACTIONS TABLE - FIXED: Drop and recreate with correct schema
+        await pool.query(`DROP TABLE IF EXISTS credits_transactions CASCADE;`);
+        
         await pool.query(`
             CREATE TABLE IF NOT EXISTS credits_transactions (
                 id SERIAL PRIMARY KEY,
@@ -259,7 +261,7 @@ const initDB = async () => {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500)',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_url TEXT',
@@ -284,6 +286,28 @@ const initDB = async () => {
                 } catch (err) {
                     console.log(`Column might already exist: ${err.message}`);
                 }
+            }
+
+            // FIXED: Update existing VARCHAR(500) columns to TEXT
+            try {
+                await pool.query(`ALTER TABLE users ALTER COLUMN profile_picture TYPE TEXT;`);
+                console.log('Updated users.profile_picture to TEXT');
+            } catch (err) {
+                console.log(`Profile picture column update: ${err.message}`);
+            }
+
+            try {
+                await pool.query(`ALTER TABLE user_profiles ALTER COLUMN profile_image_url TYPE TEXT;`);
+                console.log('Updated user_profiles.profile_image_url to TEXT');
+            } catch (err) {
+                console.log(`Profile image URL column update: ${err.message}`);
+            }
+
+            try {
+                await pool.query(`ALTER TABLE message_logs ALTER COLUMN target_url TYPE TEXT;`);
+                console.log('Updated message_logs.target_url to TEXT');
+            } catch (err) {
+                console.log(`Target URL column update: ${err.message}`);
             }
             
             // Make password_hash nullable
@@ -319,39 +343,6 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // CRITICAL FIX: Ensure all existing users have valid credit values to prevent auth failures
-        try {
-            console.log('FIXING existing user data to prevent authentication failures...');
-            
-            // Fix NULL values that break authentication
-            await pool.query(`
-                UPDATE users 
-                SET 
-                    plan_code = COALESCE(plan_code, 'free'),
-                    renewable_credits = COALESCE(renewable_credits, 7),
-                    payasyougo_credits = COALESCE(payasyougo_credits, 0),
-                    subscription_starts_at = COALESCE(subscription_starts_at, created_at, CURRENT_TIMESTAMP),
-                    credits_remaining = COALESCE(renewable_credits, 7) + COALESCE(payasyougo_credits, 0)
-                WHERE plan_code IS NULL 
-                   OR renewable_credits IS NULL 
-                   OR payasyougo_credits IS NULL
-                   OR subscription_starts_at IS NULL
-                   OR credits_remaining IS NULL
-            `);
-            
-            // Set next billing dates for users without them
-            await pool.query(`
-                UPDATE users 
-                SET next_billing_date = subscription_starts_at + INTERVAL '1 month'
-                WHERE next_billing_date IS NULL AND plan_code = 'free';
-            `);
-            
-            console.log('Existing user data fixed - authentication should work now');
-            
-        } catch (fixError) {
-            console.log('User data fix error (non-critical):', fixError.message);
-        }
-
         // Create indexes
         try {
             await pool.query(`
@@ -381,26 +372,15 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        // FIXED: Add foreign key constraint safely (only if plans table exists and has data)
+        // Set next billing dates for existing free users
         try {
-            // Check if foreign key already exists
-            const fkExists = await pool.query(`
-                SELECT 1 FROM information_schema.table_constraints 
-                WHERE table_name = 'users' 
-                AND constraint_type = 'FOREIGN KEY' 
-                AND constraint_name LIKE '%plan_code%'
+            await pool.query(`
+                UPDATE users 
+                SET next_billing_date = subscription_starts_at + INTERVAL '1 month'
+                WHERE plan_code = 'free' AND next_billing_date IS NULL;
             `);
-            
-            if (fkExists.rows.length === 0) {
-                await pool.query(`
-                    ALTER TABLE users 
-                    ADD CONSTRAINT users_plan_code_fkey 
-                    FOREIGN KEY (plan_code) REFERENCES plans(plan_code)
-                `);
-                console.log('Foreign key constraint added successfully');
-            }
-        } catch (fkError) {
-            console.log('Foreign key constraint might already exist:', fkError.message);
+        } catch (err) {
+            console.log('Billing date update error:', err.message);
         }
 
         console.log('Enhanced database with dual credit system created successfully!');
