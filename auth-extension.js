@@ -1,4 +1,4 @@
-// auth-extension.js - Chrome Extension Google Auth Endpoint - FIXED with Enhanced Debugging
+// auth-extension.js - Chrome Extension Google Auth Endpoint - FIXED with Enhanced Debugging + AUTO-REGISTRATION
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const fetch = require('node-fetch');
@@ -13,7 +13,7 @@ const initAuthExtension = (functions) => {
     dbFunctions = functions;
 };
 
-// Chrome Extension OAuth endpoint - FIXED with Enhanced Debugging
+// Chrome Extension OAuth endpoint - FIXED with Enhanced Debugging + AUTO-REGISTRATION
 router.post('/auth/chrome-extension', async (req, res) => {
     console.log('🔐 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
@@ -22,11 +22,20 @@ router.post('/auth/chrome-extension', async (req, res) => {
         extensionId: req.body.extensionId,
         hasToken: !!req.body.googleAccessToken,
         tokenLength: req.body.googleAccessToken?.length,
-        debug: req.body.debug
+        debug: req.body.debug,
+        hasLinkedInUrl: !!req.body.linkedinUrl // ✅ AUTO-REGISTRATION: Log LinkedIn URL presence
     });
     
     try {
-        const { googleAccessToken, clientType, extensionId, debug } = req.body;
+        const { googleAccessToken, clientType, extensionId, debug, linkedinUrl } = req.body; // ✅ AUTO-REGISTRATION: Extract LinkedIn URL
+        
+        // ✅ AUTO-REGISTRATION: Log auto-registration detection
+        if (linkedinUrl) {
+            console.log('🎯 AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
+            console.log('🔗 LinkedIn URL:', linkedinUrl);
+        } else {
+            console.log('📝 REGULAR AUTH: No LinkedIn URL, will use normal auth flow');
+        }
         
         // Enhanced validation
         if (!googleAccessToken) {
@@ -38,7 +47,8 @@ router.post('/auth/chrome-extension', async (req, res) => {
                     clientType,
                     extensionId,
                     hasToken: false,
-                    debug
+                    debug,
+                    hasLinkedInUrl: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include in error response
                 }
             });
         }
@@ -51,7 +61,8 @@ router.post('/auth/chrome-extension', async (req, res) => {
                 received: {
                     clientType,
                     hasToken: !!googleAccessToken,
-                    debug
+                    debug,
+                    hasLinkedInUrl: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include in error response
                 }
             });
         }
@@ -59,7 +70,7 @@ router.post('/auth/chrome-extension', async (req, res) => {
         console.log('🔄 Fetching user info from Google using access token...');
         console.log('🔍 Token info (first 20 chars):', googleAccessToken.substring(0, 20) + '...');
         console.log('🆔 Extension ID:', extensionId);
-        console.log('🐛 Debug info:', debug);
+        console.log('🛠 Debug info:', debug);
         
         // FIXED: Enhanced token validation before Google API call
         try {
@@ -207,8 +218,14 @@ router.post('/auth/chrome-extension', async (req, res) => {
         console.log('👤 Existing user found:', !!user);
         
         if (!user) {
-            // Create new user for Chrome extension
+            // ✅ AUTO-REGISTRATION: Create new user with LinkedIn URL for auto-registration
             console.log('👤 Creating new user from Chrome extension auth');
+            
+            if (linkedinUrl) {
+                console.log('🎯 AUTO-REGISTRATION: Creating user with LinkedIn URL for auto-registration');
+                console.log('🔗 AUTO-REGISTRATION: LinkedIn URL:', linkedinUrl);
+            }
+            
             try {
                 user = await dbFunctions.createGoogleUser(
                     profile.email,
@@ -216,10 +233,20 @@ router.post('/auth/chrome-extension', async (req, res) => {
                     profile.id,
                     profile.picture,
                     'free',
-                    'monthly'
+                    'monthly',
+                    linkedinUrl // ✅ AUTO-REGISTRATION: Pass LinkedIn URL to createGoogleUser
                 );
                 isNewUser = true;
                 console.log('✅ New user created successfully:', user.id);
+                
+                // ✅ AUTO-REGISTRATION: Log auto-registration status
+                if (linkedinUrl) {
+                    console.log('🎯 AUTO-REGISTRATION: User auto-registered with LinkedIn profile');
+                    console.log('🎯 AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
+                } else {
+                    console.log('📝 REGULAR REGISTRATION: User created without LinkedIn URL');
+                }
+                
             } catch (createError) {
                 console.error('❌ Failed to create new user:', createError);
                 return res.status(500).json({
@@ -264,11 +291,12 @@ router.post('/auth/chrome-extension', async (req, res) => {
         console.log(`👤 User ID: ${user.id}`);
         console.log(`🆔 Extension ID: ${extensionId}`);
         console.log(`🆕 Is new user: ${isNewUser}`);
+        console.log(`🎯 Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
         
         // Return user data and token - ENHANCED response
         const responseData = {
             success: true,
-            message: 'Chrome extension authentication successful',
+            message: linkedinUrl ? 'Chrome extension auto-registration successful' : 'Chrome extension authentication successful', // ✅ AUTO-REGISTRATION: Dynamic message
             data: {
                 token: token,
                 user: {
@@ -285,13 +313,16 @@ router.post('/auth/chrome-extension', async (req, res) => {
                     hasGoogleAccount: !!user.google_id,
                     linkedinUrl: user.linkedin_url,
                     profileCompleted: user.profile_completed,
+                    registrationCompleted: user.registration_completed, // ✅ AUTO-REGISTRATION: Include registration status
                     extractionStatus: user.extraction_status,
                     createdAt: user.created_at,
-                    isNewUser: isNewUser
+                    isNewUser: isNewUser,
+                    autoRegistered: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include auto-registration flag
                 },
                 metadata: {
                     extensionId: extensionId,
                     authMethod: 'chrome_extension',
+                    autoRegistration: !!linkedinUrl, // ✅ AUTO-REGISTRATION: Include in metadata
                     tokenExpiry: '30 days',
                     timestamp: new Date().toISOString()
                 }
@@ -346,7 +377,7 @@ router.get('/auth/chrome-extension/health', (req, res) => {
         success: true,
         service: 'Chrome Extension Auth',
         status: 'healthy',
-        version: '2.0.8-FIXED-ENHANCED-DEBUG',
+        version: '2.0.9-FIXED-ENHANCED-DEBUG-AUTO-REG', // ✅ AUTO-REGISTRATION: Updated version
         timestamp: new Date().toISOString(),
         endpoints: {
             auth: '/auth/chrome-extension',
@@ -356,11 +387,17 @@ router.get('/auth/chrome-extension/health', (req, res) => {
             googleAccessToken: 'required',
             extensionId: 'required',
             clientType: 'optional (defaults to chrome_extension)',
+            linkedinUrl: 'optional (for auto-registration)', // ✅ AUTO-REGISTRATION: Document LinkedIn URL parameter
             scopes: 'userinfo.email, userinfo.profile'
+        },
+        features: {
+            autoRegistration: true, // ✅ AUTO-REGISTRATION: Document auto-registration feature
+            registrationCompleted: 'Set to true when linkedinUrl provided'
         },
         debugging: {
             enhanced: true,
             tokenValidation: true,
+            autoRegistrationLogging: true, // ✅ AUTO-REGISTRATION: Document auto-registration logging
             errorDetails: process.env.NODE_ENV === 'development'
         }
     });
