@@ -289,7 +289,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     }
 }
 
-// ENHANCED: DATABASE-First TARGET PROFILE handler with dual credit system
+// ✅ FIXED: DATABASE-First TARGET PROFILE handler with dual credit system (NO DOUBLE SPENDING)
 async function handleTargetProfileJSON(req, res) {
     console.log('[FIRE] handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
     console.log('[TARGET] === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
@@ -425,33 +425,27 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
         
-        // STEP 4: Complete operation using dual credit system
-        console.log('[CREDIT] Completing operation with dual credit deduction...');
-        const spendResult = await spendUserCredits(userId, 0.25);
-        
-        if (!spendResult.success) {
-            console.error('[ERROR] Failed to spend credits:', spendResult.error);
-            await releaseCreditHold(userId, holdId, 'credit_deduction_failed');
-            
-            return res.status(500).json({
-                success: false,
-                error: 'Failed to process credits after successful analysis'
-            });
-        }
-        
-        // Complete the credit hold
+        // ✅ FIXED: STEP 4 - Complete operation (SINGLE credit deduction)
+        console.log('[CREDIT] Completing operation with credit deduction...');
         const completionResult = await completeOperation(userId, holdId, {
             profileUrl: cleanProfileUrl,
             databaseId: saveResult.id,
             analysisData: 'RAW_JSON_SAVED',
             tokenUsage: geminiResult.tokenData || {},
-            spentCredits: spendResult.spent,
-            newCredits: spendResult.newTotalCredits
+            processingTime: Date.now() - (scrapingStartTime || Date.now())
         });
+
+        if (!completionResult.success) {
+            console.error('[ERROR] Failed to complete operation:', completionResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process credits after successful analysis'
+            });
+        }
 
         console.log('[SUCCESS] TARGET profile saved to database successfully');
         console.log(`[DATA] Analysis saved: Database ID ${saveResult.id}`);
-        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
         
         // Extract basic profile info for response
         const profileData = { name: 'LinkedIn User', headline: '', currentCompany: '' };
@@ -474,10 +468,10 @@ async function handleTargetProfileJSON(req, res) {
             },
             credits: {
                 charged: true,
-                deducted: spendResult.spent,
-                newBalance: spendResult.newTotalCredits,
-                renewableCredits: spendResult.newRenewableCredits,
-                payasyougoCredits: spendResult.newPayasyougoCredits,
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                renewableCredits: completionResult.renewableCredits,
+                payasyougoCredits: completionResult.payasyougoCredits,
                 transactionId: completionResult.transactionId
             }
         });
@@ -702,30 +696,22 @@ I noticed your experience in ${outreachContext} and would love to connect. I bel
 Best regards,
 [Your Name]`;
 
-        // Spend credits using dual credit system
-        console.log('[CREDIT] Spending credits with dual credit system...');
-        const spendResult = await spendUserCredits(userId, 1.0);
+        // Complete the credit hold (this handles the deduction)
+        const completionResult = await completeOperation(userId, holdId, {
+            messageGenerated: true,
+            messageLength: generatedMessage.length,
+            targetUrl: targetProfileUrl
+        });
 
-        if (!spendResult.success) {
-            console.error('[ERROR] Failed to spend credits:', spendResult.error);
-            await releaseCreditHold(userId, holdId, 'credit_deduction_failed');
-            
+        if (!completionResult.success) {
+            console.error('[ERROR] Failed to complete operation:', completionResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process credits after successful generation'
             });
         }
 
-        // Complete the credit hold
-        const completionResult = await completeOperation(userId, holdId, {
-            messageGenerated: true,
-            messageLength: generatedMessage.length,
-            targetUrl: targetProfileUrl,
-            spentCredits: spendResult.spent,
-            newCredits: spendResult.newTotalCredits
-        });
-
-        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
 
         res.json({
             success: true,
@@ -736,10 +722,10 @@ Best regards,
                 targetProfileUrl: targetProfileUrl
             },
             credits: {
-                deducted: spendResult.spent,
-                newBalance: spendResult.newTotalCredits,
-                renewableCredits: spendResult.newRenewableCredits,
-                payasyougoCredits: spendResult.newPayasyougoCredits,
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                renewableCredits: completionResult.renewableCredits,
+                payasyougoCredits: completionResult.payasyougoCredits,
                 transactionId: completionResult.transactionId
             }
         });
@@ -810,30 +796,22 @@ async function handleGenerateConnection(req, res) {
         // For now, return a placeholder
         const generatedConnection = `I'd love to connect with you given your background in ${outreachContext}. Looking forward to potential collaboration opportunities.`;
 
-        // Spend credits using dual credit system
-        console.log('[CREDIT] Spending credits with dual credit system...');
-        const spendResult = await spendUserCredits(userId, 1.0);
+        // Complete the credit hold (this handles the deduction)
+        const completionResult = await completeOperation(userId, holdId, {
+            connectionGenerated: true,
+            messageLength: generatedConnection.length,
+            targetUrl: targetProfileUrl
+        });
 
-        if (!spendResult.success) {
-            console.error('[ERROR] Failed to spend credits:', spendResult.error);
-            await releaseCreditHold(userId, holdId, 'credit_deduction_failed');
-            
+        if (!completionResult.success) {
+            console.error('[ERROR] Failed to complete operation:', completionResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process credits after successful generation'
             });
         }
 
-        // Complete the credit hold
-        const completionResult = await completeOperation(userId, holdId, {
-            connectionGenerated: true,
-            messageLength: generatedConnection.length,
-            targetUrl: targetProfileUrl,
-            spentCredits: spendResult.spent,
-            newCredits: spendResult.newTotalCredits
-        });
-
-        console.log(`[MONEY] Credits spent: ${spendResult.spent}, New balance: ${spendResult.newTotalCredits}`);
+        console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
 
         res.json({
             success: true,
@@ -844,10 +822,10 @@ async function handleGenerateConnection(req, res) {
                 targetProfileUrl: targetProfileUrl
             },
             credits: {
-                deducted: spendResult.spent,
-                newBalance: spendResult.newTotalCredits,
-                renewableCredits: spendResult.newRenewableCredits,
-                payasyougoCredits: spendResult.newPayasyougoCredits,
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                renewableCredits: completionResult.renewableCredits,
+                payasyougoCredits: completionResult.payasyougoCredits,
                 transactionId: completionResult.transactionId
             }
         });
@@ -1818,9 +1796,6 @@ app.use((req, res, next) => {
             'POST /target-profile/analyze-json (NEW: DATABASE-first system)',
             'POST /generate-message (NEW: 1 credit with dual system)',
             'POST /generate-connection (NEW: 1 credit with dual system)',
-            'GET /user/plan (NEW: Real plan data - NO MOCK!)',
-            'GET /credits/balance (NEW: Dual credit management)',
-            'GET /credits/history (NEW: Transaction history)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -1893,6 +1868,16 @@ const startServer = async () => {
             console.log(`   [NUMBERS] Input/output/total token counts tracked for all profiles`);
             console.log(`   [TIME] Processing time and API request IDs logged`);
             console.log(`   [SAVE] Raw responses stored for debugging and analysis`);
+            console.log(`[SUCCESS] ✅ FIXED DOUBLE SPENDING ISSUE:`);
+            console.log(`   [BEFORE] spendUserCredits() + completeOperation() = 0.5 credits deducted`);
+            console.log(`   [AFTER] Only completeOperation() handles deduction = 0.25 credits deducted`);
+            console.log(`   [SINGLE] One unified credit deduction per operation`);
+            console.log(`   [AUDIT] Complete transaction tracking with holds`);
+            console.log(`[SUCCESS] ✅ FIXED CREDITS LOADING ISSUE:`);
+            console.log(`   [FALLBACK] Multiple auth token retrieval methods`);
+            console.log(`   [ERROR] Better error handling and user feedback`);
+            console.log(`   [DISPLAY] Credits error state instead of infinite loading`);
+            console.log(`   [TOKEN] Background script + localStorage + sessionStorage fallbacks`);
             console.log(`[SUCCESS] ✅ AUTO-REGISTRATION FLOW:`);
             console.log(`   [DETECT] Extension detects if user is on their own LinkedIn profile`);
             console.log(`   [EXTRACT] Extract LinkedIn URL from current page`);
@@ -1900,7 +1885,7 @@ const startServer = async () => {
             console.log(`   [CREATE] Server auto-creates user with LinkedIn URL + registration_completed = true`);
             console.log(`   [READY] User immediately ready to use extension features`);
             console.log(`   [ELSE] Non-profile users redirected to website for traditional registration`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH AUTO-REGISTRATION!`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH AUTO-REGISTRATION + FIXED ISSUES!`);
         });
         
     } catch (error) {
@@ -1925,4 +1910,9 @@ process.on('SIGINT', async () => {
 // Start the server
 startServer();
 
-module.exports = app;
+module.exports = app;plan (NEW: Real plan data - NO MOCK!)',
+            'GET /credits/balance (NEW: Dual credit management)',
+            'GET /credits/history (NEW: Transaction history)',
+            'GET /user/setup-status',
+            'GET /user/initial-scraping-status',
+            'GET /user/
