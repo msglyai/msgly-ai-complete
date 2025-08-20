@@ -15,7 +15,7 @@ const initAuthExtension = (functions) => {
 
 // Chrome Extension OAuth endpoint - FIXED with Enhanced Debugging
 router.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension OAuth request received');
+    console.log('🔍 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -57,9 +57,9 @@ router.post('/auth/chrome-extension', async (req, res) => {
         }
         
         console.log('🔄 Fetching user info from Google using access token...');
-        console.log('🔍 Token info (first 20 chars):', googleAccessToken.substring(0, 20) + '...');
+        console.log('🔑 Token info (first 20 chars):', googleAccessToken.substring(0, 20) + '...');
         console.log('🆔 Extension ID:', extensionId);
-        console.log('🐛 Debug info:', debug);
+        console.log('🛠 Debug info:', debug);
         
         // FIXED: Enhanced token validation before Google API call
         try {
@@ -96,9 +96,10 @@ router.post('/auth/chrome-extension', async (req, res) => {
                 expires_in: tokenInfo.expires_in
             });
             
-            // Check if token has required scopes
-            const hasEmailScope = tokenInfo.scope && tokenInfo.scope.includes('userinfo.email');
-            const hasProfileScope = tokenInfo.scope && tokenInfo.scope.includes('userinfo.profile');
+            // FIXED: Check if token has required scopes - accept both formats
+            const s = tokenInfo.scope || '';
+            const hasEmailScope = s.includes('email') || s.includes('userinfo.email');
+            const hasProfileScope = s.includes('profile') || s.includes('userinfo.profile');
             
             if (!hasEmailScope || !hasProfileScope) {
                 console.error('❌ Token missing required scopes:', tokenInfo.scope);
@@ -107,7 +108,7 @@ router.post('/auth/chrome-extension', async (req, res) => {
                     error: 'Token missing required scopes',
                     details: {
                         receivedScopes: tokenInfo.scope,
-                        requiredScopes: 'userinfo.email userinfo.profile'
+                        requiredScopes: 'email profile (or userinfo.email userinfo.profile)'
                     }
                 });
             }
@@ -248,7 +249,7 @@ router.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Generate JWT token
-        console.log('🔑 Generating JWT token for user:', user.id);
+        console.log('🔐 Generating JWT token for user:', user.id);
         const token = jwt.sign(
             { 
                 userId: user.id, 
@@ -356,7 +357,7 @@ router.get('/auth/chrome-extension/health', (req, res) => {
             googleAccessToken: 'required',
             extensionId: 'required',
             clientType: 'optional (defaults to chrome_extension)',
-            scopes: 'userinfo.email, userinfo.profile'
+            scopes: 'email profile (or userinfo.email userinfo.profile)'
         },
         debugging: {
             enhanced: true,
