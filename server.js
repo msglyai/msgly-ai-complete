@@ -1,6 +1,6 @@
-// server.js - Enhanced with Real Plan Data & Dual Credit System
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
-// FIXED: No more auto-registration through Chrome extension
+// ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 
 const express = require('express');
 const cors = require('cors');
@@ -1037,29 +1037,52 @@ app.use('/', healthRoutes);
 // STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT - FIXED ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('[CHECK] Chrome Extension Auth Request:', {
-        hasGoogleToken: !!req.body.googleAccessToken,
+    console.log('🔐 Chrome Extension OAuth request received');
+    console.log('📊 Request headers:', req.headers);
+    console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
-        extensionId: req.body.extensionId
+        extensionId: req.body.extensionId,
+        hasToken: !!req.body.googleAccessToken,
+        tokenLength: req.body.googleAccessToken?.length,
+        hasLinkedInUrl: !!req.body.linkedinUrl // ✅ AUTO-REGISTRATION: Log LinkedIn URL presence
     });
     
     try {
-        const { googleAccessToken, clientType, extensionId } = req.body;
+        const { googleAccessToken, clientType, extensionId, linkedinUrl } = req.body; // ✅ AUTO-REGISTRATION: Extract LinkedIn URL
+        
+        // ✅ AUTO-REGISTRATION: Log auto-registration detection
+        if (linkedinUrl) {
+            console.log('🎯 AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
+            console.log('🔗 LinkedIn URL:', linkedinUrl);
+        } else {
+            console.log('📝 REGULAR AUTH: No LinkedIn URL, will check existing users');
+        }
         
         if (!googleAccessToken) {
             return res.status(400).json({
                 success: false,
-                error: 'Google access token is required'
+                error: 'Google access token is required',
+                received: {
+                    clientType,
+                    extensionId,
+                    hasToken: false,
+                    hasLinkedInUrl: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include in error response
+                }
             });
         }
         
-        if (clientType !== 'chrome_extension') {
+        if (!extensionId) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid client type'
+                error: 'Extension ID is required',
+                received: {
+                    clientType,
+                    hasToken: !!googleAccessToken,
+                    hasLinkedInUrl: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include in error response
+                }
             });
         }
         
@@ -1083,20 +1106,49 @@ app.post('/auth/chrome-extension', async (req, res) => {
             verified: googleUser.verified_email
         });
         
-        // FIXED: Find existing user (don't create new ones)
+        // ✅ AUTO-REGISTRATION: Find existing user or create new one with LinkedIn URL
         let user = await getUserByEmail(googleUser.email);
+        let isNewUser = false;
 
         if (!user) {
-            return res.status(403).json({
-                success: false,
-                error: 'account_not_found',
-                message: 'No account found. Please register at msgly.ai first.',
-                redirectUrl: 'https://msgly.ai/sign-up'
-            });
+            // ✅ AUTO-REGISTRATION: Check if LinkedIn URL provided for auto-registration
+            if (linkedinUrl) {
+                console.log('🎯 AUTO-REGISTRATION: Creating new user with LinkedIn URL');
+                console.log('🔗 AUTO-REGISTRATION: LinkedIn URL:', linkedinUrl);
+                
+                // Create user with auto-registration
+                user = await createGoogleUser(
+                    googleUser.email,
+                    googleUser.name,
+                    googleUser.id,
+                    googleUser.picture,
+                    'free',
+                    'monthly',
+                    linkedinUrl // ✅ AUTO-REGISTRATION: Pass LinkedIn URL for auto-registration
+                );
+                isNewUser = true;
+                
+                console.log('✅ AUTO-REGISTRATION: User auto-registered successfully');
+                console.log('🎯 AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
+                
+            } else {
+                // ✅ AUTO-REGISTRATION: No LinkedIn URL, redirect to sign-up
+                console.log('📝 REGULAR AUTH: No LinkedIn URL, redirecting to sign-up');
+                return res.status(403).json({
+                    success: false,
+                    error: 'account_not_found',
+                    message: 'No account found. Please register at msgly.ai first.',
+                    redirectUrl: 'https://api.msgly.ai/sign-up'
+                });
+            }
         } else if (!user.google_id) {
+            // Link Google account to existing user
             console.log('[LINK] Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
+            console.log('✅ Google account linked successfully');
+        } else {
+            console.log('✅ Existing user with Google account found');
         }
         
         // Generate JWT token
@@ -1107,10 +1159,14 @@ app.post('/auth/chrome-extension', async (req, res) => {
         );
         
         console.log('[SUCCESS] Chrome extension authentication successful');
+        console.log(`👤 User ID: ${user.id}`);
+        console.log(`🆔 Extension ID: ${extensionId}`);
+        console.log(`🆕 Is new user: ${isNewUser}`);
+        console.log(`🎯 Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
         
         res.json({
             success: true,
-            message: 'Authentication successful',
+            message: linkedinUrl ? 'Chrome extension auto-registration successful' : 'Chrome extension authentication successful', // ✅ AUTO-REGISTRATION: Dynamic message
             data: {
                 token: token,
                 user: {
@@ -1122,9 +1178,16 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     // Calculate total credits from dual system
                     credits: (user.renewable_credits || 0) + (user.payasyougo_credits || 0),
                     linkedinUrl: user.linkedin_url,
-                    registrationCompleted: user.registration_completed
+                    registrationCompleted: user.registration_completed, // ✅ AUTO-REGISTRATION: Include registration status
+                    autoRegistered: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include auto-registration flag
                 },
-                isNewUser: false  // FIXED: Always false since we're not creating users
+                isNewUser: isNewUser,
+                metadata: {
+                    extensionId: extensionId,
+                    authMethod: 'chrome_extension',
+                    autoRegistration: !!linkedinUrl, // ✅ AUTO-REGISTRATION: Include in metadata
+                    timestamp: new Date().toISOString()
+                }
             }
         });
         
@@ -1420,7 +1483,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG'
                 }
             }
         });
@@ -1498,7 +1561,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION'
             };
         }
 
@@ -1596,7 +1659,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG'
             }
         });
     } catch (error) {
@@ -1648,7 +1711,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -1723,7 +1786,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System - No Auto-Registration',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1734,7 +1797,7 @@ app.use((req, res, next) => {
             'POST /login',
             'GET /auth/google',
             'GET /auth/google/callback',
-            'POST /auth/chrome-extension (FIXED: No auto-registration)',
+            'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
             'POST /complete-registration',
             'POST /update-profile',
             'GET /profile',
@@ -1769,14 +1832,14 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM ACTIVE - NO AUTO-REGISTRATION!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`[FIXED] CHROME EXTENSION: NO AUTO-REGISTRATION - Users must register on website first`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS:`);
+            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -1799,6 +1862,13 @@ const startServer = async () => {
             console.log(`   [DATA] Complete transaction audit trail`);
             console.log(`   [LIGHTNING] Real-time credit balance updates`);
             console.log(`   [CLEAN] Automatic cleanup of expired holds`);
+            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION SYSTEM:`);
+            console.log(`   [PROFILE] On own LinkedIn profile: Auto-register with LinkedIn URL`);
+            console.log(`   [REDIRECT] Anywhere else: Redirect to https://api.msgly.ai/sign-up`);
+            console.log(`   [CHOOSER] Always force Google account chooser`);
+            console.log(`   [COMPLETE] Set registration_completed = true when LinkedIn URL provided`);
+            console.log(`   [FLOW] User on own profile → Auto-register → Immediate extension use`);
+            console.log(`   [FLOW] User elsewhere → Redirect to sign-up page → Complete registration`);
             console.log(`[SUCCESS] REAL PLAN DATA ENDPOINTS (NO MORE MOCK!):`);
             console.log(`   GET /user/plan (Real plan data from database)`);
             console.log(`   POST /target-profile/analyze-json (DATABASE-first system)`);
@@ -1812,11 +1882,14 @@ const startServer = async () => {
             console.log(`   [NUMBERS] Input/output/total token counts tracked for all profiles`);
             console.log(`   [TIME] Processing time and API request IDs logged`);
             console.log(`   [SAVE] Raw responses stored for debugging and analysis`);
-            console.log(`[FIXED] EXTENSION AUTH:`);
-            console.log(`   [STOP] NO automatic user registration through extension`);
-            console.log(`   [REDIRECT] Extension shows "Please register at msgly.ai first" for unregistered users`);
-            console.log(`   [FLOW] Users MUST register on website before using extension`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH PROPER REGISTRATION FLOW!`);
+            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION FLOW:`);
+            console.log(`   [DETECT] Extension detects if user is on their own LinkedIn profile`);
+            console.log(`   [EXTRACT] Extract LinkedIn URL from current page`);
+            console.log(`   [SEND] Send LinkedIn URL with Google auth to server`);
+            console.log(`   [CREATE] Server auto-creates user with LinkedIn URL + registration_completed = true`);
+            console.log(`   [READY] User immediately ready to use extension features`);
+            console.log(`   [ELSE] Non-profile users redirected to website for traditional registration`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH AUTO-REGISTRATION!`);
         });
         
     } catch (error) {
