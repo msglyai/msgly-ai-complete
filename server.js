@@ -1,5 +1,6 @@
 // server.js - Enhanced with Real Plan Data & Dual Credit System
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
+// FIXED: No more auto-registration through Chrome extension
 
 const express = require('express');
 const cors = require('cors');
@@ -1036,7 +1037,7 @@ app.use('/', healthRoutes);
 // STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT - FIXED ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
     console.log('[CHECK] Chrome Extension Auth Request:', {
@@ -1082,26 +1083,21 @@ app.post('/auth/chrome-extension', async (req, res) => {
             verified: googleUser.verified_email
         });
         
-        // Find or create user
+        // FIXED: Find existing user (don't create new ones)
         let user = await getUserByEmail(googleUser.email);
-        let isNewUser = false;
-        
+
         if (!user) {
-            console.log('[USER] Creating new user...');
-            user = await createGoogleUser(
-                googleUser.email,
-                googleUser.name,
-                googleUser.id,
-                googleUser.picture
-            );
-            isNewUser = true;
+            return res.status(403).json({
+                success: false,
+                error: 'account_not_found',
+                message: 'No account found. Please register at msgly.ai first.',
+                redirectUrl: 'https://msgly.ai/sign-up'
+            });
         } else if (!user.google_id) {
             console.log('[LINK] Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
         }
-        
-        user.isNewUser = isNewUser;
         
         // Generate JWT token
         const token = jwt.sign(
@@ -1128,7 +1124,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     linkedinUrl: user.linkedin_url,
                     registrationCompleted: user.registration_completed
                 },
-                isNewUser: isNewUser
+                isNewUser: false  // FIXED: Always false since we're not creating users
             }
         });
         
@@ -1727,7 +1723,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System - No Auto-Registration',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1738,7 +1734,7 @@ app.use((req, res, next) => {
             'POST /login',
             'GET /auth/google',
             'GET /auth/google/callback',
-            'POST /auth/chrome-extension',
+            'POST /auth/chrome-extension (FIXED: No auto-registration)',
             'POST /complete-registration',
             'POST /update-profile',
             'GET /profile',
@@ -1773,12 +1769,13 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM ACTIVE - NO AUTO-REGISTRATION!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
+            console.log(`[FIXED] CHROME EXTENSION: NO AUTO-REGISTRATION - Users must register on website first`);
             console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
@@ -1815,7 +1812,11 @@ const startServer = async () => {
             console.log(`   [NUMBERS] Input/output/total token counts tracked for all profiles`);
             console.log(`   [TIME] Processing time and API request IDs logged`);
             console.log(`   [SAVE] Raw responses stored for debugging and analysis`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH ZERO MOCK DATA!`);
+            console.log(`[FIXED] EXTENSION AUTH:`);
+            console.log(`   [STOP] NO automatic user registration through extension`);
+            console.log(`   [REDIRECT] Extension shows "Please register at msgly.ai first" for unregistered users`);
+            console.log(`   [FLOW] Users MUST register on website before using extension`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH PROPER REGISTRATION FLOW!`);
         });
         
     } catch (error) {
