@@ -1,5 +1,5 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System
-// Sophisticated credit management with renewable + pay-as-you-go credits
+// FIXED database.js - Authentication Issues Resolved
+// Removed CASCADE drop and fixed NULL credit handling for existing users
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 
 const { Pool } = require('pg');
@@ -17,11 +17,12 @@ const initDB = async () => {
     try {
         console.log('Creating enhanced database tables with dual credit system...');
 
-        // PLANS TABLE - FIXED: Drop and recreate with correct schema
-        await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
+        // FIXED: Do NOT drop plans table with CASCADE - this breaks existing user relationships
+        // REMOVED: await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
         
+        // Create plans table safely
         await pool.query(`
-            CREATE TABLE plans (
+            CREATE TABLE IF NOT EXISTS plans (
                 id SERIAL PRIMARY KEY,
                 plan_code VARCHAR(50) UNIQUE NOT NULL,
                 plan_name VARCHAR(100) NOT NULL,
@@ -71,7 +72,7 @@ const initDB = async () => {
                 billing_model VARCHAR(50) DEFAULT 'monthly',
                 
                 -- NEW: Dual Credit System
-                plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
+                plan_code VARCHAR(50) DEFAULT 'free',
                 renewable_credits INTEGER DEFAULT 7,
                 payasyougo_credits INTEGER DEFAULT 0,
                 
@@ -236,9 +237,7 @@ const initDB = async () => {
             );
         `);
 
-        // CREDITS_TRANSACTIONS TABLE - FIXED: Drop and recreate with correct schema
-        await pool.query(`DROP TABLE IF EXISTS credits_transactions CASCADE;`);
-        
+        // CREDITS_TRANSACTIONS TABLE - Create safely without CASCADE drop
         await pool.query(`
             CREATE TABLE IF NOT EXISTS credits_transactions (
                 id SERIAL PRIMARY KEY,
@@ -320,6 +319,39 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
+        // CRITICAL FIX: Ensure all existing users have valid credit values to prevent auth failures
+        try {
+            console.log('FIXING existing user data to prevent authentication failures...');
+            
+            // Fix NULL values that break authentication
+            await pool.query(`
+                UPDATE users 
+                SET 
+                    plan_code = COALESCE(plan_code, 'free'),
+                    renewable_credits = COALESCE(renewable_credits, 7),
+                    payasyougo_credits = COALESCE(payasyougo_credits, 0),
+                    subscription_starts_at = COALESCE(subscription_starts_at, created_at, CURRENT_TIMESTAMP),
+                    credits_remaining = COALESCE(renewable_credits, 7) + COALESCE(payasyougo_credits, 0)
+                WHERE plan_code IS NULL 
+                   OR renewable_credits IS NULL 
+                   OR payasyougo_credits IS NULL
+                   OR subscription_starts_at IS NULL
+                   OR credits_remaining IS NULL
+            `);
+            
+            // Set next billing dates for users without them
+            await pool.query(`
+                UPDATE users 
+                SET next_billing_date = subscription_starts_at + INTERVAL '1 month'
+                WHERE next_billing_date IS NULL AND plan_code = 'free';
+            `);
+            
+            console.log('Existing user data fixed - authentication should work now');
+            
+        } catch (fixError) {
+            console.log('User data fix error (non-critical):', fixError.message);
+        }
+
         // Create indexes
         try {
             await pool.query(`
@@ -349,15 +381,26 @@ const initDB = async () => {
             console.log('Indexes might already exist:', err.message);
         }
 
-        // Set next billing dates for existing free users
+        // FIXED: Add foreign key constraint safely (only if plans table exists and has data)
         try {
-            await pool.query(`
-                UPDATE users 
-                SET next_billing_date = subscription_starts_at + INTERVAL '1 month'
-                WHERE plan_code = 'free' AND next_billing_date IS NULL;
+            // Check if foreign key already exists
+            const fkExists = await pool.query(`
+                SELECT 1 FROM information_schema.table_constraints 
+                WHERE table_name = 'users' 
+                AND constraint_type = 'FOREIGN KEY' 
+                AND constraint_name LIKE '%plan_code%'
             `);
-        } catch (err) {
-            console.log('Billing date update error:', err.message);
+            
+            if (fkExists.rows.length === 0) {
+                await pool.query(`
+                    ALTER TABLE users 
+                    ADD CONSTRAINT users_plan_code_fkey 
+                    FOREIGN KEY (plan_code) REFERENCES plans(plan_code)
+                `);
+                console.log('Foreign key constraint added successfully');
+            }
+        } catch (fkError) {
+            console.log('Foreign key constraint might already exist:', fkError.message);
         }
 
         console.log('Enhanced database with dual credit system created successfully!');
