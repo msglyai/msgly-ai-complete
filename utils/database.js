@@ -1,7 +1,8 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
+// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -887,7 +888,14 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     return result.rows[0];
 };
 
-const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly') => {
+// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser with LinkedIn URL support
+const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly', linkedinUrl = null) => {
+    console.log('🔨 AUTO-REGISTRATION: Creating Google user with LinkedIn URL support');
+    console.log('📧 Email:', email);
+    console.log('👤 Display Name:', displayName);
+    console.log('🔗 LinkedIn URL:', linkedinUrl || 'Not provided');
+    console.log('🎯 Will auto-register:', !!linkedinUrl);
+    
     // Get credits from plans table
     const planResult = await pool.query(
         'SELECT renewable_credits FROM plans WHERE plan_code = $1',
@@ -896,21 +904,36 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
     
+    // ✅ AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
+    const registrationCompleted = !!linkedinUrl;
+    
+    console.log('💳 Credits for plan:', renewableCredits);
+    console.log('✅ Registration completed:', registrationCompleted);
+    
     const result = await pool.query(`
         INSERT INTO users (
             email, google_id, display_name, profile_picture, 
             package_type, billing_model, plan_code,
             renewable_credits, payasyougo_credits, credits_remaining,
-            subscription_starts_at, next_billing_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+            subscription_starts_at, next_billing_date,
+            linkedin_url, registration_completed
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *
     `, [
         email, googleId, displayName, profilePicture, 
         packageType, billingModel, packageType,
         renewableCredits, 0, renewableCredits,
-        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
+        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
+        linkedinUrl, registrationCompleted // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
     ]);
     
-    return result.rows[0];
+    const user = result.rows[0];
+    
+    console.log('✅ AUTO-REGISTRATION: User created successfully');
+    console.log('🆔 User ID:', user.id);
+    console.log('🔗 LinkedIn URL stored:', user.linkedin_url || 'None');
+    console.log('✅ Registration completed:', user.registration_completed);
+    
+    return user;
 };
 
 const linkGoogleAccount = async (userId, googleId) => {
@@ -999,7 +1022,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system
+// Enhanced export with dual credit system + AUTO-REGISTRATION
 module.exports = {
     // Database connection
     pool,
@@ -1008,9 +1031,9 @@ module.exports = {
     initDB,
     testDatabase,
     
-    // User management
+    // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
-    createGoogleUser,
+    createGoogleUser, // ✅ AUTO-REGISTRATION: Now supports linkedinUrl parameter
     linkGoogleAccount,
     getUserByEmail,
     getUserById,
