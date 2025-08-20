@@ -1037,10 +1037,10 @@ app.use('/', healthRoutes);
 // STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ AUTO-REGISTRATION ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension OAuth request received');
+    console.log('🔍 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -1058,7 +1058,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             console.log('🎯 AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
             console.log('🔗 LinkedIn URL:', linkedinUrl);
         } else {
-            console.log('📝 REGULAR AUTH: No LinkedIn URL, will check existing users');
+            console.log('🔍 REGULAR AUTH: No LinkedIn URL, will return redirect instruction');
         }
         
         if (!googleAccessToken) {
@@ -1106,12 +1106,12 @@ app.post('/auth/chrome-extension', async (req, res) => {
             verified: googleUser.verified_email
         });
         
-        // ✅ AUTO-REGISTRATION: Find existing user or create new one with LinkedIn URL
+        // ✅ FIXED: Find existing user or handle auto-registration/redirect
         let user = await getUserByEmail(googleUser.email);
         let isNewUser = false;
 
         if (!user) {
-            // ✅ AUTO-REGISTRATION: Check if LinkedIn URL provided for auto-registration
+            // ✅ FIXED: Check if LinkedIn URL provided for auto-registration
             if (linkedinUrl) {
                 console.log('🎯 AUTO-REGISTRATION: Creating new user with LinkedIn URL');
                 console.log('🔗 AUTO-REGISTRATION: LinkedIn URL:', linkedinUrl);
@@ -1132,13 +1132,24 @@ app.post('/auth/chrome-extension', async (req, res) => {
                 console.log('🎯 AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
                 
             } else {
-                // ✅ AUTO-REGISTRATION: No LinkedIn URL, redirect to sign-up
-                console.log('📝 REGULAR AUTH: No LinkedIn URL, redirecting to sign-up');
-                return res.status(403).json({
-                    success: false,
-                    error: 'account_not_found',
-                    message: 'No account found. Please register at msgly.ai first.',
-                    redirectUrl: 'https://api.msgly.ai/sign-up'
+                // ✅ FIXED: No LinkedIn URL - return SUCCESS with redirect instruction
+                console.log('🔍 REGULAR AUTH: No LinkedIn URL, returning redirect instruction');
+                return res.json({
+                    success: true,
+                    requiresRedirect: true,
+                    message: 'Please complete registration on our website',
+                    redirectUrl: 'https://api.msgly.ai/sign-up',
+                    userInfo: {
+                        email: googleUser.email,
+                        name: googleUser.name,
+                        picture: googleUser.picture
+                    },
+                    metadata: {
+                        extensionId: extensionId,
+                        authMethod: 'chrome_extension',
+                        autoRegistration: false,
+                        timestamp: new Date().toISOString()
+                    }
                 });
             }
         } else if (!user.google_id) {
