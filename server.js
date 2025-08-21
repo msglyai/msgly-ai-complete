@@ -1800,7 +1800,10 @@ app.use((req, res, next) => {
             'GET /user/initial-scraping-status',
             'GET /user/stats',
             'PUT /user/settings',
-            'GET /packages'
+            'GET /packages',
+            'GET /user/plan (NEW: Real plan data - NO MOCK!)',
+            'GET /credits/balance (NEW: Dual credit management)',
+            'GET /credits/history (NEW: Transaction history)'
         ]
     });
 });
@@ -1910,9 +1913,4 @@ process.on('SIGINT', async () => {
 // Start the server
 startServer();
 
-module.exports = app;plan (NEW: Real plan data - NO MOCK!)',
-            'GET /credits/balance (NEW: Dual credit management)',
-            'GET /credits/history (NEW: Transaction history)',
-            'GET /user/setup-status',
-            'GET /user/initial-scraping-status',
-            'GET /user/
+module.exports = app;
