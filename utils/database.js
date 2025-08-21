@@ -773,17 +773,9 @@ const parseLinkedInNumber = (str) => {
 // USER PROFILE ONLY: Process Gemini data (keeps working)
 const processGeminiData = (geminiResponse, cleanProfileUrl) => {
     try {
-        console.log('Processing Gemini extracted data for USER profile...');
-        
         const aiData = geminiResponse.data;
         const profile = aiData.profile || {};
         const engagement = aiData.engagement || {};
-        
-        console.log('AI Data Structure Check:');
-        console.log(`   - Profile name: ${profile.name || 'Not found'}`);
-        console.log(`   - Experience count: ${aiData.experience?.length || 0}`);
-        console.log(`   - Activity count: ${aiData.activity?.length || 0}`);
-        console.log(`   - Certifications: ${aiData.certifications?.length || 0}`);
         
         const processedData = {
             linkedinUrl: cleanProfileUrl,
@@ -845,15 +837,6 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
         };
         
-        console.log('Gemini data processed successfully for USER profile');
-        console.log(`Processed data summary:`);
-        console.log(`   - Full Name: ${processedData.fullName || 'Not available'}`);
-        console.log(`   - Current Job Title: ${processedData.currentJobTitle || 'Not available'}`);
-        console.log(`   - Current Company: ${processedData.currentCompany || 'Not available'}`);
-        console.log(`   - About section: ${processedData.about ? 'Available' : 'Not available'}`);
-        console.log(`   - Experience entries: ${processedData.experience.length}`);
-        console.log(`   - Has Experience: ${processedData.hasExperience}`);
-        
         return processedData;
         
     } catch (error) {
@@ -890,12 +873,6 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
 
 // ✅ AUTO-REGISTRATION: Enhanced createGoogleUser with LinkedIn URL support
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly', linkedinUrl = null) => {
-    console.log('🔨 AUTO-REGISTRATION: Creating Google user with LinkedIn URL support');
-    console.log('📧 Email:', email);
-    console.log('👤 Display Name:', displayName);
-    console.log('🔗 LinkedIn URL:', linkedinUrl || 'Not provided');
-    console.log('🎯 Will auto-register:', !!linkedinUrl);
-    
     // Get credits from plans table
     const planResult = await pool.query(
         'SELECT renewable_credits FROM plans WHERE plan_code = $1',
@@ -906,9 +883,6 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     // ✅ AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
     const registrationCompleted = !!linkedinUrl;
-    
-    console.log('💳 Credits for plan:', renewableCredits);
-    console.log('✅ Registration completed:', registrationCompleted);
     
     const result = await pool.query(`
         INSERT INTO users (
@@ -927,11 +901,6 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     ]);
     
     const user = result.rows[0];
-    
-    console.log('✅ AUTO-REGISTRATION: User created successfully');
-    console.log('🆔 User ID:', user.id);
-    console.log('🔗 LinkedIn URL stored:', user.linkedin_url || 'None');
-    console.log('✅ Registration completed:', user.registration_completed);
     
     return user;
 };
@@ -957,9 +926,6 @@ const getUserById = async (userId) => {
 // USER PROFILE: Create user profile (UNCHANGED - still working)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
-        console.log(`Creating USER PROFILE for user ${userId}`);
-        console.log(`Original URL: ${linkedinUrl}`);
-        
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
             [linkedinUrl, 'not_started', userId]
@@ -985,7 +951,6 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
             profile = result.rows[0];
         }
         
-        console.log(`USER PROFILE created for user ${userId}`);
         return profile;
         
     } catch (error) {
