@@ -265,6 +265,17 @@ const initDB = async () => {
             console.log('UNIQUE constraint already exists:', err.message);
         }
 
+        // Add missing updated_at column to target_profiles
+        try {
+            await pool.query(`
+                ALTER TABLE target_profiles 
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+            `);
+            console.log('Added updated_at column to target_profiles');
+        } catch (err) {
+            console.log('updated_at column already exists:', err.message);
+        }
+
         // CREDITS_TRANSACTIONS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS credits_transactions CASCADE;`);
         
