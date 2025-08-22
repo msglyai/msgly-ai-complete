@@ -88,12 +88,9 @@ const { initUserRoutes } = require('./routes/users');
 const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 
-// NEW: Robust token number cleaner with extensive debugging
+// NEW: Robust token number cleaner
 function cleanTokenNumber(value) {
-    console.log('[TOOL] Cleaning token:', { original: value, type: typeof value });
-    
     if (value === null || value === undefined || value === '') {
-        console.log('[TOOL] Token is null/undefined/empty, returning null');
         return null;
     }
     
@@ -107,18 +104,14 @@ function cleanTokenNumber(value) {
     
     // Remove all non-numeric characters except negative sign
     const cleaned = stringValue.replace(/[^0-9-]/g, '');
-    console.log('[TOOL] After cleaning:', { cleaned, isEmpty: cleaned === '' });
     
     if (cleaned === '' || cleaned === '-') {
-        console.log('[TOOL] Cleaned value is empty, returning null');
         return null;
     }
     
     // Convert to integer
     const result = parseInt(cleaned, 10);
     const isValid = !isNaN(result) && isFinite(result);
-    
-    console.log('[TOOL] Final conversion:', { result, isValid });
     
     return isValid ? result : null;
 }
@@ -184,32 +177,14 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
     console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
     console.log('   linkedinUrl:', linkedinUrl);
-    console.log('   rawJsonData type:', typeof rawJsonData);
-    console.log('   rawJsonData size:', JSON.stringify(rawJsonData).length, 'chars');
-    console.log('   userId:', userId, 'type:', typeof userId);
-    console.log('   tokenData available:', !!tokenData);
+    console.log('   userId:', userId);
     
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        // DEBUG: Log token data before cleaning
-        console.log('[CHECK] saveProfileToDB received tokenData - tokens:', {
-            hasInput: !!tokenData.inputTokens,
-            hasOutput: !!tokenData.outputTokens,
-            hasTotal: !!tokenData.totalTokens,
-            types: {
-                input: typeof tokenData.inputTokens,
-                output: typeof tokenData.outputTokens,
-                total: typeof tokenData.totalTokens
-            }
-        });
-        
         // Clean token values
-        console.log('[TOOL] About to clean input tokens...');
         const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
-        console.log('[TOOL] About to clean output tokens...');
         const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
-        console.log('[TOOL] About to clean total tokens...');
         const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
         
         console.log('[CHECK] Final values going to database:', {
@@ -223,7 +198,6 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
         console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
         console.log('   userId:', userId, typeof userId);
         console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-        console.log('   rawJsonData size:', JSON.stringify(rawJsonData).length, 'chars');
         console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
         console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
         console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
@@ -402,7 +376,6 @@ async function handleTargetProfileJSON(req, res) {
         console.log('   cleanProfileUrl length:', cleanProfileUrl.length);
         console.log('   geminiResult.rawResponse available:', !!geminiResult.rawResponse);
         console.log('   userId:', userId);
-        console.log('   geminiResult.tokenData available:', !!geminiResult.tokenData);
         
         // COPY USER PROFILE PATTERN: Process the data first
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
