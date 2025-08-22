@@ -1,7 +1,4 @@
-// Enhanced sendToGemini.js - OpenAI GPT-5-nano + GPT-5-mini DUAL MODEL SUPPORT
-// FIXED JSON Parsing + Token Tracking + Parallel Racing Strategy
-// ✅ NEW: GPT-5 mini fallback with parallel execution for enhanced reliability
-
+// Enhanced sendToGemini.js - OpenAI GPT-5-nano ONLY - FIXED JSON Parsing + Token Tracking
 const axios = require('axios');
 const https = require('https');
 
@@ -273,7 +270,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   );
   
   const processingTime = Date.now() - startTime;
-  console.log('🔥 OpenAI GPT-5-nano API response received');
+  console.log('🔥 OpenAI API response received');
   console.log(`📊 Response status: ${response.status}`);
   console.log(`⏱️ Processing time: ${processingTime}ms`);
   
@@ -373,81 +370,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   };
 }
 
-// ✅ NEW: Send to OpenAI GPT-5-mini with same structure as sendToNano
-async function sendToMini({ systemPrompt, userPrompt, preprocessedHtml }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const startTime = Date.now();
-  
-  console.log('📤 Sending request to OpenAI GPT-5-mini Chat API...');
-  
-  // GPT-5 mini uses standard chat completions endpoint
-  const response = await callOpenAIWithResilience(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      model: 'gpt-5-mini',
-      messages: [
-        { role: 'system', content: systemPrompt ?? '' },
-        { role: 'user', content: userPrompt ?? '' },
-        { role: 'user', content: preprocessedHtml ?? '' }
-      ],
-      max_tokens: 18000,
-      response_format: { type: 'json_object' }
-    },
-    {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    }
-  );
-  
-  const processingTime = Date.now() - startTime;
-  console.log('🔥 OpenAI GPT-5-mini response received');
-  console.log(`📊 Response status: ${response.status}`);
-  console.log(`⏱️ Processing time: ${processingTime}ms`);
-  
-  // Extract token usage
-  const tokenUsage = extractTokenUsage(response);
-  
-  // Extract response content (standard chat format)
-  let rawResponse = '';
-  if (response.data.choices && response.data.choices[0]?.message?.content) {
-    rawResponse = response.data.choices[0].message.content;
-    console.log('✅ Extracted using GPT-5-mini chat format');
-  } else {
-    throw new Error('Invalid response structure from GPT-5-mini');
-  }
-  
-  // Clean up response before parsing (same as nano)
-  let cleanedResponse = rawResponse.trim();
-  
-  // Remove common non-JSON prefixes/suffixes
-  if (cleanedResponse.startsWith('```json')) {
-    cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-  }
-  if (cleanedResponse.startsWith('```')) {
-    cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
-  }
-  
-  // Find JSON object boundaries
-  const firstBrace = cleanedResponse.indexOf('{');
-  const lastBrace = cleanedResponse.lastIndexOf('}');
-  
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
-  }
-  
-  console.log(`🧹 GPT-5-mini cleaned response length: ${cleanedResponse.length} characters`);
-  console.log(`🔍 GPT-5-mini response preview: ${cleanedResponse.substring(0, 200)}...`);
-  
-  return {
-    rawResponse: cleanedResponse,
-    tokenUsage,
-    processingTime,
-    apiRequestId: tokenUsage.apiRequestId,
-    responseStatus: 'success'
-  };
-}
-
-// ✅ MODIFIED: MAIN function with dual model parallel racing support
+// ✅ MAIN function to send data to OpenAI GPT-5-nano with FIXED JSON parsing + token tracking
 async function sendToGemini(inputData) {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -456,7 +379,7 @@ async function sendToGemini(inputData) {
             return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
         }
         
-        console.log('🤖 === OPENAI DUAL MODEL SYSTEM WITH ENHANCED TOKEN TRACKING ===');
+        console.log('🤖 === OPENAI GPT-5-NANO WITH ENHANCED TOKEN TRACKING ===');
         
         // Determine input type and prepare data
         let processedData;
@@ -675,215 +598,114 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // ✅ NEW: Parallel racing strategy starting from attempt 2
-        let nanoResult = null;
-        let miniResult = null;
-        let attempt = 1;
-        const maxAttempts = 3;
+        // Send directly to OpenAI GPT-5-nano (no fallback)
+        const apiResult = await sendToNano({
+            systemPrompt,
+            userPrompt,
+            preprocessedHtml
+        });
         
-        const totalProcessingStartTime = Date.now();
-        
-        while (attempt <= maxAttempts && !nanoResult && !miniResult) {
-            console.log(`🎪 === ATTEMPT ${attempt} ===`);
-            
-            if (attempt === 1) {
-                // Attempt 1: Try nano only (fast path)
-                console.log('🚀 Attempt 1: GPT-5 nano only (fast path)');
-                try {
-                    const nanoApiResult = await sendToNano({
-                        systemPrompt,
-                        userPrompt,
-                        preprocessedHtml
-                    });
-                    
-                    if (nanoApiResult.rawResponse) {
-                        // Try to parse nano response
-                        try {
-                            const parsedData = JSON.parse(nanoApiResult.rawResponse);
-                            console.log('✅ Nano parsing successful');
-                            
-                            nanoResult = {
-                                data: parsedData,
-                                tokenData: {
-                                    rawGptResponse: nanoApiResult.rawResponse,
-                                    inputTokens: nanoApiResult.tokenUsage.inputTokens,
-                                    outputTokens: nanoApiResult.tokenUsage.outputTokens,
-                                    totalTokens: nanoApiResult.tokenUsage.totalTokens,
-                                    processingTimeMs: nanoApiResult.processingTime,
-                                    apiRequestId: nanoApiResult.apiRequestId,
-                                    responseStatus: nanoApiResult.responseStatus
-                                }
-                            };
-                            
-                            console.log('🎉 Attempt 1 SUCCESS: Using nano result');
-                            break; // Success on first attempt
-                            
-                        } catch (parseError) {
-                            console.error('❌ Nano JSON parsing failed on attempt 1:', parseError.message);
-                            // Continue to attempt 2 with parallel racing
-                        }
-                    }
-                } catch (nanoError) {
-                    console.error('❌ Nano failed on attempt 1:', nanoError.message);
-                    // Continue to attempt 2 with parallel racing
-                }
-            } else {
-                // Attempt 2+: Parallel racing of both models
-                console.log(`🏁 Attempt ${attempt}: Parallel racing (nano + mini)`);
-                
-                const parallelPromises = [
-                    sendToNano({
-                        systemPrompt,
-                        userPrompt,
-                        preprocessedHtml
-                    }).catch(err => ({ error: err, model: 'nano' })),
-                    
-                    sendToMini({
-                        systemPrompt,
-                        userPrompt,
-                        preprocessedHtml
-                    }).catch(err => ({ error: err, model: 'mini' }))
-                ];
-                
-                try {
-                    const [nanoApiResult, miniApiResult] = await Promise.allSettled(parallelPromises);
-                    
-                    // Process nano result
-                    if (nanoApiResult.status === 'fulfilled' && !nanoApiResult.value.error && nanoApiResult.value.rawResponse) {
-                        try {
-                            const parsedNano = JSON.parse(nanoApiResult.value.rawResponse);
-                            console.log('✅ Parallel nano parsing successful');
-                            
-                            nanoResult = {
-                                data: parsedNano,
-                                tokenData: {
-                                    rawGptResponse: nanoApiResult.value.rawResponse,
-                                    inputTokens: nanoApiResult.value.tokenUsage.inputTokens,
-                                    outputTokens: nanoApiResult.value.tokenUsage.outputTokens,
-                                    totalTokens: nanoApiResult.value.tokenUsage.totalTokens,
-                                    processingTimeMs: nanoApiResult.value.processingTime,
-                                    apiRequestId: nanoApiResult.value.apiRequestId,
-                                    responseStatus: nanoApiResult.value.responseStatus
-                                }
-                            };
-                        } catch (parseError) {
-                            console.error('❌ Parallel nano JSON parsing failed:', parseError.message);
-                        }
-                    } else {
-                        console.log('❌ Parallel nano failed or errored');
-                    }
-                    
-                    // Process mini result
-                    if (miniApiResult.status === 'fulfilled' && !miniApiResult.value.error && miniApiResult.value.rawResponse) {
-                        try {
-                            const parsedMini = JSON.parse(miniApiResult.value.rawResponse);
-                            console.log('✅ Parallel mini parsing successful');
-                            
-                            miniResult = {
-                                data: parsedMini,
-                                tokenData: {
-                                    rawGptResponse: miniApiResult.value.rawResponse,
-                                    inputTokens: miniApiResult.value.tokenUsage.inputTokens,
-                                    outputTokens: miniApiResult.value.tokenUsage.outputTokens,
-                                    totalTokens: miniApiResult.value.tokenUsage.totalTokens,
-                                    processingTimeMs: miniApiResult.value.processingTime,
-                                    apiRequestId: miniApiResult.value.apiRequestId,
-                                    responseStatus: miniApiResult.value.responseStatus
-                                }
-                            };
-                        } catch (parseError) {
-                            console.error('❌ Parallel mini JSON parsing failed:', parseError.message);
-                        }
-                    } else {
-                        console.log('❌ Parallel mini failed or errored');
-                    }
-                    
-                    // Check if we have any successful results
-                    if (nanoResult || miniResult) {
-                        console.log(`🎉 Attempt ${attempt} SUCCESS: Got results from ${nanoResult ? 'nano' : ''} ${miniResult ? 'mini' : ''}`);
-                        break; // Success
-                    } else {
-                        console.log(`❌ Attempt ${attempt} failed: Both models failed`);
-                    }
-                    
-                } catch (parallelError) {
-                    console.error(`❌ Parallel execution failed on attempt ${attempt}:`, parallelError.message);
-                }
-            }
-            
-            attempt++;
-            
-            if (attempt <= maxAttempts && !nanoResult && !miniResult) {
-                const waitTime = 2000 * attempt; // Increasing wait time
-                console.log(`⏳ Waiting ${waitTime}ms before attempt ${attempt}...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-            }
-        }
-        
-        // Check final results
-        if (!nanoResult && !miniResult) {
+        if (!apiResult.rawResponse) {
             return { 
                 success: false, 
                 status: 500, 
-                userMessage: 'All dual model attempts failed - neither nano nor mini could process the profile',
+                userMessage: 'Invalid response structure from API',
                 transient: true 
             };
         }
         
-        // ✅ NEW: Return both results (no winner selection)
-        const totalProcessingTime = Date.now() - totalProcessingStartTime;
+        console.log(`🔍 Raw response length: ${apiResult.rawResponse.length} characters`);
         
-        console.log('✅ === DUAL MODEL SYSTEM WITH TOKEN TRACKING COMPLETED ===');
+        // ✅ CRITICAL FIX: Robust JSON parsing with detailed error handling
+        let parsedData;
+        try {
+            parsedData = JSON.parse(apiResult.rawResponse);
+            console.log('✅ JSON parsing successful');
+        } catch (parseError) {
+            console.error('❌ JSON parsing failed:', parseError.message);
+            console.log('🔍 Raw response causing error:', apiResult.rawResponse.substring(0, 1000) + '...');
+            
+            // Try to fix common JSON issues
+            let fixedResponse = apiResult.rawResponse;
+            
+            // Fix truncated JSON by adding missing closing braces
+            const openBraces = (fixedResponse.match(/\{/g) || []).length;
+            const closeBraces = (fixedResponse.match(/\}/g) || []).length;
+            if (openBraces > closeBraces) {
+                const missingBraces = openBraces - closeBraces;
+                fixedResponse += '}}'.repeat(missingBraces);
+                console.log(`🔧 Added ${missingBraces} missing closing braces`);
+            }
+            
+            // Try parsing the fixed version
+            try {
+                parsedData = JSON.parse(fixedResponse);
+                console.log('✅ JSON parsing successful after fixing');
+            } catch (secondParseError) {
+                console.error('❌ JSON parsing failed even after fixes:', secondParseError.message);
+                return { 
+                    success: false, 
+                    status: 500, 
+                    userMessage: 'Failed to parse API response as JSON - response may be incomplete',
+                    transient: true,
+                    details: {
+                        originalError: parseError.message,
+                        fixedError: secondParseError.message,
+                        responsePreview: apiResult.rawResponse.substring(0, 500)
+                    }
+                };
+            }
+        }
+        
+        // Validate data
+        const hasProfile = parsedData.profile && parsedData.profile.name;
+        const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
+        const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
+        
+        console.log('✅ === OPENAI GPT-5-NANO WITH TOKEN TRACKING COMPLETED ===');
         console.log(`📊 Extraction Results:`);
-        console.log(`   🥇 Profile name: ${nanoResult?.data?.profile?.name || miniResult?.data?.profile?.name || 'Unknown'}`);
-        console.log(`   🥇 Nano result: ${nanoResult ? 'SUCCESS' : 'FAILED'}`);
-        console.log(`   🥇 Mini result: ${miniResult ? 'SUCCESS' : 'FAILED'}`);
-        
-        if (nanoResult) {
-            console.log(`   📊 Nano - Experience: ${nanoResult.data.experience?.length || 0}, Education: ${nanoResult.data.education?.length || 0}`);
-            console.log(`   📊 Nano tokens: ${nanoResult.tokenData.inputTokens}→${nanoResult.tokenData.outputTokens} (${nanoResult.tokenData.totalTokens} total)`);
-        }
-        
-        if (miniResult) {
-            console.log(`   📊 Mini - Experience: ${miniResult.data.experience?.length || 0}, Education: ${miniResult.data.education?.length || 0}`);
-            console.log(`   📊 Mini tokens: ${miniResult.tokenData.inputTokens}→${miniResult.tokenData.outputTokens} (${miniResult.tokenData.totalTokens} total)`);
-        }
-        
+        console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
+        console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
+        console.log(`   🥇 Education entries: ${parsedData.education?.length || 0}`);
+        console.log(`   🥇 Awards: ${parsedData.awards?.length || 0}`);
+        console.log(`   🥇 Certifications: ${parsedData.certifications?.length || 0}`);
+        console.log(`   🥈 Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
+        console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
+        console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
         console.log(`   - Optimization mode: ${optimizationMode}`);
-        console.log(`   - Total processing time: ${totalProcessingTime}ms`);
-        
-        // Prepare response data (use nano if available, fallback to mini)
-        const primaryData = nanoResult?.data || miniResult?.data;
-        const primaryTokenData = nanoResult?.tokenData || miniResult?.tokenData;
+        console.log(`📊 Token Usage:`);
+        console.log(`   - Input tokens: ${apiResult.tokenUsage.inputTokens || 'N/A'}`);
+        console.log(`   - Output tokens: ${apiResult.tokenUsage.outputTokens || 'N/A'}`);
+        console.log(`   - Total tokens: ${apiResult.tokenUsage.totalTokens || 'N/A'}`);
+        console.log(`   - Processing time: ${apiResult.processingTime}ms`);
         
         return {
             success: true,
-            data: primaryData,
+            data: parsedData,
             metadata: {
                 inputType: inputType,
-                processingTime: totalProcessingTime,
-                hasProfile: !!(primaryData?.profile?.name),
-                hasExperience: !!(primaryData?.experience?.length > 0),
-                hasEducation: !!(primaryData?.education?.length > 0),
-                dataQuality: (primaryData?.profile?.name && primaryData?.experience?.length > 0) ? 'high' : 'medium',
+                processingTime: apiResult.processingTime,
+                hasProfile: hasProfile,
+                hasExperience: hasExperience,
+                hasEducation: hasEducation,
+                dataQuality: (hasProfile && hasExperience) ? 'high' : 'medium',
                 optimizationMode: optimizationMode,
-                modelsUsed: [
-                    ...(nanoResult ? ['gpt-5-nano'] : []),
-                    ...(miniResult ? ['gpt-5-mini'] : [])
-                ],
-                tokenUsage: primaryTokenData
+                tokenUsage: apiResult.tokenUsage
             },
-            // ✅ NEW: Return both results when available
-            bothResults: {
-                nano: nanoResult,
-                mini: miniResult
-            },
-            // Legacy single result for backward compatibility
-            tokenData: primaryTokenData
+            // ✅ NEW: Token tracking data for database storage
+            tokenData: {
+                rawGptResponse: apiResult.rawResponse,
+                inputTokens: apiResult.tokenUsage.inputTokens,
+                outputTokens: apiResult.tokenUsage.outputTokens,
+                totalTokens: apiResult.tokenUsage.totalTokens,
+                processingTimeMs: apiResult.processingTime,
+                apiRequestId: apiResult.apiRequestId,
+                responseStatus: apiResult.responseStatus
+            }
         };
         
     } catch (error) {
-        console.error('❌ === DUAL MODEL SYSTEM FAILED ===');
+        console.error('❌ === OPENAI GPT-5-NANO FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
@@ -942,10 +764,6 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 processingTimeMs: null,
                 apiRequestId: error.response?.headers?.['x-request-id'] || null,
                 responseStatus: 'error'
-            },
-            bothResults: {
-                nano: null,
-                mini: null
             }
         };
     }
