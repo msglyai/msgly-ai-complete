@@ -238,6 +238,33 @@ const initDB = async () => {
             );
         `);
 
+        // TARGET_PROFILES TABLE
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS target_profiles (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                linkedin_url TEXT NOT NULL,
+                data_json JSONB,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // ADD UNIQUE constraint for race condition fix
+        try {
+            await pool.query(`
+                ALTER TABLE target_profiles 
+                ADD CONSTRAINT target_profiles_linkedin_url_unique 
+                UNIQUE (linkedin_url);
+            `);
+            console.log('Added UNIQUE constraint to target_profiles.linkedin_url');
+        } catch (err) {
+            console.log('UNIQUE constraint already exists:', err.message);
+        }
+
         // CREDITS_TRANSACTIONS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS credits_transactions CASCADE;`);
         
@@ -671,6 +698,75 @@ const resetRenewableCredits = async (userId) => {
 
 // ==================== DATA PROCESSING HELPER FUNCTIONS ====================
 
+// NEW: Robust token number cleaner
+function cleanTokenNumber(value) {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+    
+    // Handle various input types
+    let stringValue;
+    if (typeof value === 'number') {
+        stringValue = value.toString();
+    } else {
+        stringValue = String(value);
+    }
+    
+    // Remove all non-numeric characters except negative sign
+    const cleaned = stringValue.replace(/[^0-9-]/g, '');
+    
+    if (cleaned === '' || cleaned === '-') {
+        return null;
+    }
+    
+    // Convert to integer
+    const result = parseInt(cleaned, 10);
+    const isValid = !isNaN(result) && isFinite(result);
+    
+    return isValid ? result : null;
+}
+
+// Bulletproof LinkedIn URL cleaner
+const cleanLinkedInUrl = (url) => {
+    if (!url || typeof url !== 'string') return null;
+    
+    try {
+        // Remove whitespace and convert to lowercase
+        let cleanUrl = url.trim().toLowerCase();
+        
+        // Ensure https protocol
+        if (!cleanUrl.startsWith('http')) {
+            cleanUrl = 'https://' + cleanUrl;
+        }
+        
+        // Parse URL to handle properly
+        const urlObj = new URL(cleanUrl);
+        
+        // Must be LinkedIn domain
+        if (!urlObj.hostname.includes('linkedin.com')) {
+            return null;
+        }
+        
+        // Extract pathname only (remove query params, fragments)
+        let pathname = urlObj.pathname;
+        
+        // Remove trailing slash
+        pathname = pathname.replace(/\/$/, '');
+        
+        // Must contain /in/ or /pub/
+        if (!pathname.includes('/in/') && !pathname.includes('/pub/')) {
+            return null;
+        }
+        
+        // Return clean URL
+        return `https://linkedin.com${pathname}`;
+        
+    } catch (error) {
+        console.error('URL cleaning error:', error);
+        return null;
+    }
+};
+
 // JSON validation and sanitization
 const sanitizeForJSON = (data) => {
     if (data === null || data === undefined) {
@@ -1017,5 +1113,7 @@ module.exports = {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData
+    processGeminiData,
+    cleanTokenNumber,
+    cleanLinkedInUrl
 };
