@@ -1,6 +1,7 @@
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + DUAL MODEL SUPPORT
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
+// ✅ NEW: Dual model support (GPT-5 nano + mini) with parallel racing
 
 const express = require('express');
 const cors = require('cors');
@@ -132,6 +133,11 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
                 input_tokens,
                 output_tokens,
                 total_tokens,
+                mini_data_json,
+                mini_input_tokens,
+                mini_output_tokens,
+                mini_total_tokens,
+                models_used,
                 created_at
             FROM target_profiles 
             WHERE linkedin_url = $1
@@ -150,10 +156,18 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
                     analyzedAt: profile.created_at,
                     analysis: 'PROFILE_EXISTS',
                     tokenUsage: {
-                        inputTokens: profile.input_tokens,
-                        outputTokens: profile.output_tokens,
-                        totalTokens: profile.total_tokens
-                    }
+                        nano: {
+                            inputTokens: profile.input_tokens,
+                            outputTokens: profile.output_tokens,
+                            totalTokens: profile.total_tokens
+                        },
+                        mini: {
+                            inputTokens: profile.mini_input_tokens,
+                            outputTokens: profile.mini_output_tokens,
+                            totalTokens: profile.mini_total_tokens
+                        }
+                    },
+                    modelsUsed: profile.models_used || []
                 }
             };
         } else {
@@ -172,79 +186,111 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
     }
 }
 
-// Save profile analysis to database
-async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {}) {
+// ✅ MODIFIED: Save profile analysis to database with dual model support
+async function saveProfileToDB(linkedinUrl, nanoResult, miniResult, userId) {
     console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
     console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
     console.log('   linkedinUrl:', linkedinUrl);
     console.log('   userId:', userId);
+    console.log('   nanoResult available:', !!nanoResult);
+    console.log('   miniResult available:', !!miniResult);
     
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
-        // Clean token values
-        const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
-        const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
-        const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
+        // Clean nano token values
+        const nanoTokens = nanoResult ? {
+            input: cleanTokenNumber(nanoResult.tokenData?.inputTokens),
+            output: cleanTokenNumber(nanoResult.tokenData?.outputTokens),
+            total: cleanTokenNumber(nanoResult.tokenData?.totalTokens),
+            processingTime: nanoResult.tokenData?.processingTimeMs,
+            requestId: nanoResult.tokenData?.apiRequestId
+        } : null;
+        
+        // Clean mini token values
+        const miniTokens = miniResult ? {
+            input: cleanTokenNumber(miniResult.tokenData?.inputTokens),
+            output: cleanTokenNumber(miniResult.tokenData?.outputTokens),
+            total: cleanTokenNumber(miniResult.tokenData?.totalTokens),
+            processingTime: miniResult.tokenData?.processingTimeMs,
+            requestId: miniResult.tokenData?.apiRequestId
+        } : null;
+        
+        // Determine models used 
+        const modelsUsed = [];
+        if (nanoResult) modelsUsed.push('gpt-5-nano');
+        if (miniResult) modelsUsed.push('gpt-5-mini');
         
         console.log('[CHECK] Final values going to database:', {
-            inputTokens: cleanedInput,
-            outputTokens: cleanedOutput,
-            totalTokens: cleanedTotal
+            nanoTokens,
+            miniTokens,
+            modelsUsed
         });
         
         // DEBUGGING: Add error tracing before database insert
-        console.log('[TARGET] ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        console.log('[TARGET] ABOUT TO EXECUTE TARGET PROFILE INSERT WITH DUAL MODEL SUPPORT');
         console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
         console.log('   userId:', userId, typeof userId);
         console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-        console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
-        console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
-        console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
+        console.log('   modelsUsed:', modelsUsed);
 
         let result;
         try {
-            console.log('[CHECK] About to execute PostgreSQL INSERT query...');
+            console.log('[CHECK] About to execute PostgreSQL INSERT query with dual model columns...');
             result = await pool.query(`
                 INSERT INTO target_profiles (
                     user_id,
-                    linkedin_url, 
+                    linkedin_url,
                     data_json,
                     input_tokens,
                     output_tokens,
                     total_tokens,
+                    processing_time_ms,
+                    api_request_id,
+                    mini_data_json,
+                    mini_input_tokens,
+                    mini_output_tokens,
+                    mini_total_tokens,
+                    mini_processing_time_ms,
+                    mini_api_request_id,
+                    models_used,
                     created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
                 RETURNING id, created_at
             `, [
                 userId,
                 cleanUrl,
-                JSON.stringify(rawJsonData), // Same pattern as user profile: JSON.stringify(processedProfile.geminiRawData)
-                cleanedInput,
-                cleanedOutput,
-                cleanedTotal
+                // Nano results
+                nanoResult ? JSON.stringify(nanoResult.data) : null,
+                nanoTokens?.input,
+                nanoTokens?.output,
+                nanoTokens?.total,
+                nanoTokens?.processingTime,
+                nanoTokens?.requestId,
+                // Mini results
+                miniResult ? JSON.stringify(miniResult.data) : null,
+                miniTokens?.input,
+                miniTokens?.output,
+                miniTokens?.total,
+                miniTokens?.processingTime,
+                miniTokens?.requestId,
+                // Metadata
+                modelsUsed
             ]);
             
-            console.log('[TARGET] TARGET PROFILE INSERT SUCCESS!');
+            console.log('[TARGET] TARGET PROFILE INSERT SUCCESS WITH DUAL MODEL SUPPORT!');
             
         } catch (dbError) {
             console.log('[TARGET] TARGET PROFILE INSERT FAILED!');
             console.log('[TARGET] DATABASE ERROR:', dbError.message);
             console.log('[TARGET] ERROR DETAIL:', dbError.detail);
             console.log('[TARGET] SQL STATE:', dbError.code);
-            console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
-            console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
-            console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
-            console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, jsonLength: JSON.stringify(rawJsonData).length });
-            console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
-            console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
-            console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
             throw dbError;
         }
         
         const savedProfile = result.rows[0];
         
-        console.log(`[SAVE] Profile saved to database: ID ${savedProfile.id}`);
+        console.log(`[SAVE] Profile saved to database with dual model support: ID ${savedProfile.id}`);
         return {
             success: true,
             id: savedProfile.id,
@@ -253,20 +299,22 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
                 linkedinUrl: cleanUrl,
                 analyzedBy: userId,
                 analyzedAt: savedProfile.created_at,
-                analysis: 'RAW_JSON_SAVED',
-                tokenUsage: tokenData
+                analysis: 'DUAL_MODEL_SAVED',
+                nanoTokenUsage: nanoTokens,
+                miniTokenUsage: miniTokens,
+                modelsUsed: modelsUsed
             }
         };
     } catch (error) {
-        console.error('[ERROR] Error saving profile to database:', error);
+        console.error('[ERROR] Error saving dual model profile to database:', error);
         throw error;
     }
 }
 
-// ✅ FIXED: DATABASE-First TARGET PROFILE handler with dual credit system (NO DOUBLE SPENDING)
+// ✅ MODIFIED: DATABASE-First TARGET PROFILE handler with dual model parallel racing
 async function handleTargetProfileJSON(req, res) {
     console.log('[FIRE] handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
-    console.log('[TARGET] === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
+    console.log('[TARGET] === DATABASE-FIRST TARGET PROFILE PROCESSING WITH DUAL MODEL SUPPORT ===');
     console.log('[CHECK] Request body keys:', Object.keys(req.body || {}));
     console.log('[CHECK] User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
     
@@ -309,7 +357,8 @@ async function handleTargetProfileJSON(req, res) {
                     fullName: 'LinkedIn User',
                     headline: 'Professional',
                     currentCompany: 'Company',
-                    tokenUsage: existsCheck.data.tokenUsage
+                    tokenUsage: existsCheck.data.tokenUsage,
+                    modelsUsed: existsCheck.data.modelsUsed
                 },
                 credits: {
                     charged: false,
@@ -346,9 +395,15 @@ async function handleTargetProfileJSON(req, res) {
         holdId = holdResult.holdId;
         console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
         
-        console.log('[AI] Processing HTML with GPT-5 nano for NEW TARGET profile...');
+        // STEP 3: NEW - Process with dual models using parallel racing strategy
+        let nanoResult = null;
+        let miniResult = null;
         
-        // Process HTML with GPT-5 nano
+        const processingStartTime = Date.now();
+        
+        // Call sendToGemini (handles dual model logic internally)
+        console.log('[AI] Processing HTML with dual model system for NEW TARGET profile...');
+        
         const geminiResult = await sendToGemini({
             html: html,
             url: cleanProfileUrl,
@@ -356,36 +411,39 @@ async function handleTargetProfileJSON(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('[ERROR] GPT-5 nano processing failed for TARGET profile:', geminiResult.userMessage);
+            console.error('[ERROR] Dual model processing failed for TARGET profile:', geminiResult.userMessage);
             
             // Release hold on failure
             await releaseCreditHold(userId, holdId, 'gemini_processing_failed');
             
             return res.status(500).json({
                 success: false,
-                error: 'Failed to process target profile data with GPT-5 nano',
+                error: 'Failed to process target profile data with dual model system',
                 details: geminiResult.userMessage || 'Unknown error'
             });
         }
         
-        console.log('[SUCCESS] GPT-5 nano processing successful for TARGET profile');
+        console.log('[SUCCESS] Dual model processing successful for TARGET profile');
         
-        // STEP 3: Save analysis result to database
-        console.log('[SAVE] Saving analysis to database...');
-        console.log('[CHECK] About to call saveProfileToDB with:');
-        console.log('   cleanProfileUrl length:', cleanProfileUrl.length);
-        console.log('   geminiResult.rawResponse available:', !!geminiResult.rawResponse);
-        console.log('   userId:', userId);
+        // Extract results from dual model response
+        if (geminiResult.bothResults) {
+            nanoResult = geminiResult.bothResults.nano;
+            miniResult = geminiResult.bothResults.mini;
+            console.log(`[MODELS] Models succeeded: ${nanoResult ? 'nano' : ''} ${miniResult ? 'mini' : ''}`);
+        } else {
+            // Fallback for single model result
+            nanoResult = geminiResult;
+            console.log('[MODELS] Single model result (nano fallback)');
+        }
         
-        // COPY USER PROFILE PATTERN: Process the data first
-        const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
+        // STEP 4: Save analysis result to database
+        console.log('[SAVE] Saving dual model analysis to database...');
         
-        // Save using the same pattern as user profile
         const saveResult = await saveProfileToDB(
             cleanProfileUrl, 
-            processedProfile.geminiRawData, // Use processed data like user profile
-            userId, 
-            geminiResult.tokenData || {}
+            nanoResult,
+            miniResult,
+            userId
         );
         
         if (!saveResult.success) {
@@ -394,18 +452,20 @@ async function handleTargetProfileJSON(req, res) {
             
             return res.status(500).json({
                 success: false,
-                error: 'Failed to save analysis to database'
+                error: 'Failed to save dual model analysis to database'
             });
         }
         
-        // ✅ FIXED: STEP 4 - Complete operation (SINGLE credit deduction)
+        // STEP 5: Complete operation (credit deduction)
         console.log('[CREDIT] Completing operation with credit deduction...');
         const completionResult = await completeOperation(userId, holdId, {
             profileUrl: cleanProfileUrl,
             databaseId: saveResult.id,
-            analysisData: 'RAW_JSON_SAVED',
-            tokenUsage: geminiResult.tokenData || {},
-            processingTime: Date.now() - (scrapingStartTime || Date.now())
+            analysisData: 'DUAL_MODEL_SAVED',
+            nanoTokenUsage: nanoResult?.tokenData || {},
+            miniTokenUsage: miniResult?.tokenData || {},
+            modelsUsed: saveResult.data.modelsUsed,
+            processingTime: Date.now() - processingStartTime
         });
 
         if (!completionResult.success) {
@@ -416,17 +476,15 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
 
-        console.log('[SUCCESS] TARGET profile saved to database successfully');
+        console.log('[SUCCESS] TARGET profile saved to database with dual model support');
         console.log(`[DATA] Analysis saved: Database ID ${saveResult.id}`);
+        console.log(`[MODELS] Models used: ${saveResult.data.modelsUsed.join(', ')}`);
         console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
-        
-        // Extract basic profile info for response
-        const profileData = { name: 'LinkedIn User', headline: '', currentCompany: '' };
         
         res.json({
             success: true,
             alreadyAnalyzed: false,
-            message: 'Target profile analyzed and saved successfully',
+            message: 'Target profile analyzed with dual model system and saved successfully',
             data: {
                 profileUrl: cleanProfileUrl,
                 databaseId: saveResult.id,
@@ -437,7 +495,11 @@ async function handleTargetProfileJSON(req, res) {
                 currentCompany: 'Company',
                 experienceCount: 1,
                 educationCount: 1,
-                tokenUsage: geminiResult.tokenData || {}
+                modelsUsed: saveResult.data.modelsUsed,
+                tokenUsage: {
+                    nano: nanoResult?.tokenData || null,
+                    mini: miniResult?.tokenData || null
+                }
             },
             credits: {
                 charged: true,
@@ -465,10 +527,10 @@ async function handleTargetProfileJSON(req, res) {
     }
 }
 
-// USER PROFILE HANDLER: Enhanced with token tracking (UNCHANGED)
+// USER PROFILE HANDLER: Enhanced with dual model token tracking
 async function handleUserProfile(req, res) {
     try {
-        console.log('[BLUE] === USER PROFILE PROCESSING ===');
+        console.log('[BLUE] === USER PROFILE PROCESSING WITH DUAL MODEL SUPPORT ===');
         console.log(`[USER] User ID: ${req.user.id}`);
         console.log(`[LINK] URL: ${req.body.profileUrl}`);
         
@@ -485,9 +547,9 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('[AI] Processing HTML with GPT-5 nano for USER profile...');
+        console.log('[AI] Processing HTML with dual model system for USER profile...');
         
-        // Process HTML with GPT-5 nano
+        // Process HTML with dual model system
         const geminiResult = await sendToGemini({
             html: html,
             url: cleanProfileUrl,
@@ -495,23 +557,46 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('[ERROR] GPT-5 nano processing failed for USER profile:', geminiResult.error);
+            console.error('[ERROR] Dual model processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
-                error: 'Failed to process profile data with GPT-5 nano',
+                error: 'Failed to process profile data with dual model system',
                 details: geminiResult.error || 'Unknown error'
             });
         }
         
-        console.log('[SUCCESS] GPT-5 nano processing successful for USER profile');
+        console.log('[SUCCESS] Dual model processing successful for USER profile');
         
-        // Process GPT-5 nano data for USER profile
-        const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
+        // Extract results from dual model response
+        let nanoResult = null;
+        let miniResult = null;
         
-        // Save to user_profiles table only
+        if (geminiResult.bothResults) {
+            nanoResult = geminiResult.bothResults.nano;
+            miniResult = geminiResult.bothResults.mini;
+            console.log(`[MODELS] User profile models succeeded: ${nanoResult ? 'nano' : ''} ${miniResult ? 'mini' : ''}`);
+        } else {
+            // Fallback for single model result
+            nanoResult = geminiResult;
+            console.log('[MODELS] Single model result (nano fallback) for user profile');
+        }
+        
+        // Use nano result for processing (primary), fallback to mini if needed
+        const primaryResult = nanoResult || miniResult;
+        if (!primaryResult) {
+            return res.status(500).json({
+                success: false,
+                error: 'Both models failed for user profile processing'
+            });
+        }
+        
+        // Process data for USER profile using primary result
+        const processedProfile = processGeminiData(primaryResult, cleanProfileUrl);
+        
+        // Save to user_profiles table
         const savedProfile = await createOrUpdateUserProfile(userId, cleanProfileUrl, processedProfile.fullName);
         
-        // ENHANCED: Update user_profiles with processed data + token tracking
+        // ✅ UPDATED: Update user_profiles with processed data + dual model token tracking
         await pool.query(`
             UPDATE user_profiles SET 
                 full_name = $1,
@@ -538,13 +623,20 @@ async function handleUserProfile(req, res) {
                 processing_time_ms = $22,
                 api_request_id = $23,
                 response_status = $24,
+                mini_raw_gpt_response = $25,
+                mini_input_tokens = $26,
+                mini_output_tokens = $27,
+                mini_total_tokens = $28,
+                mini_processing_time_ms = $29,
+                mini_api_request_id = $30,
+                models_used = $31,
                 gemini_processed_at = NOW(),
                 data_extraction_status = 'completed',
                 initial_scraping_done = true,
                 profile_analyzed = true,
                 extraction_completed_at = NOW(),
                 updated_at = NOW()
-            WHERE user_id = $25
+            WHERE user_id = $32
         `, [
             processedProfile.fullName,
             processedProfile.headline,
@@ -563,14 +655,26 @@ async function handleUserProfile(req, res) {
             JSON.stringify(processedProfile.activity),
             JSON.stringify(processedProfile.engagementData),
             JSON.stringify(processedProfile.geminiRawData),
-            // NEW: Token tracking data
-            geminiResult.tokenData?.rawGptResponse || null,
-            geminiResult.tokenData?.inputTokens || null,
-            geminiResult.tokenData?.outputTokens || null,
-            geminiResult.tokenData?.totalTokens || null,
-            geminiResult.tokenData?.processingTimeMs || null,
-            geminiResult.tokenData?.apiRequestId || null,
-            geminiResult.tokenData?.responseStatus || 'success',
+            // Nano token tracking data
+            primaryResult.tokenData?.rawGptResponse || null,
+            primaryResult.tokenData?.inputTokens || null,
+            primaryResult.tokenData?.outputTokens || null,
+            primaryResult.tokenData?.totalTokens || null,
+            primaryResult.tokenData?.processingTimeMs || null,
+            primaryResult.tokenData?.apiRequestId || null,
+            primaryResult.tokenData?.responseStatus || 'success',
+            // ✅ NEW: Mini token tracking data
+            miniResult?.tokenData?.rawGptResponse || null,
+            miniResult?.tokenData?.inputTokens || null,
+            miniResult?.tokenData?.outputTokens || null,
+            miniResult?.tokenData?.totalTokens || null,
+            miniResult?.tokenData?.processingTimeMs || null,
+            miniResult?.tokenData?.apiRequestId || null,
+            // Models used array
+            [
+                ...(nanoResult ? ['gpt-5-nano'] : []),
+                ...(miniResult ? ['gpt-5-mini'] : [])
+            ],
             userId
         ]);
         
@@ -580,12 +684,13 @@ async function handleUserProfile(req, res) {
             ['completed', userId]
         );
         
-        console.log('[SUCCESS] USER profile saved to user_profiles table successfully');
-        console.log(`[DATA] Token usage: ${geminiResult.tokenData?.inputTokens || 'N/A'} input, ${geminiResult.tokenData?.outputTokens || 'N/A'} output, ${geminiResult.tokenData?.totalTokens || 'N/A'} total`);
+        console.log('[SUCCESS] USER profile saved to user_profiles table with dual model support');
+        console.log(`[MODELS] Models used: ${nanoResult ? 'nano' : ''} ${miniResult ? 'mini' : ''}`);
+        console.log(`[DATA] Primary token usage: ${primaryResult.tokenData?.inputTokens || 'N/A'} input, ${primaryResult.tokenData?.outputTokens || 'N/A'} output, ${primaryResult.tokenData?.totalTokens || 'N/A'} total`);
         
         res.json({
             success: true,
-            message: 'User profile processed and saved successfully',
+            message: 'User profile processed and saved with dual model support',
             data: {
                 fullName: processedProfile.fullName,
                 headline: processedProfile.headline,
@@ -593,11 +698,14 @@ async function handleUserProfile(req, res) {
                 experienceCount: processedProfile.experience?.length || 0,
                 educationCount: processedProfile.education?.length || 0,
                 hasExperience: processedProfile.hasExperience,
+                modelsUsed: [
+                    ...(nanoResult ? ['gpt-5-nano'] : []),
+                    ...(miniResult ? ['gpt-5-mini'] : [])
+                ],
                 tokenUsage: {
-                    inputTokens: geminiResult.tokenData?.inputTokens,
-                    outputTokens: geminiResult.tokenData?.outputTokens,
-                    totalTokens: geminiResult.tokenData?.totalTokens,
-                    processingTimeMs: geminiResult.tokenData?.processingTimeMs
+                    primary: primaryResult.tokenData,
+                    nano: nanoResult?.tokenData || null,
+                    mini: miniResult?.tokenData || null
                 }
             }
         });
@@ -1188,8 +1296,8 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
         
         return handleUserProfile(req, res);
     } else {
-        console.log('[CHECK] selectedHandler=TARGET_DATABASE');
-        console.log('[TARGET] TARGET DATABASE handler start');
+        console.log('[CHECK] selectedHandler=TARGET_DATABASE_DUAL_MODEL');
+        console.log('[TARGET] TARGET DATABASE DUAL MODEL handler start');
         console.log(`[CHECK] userId=${req.user.id}`);
         console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
@@ -1197,10 +1305,10 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
     }
 });
 
-// NEW: DATABASE-First TARGET PROFILE endpoint
+// NEW: DATABASE-First TARGET PROFILE endpoint with dual model support
 app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
     console.log('[TARGET] route=/target-profile/analyze-json');
-    console.log('[TARGET] DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
+    console.log('[TARGET] DATABASE-FIRST TARGET PROFILE DUAL MODEL ANALYSIS handler start');
     console.log(`[CHECK] userId=${req.user.id}`);
     console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
     
@@ -1401,7 +1509,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual model system.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1445,7 +1553,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_MODEL_AUTO_REG'
                 }
             }
         });
@@ -1523,7 +1631,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual model system + AUTO-REGISTRATION'
             };
         }
 
@@ -1621,7 +1729,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_MODEL_AUTO_REG'
             }
         });
     } catch (error) {
@@ -1673,7 +1781,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_MODEL_AUTO_REG',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -1697,7 +1805,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '7 free credits monthly',
-                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Dual model system (GPT-5 nano + mini)', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             }
         ],
@@ -1710,7 +1818,7 @@ app.get('/packages', (req, res) => {
                 period: '/forever',
                 billing: 'monthly',
                 validity: '7 free credits monthly',
-                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Dual model system (GPT-5 nano + mini)', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
                 available: true
             }
         ]
@@ -1748,7 +1856,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Model System + AUTO-REGISTRATION',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1765,8 +1873,8 @@ app.use((req, res, next) => {
             'GET /profile',
             'GET /profile-status',
             'GET /traffic-light-status',
-            'POST /scrape-html (Enhanced routing: USER + TARGET)',
-            'POST /target-profile/analyze-json (NEW: DATABASE-first system)',
+            'POST /scrape-html (Enhanced routing: USER + TARGET with dual models)',
+            'POST /target-profile/analyze-json (NEW: DATABASE-first dual model system)',
             'POST /generate-message (NEW: 1 credit with dual system)',
             'POST /generate-connection (NEW: 1 credit with dual system)',
             'GET /user/setup-status',
@@ -1794,22 +1902,31 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL MODEL SYSTEM + AUTO-REGISTRATION ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
-            console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL MODEL SYSTEM`);
+            console.log(`[FILE] Target Storage: DATABASE (target_profiles table with dual model support)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION:`);
-            console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
-            console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
+            console.log(`[SUCCESS] ✅ DUAL MODEL SUPPORT: GPT-5 nano + mini with parallel racing`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL MODEL SYSTEM + AUTO-REGISTRATION:`);
+            console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table, nano only)`);
+            console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table, dual model)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
-            console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint`);
+            console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with dual models`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
-            console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
+            console.log(`   [FILE] Database: target_profiles table for TARGET profiles (dual model support)`);
             console.log(`   [LIGHT] Traffic Light system tracks User profile completion only`);
+            console.log(`[MODELS] DUAL MODEL PARALLEL RACING SYSTEM:`);
+            console.log(`   [NANO] GPT-5 Nano: Primary model, faster, cheaper`);
+            console.log(`   [MINI] GPT-5 Mini: Secondary model, parallel racing from attempt 2`);
+            console.log(`   [RACE] Attempt 1: Nano only (fast path)`);
+            console.log(`   [RACE] Attempt 2+: Both models in parallel`);
+            console.log(`   [SAVE] Save both results when both succeed`);
+            console.log(`   [PICK] No winner selection - return both results`);
+            console.log(`   [DATA] Consumer decides which result to use`);
             console.log(`[CREDIT] DUAL CREDIT SYSTEM:`);
             console.log(`   [CYCLE] RENEWABLE CREDITS: Reset monthly to plan amount`);
             console.log(`   [INFINITY] PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
@@ -1833,36 +1950,23 @@ const startServer = async () => {
             console.log(`   [FLOW] User elsewhere → Redirect to sign-up page → Complete registration`);
             console.log(`[SUCCESS] REAL PLAN DATA ENDPOINTS (NO MORE MOCK!):`);
             console.log(`   GET /user/plan (Real plan data from database)`);
-            console.log(`   POST /target-profile/analyze-json (DATABASE-first system)`);
+            console.log(`   POST /target-profile/analyze-json (DATABASE-first dual model system)`);
             console.log(`   POST /generate-message (1 credit with dual system)`);
             console.log(`   POST /generate-connection (1 credit with dual system)`);
             console.log(`   GET /credits/balance (Dual credit breakdown)`);
             console.log(`   GET /credits/history (Full transaction history)`);
             console.log(`[SUCCESS] TOKEN TRACKING SYSTEM:`);
             console.log(`   [DATA] USER profiles save GPT-5 nano data to user_profiles table`);
-            console.log(`   [FILE] TARGET profiles save GPT-5 nano data to target_profiles table`);
-            console.log(`   [NUMBERS] Input/output/total token counts tracked for all profiles`);
+            console.log(`   [FILE] TARGET profiles save dual model data to target_profiles table`);
+            console.log(`   [NUMBERS] Input/output/total token counts tracked for all models`);
             console.log(`   [TIME] Processing time and API request IDs logged`);
             console.log(`   [SAVE] Raw responses stored for debugging and analysis`);
-            console.log(`[SUCCESS] ✅ FIXED DOUBLE SPENDING ISSUE:`);
-            console.log(`   [BEFORE] spendUserCredits() + completeOperation() = 0.5 credits deducted`);
-            console.log(`   [AFTER] Only completeOperation() handles deduction = 0.25 credits deducted`);
-            console.log(`   [SINGLE] One unified credit deduction per operation`);
-            console.log(`   [AUDIT] Complete transaction tracking with holds`);
-            console.log(`[SUCCESS] ✅ FIXED CREDITS LOADING ISSUE:`);
-            console.log(`   [FALLBACK] Multiple auth token retrieval methods`);
-            console.log(`   [ERROR] Better error handling and user feedback`);
-            console.log(`   [DISPLAY] Credits error state instead of infinite loading`);
-            console.log(`   [TOKEN] Background script + localStorage + sessionStorage fallbacks`);
-            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION FLOW:`);
-            console.log(`   [DETECT] Extension detects if user is on their own LinkedIn profile`);
-            console.log(`   [EXTRACT] Extract LinkedIn URL from current page`);
-            console.log(`   [SEND] Send LinkedIn URL with Google auth to server`);
-            console.log(`   [CREATE] Server auto-creates user with LinkedIn URL + registration_completed = true`);
-            console.log(`   [READY] User immediately ready to use extension features`);
-            console.log(`   [ELSE] Non-profile users redirected to website for traditional registration`);
-            console.log(`[SUCCESS] ✅ SANITIZED LOGGING: Profile data no longer visible in logs`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH AUTO-REGISTRATION + SANITIZED LOGGING!`);
+            console.log(`[SUCCESS] ✅ NO WINNER SELECTION: Both model results saved and returned`);
+            console.log(`   [SAVE] Database stores both nano and mini results`);
+            console.log(`   [RETURN] API returns both results in bothResults structure`);
+            console.log(`   [CHOICE] Consumer chooses which result to use`);
+            console.log(`   [SIMPLE] No complex winner selection logic`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL MODEL SYSTEM WITH AUTO-REGISTRATION!`);
         });
         
     } catch (error) {
