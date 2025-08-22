@@ -1,8 +1,9 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + TARGET_PROFILES
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
 // ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
+// ✅ NEW: Added target_profiles table for dual model support
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -224,6 +225,35 @@ const initDB = async () => {
             );
         `);
 
+        // ✅ NEW: TARGET_PROFILES TABLE - For dual model support
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS target_profiles (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                linkedin_url TEXT,
+                
+                -- GPT-5 Nano results
+                data_json JSONB,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                processing_time_ms INTEGER,
+                api_request_id TEXT,
+                
+                -- GPT-5 Mini results
+                mini_data_json JSONB,
+                mini_input_tokens INTEGER,
+                mini_output_tokens INTEGER,
+                mini_total_tokens INTEGER,
+                mini_processing_time_ms INTEGER,
+                mini_api_request_id TEXT,
+                
+                -- Metadata
+                models_used TEXT[],
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
         // Supporting tables - FIXED: Changed target_url VARCHAR(500) to TEXT
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
@@ -367,6 +397,11 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_credits_transactions_user_id ON credits_transactions(user_id);
                 CREATE INDEX IF NOT EXISTS idx_credits_transactions_hold_id ON credits_transactions(hold_id);
                 CREATE INDEX IF NOT EXISTS idx_credits_transactions_status ON credits_transactions(status);
+                
+                -- ✅ NEW: Target profiles indexes
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url ON target_profiles(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
             `);
             console.log('Database indexes created successfully');
         } catch (err) {
@@ -384,7 +419,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('Enhanced database with dual credit system created successfully!');
+        console.log('Enhanced database with dual credit system and target_profiles table created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -987,7 +1022,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION
+// Enhanced export with dual credit system + AUTO-REGISTRATION + TARGET_PROFILES
 module.exports = {
     // Database connection
     pool,
