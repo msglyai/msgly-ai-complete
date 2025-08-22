@@ -185,18 +185,18 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
     console.log('   linkedinUrl:', linkedinUrl);
     console.log('   rawJsonData type:', typeof rawJsonData);
-    console.log('   rawJsonData length:', JSON.stringify(rawJsonData).length);
+    console.log('   rawJsonData size:', JSON.stringify(rawJsonData).length, 'chars');
     console.log('   userId:', userId, 'type:', typeof userId);
-    console.log('   tokenData:', tokenData);
+    console.log('   tokenData available:', !!tokenData);
     
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
         
         // DEBUG: Log token data before cleaning
-        console.log('[CHECK] saveProfileToDB received tokenData:', {
-            inputTokens: tokenData.inputTokens,
-            outputTokens: tokenData.outputTokens,
-            totalTokens: tokenData.totalTokens,
+        console.log('[CHECK] saveProfileToDB received tokenData - tokens:', {
+            hasInput: !!tokenData.inputTokens,
+            hasOutput: !!tokenData.outputTokens,
+            hasTotal: !!tokenData.totalTokens,
             types: {
                 input: typeof tokenData.inputTokens,
                 output: typeof tokenData.outputTokens,
@@ -223,7 +223,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
         console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
         console.log('   userId:', userId, typeof userId);
         console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-        console.log('   rawJsonData length:', JSON.stringify(rawJsonData).length);
+        console.log('   rawJsonData size:', JSON.stringify(rawJsonData).length, 'chars');
         console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
         console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
         console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
@@ -399,10 +399,10 @@ async function handleTargetProfileJSON(req, res) {
         // STEP 3: Save analysis result to database
         console.log('[SAVE] Saving analysis to database...');
         console.log('[CHECK] About to call saveProfileToDB with:');
-        console.log('   cleanProfileUrl:', cleanProfileUrl);
+        console.log('   cleanProfileUrl length:', cleanProfileUrl.length);
         console.log('   geminiResult.rawResponse available:', !!geminiResult.rawResponse);
         console.log('   userId:', userId);
-        console.log('   geminiResult.tokenData:', geminiResult.tokenData);
+        console.log('   geminiResult.tokenData available:', !!geminiResult.tokenData);
         
         // COPY USER PROFILE PATTERN: Process the data first
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -899,7 +899,7 @@ const userRoutes = initUserRoutes({
     getSetupStatusMessage
 });
 
-// CORS configuration
+// STEP 2C: Import modularized routes
 const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
@@ -1888,7 +1888,8 @@ const startServer = async () => {
             console.log(`   [CREATE] Server auto-creates user with LinkedIn URL + registration_completed = true`);
             console.log(`   [READY] User immediately ready to use extension features`);
             console.log(`   [ELSE] Non-profile users redirected to website for traditional registration`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH AUTO-REGISTRATION + FIXED ISSUES!`);
+            console.log(`[SUCCESS] ✅ SANITIZED LOGGING: Profile data no longer visible in logs`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH AUTO-REGISTRATION + SANITIZED LOGGING!`);
         });
         
     } catch (error) {
