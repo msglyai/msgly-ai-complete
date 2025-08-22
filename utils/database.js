@@ -358,7 +358,15 @@ const initDB = async () => {
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
                 'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0'
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0',
+                // ✅ NEW: Add mini model columns to user_profiles for consistency
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mini_raw_gpt_response TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mini_input_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mini_output_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mini_total_tokens INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mini_processing_time_ms INTEGER',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mini_api_request_id TEXT',
+                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS models_used TEXT[]'
             ];
 
             for (const columnQuery of enhancedProfileColumns) {
