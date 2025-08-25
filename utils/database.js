@@ -3,6 +3,7 @@
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
 // ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
+// ✅ URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -12,6 +13,87 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
+
+// NEW: Clean up duplicate URLs in target_profiles table
+const cleanupDuplicateTargetProfiles = async () => {
+    try {
+        console.log('[CLEANUP] Starting duplicate target profiles cleanup...');
+        
+        // Find duplicates (keep the earliest one)
+        const duplicatesQuery = `
+            DELETE FROM target_profiles 
+            WHERE id NOT IN (
+                SELECT MIN(id) 
+                FROM target_profiles 
+                GROUP BY linkedin_url, user_id
+            )
+        `;
+        
+        const result = await pool.query(duplicatesQuery);
+        console.log(`[CLEANUP] Removed ${result.rowCount} duplicate target profiles`);
+        
+        return result.rowCount;
+    } catch (error) {
+        console.error('[CLEANUP] Error cleaning up duplicates:', error);
+        return 0;
+    }
+};
+
+// NEW: Ensure target_profiles table exists with proper UNIQUE constraint
+const ensureTargetProfilesTable = async () => {
+    try {
+        console.log('[INIT] Creating target_profiles table...');
+        
+        // Create target_profiles table if it doesn't exist
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS target_profiles (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                linkedin_url TEXT NOT NULL,
+                data_json JSONB,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        // Clean up any existing duplicates before adding constraint
+        await cleanupDuplicateTargetProfiles();
+        
+        // Add UNIQUE constraint - FIXED: Correct error message
+        try {
+            await pool.query(`
+                ALTER TABLE target_profiles 
+                ADD CONSTRAINT target_profiles_linkedin_url_unique 
+                UNIQUE (linkedin_url);
+            `);
+            console.log('[SUCCESS] Added UNIQUE constraint to target_profiles');
+        } catch (err) {
+            if (err.code === '42P07') {
+                console.log('[INFO] UNIQUE constraint already exists on target_profiles');
+            } else {
+                console.log('[ERROR] UNIQUE constraint creation failed:', err.message);
+            }
+        }
+        
+        // Create index for better performance
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url 
+                ON target_profiles(linkedin_url);
+            `);
+            console.log('[SUCCESS] Created index on target_profiles.linkedin_url');
+        } catch (err) {
+            console.log('[INFO] Index might already exist:', err.message);
+        }
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure target_profiles table:', error);
+        throw error;
+    }
+};
 
 // ==================== DATABASE INITIALIZATION ====================
 
@@ -257,6 +339,9 @@ const initDB = async () => {
             );
         `);
 
+        // NEW: TARGET_PROFILES TABLE with proper UNIQUE constraint
+        await ensureTargetProfilesTable();
+
         // Add missing columns (safe operation)
         try {
             const enhancedUserColumns = [
@@ -367,6 +452,10 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_credits_transactions_user_id ON credits_transactions(user_id);
                 CREATE INDEX IF NOT EXISTS idx_credits_transactions_hold_id ON credits_transactions(hold_id);
                 CREATE INDEX IF NOT EXISTS idx_credits_transactions_status ON credits_transactions(status);
+                
+                -- Target profiles indexes
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
             `);
             console.log('Database indexes created successfully');
         } catch (err) {
@@ -384,7 +473,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('Enhanced database with dual credit system created successfully!');
+        console.log('Enhanced database with dual credit system and URL deduplication fix created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -987,7 +1076,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX
 module.exports = {
     // Database connection
     pool,
@@ -995,6 +1084,10 @@ module.exports = {
     // Database setup
     initDB,
     testDatabase,
+    
+    // NEW: Cleanup functions
+    cleanupDuplicateTargetProfiles,
+    ensureTargetProfilesTable,
     
     // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
