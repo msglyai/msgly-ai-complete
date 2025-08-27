@@ -79,11 +79,50 @@ async function enforceRateLimit() {
 }
 
 // ✅ Enhanced retry logic with exponential backoff
-async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES) {
+async function retryWithBackoff(fn, maxRetries = RATE_LIMIT.MAX_RETRIES, isTargetProfile = false, requestParams = null) {
     let lastError;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
+            if (attempt === 2 && isTargetProfile) {
+                const [nanoResult, miniResult] = await Promise.allSettled([
+                    fn(), // existing nano call
+                    sendToMini(requestParams)
+                ]);
+                
+                // Capture mini token data
+                let miniTokenData = null;
+                if (miniResult.status === 'fulfilled') {
+                    miniTokenData = {
+                        inputTokens: miniResult.value.tokenUsage.inputTokens,
+                        outputTokens: miniResult.value.tokenUsage.outputTokens, 
+                        totalTokens: miniResult.value.tokenUsage.totalTokens,
+                        processingTimeMs: miniResult.value.processingTime
+                    };
+                }
+                
+                // Return fastest successful result with miniTokenData attached
+                if (nanoResult.status === 'fulfilled' && miniResult.status === 'fulfilled') {
+                    const winner = nanoResult.value.processingTime <= miniResult.value.processingTime 
+                        ? nanoResult.value : miniResult.value;
+                    winner.miniTokenData = miniTokenData;
+                    return winner;
+                }
+                
+                // Handle single success cases
+                if (nanoResult.status === 'fulfilled') {
+                    nanoResult.value.miniTokenData = miniTokenData;
+                    return nanoResult.value;
+                }
+                if (miniResult.status === 'fulfilled') {
+                    miniResult.value.miniTokenData = miniTokenData;
+                    return miniResult.value;
+                }
+                
+                // Both failed, use nano error
+                throw nanoResult.reason || miniResult.reason;
+            }
+            
             return await fn();
         } catch (error) {
             lastError = error;
@@ -332,7 +371,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
     rawResponse = JSON.stringify(data);
   }
   
-  console.log(`🔍 Extracted response length: ${rawResponse?.length || 0} characters`);
+  console.log(`📝 Extracted response length: ${rawResponse?.length || 0} characters`);
   
   // ✅ CRITICAL FIX: Robust JSON validation and cleanup
   if (!rawResponse || rawResponse.length < 10) {
@@ -359,7 +398,135 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
   }
   
   console.log(`🧹 Cleaned response length: ${cleanedResponse.length} characters`);
-  console.log(`🔍 Response preview: ${cleanedResponse.substring(0, 200)}...`);
+  console.log(`📝 Response preview: ${cleanedResponse.substring(0, 200)}...`);
+  
+  return {
+    rawResponse: cleanedResponse,
+    tokenUsage,
+    processingTime,
+    apiRequestId: tokenUsage.apiRequestId,
+    responseStatus: 'success'
+  };
+}
+
+// Add after sendToNano function - EXACT copy with only model name change
+async function sendToMini({ systemPrompt, userPrompt, preprocessedHtml }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const startTime = Date.now();
+  
+  console.log('📤 Sending request to OpenAI GPT-5-mini Responses API...');
+  
+  // EXACT original request structure from your working code
+  const response = await callOpenAIWithResilience(
+    'https://api.openai.com/v1/responses',
+    {
+      model: 'gpt-5-mini',
+      text: { format: { type: 'json_object' } },
+      max_output_tokens: 18000,
+      input: [
+        { role: 'system', content: systemPrompt ?? '' },
+        { role: 'user', content: userPrompt ?? '' },
+        { role: 'user', content: preprocessedHtml ?? '' }
+      ]
+    },
+    {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'responses-2024-12-17'
+    }
+  );
+  
+  const processingTime = Date.now() - startTime;
+  console.log('🔥 OpenAI API response received');
+  console.log(`📊 Response status: ${response.status}`);
+  console.log(`⏱️ Processing time: ${processingTime}ms`);
+  
+  // ✅ Extract token usage
+  const tokenUsage = extractTokenUsage(response);
+  
+  // ✅ CRITICAL FIX: ROBUST response extraction with multiple fallback methods
+  const data = response.data;
+  let rawResponse = '';
+  
+  try {
+    // Method 1: Standard extraction (works for most cases)
+    if (data.output_text) {
+      rawResponse = data.output_text;
+      console.log('✅ Extracted using method 1: output_text');
+    }
+    // Method 2: Array-based output extraction
+    else if (Array.isArray(data.output) && data.output.length > 0) {
+      rawResponse = data.output
+        .map(p => {
+          if (Array.isArray(p.content)) {
+            return p.content.map(c => c.text || '').join('');
+          }
+          return p.text || p.content || '';
+        })
+        .join('');
+      console.log('✅ Extracted using method 2: output array');
+    }
+    // Method 3: Direct content extraction for alternative API formats
+    else if (data.output && typeof data.output === 'object') {
+      const output = data.output;
+      rawResponse = output.text || 
+                   output.content || 
+                   (output.message && output.message.content) || 
+                   JSON.stringify(output);
+      console.log('✅ Extracted using method 3: direct object');
+    }
+    // Method 4: Choices-based extraction (ChatGPT format)
+    else if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+      rawResponse = data.choices
+        .map(choice => choice.message?.content || choice.text || '')
+        .join('');
+      console.log('✅ Extracted using method 4: choices array');
+    }
+    // Method 5: Response field (alternative format)
+    else if (data.response) {
+      rawResponse = typeof data.response === 'string' ? data.response : JSON.stringify(data.response);
+      console.log('✅ Extracted using method 5: response field');
+    }
+    // Method 6: Last resort - stringify entire data
+    else {
+      console.log('⚠️ Using fallback method 6: full data stringify');
+      rawResponse = JSON.stringify(data);
+    }
+    
+  } catch (extractionError) {
+    console.error('❌ Response extraction failed:', extractionError);
+    console.log('🆘 Emergency fallback to raw data stringify');
+    rawResponse = JSON.stringify(data);
+  }
+  
+  console.log(`📝 Extracted response length: ${rawResponse?.length || 0} characters`);
+  
+  // ✅ CRITICAL FIX: Robust JSON validation and cleanup
+  if (!rawResponse || rawResponse.length < 10) {
+    throw new Error('Empty or invalid response from OpenAI API');
+  }
+  
+  // Clean up response before parsing
+  let cleanedResponse = rawResponse.trim();
+  
+  // Remove common non-JSON prefixes/suffixes
+  if (cleanedResponse.startsWith('```json')) {
+    cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  }
+  if (cleanedResponse.startsWith('```')) {
+    cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+  
+  // Find JSON object boundaries
+  const firstBrace = cleanedResponse.indexOf('{');
+  const lastBrace = cleanedResponse.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+  }
+  
+  console.log(`🧹 Cleaned response length: ${cleanedResponse.length} characters`);
+  console.log(`📝 Response preview: ${cleanedResponse.substring(0, 200)}...`);
   
   return {
     rawResponse: cleanedResponse,
@@ -402,7 +569,7 @@ async function sendToGemini(inputData) {
         if (inputData.html) {
             inputType = 'HTML from Chrome Extension';
             console.log(`📄 Input type: ${inputType}`);
-            console.log(`🔍 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
+            console.log(`📝 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
             
             const htmlSizeKB = inputData.html.length / 1024;
             if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
@@ -418,7 +585,7 @@ async function sendToGemini(inputData) {
             preprocessedHtml = preprocessHTMLForGemini(inputData.html, optimizationMode);
             
             const estimatedTokens = estimateTokenCount(preprocessedHtml);
-            console.log(`🔢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
+            console.log(`📢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
             
             if (estimatedTokens > OPENAI_LIMITS.MAX_TOKENS_INPUT) {
                 return { 
@@ -593,17 +760,25 @@ ${JSON.stringify(jsonData, null, 2)}`;
         }
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
-        console.log(`🔍 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
+        console.log(`📝 Total prompt length: ${(systemPrompt + userPrompt).length} characters`);
         
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Send directly to OpenAI GPT-5-nano (no fallback)
-        const apiResult = await sendToNano({
+        // Prepare request parameters for retry function
+        const requestParams = {
             systemPrompt,
             userPrompt,
             preprocessedHtml
-        });
+        };
+        
+        // Send directly to OpenAI GPT-5-nano with modified retry logic
+        const apiResult = await retryWithBackoff(
+            () => sendToNano(requestParams),
+            RATE_LIMIT.MAX_RETRIES,
+            !inputData.isUserProfile, // isTargetProfile = !isUserProfile
+            requestParams
+        );
         
         if (!apiResult.rawResponse) {
             return { 
@@ -614,7 +789,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             };
         }
         
-        console.log(`🔍 Raw response length: ${apiResult.rawResponse.length} characters`);
+        console.log(`📝 Raw response length: ${apiResult.rawResponse.length} characters`);
         
         // ✅ CRITICAL FIX: Robust JSON parsing with detailed error handling
         let parsedData;
@@ -623,7 +798,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             console.log('✅ JSON parsing successful');
         } catch (parseError) {
             console.error('❌ JSON parsing failed:', parseError.message);
-            console.log('🔍 Raw response causing error:', apiResult.rawResponse.substring(0, 1000) + '...');
+            console.log('📝 Raw response causing error:', apiResult.rawResponse.substring(0, 1000) + '...');
             
             // Try to fix common JSON issues
             let fixedResponse = apiResult.rawResponse;
@@ -701,7 +876,9 @@ ${JSON.stringify(jsonData, null, 2)}`;
                 processingTimeMs: apiResult.processingTime,
                 apiRequestId: apiResult.apiRequestId,
                 responseStatus: apiResult.responseStatus
-            }
+            },
+            // Include mini token data if available
+            miniTokenData: apiResult.miniTokenData || null
         };
         
     } catch (error) {
