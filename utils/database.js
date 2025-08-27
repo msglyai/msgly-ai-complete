@@ -54,10 +54,30 @@ const ensureTargetProfilesTable = async () => {
                 input_tokens INTEGER,
                 output_tokens INTEGER,
                 total_tokens INTEGER,
+                mini_input_tokens INTEGER,
+                mini_output_tokens INTEGER,
+                mini_total_tokens INTEGER,
+                mini_processing_time_ms INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        
+        // Add new columns to existing table
+        const alterQueries = [
+            'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS mini_input_tokens INTEGER;',
+            'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS mini_output_tokens INTEGER;',
+            'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS mini_total_tokens INTEGER;',
+            'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS mini_processing_time_ms INTEGER;'
+        ];
+        
+        for (const query of alterQueries) {
+            try {
+                await pool.query(query);
+            } catch (err) {
+                console.log(`Column might already exist: ${err.message}`);
+            }
+        }
         
         // Clean up any existing duplicates before adding constraint
         await cleanupDuplicateTargetProfiles();
@@ -1062,6 +1082,156 @@ const getUserProfile = async (userId) => {
     }
 };
 
+// Change function signature from:
+const saveProfileToDB = async (linkedinUrl, rawJsonData, userId, tokenData = {}, miniTokenData = null) => {
+    console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
+    console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
+    console.log('   linkedinUrl:', linkedinUrl);
+    console.log('   userId:', userId);
+    
+    try {
+        const cleanLinkedInUrl = (url) => {
+            if (!url) return '';
+            
+            let cleanUrl = url.toString().trim();
+            cleanUrl = cleanUrl.replace(/^https?:\/\/(www\.)?/, '');
+            cleanUrl = cleanUrl.replace(/\/$/, '');
+            cleanUrl = cleanUrl.replace(/\/+$/, '');
+            
+            if (!cleanUrl.startsWith('linkedin.com/in/')) {
+                if (cleanUrl.includes('linkedin.com/in/')) {
+                    cleanUrl = cleanUrl.substring(cleanUrl.indexOf('linkedin.com/in/'));
+                }
+            }
+            
+            return cleanUrl;
+        };
+        
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        
+        // Clean token values - NEW: Add null check for tokenData
+        const cleanTokenNumber = (value) => {
+            if (value === null || value === undefined || value === '') {
+                return null;
+            }
+            
+            let stringValue;
+            if (typeof value === 'number') {
+                stringValue = value.toString();
+            } else {
+                stringValue = String(value);
+            }
+            
+            const cleaned = stringValue.replace(/[^0-9-]/g, '');
+            
+            if (cleaned === '' || cleaned === '-') {
+                return null;
+            }
+            
+            const result = parseInt(cleaned, 10);
+            const isValid = !isNaN(result) && isFinite(result);
+            
+            return isValid ? result : null;
+        };
+        
+        const cleanedInput = cleanTokenNumber(tokenData.inputTokens);
+        const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
+        const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
+        
+        // Clean mini token values
+        const cleanedMiniInput = cleanTokenNumber(miniTokenData?.inputTokens);
+        const cleanedMiniOutput = cleanTokenNumber(miniTokenData?.outputTokens);
+        const cleanedMiniTotal = cleanTokenNumber(miniTokenData?.totalTokens);
+        const cleanedMiniProcessingTime = cleanTokenNumber(miniTokenData?.processingTimeMs);
+        
+        console.log('[CHECK] Final values going to database:', {
+            inputTokens: cleanedInput,
+            outputTokens: cleanedOutput,
+            totalTokens: cleanedTotal,
+            miniInputTokens: cleanedMiniInput,
+            miniOutputTokens: cleanedMiniOutput,
+            miniTotalTokens: cleanedMiniTotal,
+            miniProcessingTimeMs: cleanedMiniProcessingTime
+        });
+        
+        // DEBUGGING: Add error tracing before database insert
+        console.log('[TARGET] ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
+        console.log('   userId:', userId, typeof userId);
+        console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
+        console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
+        console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
+        console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
+
+        let result;
+        try {
+            console.log('[CHECK] About to execute PostgreSQL INSERT query...');
+            result = await pool.query(`
+                INSERT INTO target_profiles (
+                    user_id,
+                    linkedin_url, 
+                    data_json,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    mini_input_tokens,
+                    mini_output_tokens,
+                    mini_total_tokens,
+                    mini_processing_time_ms,
+                    created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+                RETURNING id, created_at
+            `, [
+                userId,
+                cleanUrl,
+                JSON.stringify(rawJsonData), // Same pattern as user profile: JSON.stringify(processedProfile.geminiRawData)
+                cleanedInput,
+                cleanedOutput,
+                cleanedTotal,
+                cleanedMiniInput,
+                cleanedMiniOutput,
+                cleanedMiniTotal,
+                cleanedMiniProcessingTime
+            ]);
+            
+            console.log('[TARGET] TARGET PROFILE INSERT SUCCESS!');
+            
+        } catch (dbError) {
+            console.log('[TARGET] TARGET PROFILE INSERT FAILED!');
+            console.log('[TARGET] DATABASE ERROR:', dbError.message);
+            console.log('[TARGET] ERROR DETAIL:', dbError.detail);
+            console.log('[TARGET] SQL STATE:', dbError.code);
+            console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
+            console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
+            console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
+            console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, jsonLength: JSON.stringify(rawJsonData).length });
+            console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
+            console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
+            console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
+            throw dbError;
+        }
+        
+        const savedProfile = result.rows[0];
+        
+        console.log(`[SAVE] Profile saved to database: ID ${savedProfile.id}`);
+        return {
+            success: true,
+            id: savedProfile.id,
+            createdAt: savedProfile.created_at,
+            data: {
+                linkedinUrl: cleanUrl,
+                analyzedBy: userId,
+                analyzedAt: savedProfile.created_at,
+                analysis: 'RAW_JSON_SAVED',
+                tokenUsage: tokenData
+            }
+        };
+    } catch (error) {
+        console.error('[ERROR] Error saving profile to database:', error);
+        throw error;
+    }
+};
+
 // ==================== DATABASE CONNECTION TESTING ====================
 
 const testDatabase = async () => {
@@ -1110,5 +1280,8 @@ module.exports = {
     sanitizeForJSON,
     ensureValidJSONArray,
     parseLinkedInNumber,
-    processGeminiData
+    processGeminiData,
+    
+    // NEW: Save target profile function with mini token data
+    saveProfileToDB
 };
