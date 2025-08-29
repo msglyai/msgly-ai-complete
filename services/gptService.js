@@ -214,7 +214,6 @@ Generate the LinkedIn inbox message now:`;
                         content: userPrompt
                     }
                 ],
-                temperature: 0.7,
                 max_completion_tokens: 500
             }, {
                 headers: {
