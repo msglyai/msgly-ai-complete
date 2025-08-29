@@ -1,4 +1,4 @@
-// server/services/gptService.js - GPT-5 Integration Service
+// server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
 const axios = require('axios');
 
 class GPTService {
@@ -12,13 +12,21 @@ class GPTService {
         }
     }
 
-    // Build the complete prompt for LinkedIn message generation
+    // Build the complete prompt for LinkedIn message generation with debugging
     buildPrompt(userProfile, targetProfile, context, messageType) {
-        console.log('[GPT] Building prompt for message generation...');
+        console.log('[GPT] === BUILDING PROMPT FOR GPT-5 ===');
         
         // Extract user profile data
         const userProfileText = this.formatUserProfile(userProfile);
         const targetProfileText = this.formatTargetProfile(targetProfile);
+        
+        console.log('[DEBUG] === PROMPT BUILDING DEBUG ===');
+        console.log('[DEBUG] User profile text length:', userProfileText.length);
+        console.log('[DEBUG] Target profile text length:', targetProfileText.length);
+        console.log('[DEBUG] Context length:', context?.length || 0);
+        console.log('[DEBUG] User profile preview (first 200 chars):', userProfileText.substring(0, 200) + '...');
+        console.log('[DEBUG] Target profile preview (first 200 chars):', targetProfileText.substring(0, 200) + '...');
+        console.log('[DEBUG] Context preview (first 100 chars):', context?.substring(0, 100) + '...');
         
         // Use the exact prompt template from the brief
         const systemPrompt = `Inbox Message (Final Enterprise)
@@ -63,16 +71,133 @@ ${context}
 
 Generate the LinkedIn inbox message now:`;
 
+        console.log('[DEBUG] Final system prompt length:', systemPrompt.length);
+        console.log('[DEBUG] Final user prompt length:', userPrompt.length);
+        console.log('[DEBUG] Total prompt length:', systemPrompt.length + userPrompt.length);
+
         return {
             systemPrompt,
             userPrompt
         };
     }
 
-    // Format user profile data for prompt
+    // FIXED: Format user profile data using gemini_raw_data for comprehensive information
     formatUserProfile(profile) {
-        if (!profile) return "User profile not available.";
+        console.log('[DEBUG] === USER PROFILE FORMATTING ===');
+        console.log('[DEBUG] Profile received:', !!profile);
+        console.log('[DEBUG] Profile keys:', Object.keys(profile || {}));
+        console.log('[DEBUG] Has gemini_raw_data:', !!profile?.gemini_raw_data);
+        console.log('[DEBUG] Gemini data type:', typeof profile?.gemini_raw_data);
         
+        if (!profile) {
+            console.log('[DEBUG] No user profile provided');
+            return "User profile not available.";
+        }
+        
+        // PRIORITY 1: Use rich gemini_raw_data if available
+        if (profile.gemini_raw_data) {
+            try {
+                let richData;
+                if (typeof profile.gemini_raw_data === 'string') {
+                    richData = JSON.parse(profile.gemini_raw_data);
+                } else {
+                    richData = profile.gemini_raw_data;
+                }
+                
+                console.log('[DEBUG] Successfully parsed gemini_raw_data');
+                console.log('[DEBUG] Rich data keys:', Object.keys(richData || {}));
+                
+                // Extract comprehensive profile info from gemini data structure
+                const profileData = richData.data?.profile || richData.profile || richData.data || richData;
+                console.log('[DEBUG] Profile data keys:', Object.keys(profileData || {}));
+                
+                const parts = [];
+                
+                // Basic info
+                if (profileData.name || profileData.fullName) {
+                    parts.push(`Name: ${profileData.name || profileData.fullName}`);
+                }
+                if (profileData.headline) {
+                    parts.push(`Headline: ${profileData.headline}`);
+                }
+                if (profileData.currentCompany) {
+                    parts.push(`Current Company: ${profileData.currentCompany}`);
+                }
+                if (profileData.currentRole || profileData.currentJobTitle) {
+                    parts.push(`Current Position: ${profileData.currentRole || profileData.currentJobTitle}`);
+                }
+                if (profileData.location) {
+                    parts.push(`Location: ${profileData.location}`);
+                }
+                if (profileData.about) {
+                    parts.push(`About: ${profileData.about.substring(0, 400)}${profileData.about.length > 400 ? '...' : ''}`);
+                }
+                
+                // Comprehensive experience data
+                const experience = richData.data?.experience || richData.experience || profileData.experience || [];
+                console.log('[DEBUG] Experience found:', Array.isArray(experience), experience.length);
+                if (experience && Array.isArray(experience) && experience.length > 0) {
+                    const recentExperience = experience.slice(0, 4).map(exp => {
+                        const title = exp.title || exp.position || exp.role || '';
+                        const company = exp.company || exp.companyName || '';
+                        const duration = exp.duration || exp.dates || exp.period || '';
+                        const description = exp.description ? ` - ${exp.description.substring(0, 150)}` : '';
+                        return `${title} at ${company}${duration ? ` (${duration})` : ''}${description}`;
+                    }).filter(exp => exp.trim() !== ' at').join('; ');
+                    if (recentExperience) parts.push(`Experience: ${recentExperience}`);
+                }
+                
+                // Education data
+                const education = richData.data?.education || richData.education || profileData.education || [];
+                console.log('[DEBUG] Education found:', Array.isArray(education), education.length);
+                if (education && Array.isArray(education) && education.length > 0) {
+                    const educationText = education.slice(0, 3).map(edu => {
+                        const degree = edu.degree || edu.degreeName || edu.qualification || '';
+                        const field = edu.field || edu.fieldOfStudy || edu.major || '';
+                        const school = edu.institution || edu.school || edu.schoolName || edu.university || '';
+                        return `${degree}${field ? ` in ${field}` : ''} from ${school}`;
+                    }).filter(edu => edu.trim() !== ' from').join('; ');
+                    if (educationText) parts.push(`Education: ${educationText}`);
+                }
+                
+                // Skills data
+                const skills = richData.data?.skills || richData.skills || profileData.skills || [];
+                console.log('[DEBUG] Skills found:', Array.isArray(skills), skills.length);
+                if (skills && Array.isArray(skills) && skills.length > 0) {
+                    const skillsText = skills.slice(0, 10).map(skill => 
+                        typeof skill === 'string' ? skill : (skill.name || skill.skill || skill.title || skill)
+                    ).filter(skill => skill && typeof skill === 'string').join(', ');
+                    if (skillsText) parts.push(`Skills: ${skillsText}`);
+                }
+                
+                // Awards
+                const awards = richData.data?.awards || richData.awards || profileData.awards || [];
+                console.log('[DEBUG] Awards found:', Array.isArray(awards), awards.length);
+                if (awards && Array.isArray(awards) && awards.length > 0) {
+                    const awardsText = awards.slice(0, 3).map(award => {
+                        const title = award.title || award.name || '';
+                        const issuer = award.issuer || award.organization || '';
+                        const date = award.date || '';
+                        return `${title}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
+                    }).filter(award => award.trim()).join('; ');
+                    if (awardsText) parts.push(`Awards: ${awardsText}`);
+                }
+                
+                const result = parts.length > 0 ? parts.join('\n') : "Rich user profile data available but could not format.";
+                console.log('[DEBUG] Formatted rich user profile length:', result.length);
+                console.log('[DEBUG] Rich user profile parts:', parts.length);
+                return result;
+                
+            } catch (error) {
+                console.error('[ERROR] Error parsing gemini_raw_data:', error);
+                console.log('[DEBUG] Falling back to basic fields due to parsing error');
+                // Fall back to basic fields
+            }
+        } else {
+            console.log('[DEBUG] No gemini_raw_data found, using basic fields');
+        }
+        
+        // FALLBACK: Use basic fields if gemini_raw_data not available or failed to parse
         const parts = [];
         
         if (profile.full_name) parts.push(`Name: ${profile.full_name}`);
@@ -80,12 +205,13 @@ Generate the LinkedIn inbox message now:`;
         if (profile.current_company) parts.push(`Current Company: ${profile.current_company}`);
         if (profile.current_job_title) parts.push(`Current Position: ${profile.current_job_title}`);
         if (profile.location) parts.push(`Location: ${profile.location}`);
+        if (profile.about) parts.push(`About: ${profile.about.substring(0, 200)}...`);
         
         // Add experience
         if (profile.experience && Array.isArray(profile.experience)) {
             const recentExperience = profile.experience.slice(0, 3).map(exp => 
                 `${exp.title || ''} at ${exp.company || ''}${exp.duration ? ` (${exp.duration})` : ''}`
-            ).join('; ');
+            ).filter(exp => exp.trim() !== ' at').join('; ');
             if (recentExperience) parts.push(`Experience: ${recentExperience}`);
         }
         
@@ -93,22 +219,34 @@ Generate the LinkedIn inbox message now:`;
         if (profile.education && Array.isArray(profile.education)) {
             const education = profile.education.slice(0, 2).map(edu => 
                 `${edu.degree || ''} ${edu.field ? `in ${edu.field}` : ''} from ${edu.institution || ''}`
-            ).join('; ');
+            ).filter(edu => edu.trim() !== ' from').join('; ');
             if (education) parts.push(`Education: ${education}`);
         }
         
         // Add skills
         if (profile.skills && Array.isArray(profile.skills)) {
-            const skills = profile.skills.slice(0, 5).join(', ');
+            const skills = profile.skills.slice(0, 8).join(', ');
             if (skills) parts.push(`Skills: ${skills}`);
         }
         
-        return parts.length > 0 ? parts.join('\n') : "Limited user profile information available.";
+        const result = parts.length > 0 ? parts.join('\n') : "Limited user profile information available.";
+        console.log('[DEBUG] Formatted basic user profile length:', result.length);
+        console.log('[DEBUG] Basic user profile parts:', parts.length);
+        return result;
     }
 
-    // Format target profile data for prompt
+    // FIXED: Format target profile data for prompt with proper nested structure handling
     formatTargetProfile(profileData) {
-        if (!profileData || !profileData.data_json) return "Target profile not available.";
+        console.log('[DEBUG] === TARGET PROFILE FORMATTING ===');
+        console.log('[DEBUG] Target profile data received:', !!profileData);
+        console.log('[DEBUG] Target profile keys:', Object.keys(profileData || {}));
+        console.log('[DEBUG] Has data_json:', !!profileData?.data_json);
+        console.log('[DEBUG] Data JSON type:', typeof profileData?.data_json);
+        
+        if (!profileData || !profileData.data_json) {
+            console.log('[DEBUG] No target profile data_json found');
+            return "Target profile not available.";
+        }
         
         try {
             let profile;
@@ -118,31 +256,92 @@ Generate the LinkedIn inbox message now:`;
                 profile = profileData.data_json;
             }
             
+            console.log('[DEBUG] Successfully parsed target profile data_json');
+            console.log('[DEBUG] Target profile structure keys:', Object.keys(profile || {}));
+            
+            // FIXED: Handle your specific nested data structure: data.profile, data.awards, data.skills
+            const dataSection = profile.data || profile;
+            const profileInfo = dataSection.profile || profile.profile || dataSection;
+            
+            console.log('[DEBUG] Data section keys:', Object.keys(dataSection || {}));
+            console.log('[DEBUG] Profile info keys:', Object.keys(profileInfo || {}));
+            
             const parts = [];
             
-            if (profile.fullName) parts.push(`Name: ${profile.fullName}`);
-            if (profile.headline) parts.push(`Headline: ${profile.headline}`);
-            if (profile.currentCompany) parts.push(`Current Company: ${profile.currentCompany}`);
-            if (profile.currentJobTitle) parts.push(`Current Position: ${profile.currentJobTitle}`);
-            if (profile.location) parts.push(`Location: ${profile.location}`);
+            // Basic profile information
+            if (profileInfo.name || profileInfo.fullName) {
+                parts.push(`Name: ${profileInfo.name || profileInfo.fullName}`);
+            }
+            if (profileInfo.headline) {
+                parts.push(`Headline: ${profileInfo.headline}`);
+            }
+            if (profileInfo.currentCompany) {
+                parts.push(`Current Company: ${profileInfo.currentCompany}`);
+            }
+            if (profileInfo.currentJobTitle || profileInfo.currentRole) {
+                parts.push(`Current Position: ${profileInfo.currentJobTitle || profileInfo.currentRole}`);
+            }
+            if (profileInfo.location) {
+                parts.push(`Location: ${profileInfo.location}`);
+            }
+            if (profileInfo.about) {
+                parts.push(`About: ${profileInfo.about.substring(0, 400)}${profileInfo.about.length > 400 ? '...' : ''}`);
+            }
             
-            // Add experience
-            if (profile.experience && Array.isArray(profile.experience)) {
-                const recentExperience = profile.experience.slice(0, 3).map(exp => 
-                    `${exp.title || ''} at ${exp.company || ''}${exp.duration ? ` (${exp.duration})` : ''}`
-                ).join('; ');
+            // FIXED: Extract skills from your data structure
+            const skills = dataSection.skills || profileInfo.skills || [];
+            console.log('[DEBUG] Target skills found:', Array.isArray(skills), skills.length);
+            if (skills && Array.isArray(skills) && skills.length > 0) {
+                const skillsText = skills.slice(0, 10).map(skill => 
+                    typeof skill === 'string' ? skill : (skill.name || skill.skill || skill)
+                ).filter(skill => skill).join(', ');
+                if (skillsText) parts.push(`Skills: ${skillsText}`);
+            }
+            
+            // FIXED: Extract awards from your data structure
+            const awards = dataSection.awards || profileInfo.awards || [];
+            console.log('[DEBUG] Target awards found:', Array.isArray(awards), awards.length);
+            if (awards && Array.isArray(awards) && awards.length > 0) {
+                const awardsText = awards.slice(0, 3).map(award => {
+                    const title = award.title || award.name || '';
+                    const issuer = award.issuer || award.organization || '';
+                    const date = award.date || '';
+                    return `${title}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
+                }).filter(award => award.trim()).join('; ');
+                if (awardsText) parts.push(`Awards: ${awardsText}`);
+            }
+            
+            // Experience from data structure
+            const experience = dataSection.experience || profileInfo.experience || [];
+            console.log('[DEBUG] Target experience found:', Array.isArray(experience), experience.length);
+            if (experience && Array.isArray(experience) && experience.length > 0) {
+                const recentExperience = experience.slice(0, 4).map(exp => {
+                    const title = exp.title || exp.position || '';
+                    const company = exp.company || exp.companyName || '';
+                    const duration = exp.duration || exp.dates || '';
+                    const description = exp.description ? ` - ${exp.description.substring(0, 150)}` : '';
+                    return `${title} at ${company}${duration ? ` (${duration})` : ''}${description}`;
+                }).filter(exp => exp.trim() !== ' at').join('; ');
                 if (recentExperience) parts.push(`Experience: ${recentExperience}`);
             }
             
-            // Add education
-            if (profile.education && Array.isArray(profile.education)) {
-                const education = profile.education.slice(0, 2).map(edu => 
-                    `${edu.degree || ''} ${edu.field ? `in ${edu.field}` : ''} from ${edu.institution || ''}`
-                ).join('; ');
-                if (education) parts.push(`Education: ${education}`);
+            // Education from data structure
+            const education = dataSection.education || profileInfo.education || [];
+            console.log('[DEBUG] Target education found:', Array.isArray(education), education.length);
+            if (education && Array.isArray(education) && education.length > 0) {
+                const educationText = education.slice(0, 3).map(edu => {
+                    const degree = edu.degree || edu.degreeName || '';
+                    const field = edu.field || edu.fieldOfStudy || '';
+                    const school = edu.institution || edu.school || edu.schoolName || '';
+                    return `${degree}${field ? ` in ${field}` : ''} from ${school}`;
+                }).filter(edu => edu.trim() !== ' from').join('; ');
+                if (educationText) parts.push(`Education: ${educationText}`);
             }
             
-            return parts.length > 0 ? parts.join('\n') : "Limited target profile information available.";
+            const result = parts.length > 0 ? parts.join('\n') : "Limited target profile information available.";
+            console.log('[DEBUG] Formatted target profile length:', result.length);
+            console.log('[DEBUG] Target profile parts:', parts.length);
+            return result;
             
         } catch (error) {
             console.error('[ERROR] Error parsing target profile data:', error);
@@ -150,7 +349,7 @@ Generate the LinkedIn inbox message now:`;
         }
     }
 
-    // Extract target profile metadata for database storage
+    // ENHANCED: Extract target profile metadata for database storage
     extractTargetMetadata(profileData) {
         if (!profileData || !profileData.data_json) {
             return {
@@ -168,10 +367,14 @@ Generate the LinkedIn inbox message now:`;
                 profile = profileData.data_json;
             }
             
+            // Handle nested structure like formatTargetProfile
+            const dataSection = profile.data || profile;
+            const profileInfo = dataSection.profile || profile.profile || dataSection;
+            
             return {
-                target_first_name: profile.firstName || profile.fullName?.split(' ')[0] || null,
-                target_title: profile.currentJobTitle || profile.headline || null,
-                target_company: profile.currentCompany || null
+                target_first_name: profileInfo.firstName || profileInfo.fullName?.split(' ')[0] || profileInfo.name?.split(' ')[0] || null,
+                target_title: profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.headline || null,
+                target_company: profileInfo.currentCompany || null
             };
             
         } catch (error) {
@@ -184,23 +387,46 @@ Generate the LinkedIn inbox message now:`;
         }
     }
 
-    // Main function to generate LinkedIn message
+    // Main function to generate LinkedIn message with comprehensive debugging
     async generateLinkedInMessage(userProfile, targetProfile, context, messageType = 'inbox_message') {
         const startTime = Date.now();
         
         try {
-            console.log('[GPT] Starting GPT-5 message generation...');
+            console.log('[GPT] === STARTING GPT-5 MESSAGE GENERATION ===');
             console.log(`[GPT] Model: ${this.model}`);
             console.log(`[GPT] Message type: ${messageType}`);
+            
+            // COMPREHENSIVE DEBUGGING - Check all 3 data points
+            console.log('[DEBUG] === DATA POINT VALIDATION ===');
+            console.log('[DEBUG] 1. USER PROFILE:');
+            console.log('[DEBUG]    - Profile exists:', !!userProfile);
+            console.log('[DEBUG]    - Profile keys:', Object.keys(userProfile || {}));
+            console.log('[DEBUG]    - Has rich data (gemini_raw_data):', !!userProfile?.gemini_raw_data);
+            console.log('[DEBUG]    - Rich data size:', userProfile?.gemini_raw_data ? (typeof userProfile.gemini_raw_data === 'string' ? userProfile.gemini_raw_data.length : JSON.stringify(userProfile.gemini_raw_data).length) : 0);
+            
+            console.log('[DEBUG] 2. TARGET PROFILE:');
+            console.log('[DEBUG]    - Profile exists:', !!targetProfile);
+            console.log('[DEBUG]    - Profile keys:', Object.keys(targetProfile || {}));
+            console.log('[DEBUG]    - Has rich data (data_json):', !!targetProfile?.data_json);
+            console.log('[DEBUG]    - Rich data size:', targetProfile?.data_json ? (typeof targetProfile.data_json === 'string' ? targetProfile.data_json.length : JSON.stringify(targetProfile.data_json).length) : 0);
+            
+            console.log('[DEBUG] 3. CONTEXT:');
+            console.log('[DEBUG]    - Context exists:', !!context);
+            console.log('[DEBUG]    - Context length:', context?.length || 0);
+            console.log('[DEBUG]    - Context type:', typeof context);
             
             if (!this.apiKey) {
                 throw new Error('OpenAI API key not configured');
             }
 
-            // Build the prompt
+            // Build the prompt with debugging
             const { systemPrompt, userPrompt } = this.buildPrompt(userProfile, targetProfile, context, messageType);
             
-            console.log('[GPT] Calling OpenAI API...');
+            console.log('[GPT] === CALLING OPENAI API ===');
+            console.log('[GPT] Final request details:');
+            console.log('[GPT] - System prompt length:', systemPrompt.length);
+            console.log('[GPT] - User prompt length:', userPrompt.length);
+            console.log('[GPT] - Total input length:', systemPrompt.length + userPrompt.length);
             
             const response = await axios.post(`${this.baseURL}/chat/completions`, {
                 model: this.model,
@@ -214,7 +440,8 @@ Generate the LinkedIn inbox message now:`;
                         content: userPrompt
                     }
                 ],
-                max_completion_tokens: 500
+                temperature: 0.7,
+                max_tokens: 500
             }, {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
@@ -226,15 +453,25 @@ Generate the LinkedIn inbox message now:`;
             const endTime = Date.now();
             const latencyMs = endTime - startTime;
 
-            console.log('[SUCCESS] GPT-5 API call successful');
+            console.log('[SUCCESS] === GPT-5 API CALL SUCCESSFUL ===');
             console.log(`[GPT] Latency: ${latencyMs}ms`);
             console.log(`[GPT] Token usage: ${response.data.usage.prompt_tokens} input, ${response.data.usage.completion_tokens} output, ${response.data.usage.total_tokens} total`);
 
             const generatedMessage = response.data.choices[0].message.content.trim();
-            console.log(`[GPT] Generated message preview: ${generatedMessage.substring(0, 120)}...`);
+            console.log(`[GPT] Generated message: "${generatedMessage}"`);
+            console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
+            console.log(`[GPT] Message within 150 chars: ${generatedMessage.length <= 150 ? '✅' : '❌'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
+
+            // FINAL SUCCESS DEBUG
+            console.log('[DEBUG] === GENERATION SUCCESS SUMMARY ===');
+            console.log('[DEBUG] ✅ User profile processed successfully');
+            console.log('[DEBUG] ✅ Target profile processed successfully'); 
+            console.log('[DEBUG] ✅ Context processed successfully');
+            console.log('[DEBUG] ✅ Message generated successfully');
+            console.log('[DEBUG] Total tokens used:', response.data.usage.total_tokens);
 
             return {
                 success: true,
@@ -264,13 +501,12 @@ Generate the LinkedIn inbox message now:`;
             const endTime = Date.now();
             const latencyMs = endTime - startTime;
 
-            console.error('[ERROR] GPT-5 message generation failed:', error.message);
+            console.error('[ERROR] === GPT-5 MESSAGE GENERATION FAILED ===');
+            console.error('[ERROR] Error message:', error.message);
             
             if (error.response) {
-                console.error('[ERROR] API Response:', {
-                    status: error.response.status,
-                    data: error.response.data
-                });
+                console.error('[ERROR] API Response status:', error.response.status);
+                console.error('[ERROR] API Response data:', JSON.stringify(error.response.data, null, 2));
             }
 
             return {
