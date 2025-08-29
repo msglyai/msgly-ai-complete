@@ -27,9 +27,9 @@ class GPTService {
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE – sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE – recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT – the business or conversational goal.
+1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT — the business or conversational goal.
 
 Task:
 - Generate ONE personalized LinkedIn inbox message.
@@ -37,7 +37,7 @@ Task:
 Message rules:
 • Absolute maximum: 150 characters (count before finalizing).  
 • Written as a direct inbox message (to an existing connection).  
-• Friendly, professional, approachable – avoid email or sales tone.  
+• Friendly, professional, approachable — avoid email or sales tone.  
 • Use ONLY details from inputs (never invent information).  
 • Highlight common ground or value naturally; do not restate CONTEXT literally.  
 • Avoid generic phrases unless no other detail exists.  
@@ -215,7 +215,7 @@ Generate the LinkedIn inbox message now:`;
                     }
                 ],
                 temperature: 0.7,
-                max_tokens: 500
+                max_completion_tokens: 500
             }, {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
