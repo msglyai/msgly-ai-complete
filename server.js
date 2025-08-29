@@ -1,8 +1,9 @@
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
 // ✅ URL MATCHING FIX: Fixed profile deduplication to handle both URL formats
+// ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging
 
 const express = require('express');
 const cors = require('cors');
@@ -18,6 +19,10 @@ const axios = require('axios');
 
 // FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
+
+// NEW: Import GPT-5 service
+const gptService = require('./services/gptService');
+
 require('dotenv').config();
 
 // ENHANCED: Import USER PROFILE database functions + dual credit system
@@ -379,9 +384,9 @@ async function handleTargetProfileJSON(req, res) {
         holdId = holdResult.holdId;
         console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
         
-        console.log('[AI] Processing HTML with GPT-5 nano for NEW TARGET profile...');
+        console.log('[AI] Processing HTML with Gemini for NEW TARGET profile...');
         
-        // Process HTML with GPT-5 nano
+        // Process HTML with Gemini
         const geminiResult = await sendToGemini({
             html: html,
             url: cleanProfileUrl,
@@ -389,19 +394,19 @@ async function handleTargetProfileJSON(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('[ERROR] GPT-5 nano processing failed for TARGET profile:', geminiResult.userMessage);
+            console.error('[ERROR] Gemini processing failed for TARGET profile:', geminiResult.userMessage);
             
             // Release hold on failure
             await releaseCreditHold(userId, holdId, 'gemini_processing_failed');
             
             return res.status(500).json({
                 success: false,
-                error: 'Failed to process target profile data with GPT-5 nano',
+                error: 'Failed to process target profile data with Gemini',
                 details: geminiResult.userMessage || 'Unknown error'
             });
         }
         
-        console.log('[SUCCESS] GPT-5 nano processing successful for TARGET profile');
+        console.log('[SUCCESS] Gemini processing successful for TARGET profile');
         
         // STEP 3: Save analysis result to database
         console.log('[SAVE] Saving analysis to database...');
@@ -526,9 +531,9 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        console.log('[AI] Processing HTML with GPT-5 nano for USER profile...');
+        console.log('[AI] Processing HTML with Gemini for USER profile...');
         
-        // Process HTML with GPT-5 nano
+        // Process HTML with Gemini
         const geminiResult = await sendToGemini({
             html: html,
             url: cleanProfileUrl,
@@ -536,17 +541,17 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('[ERROR] GPT-5 nano processing failed for USER profile:', geminiResult.error);
+            console.error('[ERROR] Gemini processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
-                error: 'Failed to process profile data with GPT-5 nano',
+                error: 'Failed to process profile data with Gemini',
                 details: geminiResult.error || 'Unknown error'
             });
         }
         
-        console.log('[SUCCESS] GPT-5 nano processing successful for USER profile');
+        console.log('[SUCCESS] Gemini processing successful for USER profile');
         
-        // Process GPT-5 nano data for USER profile
+        // Process Gemini data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
         
         // Save to user_profiles table only
@@ -654,13 +659,16 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// ENHANCED: Message Generation with dual credit system
+// NEW: Enhanced Message Generation with GPT-5 and comprehensive logging
 async function handleGenerateMessage(req, res) {
     let holdId = null;
     
     try {
-        console.log('[MESSAGE] === MESSAGE GENERATION WITH DUAL CREDITS ===');
+        console.log('[MESSAGE] === GPT-5 MESSAGE GENERATION WITH DUAL CREDITS ===');
         console.log(`[USER] User ID: ${req.user.id}`);
+        console.log('[CHECK] Request payload keys:', Object.keys(req.body));
+        console.log('[CHECK] targetProfileUrl present:', !!req.body.targetProfileUrl);
+        console.log('[CHECK] outreachContext present:', !!req.body.outreachContext);
         
         const { targetProfileUrl, outreachContext } = req.body;
         const userId = req.user.id;
@@ -671,6 +679,9 @@ async function handleGenerateMessage(req, res) {
                 error: 'Target profile URL and outreach context are required'
             });
         }
+
+        console.log('[CHECK] targetProfileUrl:', targetProfileUrl.substring(0, 50) + '...');
+        console.log('[CHECK] outreachContext length:', outreachContext.length);
 
         // Create credit hold
         console.log('[CREDIT] Creating credit hold for message generation...');
@@ -701,20 +712,143 @@ async function handleGenerateMessage(req, res) {
         holdId = holdResult.holdId;
         console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
-        // TODO: Implement actual message generation with AI
-        // For now, return a placeholder
-        const generatedMessage = `Hi [Name],
+        // STEP 1: Load user profile from database
+        console.log('[DATABASE] Loading user profile JSON...');
+        const userProfileResult = await pool.query(`
+            SELECT 
+                full_name,
+                headline,
+                current_job_title,
+                current_company,
+                location,
+                experience,
+                education,
+                skills,
+                about
+            FROM user_profiles
+            WHERE user_id = $1
+        `, [userId]);
 
-I noticed your experience in ${outreachContext} and would love to connect. I believe there could be some interesting opportunities for collaboration.
+        if (userProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'user_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
 
-Best regards,
-[Your Name]`;
+        const userProfile = userProfileResult.rows[0];
+        console.log('[CHECK] user_profile_json present:', !!userProfile);
+        console.log('[CHECK] user profile has name:', !!userProfile.full_name);
 
-        // Complete the credit hold (this handles the deduction)
+        // STEP 2: Load target profile from database  
+        console.log('[DATABASE] Loading target profile JSON...');
+        const cleanTargetUrl = cleanLinkedInUrl(targetProfileUrl);
+        const targetProfileResult = await pool.query(`
+            SELECT 
+                id,
+                data_json,
+                linkedin_url
+            FROM target_profiles
+            WHERE linkedin_url = $1 OR linkedin_url = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        `, [cleanTargetUrl, targetProfileUrl]);
+
+        if (targetProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'target_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the target profile first.'
+            });
+        }
+
+        const targetProfile = targetProfileResult.rows[0];
+        console.log('[CHECK] target_profile_json present:', !!targetProfile.data_json);
+        console.log('[CHECK] target profile ID:', targetProfile.id);
+
+        // STEP 3: Call GPT-5 service for message generation
+        console.log('[GPT] Calling GPT-5 service for message generation...');
+        const gptStartTime = Date.now();
+        
+        const gptResult = await gptService.generateLinkedInMessage(
+            userProfile,
+            targetProfile,
+            outreachContext,
+            'inbox_message'
+        );
+
+        const gptEndTime = Date.now();
+        const gptLatency = gptEndTime - gptStartTime;
+
+        console.log(`[GPT] GPT-5 call completed in ${gptLatency}ms`);
+        console.log('[CHECK] GPT-5 success:', gptResult.success);
+
+        if (!gptResult.success) {
+            console.error('[ERROR] GPT-5 message generation failed:', gptResult.error);
+            await releaseCreditHold(userId, holdId, 'gpt_generation_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Message generation failed',
+                details: gptResult.userMessage || 'AI service temporarily unavailable'
+            });
+        }
+
+        const generatedMessage = gptResult.message;
+        console.log('[SUCCESS] Message generated successfully');
+        console.log('[GPT] Generated message preview:', generatedMessage.substring(0, 120) + '...');
+        console.log('[GPT] Token usage:', gptResult.tokenUsage);
+
+        // STEP 4: Store comprehensive data in message_logs table
+        console.log('[DATABASE] Storing message generation data...');
+        
+        const messageLogResult = await pool.query(`
+            INSERT INTO message_logs (
+                user_id,
+                target_profile_url,
+                generated_message,
+                context_text,
+                target_first_name,
+                target_title,
+                target_company,
+                model_name,
+                prompt_version,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                latency_ms,
+                data_json,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+            RETURNING id
+        `, [
+            userId,
+            targetProfileUrl,
+            generatedMessage,
+            outreachContext,
+            gptResult.metadata.target_first_name,
+            gptResult.metadata.target_title,
+            gptResult.metadata.target_company,
+            gptResult.metadata.model_name,
+            gptResult.metadata.prompt_version,
+            gptResult.tokenUsage.input_tokens,
+            gptResult.tokenUsage.output_tokens,
+            gptResult.tokenUsage.total_tokens,
+            gptResult.metadata.latency_ms,
+            JSON.stringify(gptResult.rawResponse)
+        ]);
+
+        const messageLogId = messageLogResult.rows[0].id;
+        console.log('[SUCCESS] Message log inserted with ID:', messageLogId);
+
+        // STEP 5: Complete the credit hold (this handles the deduction)
         const completionResult = await completeOperation(userId, holdId, {
             messageGenerated: true,
             messageLength: generatedMessage.length,
-            targetUrl: targetProfileUrl
+            targetUrl: targetProfileUrl,
+            messageLogId: messageLogId,
+            tokenUsage: gptResult.tokenUsage
         });
 
         if (!completionResult.success) {
@@ -729,11 +863,14 @@ Best regards,
 
         res.json({
             success: true,
-            message: 'LinkedIn message generated successfully',
+            message: 'LinkedIn message generated successfully with GPT-5',
             data: {
                 generatedMessage: generatedMessage,
                 outreachContext: outreachContext,
-                targetProfileUrl: targetProfileUrl
+                targetProfileUrl: targetProfileUrl,
+                messageLogId: messageLogId,
+                tokenUsage: gptResult.tokenUsage,
+                processingTime: gptLatency
             },
             credits: {
                 deducted: completionResult.creditsDeducted,
@@ -1032,7 +1169,7 @@ app.use('/', userRoutes);
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔐 Chrome Extension OAuth request received');
+    console.log('🔍 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -1248,7 +1385,7 @@ app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
     return handleTargetProfileJSON(req, res);
 });
 
-// ENHANCED: Message Generation Endpoints with dual credits
+// ENHANCED: Message Generation Endpoints with GPT-5 integration
 app.post('/generate-message', authenticateToken, handleGenerateMessage);
 app.post('/generate-connection', authenticateToken, handleGenerateConnection);
 
@@ -1442,7 +1579,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1486,7 +1623,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5'
                 }
             }
         });
@@ -1564,7 +1701,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5'
             };
         }
 
@@ -1662,7 +1799,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5'
             }
         });
     } catch (error) {
@@ -1714,7 +1851,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -1802,7 +1939,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -1821,7 +1958,7 @@ app.use((req, res, next) => {
             'GET /traffic-light-status',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
             'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
-            'POST /generate-message (NEW: 1 credit with dual system)',
+            'POST /generate-message (NEW: GPT-5 integration with 1 credit dual system)',
             'POST /generate-connection (NEW: 1 credit with dual system)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
@@ -1848,25 +1985,29 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
             console.log(`[SUCCESS] ✅ RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
             console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX:`);
+            console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
             console.log(`   [RACE] BULLETPROOF PROTECTION: No duplicate AI processing or credit charges`);
             console.log(`   [URL] URL MATCHING FIX: Handles both clean and protocol URLs in database`);
+            console.log(`   [GPT] GPT-5 MESSAGE GENERATION: Real AI-powered LinkedIn messages`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
+            console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
+            console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
             console.log(`   [LIGHT] Traffic Light system tracks User profile completion only`);
             console.log(`[CREDIT] DUAL CREDIT SYSTEM:`);
             console.log(`   [CYCLE] RENEWABLE CREDITS: Reset monthly to plan amount`);
@@ -1875,28 +2016,24 @@ const startServer = async () => {
             console.log(`   [CALENDAR] BILLING CYCLE: Only renewable credits reset`);
             console.log(`   [TARGET] Target Analysis: 0.25 credits (only for NEW profiles)`);
             console.log(`   [BOOM] Already Analyzed: FREE with marketing message`);
-            console.log(`   [MESSAGE] Message Generation: 1.0 credits`);
+            console.log(`   [MESSAGE] Message Generation: 1.0 credits (GPT-5 powered)`);
             console.log(`   [CONNECT] Connection Generation: 1.0 credits`);
             console.log(`   [LOCK] Credit holds prevent double-spending`);
             console.log(`   [MONEY] Deduction AFTER successful operations`);
             console.log(`   [DATA] Complete transaction audit trail`);
             console.log(`   [LIGHTNING] Real-time credit balance updates`);
             console.log(`   [CLEAN] Automatic cleanup of expired holds`);
-            console.log(`[SUCCESS] ✅ RACE CONDITION PROTECTION:`);
-            console.log(`   [MEMORY] In-memory tracking prevents concurrent processing`);
-            console.log(`   [GATE] Profile claim happens before expensive AI calls`);
-            console.log(`   [MARKETING] Duplicate requests get instant marketing message`);
-            console.log(`   [ZERO] Zero wasted AI processing or credit holds`);
-            console.log(`   [CLEANUP] Automatic cleanup of stale processing entries`);
-            console.log(`   [BULLETPROOF] Database constraint as backup protection`);
-            console.log(`[SUCCESS] ✅ URL MATCHING FIX:`);
-            console.log(`   [SEARCH] Database search handles both URL formats`);
-            console.log(`   [CLEAN] Searches for cleaned URL: linkedin.com/in/user`);
-            console.log(`   [ORIGINAL] Also searches original URL: https://linkedin.com/in/user`);
-            console.log(`   [MATCH] Finds existing profiles regardless of storage format`);
-            console.log(`   [STOP] Prevents duplicate profile creation immediately`);
-            console.log(`   [FIX] Solves the core deduplication failure`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH ALL FIXES!`);
+            console.log(`[SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
+            console.log(`   [API] OpenAI GPT-5 integration with proper error handling`);
+            console.log(`   [PROMPT] LinkedIn-specific prompt engineering for 150-char messages`);
+            console.log(`   [DATABASE] User + target profile loading from database`);
+            console.log(`   [LOG] Comprehensive logging: request ID, user ID, target ID, token usage`);
+            console.log(`   [STORE] Full message generation data stored in message_logs table`);
+            console.log(`   [TOKEN] Token usage tracking: input, output, total tokens + latency`);
+            console.log(`   [META] Target metadata extraction: first name, title, company`);
+            console.log(`   [ERROR] Robust error handling with user-friendly messages`);
+            console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION AND ALL FIXES!`);
         });
         
     } catch (error) {
