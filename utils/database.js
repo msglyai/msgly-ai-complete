@@ -1,10 +1,9 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
 // ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
 // ✅ URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
-// ✅ GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -100,7 +99,7 @@ const ensureTargetProfilesTable = async () => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging...');
+        console.log('Creating enhanced database tables with dual credit system...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -307,33 +306,16 @@ const initDB = async () => {
             );
         `);
 
-        // ENHANCED MESSAGE_LOGS TABLE - ✅ GPT-5 INTEGRATION: Added comprehensive logging columns
+        // Supporting tables - FIXED: Changed target_url VARCHAR(500) to TEXT
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
-                
-                -- Basic message data
                 target_name VARCHAR(255),
                 target_url TEXT,
-                target_profile_url TEXT,
                 generated_message TEXT,
                 message_context TEXT,
                 credits_used INTEGER DEFAULT 1,
-                
-                -- ✅ NEW: GPT-5 Integration columns
-                context_text TEXT,
-                target_first_name VARCHAR(255),
-                target_title VARCHAR(500),
-                target_company VARCHAR(500),
-                model_name VARCHAR(100),
-                prompt_version VARCHAR(50),
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                total_tokens INTEGER,
-                latency_ms INTEGER,
-                data_json JSONB,
-                
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -441,32 +423,6 @@ const initDB = async () => {
                     console.log(`Column might already exist: ${err.message}`);
                 }
             }
-
-            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table
-            const gpt5MessageColumns = [
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_profile_url TEXT',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS context_text TEXT',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_first_name VARCHAR(255)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_title VARCHAR(500)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_company VARCHAR(500)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS model_name VARCHAR(100)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS prompt_version VARCHAR(50)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS input_tokens INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS total_tokens INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS latency_ms INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS data_json JSONB'
-            ];
-
-            console.log('-- ✅ NEW: GPT-5 Message Logging columns');
-            
-            for (const columnQuery of gpt5MessageColumns) {
-                try {
-                    await pool.query(columnQuery);
-                } catch (err) {
-                    console.log(`GPT-5 column might already exist: ${err.message}`);
-                }
-            }
             
             console.log('Enhanced database columns updated successfully');
         } catch (err) {
@@ -500,12 +456,6 @@ const initDB = async () => {
                 -- Target profiles indexes
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
-                
-                -- ✅ NEW: Message logs indexes for GPT-5 integration
-                CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
-                CREATE INDEX IF NOT EXISTS idx_message_logs_model_name ON message_logs(model_name);
-                CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at);
-                CREATE INDEX IF NOT EXISTS idx_message_logs_target_profile_url ON message_logs(target_profile_url);
             `);
             console.log('Database indexes created successfully');
         } catch (err) {
@@ -523,7 +473,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('Enhanced database with dual credit system, URL deduplication fix, and GPT-5 message logging created successfully!');
+        console.log('Enhanced database with dual credit system and URL deduplication fix created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -944,4 +894,221 @@ const processGeminiData = (geminiResponse, cleanProfileUrl) => {
             totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
             averageLikes: parseFloat(engagement.averageLikes) || 0,
             
-            // Complex
+            // Complex data arrays
+            experience: ensureValidJSONArray(aiData.experience || []),
+            education: ensureValidJSONArray(aiData.education || []),
+            skills: ensureValidJSONArray(aiData.skills || []),
+            certifications: ensureValidJSONArray(aiData.certifications || []),
+            awards: ensureValidJSONArray(aiData.awards || []),
+            activity: ensureValidJSONArray(aiData.activity || []),
+            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
+            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
+            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
+            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
+            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
+            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
+            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
+            groups: ensureValidJSONArray(aiData.groups || []),
+            featured: ensureValidJSONArray(aiData.featured || []),
+            services: ensureValidJSONArray(aiData.services || []),
+            engagementData: sanitizeForJSON(engagement),
+            creatorInfo: sanitizeForJSON(aiData.creator || {}),
+            businessInfo: sanitizeForJSON(aiData.business || {}),
+            
+            // Raw Gemini data storage
+            geminiRawData: sanitizeForJSON(geminiResponse),
+            geminiProcessedAt: new Date(),
+            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
+            
+            // Metadata
+            timestamp: new Date(),
+            dataSource: 'html_scraping_gemini',
+            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
+        };
+        
+        return processedData;
+        
+    } catch (error) {
+        console.error('Error processing Gemini data for USER profile:', error);
+        throw new Error(`Gemini data processing failed: ${error.message}`);
+    }
+};
+
+// ==================== USER MANAGEMENT FUNCTIONS ====================
+
+const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
+    // Get credits from plans table
+    const planResult = await pool.query(
+        'SELECT renewable_credits FROM plans WHERE plan_code = $1',
+        [packageType]
+    );
+    
+    const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
+    
+    const result = await pool.query(`
+        INSERT INTO users (
+            email, password_hash, package_type, billing_model, plan_code,
+            renewable_credits, payasyougo_credits, credits_remaining,
+            subscription_starts_at, next_billing_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+    `, [
+        email, passwordHash, packageType, billingModel, packageType,
+        renewableCredits, 0, renewableCredits,
+        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
+    ]);
+    
+    return result.rows[0];
+};
+
+// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser with LinkedIn URL support
+const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly', linkedinUrl = null) => {
+    // Get credits from plans table
+    const planResult = await pool.query(
+        'SELECT renewable_credits FROM plans WHERE plan_code = $1',
+        [packageType]
+    );
+    
+    const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
+    
+    // ✅ AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
+    const registrationCompleted = !!linkedinUrl;
+    
+    const result = await pool.query(`
+        INSERT INTO users (
+            email, google_id, display_name, profile_picture, 
+            package_type, billing_model, plan_code,
+            renewable_credits, payasyougo_credits, credits_remaining,
+            subscription_starts_at, next_billing_date,
+            linkedin_url, registration_completed
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *
+    `, [
+        email, googleId, displayName, profilePicture, 
+        packageType, billingModel, packageType,
+        renewableCredits, 0, renewableCredits,
+        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
+        linkedinUrl, registrationCompleted // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
+    ]);
+    
+    const user = result.rows[0];
+    
+    return user;
+};
+
+const linkGoogleAccount = async (userId, googleId) => {
+    const result = await pool.query(
+        'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+        [googleId, userId]
+    );
+    return result.rows[0];
+};
+
+const getUserByEmail = async (email) => {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0];
+};
+
+const getUserById = async (userId) => {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    return result.rows[0];
+};
+
+// USER PROFILE: Create user profile (UNCHANGED - still working)
+const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
+    try {
+        await pool.query(
+            'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
+            [linkedinUrl, 'not_started', userId]
+        );
+        
+        const existingProfile = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [userId]
+        );
+        
+        let profile;
+        if (existingProfile.rows.length > 0) {
+            const result = await pool.query(
+                'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
+                [linkedinUrl, displayName, 'pending', userId]
+            );
+            profile = result.rows[0];
+        } else {
+            const result = await pool.query(
+                'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_done) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+                [userId, linkedinUrl, displayName, 'pending', 0, false]
+            );
+            profile = result.rows[0];
+        }
+        
+        return profile;
+        
+    } catch (error) {
+        console.error('Error in USER PROFILE creation:', error);
+        throw error;
+    }
+};
+
+// Helper functions
+const getUserProfile = async (userId) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM user_profiles WHERE user_id = $1',
+            [userId]
+        );
+        return result.rows[0] || null;
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        throw error;
+    }
+};
+
+// ==================== DATABASE CONNECTION TESTING ====================
+
+const testDatabase = async () => {
+    try {
+        const result = await pool.query('SELECT NOW()');
+        console.log('Enhanced database connected:', result.rows[0].now);
+        await initDB();
+        return true;
+    } catch (error) {
+        console.error('Database connection failed:', error.message);
+        return false;
+    }
+};
+
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX
+module.exports = {
+    // Database connection
+    pool,
+    
+    // Database setup
+    initDB,
+    testDatabase,
+    
+    // NEW: Cleanup functions
+    cleanupDuplicateTargetProfiles,
+    ensureTargetProfilesTable,
+    
+    // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
+    createUser,
+    createGoogleUser, // ✅ AUTO-REGISTRATION: Now supports linkedinUrl parameter
+    linkGoogleAccount,
+    getUserByEmail,
+    getUserById,
+    createOrUpdateUserProfile,
+    
+    // USER PROFILE functions only
+    getUserProfile,
+    
+    // NEW: Dual Credit Management
+    getUserPlan,
+    updateUserCredits,
+    spendUserCredits,
+    resetRenewableCredits,
+    
+    // Data processing helpers (used by USER profiles only)
+    sanitizeForJSON,
+    ensureValidJSONArray,
+    parseLinkedInNumber,
+    processGeminiData
+};
