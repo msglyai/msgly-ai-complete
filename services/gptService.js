@@ -527,8 +527,7 @@ Generate the LinkedIn inbox message now:`;
                         role: "user", 
                         content: userPrompt
                     }
-                ],
-                temperature: 0.7
+                ]
             }, {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
