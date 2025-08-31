@@ -1,3 +1,23 @@
+/*
+CHANGELOG - services/gptService.js:
+1. ENHANCED formatUserProfile function:
+   - Priority source: gemini_raw_data with safe parsing (try/catch)
+   - Rich summary building from comprehensive data (experience, roles, industries, achievements, etc.)
+   - Graceful fallback to basic fields when gemini_raw_data missing
+   - Added debug logging for gemini_raw_data presence and parsing
+   - Prudent trimming of overly long sections while keeping key signals
+2. ENHANCED formatTargetProfile function: 
+   - Primary source: data_json.data.profile nested structure extraction
+   - Proper extraction of awards and skills from nested paths
+   - Defensive null checks throughout to prevent errors
+   - Fallback to existing flat fields when nested structure missing
+   - Added debug logging for nested profile presence
+3. Shared improvements:
+   - Never mutate source objects (all operations on copies)
+   - Clean and deterministic output with stable section order
+   - Enhanced debug logging (non-PII, shows presence/counts not raw content)
+*/
+
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
 const axios = require('axios');
 
@@ -81,7 +101,7 @@ Generate the LinkedIn inbox message now:`;
         };
     }
 
-    // FIXED: Format user profile data using gemini_raw_data for comprehensive information
+    // ENHANCED: Format user profile data using gemini_raw_data for comprehensive information
     formatUserProfile(profile) {
         console.log('[DEBUG] === USER PROFILE FORMATTING ===');
         console.log('[DEBUG] Profile received:', !!profile);
@@ -113,27 +133,31 @@ Generate the LinkedIn inbox message now:`;
                 
                 const parts = [];
                 
-                // Basic info
-                if (profileData.name || profileData.fullName) {
-                    parts.push(`Name: ${profileData.name || profileData.fullName}`);
+                // Basic info with stable ordering
+                if (profileData.name || profileData.fullName || profileData.full_name) {
+                    parts.push(`Name: ${profileData.name || profileData.fullName || profileData.full_name}`);
                 }
                 if (profileData.headline) {
                     parts.push(`Headline: ${profileData.headline}`);
                 }
-                if (profileData.currentCompany) {
-                    parts.push(`Current Company: ${profileData.currentCompany}`);
+                if (profileData.currentCompany || profileData.current_company) {
+                    parts.push(`Current Company: ${profileData.currentCompany || profileData.current_company}`);
                 }
-                if (profileData.currentRole || profileData.currentJobTitle) {
-                    parts.push(`Current Position: ${profileData.currentRole || profileData.currentJobTitle}`);
+                if (profileData.currentRole || profileData.currentJobTitle || profileData.current_job_title) {
+                    parts.push(`Current Position: ${profileData.currentRole || profileData.currentJobTitle || profileData.current_job_title}`);
                 }
                 if (profileData.location) {
                     parts.push(`Location: ${profileData.location}`);
                 }
                 if (profileData.about) {
-                    parts.push(`About: ${profileData.about.substring(0, 400)}${profileData.about.length > 400 ? '...' : ''}`);
+                    // Prudent trimming - keep key signals, limit length
+                    const aboutText = profileData.about.length > 400 
+                        ? profileData.about.substring(0, 400) + '...' 
+                        : profileData.about;
+                    parts.push(`About: ${aboutText}`);
                 }
                 
-                // Comprehensive experience data
+                // Comprehensive experience data with key signal preservation
                 const experience = richData.data?.experience || richData.experience || profileData.experience || [];
                 console.log('[DEBUG] Experience found:', Array.isArray(experience), experience.length);
                 if (experience && Array.isArray(experience) && experience.length > 0) {
@@ -141,7 +165,11 @@ Generate the LinkedIn inbox message now:`;
                         const title = exp.title || exp.position || exp.role || '';
                         const company = exp.company || exp.companyName || '';
                         const duration = exp.duration || exp.dates || exp.period || '';
-                        const description = exp.description ? ` - ${exp.description.substring(0, 150)}` : '';
+                        // Trim long descriptions but keep key achievements
+                        const description = exp.description ? 
+                            (exp.description.length > 150 ? 
+                                ` - ${exp.description.substring(0, 150)}...` : 
+                                ` - ${exp.description}`) : '';
                         return `${title} at ${company}${duration ? ` (${duration})` : ''}${description}`;
                     }).filter(exp => exp.trim() !== ' at').join('; ');
                     if (recentExperience) parts.push(`Experience: ${recentExperience}`);
@@ -160,17 +188,17 @@ Generate the LinkedIn inbox message now:`;
                     if (educationText) parts.push(`Education: ${educationText}`);
                 }
                 
-                // Skills data
+                // Skills data - focus on most relevant
                 const skills = richData.data?.skills || richData.skills || profileData.skills || [];
                 console.log('[DEBUG] Skills found:', Array.isArray(skills), skills.length);
                 if (skills && Array.isArray(skills) && skills.length > 0) {
-                    const skillsText = skills.slice(0, 10).map(skill => 
+                    const skillsText = skills.slice(0, 12).map(skill => 
                         typeof skill === 'string' ? skill : (skill.name || skill.skill || skill.title || skill)
                     ).filter(skill => skill && typeof skill === 'string').join(', ');
                     if (skillsText) parts.push(`Skills: ${skillsText}`);
                 }
                 
-                // Awards
+                // Awards - key achievements
                 const awards = richData.data?.awards || richData.awards || profileData.awards || [];
                 console.log('[DEBUG] Awards found:', Array.isArray(awards), awards.length);
                 if (awards && Array.isArray(awards) && awards.length > 0) {
@@ -183,13 +211,27 @@ Generate the LinkedIn inbox message now:`;
                     if (awardsText) parts.push(`Awards: ${awardsText}`);
                 }
                 
+                // Languages - if available
+                const languages = richData.data?.languages || richData.languages || profileData.languages || [];
+                if (languages && Array.isArray(languages) && languages.length > 0) {
+                    const languagesText = languages.slice(0, 5).map(lang => 
+                        typeof lang === 'string' ? lang : (lang.name || lang.language || lang)
+                    ).filter(lang => lang).join(', ');
+                    if (languagesText) parts.push(`Languages: ${languagesText}`);
+                }
+                
+                // Industries/Roles - if available
+                if (profileData.industry) {
+                    parts.push(`Industry: ${profileData.industry}`);
+                }
+                
                 const result = parts.length > 0 ? parts.join('\n') : "Rich user profile data available but could not format.";
                 console.log('[DEBUG] Formatted rich user profile length:', result.length);
-                console.log('[DEBUG] Rich user profile parts:', parts.length);
+                console.log('[DEBUG] Rich user profile sections:', parts.length);
                 return result;
                 
             } catch (error) {
-                console.error('[ERROR] Error parsing gemini_raw_data:', error);
+                console.error('[ERROR] Error parsing gemini_raw_data:', error.message);
                 console.log('[DEBUG] Falling back to basic fields due to parsing error');
                 // Fall back to basic fields
             }
@@ -198,6 +240,7 @@ Generate the LinkedIn inbox message now:`;
         }
         
         // FALLBACK: Use basic fields if gemini_raw_data not available or failed to parse
+        console.log('[DEBUG] Using basic field fallback for user profile');
         const parts = [];
         
         if (profile.full_name) parts.push(`Name: ${profile.full_name}`);
@@ -205,7 +248,12 @@ Generate the LinkedIn inbox message now:`;
         if (profile.current_company) parts.push(`Current Company: ${profile.current_company}`);
         if (profile.current_job_title) parts.push(`Current Position: ${profile.current_job_title}`);
         if (profile.location) parts.push(`Location: ${profile.location}`);
-        if (profile.about) parts.push(`About: ${profile.about.substring(0, 200)}...`);
+        if (profile.about) {
+            const aboutText = profile.about.length > 250 
+                ? profile.about.substring(0, 250) + '...' 
+                : profile.about;
+            parts.push(`About: ${aboutText}`);
+        }
         
         // Add experience
         if (profile.experience && Array.isArray(profile.experience)) {
@@ -225,17 +273,17 @@ Generate the LinkedIn inbox message now:`;
         
         // Add skills
         if (profile.skills && Array.isArray(profile.skills)) {
-            const skills = profile.skills.slice(0, 8).join(', ');
+            const skills = profile.skills.slice(0, 10).join(', ');
             if (skills) parts.push(`Skills: ${skills}`);
         }
         
         const result = parts.length > 0 ? parts.join('\n') : "Limited user profile information available.";
         console.log('[DEBUG] Formatted basic user profile length:', result.length);
-        console.log('[DEBUG] Basic user profile parts:', parts.length);
+        console.log('[DEBUG] Basic user profile sections:', parts.length);
         return result;
     }
 
-    // FIXED: Format target profile data for prompt with proper nested structure handling
+    // ENHANCED: Format target profile data for prompt with proper nested structure handling
     formatTargetProfile(profileData) {
         console.log('[DEBUG] === TARGET PROFILE FORMATTING ===');
         console.log('[DEBUG] Target profile data received:', !!profileData);
@@ -259,93 +307,133 @@ Generate the LinkedIn inbox message now:`;
             console.log('[DEBUG] Successfully parsed target profile data_json');
             console.log('[DEBUG] Target profile structure keys:', Object.keys(profile || {}));
             
-            // FIXED: Handle your specific nested data structure: data.profile, data.awards, data.skills
+            // ENHANCED: Handle nested data structure: data.profile, data.awards, data.skills
             const dataSection = profile.data || profile;
             const profileInfo = dataSection.profile || profile.profile || dataSection;
             
             console.log('[DEBUG] Data section keys:', Object.keys(dataSection || {}));
             console.log('[DEBUG] Profile info keys:', Object.keys(profileInfo || {}));
+            console.log('[DEBUG] Target nested profile present:', !!(dataSection && dataSection.profile));
             
             const parts = [];
             
-            // Basic profile information
-            if (profileInfo.name || profileInfo.fullName) {
-                parts.push(`Name: ${profileInfo.name || profileInfo.fullName}`);
+            // Basic profile information with stable ordering
+            if (profileInfo.name || profileInfo.fullName || profileInfo.full_name) {
+                parts.push(`Name: ${profileInfo.name || profileInfo.fullName || profileInfo.full_name}`);
             }
             if (profileInfo.headline) {
                 parts.push(`Headline: ${profileInfo.headline}`);
             }
-            if (profileInfo.currentCompany) {
-                parts.push(`Current Company: ${profileInfo.currentCompany}`);
+            if (profileInfo.currentCompany || profileInfo.current_company) {
+                parts.push(`Current Company: ${profileInfo.currentCompany || profileInfo.current_company}`);
             }
-            if (profileInfo.currentJobTitle || profileInfo.currentRole) {
-                parts.push(`Current Position: ${profileInfo.currentJobTitle || profileInfo.currentRole}`);
+            if (profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.current_job_title) {
+                parts.push(`Current Position: ${profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.current_job_title}`);
             }
             if (profileInfo.location) {
                 parts.push(`Location: ${profileInfo.location}`);
             }
             if (profileInfo.about) {
-                parts.push(`About: ${profileInfo.about.substring(0, 400)}${profileInfo.about.length > 400 ? '...' : ''}`);
+                // Prudent trimming while preserving key information
+                const aboutText = profileInfo.about.length > 400 
+                    ? profileInfo.about.substring(0, 400) + '...' 
+                    : profileInfo.about;
+                parts.push(`About: ${aboutText}`);
             }
             
-            // FIXED: Extract skills from your data structure
+            // ENHANCED: Extract skills from nested data structure (data.skills OR profile.skills)
             const skills = dataSection.skills || profileInfo.skills || [];
             console.log('[DEBUG] Target skills found:', Array.isArray(skills), skills.length);
             if (skills && Array.isArray(skills) && skills.length > 0) {
-                const skillsText = skills.slice(0, 10).map(skill => 
-                    typeof skill === 'string' ? skill : (skill.name || skill.skill || skill)
-                ).filter(skill => skill).join(', ');
+                const skillsText = skills.slice(0, 12).map(skill => 
+                    typeof skill === 'string' ? skill : (skill.name || skill.skill || skill.title || skill)
+                ).filter(skill => skill && typeof skill === 'string').join(', ');
                 if (skillsText) parts.push(`Skills: ${skillsText}`);
             }
             
-            // FIXED: Extract awards from your data structure
+            // ENHANCED: Extract awards from nested data structure (data.awards OR profile.awards)
             const awards = dataSection.awards || profileInfo.awards || [];
             console.log('[DEBUG] Target awards found:', Array.isArray(awards), awards.length);
             if (awards && Array.isArray(awards) && awards.length > 0) {
                 const awardsText = awards.slice(0, 3).map(award => {
                     const title = award.title || award.name || '';
                     const issuer = award.issuer || award.organization || '';
-                    const date = award.date || '';
+                    const date = award.date || award.year || '';
                     return `${title}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
                 }).filter(award => award.trim()).join('; ');
                 if (awardsText) parts.push(`Awards: ${awardsText}`);
             }
             
-            // Experience from data structure
+            // Experience from nested data structure
             const experience = dataSection.experience || profileInfo.experience || [];
             console.log('[DEBUG] Target experience found:', Array.isArray(experience), experience.length);
             if (experience && Array.isArray(experience) && experience.length > 0) {
                 const recentExperience = experience.slice(0, 4).map(exp => {
                     const title = exp.title || exp.position || '';
                     const company = exp.company || exp.companyName || '';
-                    const duration = exp.duration || exp.dates || '';
-                    const description = exp.description ? ` - ${exp.description.substring(0, 150)}` : '';
+                    const duration = exp.duration || exp.dates || exp.period || '';
+                    // Trim long descriptions but preserve key achievements
+                    const description = exp.description ? 
+                        (exp.description.length > 150 ? 
+                            ` - ${exp.description.substring(0, 150)}...` : 
+                            ` - ${exp.description}`) : '';
                     return `${title} at ${company}${duration ? ` (${duration})` : ''}${description}`;
                 }).filter(exp => exp.trim() !== ' at').join('; ');
                 if (recentExperience) parts.push(`Experience: ${recentExperience}`);
             }
             
-            // Education from data structure
+            // Education from nested data structure
             const education = dataSection.education || profileInfo.education || [];
             console.log('[DEBUG] Target education found:', Array.isArray(education), education.length);
             if (education && Array.isArray(education) && education.length > 0) {
                 const educationText = education.slice(0, 3).map(edu => {
                     const degree = edu.degree || edu.degreeName || '';
-                    const field = edu.field || edu.fieldOfStudy || '';
-                    const school = edu.institution || edu.school || edu.schoolName || '';
+                    const field = edu.field || edu.fieldOfStudy || edu.major || '';
+                    const school = edu.institution || edu.school || edu.schoolName || edu.university || '';
                     return `${degree}${field ? ` in ${field}` : ''} from ${school}`;
                 }).filter(edu => edu.trim() !== ' from').join('; ');
                 if (educationText) parts.push(`Education: ${educationText}`);
             }
             
+            // Languages from nested structure if available
+            const languages = dataSection.languages || profileInfo.languages || [];
+            if (languages && Array.isArray(languages) && languages.length > 0) {
+                const languagesText = languages.slice(0, 5).map(lang => 
+                    typeof lang === 'string' ? lang : (lang.name || lang.language || lang)
+                ).filter(lang => lang).join(', ');
+                if (languagesText) parts.push(`Languages: ${languagesText}`);
+            }
+            
+            // Industry from nested structure
+            if (dataSection.industry || profileInfo.industry) {
+                parts.push(`Industry: ${dataSection.industry || profileInfo.industry}`);
+            }
+            
+            // Interests if available
+            const interests = dataSection.interests || profileInfo.interests || [];
+            if (interests && Array.isArray(interests) && interests.length > 0) {
+                const interestsText = interests.slice(0, 5).map(interest => 
+                    typeof interest === 'string' ? interest : (interest.name || interest)
+                ).filter(interest => interest).join(', ');
+                if (interestsText) parts.push(`Interests: ${interestsText}`);
+            }
+            
             const result = parts.length > 0 ? parts.join('\n') : "Limited target profile information available.";
             console.log('[DEBUG] Formatted target profile length:', result.length);
-            console.log('[DEBUG] Target profile parts:', parts.length);
+            console.log('[DEBUG] Target profile sections:', parts.length);
             return result;
             
         } catch (error) {
-            console.error('[ERROR] Error parsing target profile data:', error);
-            return "Target profile data parsing error.";
+            console.error('[ERROR] Error parsing target profile data:', error.message);
+            console.log('[DEBUG] Falling back to basic flat fields');
+            
+            // FALLBACK: Use any available flat fields if parsing fails
+            const parts = [];
+            if (profileData.name) parts.push(`Name: ${profileData.name}`);
+            if (profileData.headline) parts.push(`Headline: ${profileData.headline}`);
+            if (profileData.company) parts.push(`Company: ${profileData.company}`);
+            
+            return parts.length > 0 ? parts.join('\n') : "Target profile data parsing error.";
         }
     }
 
@@ -374,7 +462,7 @@ Generate the LinkedIn inbox message now:`;
             return {
                 target_first_name: profileInfo.firstName || profileInfo.fullName?.split(' ')[0] || profileInfo.name?.split(' ')[0] || null,
                 target_title: profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.headline || null,
-                target_company: profileInfo.currentCompany || null
+                target_company: profileInfo.currentCompany || profileInfo.current_company || null
             };
             
         } catch (error) {
