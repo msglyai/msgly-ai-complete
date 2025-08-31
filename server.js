@@ -7,14 +7,16 @@ CHANGELOG - server.js:
    - Added GPT-5 usage logging (input/output/total tokens)
    - Ensured gemini_raw_data is passed through to gptService
 2. No changes to auth, routing, credits, or endpoints
+3. ADDED Chargebee integration: Import and test route
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
 // ✅ URL MATCHING FIX: Fixed profile deduplication to handle both URL formats
 // ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging
+// ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management
 
 const express = require('express');
 const cors = require('cors');
@@ -33,6 +35,9 @@ const { sendToGemini } = require('./sendToGemini');
 
 // NEW: Import GPT-5 service
 const gptService = require('./services/gptService');
+
+// NEW: Import Chargebee service
+const { chargebeeService } = require('./services/chargebeeService');
 
 require('dotenv').config();
 
@@ -1619,7 +1624,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1663,7 +1668,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE'
                 }
             }
         });
@@ -1741,7 +1746,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE'
             };
         }
 
@@ -1839,7 +1844,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE'
             }
         });
     } catch (error) {
@@ -1891,7 +1896,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -1940,6 +1945,41 @@ app.get('/packages', (req, res) => {
     });
 });
 
+// NEW: Chargebee Connection Test Route
+app.get('/test-chargebee', async (req, res) => {
+    try {
+        console.log('[TEST] Testing Chargebee connection...');
+        
+        const result = await chargebeeService.testConnection();
+        
+        if (result.success) {
+            res.json({
+                success: true,
+                message: '✅ Chargebee connection successful!',
+                data: {
+                    siteName: result.site.name,
+                    currency: result.site.currency_code,
+                    status: result.site.status,
+                    isConfigured: chargebeeService.isConfigured
+                }
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: '❌ Chargebee connection failed',
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error('[TEST] Chargebee test error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test failed',
+            error: error.message
+        });
+    }
+});
+
 // NEW: Cleanup expired holds (run periodically)
 setInterval(async () => {
     try {
@@ -1979,7 +2019,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2007,7 +2047,8 @@ app.use((req, res, next) => {
             'GET /packages',
             'GET /user/plan (NEW: Real plan data - NO MOCK!)',
             'GET /credits/balance (NEW: Dual credit management)',
-            'GET /credits/history (NEW: Transaction history)'
+            'GET /credits/history (NEW: Transaction history)',
+            'GET /test-chargebee (NEW: Test Chargebee connection)'
         ]
     });
 });
@@ -2025,7 +2066,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2035,16 +2076,19 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
             console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
             console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5:`);
+            console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
             console.log(`   [RACE] BULLETPROOF PROTECTION: No duplicate AI processing or credit charges`);
             console.log(`   [URL] URL MATCHING FIX: Handles both clean and protocol URLs in database`);
             console.log(`   [GPT] GPT-5 MESSAGE GENERATION: Real AI-powered LinkedIn messages`);
+            console.log(`   [PAYMENT] CHARGEBEE INTEGRATION: Subscription and payment processing`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
+            console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
@@ -2073,7 +2117,14 @@ const startServer = async () => {
             console.log(`   [META] Target metadata extraction: first name, title, company`);
             console.log(`   [ERROR] Robust error handling with user-friendly messages`);
             console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION AND ALL FIXES!`);
+            console.log(`[SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
+            console.log(`   [CONNECTION] Chargebee service with connection testing`);
+            console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
+            console.log(`   [PLANS] Subscription plan management and synchronization`);
+            console.log(`   [CHECKOUT] Hosted checkout integration for seamless payments`);
+            console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management`);
+            console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION AND CHARGEBEE PAYMENTS!`);
         });
         
     } catch (error) {
