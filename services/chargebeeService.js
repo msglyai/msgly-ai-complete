@@ -23,13 +23,13 @@ class ChargebeeService {
         console.log('[CHARGEBEE] Service initialized');
     }
 
-    // Test connection using a different approach
+    // Test connection using Product Catalog 2.0 API
     async testConnection() {
         try {
-            console.log('[CHARGEBEE] Testing connection with plan list...');
+            console.log('[CHARGEBEE] Testing connection with item list (Product Catalog 2.0)...');
             
-            // Instead of site.retrieve(), try listing plans which is more reliable
-            const result = await chargebee.plan.list({
+            // Use Product Catalog 2.0 API - item.list instead of plan.list
+            const result = await chargebee.item.list({
                 limit: 1
             }).request();
             
@@ -42,14 +42,21 @@ class ChargebeeService {
                 message: '✅ Chargebee connection successful!',
                 data: {
                     siteName: process.env.CHARGEBEE_SITE,
-                    plansCount: result.list ? result.list.length : 0,
+                    itemsCount: result.list ? result.list.length : 0,
                     isConfigured: true,
-                    testMethod: 'plan.list'
+                    testMethod: 'item.list (Product Catalog 2.0)',
+                    productCatalogVersion: '2.0'
                 }
             };
         } catch (error) {
             console.log('[CHARGEBEE] ❌ Connection failed:', error.message);
             console.log('[CHARGEBEE] Error details:', error);
+            
+            // Try alternative method if item.list fails
+            if (error.message.includes('product catalog')) {
+                console.log('[CHARGEBEE] Trying alternative method...');
+                return await this.testConnectionAlternative();
+            }
             
             this.isConfigured = false;
             return {
@@ -60,18 +67,19 @@ class ChargebeeService {
                     site: process.env.CHARGEBEE_SITE,
                     hasApiKey: !!process.env.CHARGEBEE_API_KEY,
                     errorType: error.type || 'Unknown',
-                    statusCode: error.http_status_code || 'N/A'
+                    statusCode: error.http_status_code || 'N/A',
+                    productCatalogIssue: true
                 }
             };
         }
     }
 
-    // Alternative test method if plan.list fails
+    // Alternative test method using item_price (Product Catalog 2.0)
     async testConnectionAlternative() {
         try {
-            console.log('[CHARGEBEE] Testing with customer list...');
+            console.log('[CHARGEBEE] Testing with item_price list (Product Catalog 2.0)...');
             
-            const result = await chargebee.customer.list({
+            const result = await chargebee.item_price.list({
                 limit: 1
             }).request();
             
@@ -80,13 +88,35 @@ class ChargebeeService {
                 message: '✅ Chargebee connection successful (alternative method)!',
                 data: {
                     siteName: process.env.CHARGEBEE_SITE,
-                    testMethod: 'customer.list',
-                    isConfigured: true
+                    testMethod: 'item_price.list (Product Catalog 2.0)',
+                    isConfigured: true,
+                    productCatalogVersion: '2.0'
                 }
             };
         } catch (error) {
             console.log('[CHARGEBEE] ❌ Alternative test also failed:', error.message);
-            throw error;
+            
+            // Try the simplest possible test - customer list (works with both catalog versions)
+            try {
+                console.log('[CHARGEBEE] Trying final fallback with customer list...');
+                const customerResult = await chargebee.customer.list({
+                    limit: 1
+                }).request();
+                
+                return {
+                    success: true,
+                    message: '✅ Chargebee connection successful (customer list method)!',
+                    data: {
+                        siteName: process.env.CHARGEBEE_SITE,
+                        testMethod: 'customer.list (fallback)',
+                        isConfigured: true,
+                        note: 'Items/prices may need Product Catalog 2.0 setup'
+                    }
+                };
+            } catch (finalError) {
+                console.log('[CHARGEBEE] ❌ All test methods failed');
+                throw finalError;
+            }
         }
     }
 }
