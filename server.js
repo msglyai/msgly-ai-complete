@@ -1,3 +1,14 @@
+/*
+CHANGELOG - server.js:
+1. FIXED handleGenerateMessage function (line ~1156):
+   - Added gemini_raw_data to user profile SELECT query
+   - Added debug logging for gemini_raw_data presence and size
+   - Added debug logging for target nested profile presence
+   - Added GPT-5 usage logging (input/output/total tokens)
+   - Ensured gemini_raw_data is passed through to gptService
+2. No changes to auth, routing, credits, or endpoints
+*/
+
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
@@ -659,7 +670,7 @@ async function handleUserProfile(req, res) {
     }
 }
 
-// NEW: Enhanced Message Generation with GPT-5 and comprehensive logging
+// FIXED: Enhanced Message Generation with GPT-5 and comprehensive logging
 async function handleGenerateMessage(req, res) {
     let holdId = null;
     
@@ -712,10 +723,11 @@ async function handleGenerateMessage(req, res) {
         holdId = holdResult.holdId;
         console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
-        // STEP 1: Load user profile from database
+        // FIXED STEP 1: Load user profile from database - ADDED gemini_raw_data
         console.log('[DATABASE] Loading user profile JSON...');
         const userProfileResult = await pool.query(`
             SELECT 
+                gemini_raw_data,
                 full_name,
                 headline,
                 current_job_title,
@@ -738,7 +750,15 @@ async function handleGenerateMessage(req, res) {
         }
 
         const userProfile = userProfileResult.rows[0];
-        console.log('[CHECK] user_profile_json present:', !!userProfile);
+        
+        // FIXED: Added debug logging for gemini_raw_data
+        console.log('[DEBUG] User gemini_raw_data present:', !!userProfile.gemini_raw_data);
+        if (userProfile.gemini_raw_data) {
+            const geminiDataSize = typeof userProfile.gemini_raw_data === 'string' 
+                ? userProfile.gemini_raw_data.length 
+                : JSON.stringify(userProfile.gemini_raw_data).length;
+            console.log('[DEBUG] User gemini_raw_data size (bytes):', geminiDataSize);
+        }
         console.log('[CHECK] user profile has name:', !!userProfile.full_name);
 
         // STEP 2: Load target profile from database  
@@ -766,6 +786,21 @@ async function handleGenerateMessage(req, res) {
         const targetProfile = targetProfileResult.rows[0];
         console.log('[CHECK] target_profile_json present:', !!targetProfile.data_json);
         console.log('[CHECK] target profile ID:', targetProfile.id);
+        
+        // FIXED: Added debug logging for nested profile structure
+        let hasNestedProfile = false;
+        if (targetProfile.data_json) {
+            try {
+                const parsedData = typeof targetProfile.data_json === 'string' 
+                    ? JSON.parse(targetProfile.data_json) 
+                    : targetProfile.data_json;
+                hasNestedProfile = !!(parsedData.data && parsedData.data.profile);
+            } catch (e) {
+                // Parsing error, log but continue
+                console.log('[DEBUG] Error parsing target profile data_json for debug check');
+            }
+        }
+        console.log('[DEBUG] Target nested profile present:', hasNestedProfile);
 
         // STEP 3: Call GPT-5 service for message generation
         console.log('[GPT] Calling GPT-5 service for message generation...');
@@ -783,6 +818,11 @@ async function handleGenerateMessage(req, res) {
 
         console.log(`[GPT] GPT-5 call completed in ${gptLatency}ms`);
         console.log('[CHECK] GPT-5 success:', gptResult.success);
+
+        // FIXED: Added GPT-5 usage logging after call
+        if (gptResult.success && gptResult.tokenUsage) {
+            console.log(`[DEBUG] GPT-5 usage - Input: ${gptResult.tokenUsage.input_tokens}, Output: ${gptResult.tokenUsage.output_tokens}, Total: ${gptResult.tokenUsage.total_tokens}`);
+        }
 
         if (!gptResult.success) {
             console.error('[ERROR] GPT-5 message generation failed:', gptResult.error);
