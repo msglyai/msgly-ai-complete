@@ -528,8 +528,7 @@ Generate the LinkedIn inbox message now:`;
                         content: userPrompt
                     }
                 ],
-                temperature: 0.7,
-                max_tokens: 500
+                temperature: 0.7
             }, {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
