@@ -63,16 +63,20 @@ Task:
 - Generate ONE personalized LinkedIn inbox message.
 
 Message rules:
-• Absolute maximum: 150 characters (count before finalizing).  
+• Absolute maximum: 200 characters (count before finalizing).  
 • Written as a direct inbox message (to an existing connection).  
 • Friendly, professional, approachable — avoid email or sales tone.  
+• FOCUS PRIMARILY on TARGET PROFILE details — reference their achievements, role, company, background, skills, or interests.
+• Show genuine interest in THEM rather than promoting yourself.
+• Minimize mentions of your own background — keep it brief if needed for connection.
 • Use ONLY details from inputs (never invent information).  
-• Highlight common ground or value naturally; do not restate CONTEXT literally.  
+• Highlight what's impressive or interesting about the TARGET person.
+• Reference their specific work, accomplishments, or expertise when possible.
 • Avoid generic phrases unless no other detail exists.  
-• End with a polite close (e.g., "Looking forward to hearing from you") within the 150 characters.  
-• Keep the message focused on one clear idea.  
+• End with a polite close (e.g., "Looking forward to hearing from you") within the 200 characters.  
+• Keep the message focused on one clear idea about the TARGET.  
 • Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity"); keep tone respectful.  
-• If insufficient data → create a polite and general LinkedIn-style message ≤150 characters.  
+• If insufficient data → create a polite and general LinkedIn-style message ≤200 characters.  
 • Always write in English unless the provided inputs are primarily in another language.  
 • Do not include emojis, hashtags, line breaks, or special symbols.  
 • Keep tone consistently professional, respectful, and approachable.  
