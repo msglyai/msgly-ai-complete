@@ -17,6 +17,7 @@ CHANGELOG - services/gptService.js:
    - Clean and deterministic output with stable section order
    - Enhanced debug logging (non-PII, shows presence/counts not raw content)
 4. UPDATED PROMPT: Changed to target-centric approach with 220 char limit, required greeting/closing, 3 details minimum
+5. ADDED GEMINI FALLBACK: Insurance policy - Gemini 2.5 Pro activates only when GPT-5 fails
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
@@ -24,13 +25,55 @@ const axios = require('axios');
 
 class GPTService {
     constructor() {
+        // Primary: OpenAI GPT-5 config
         this.apiKey = process.env.OPENAI_API_KEY;
         this.baseURL = 'https://api.openai.com/v1';
         this.model = process.env.OPENAI_MODEL || 'gpt-5';
         
+        // Insurance: Gemini fallback config
+        this.geminiApiKey = process.env.GOOGLE_AI_API_KEY;
+        this.geminiModel = process.env.GOOGLE_AI_MODEL || 'gemini-2.5-pro';
+        this.geminiBaseURL = 'https://generativelanguage.googleapis.com/v1beta';
+        
         if (!this.apiKey) {
             console.error('[ERROR] OPENAI_API_KEY not found in environment variables');
         }
+        if (!this.geminiApiKey) {
+            console.error('[ERROR] GOOGLE_AI_API_KEY not found in environment variables');
+        }
+    }
+
+    // Insurance fallback: Gemini API call method
+    async callGeminiAPI(systemPrompt, userPrompt) {
+        const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+        
+        const response = await axios.post(
+            `${this.geminiBaseURL}/models/${this.geminiModel}:generateContent`,
+            {
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: combinedPrompt
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    maxOutputTokens: 1000,
+                    temperature: 0.7
+                }
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': this.geminiApiKey
+                },
+                timeout: 120000
+            }
+        );
+        
+        return response;
     }
 
     // Build the complete prompt for LinkedIn message generation with debugging
@@ -468,13 +511,14 @@ Generate the LinkedIn inbox message now:`;
         }
     }
 
-    // Main function to generate LinkedIn message with comprehensive debugging
+    // Main function to generate LinkedIn message with comprehensive debugging + Gemini insurance
     async generateLinkedInMessage(userProfile, targetProfile, context, messageType = 'inbox_message') {
         const startTime = Date.now();
         
         try {
-            console.log('[GPT] === STARTING GPT-5 MESSAGE GENERATION ===');
-            console.log(`[GPT] Model: ${this.model}`);
+            console.log('[GPT] === STARTING MESSAGE GENERATION ===');
+            console.log(`[GPT] Primary model: ${this.model}`);
+            console.log(`[GPT] Insurance model: ${this.geminiModel}`);
             console.log(`[GPT] Message type: ${messageType}`);
             
             // COMPREHENSIVE DEBUGGING - Check all 3 data points
@@ -503,40 +547,93 @@ Generate the LinkedIn inbox message now:`;
             // Build the prompt with debugging
             const { systemPrompt, userPrompt } = this.buildPrompt(userProfile, targetProfile, context, messageType);
             
-            console.log('[GPT] === CALLING OPENAI API ===');
+            console.log('[GPT] === CALLING PRIMARY API (GPT-5) ===');
             console.log('[GPT] Final request details:');
             console.log('[GPT] - System prompt length:', systemPrompt.length);
             console.log('[GPT] - User prompt length:', userPrompt.length);
             console.log('[GPT] - Total input length:', systemPrompt.length + userPrompt.length);
             
-            const response = await axios.post(`${this.baseURL}/chat/completions`, {
-                model: this.model,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt
+            // Insurance policy: Try GPT-5 first, fallback to Gemini if needed
+            let response;
+            let modelUsed = this.model;
+            let fallbackTriggered = false;
+            let primaryError = null;
+            
+            try {
+                // PRIMARY: Try GPT-5 first
+                response = await axios.post(`${this.baseURL}/chat/completions`, {
+                    model: this.model,
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemPrompt
+                        },
+                        {
+                            role: "user", 
+                            content: userPrompt
+                        }
+                    ]
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`,
+                        'Content-Type': 'application/json'
                     },
-                    {
-                        role: "user", 
-                        content: userPrompt
-                    }
-                ]
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 120000 // 2 minutes timeout for GPT-5
-            });
+                    timeout: 120000 // 2 minutes timeout for GPT-5
+                });
+                
+                console.log('[SUCCESS] GPT-5 API call successful');
+                
+            } catch (error) {
+                console.log('[WARNING] GPT-5 failed, activating Gemini insurance...');
+                console.log('[WARNING] GPT-5 error:', error.message);
+                primaryError = error.message;
+                fallbackTriggered = true;
+                
+                try {
+                    // INSURANCE: Fallback to Gemini 2.5 Pro
+                    console.log('[GEMINI] Calling Gemini API as fallback...');
+                    response = await this.callGeminiAPI(systemPrompt, userPrompt);
+                    modelUsed = this.geminiModel;
+                    console.log('[SUCCESS] Gemini insurance fallback successful');
+                    
+                } catch (geminiError) {
+                    console.error('[ERROR] Both GPT-5 and Gemini failed');
+                    console.error('[ERROR] Gemini error:', geminiError.message);
+                    throw new Error(`Primary (${this.model}): ${error.message} | Insurance (${this.geminiModel}): ${geminiError.message}`);
+                }
+            }
 
             const endTime = Date.now();
             const latencyMs = endTime - startTime;
 
-            console.log('[SUCCESS] === GPT-5 API CALL SUCCESSFUL ===');
-            console.log(`[GPT] Latency: ${latencyMs}ms`);
-            console.log(`[GPT] Token usage: ${response.data.usage.prompt_tokens} input, ${response.data.usage.completion_tokens} output, ${response.data.usage.total_tokens} total`);
+            // Extract message based on model used
+            let generatedMessage;
+            let tokenUsage;
+            
+            if (modelUsed.includes('gemini')) {
+                // Gemini response structure
+                console.log('[DEBUG] Processing Gemini response structure');
+                generatedMessage = response.data.candidates[0].content.parts[0].text.trim();
+                tokenUsage = {
+                    input_tokens: response.data.usageMetadata?.promptTokenCount || 0,
+                    output_tokens: response.data.usageMetadata?.candidatesTokenCount || 0,
+                    total_tokens: response.data.usageMetadata?.totalTokenCount || 0
+                };
+            } else {
+                // OpenAI response structure
+                console.log('[DEBUG] Processing OpenAI response structure');
+                generatedMessage = response.data.choices[0].message.content.trim();
+                tokenUsage = {
+                    input_tokens: response.data.usage.prompt_tokens,
+                    output_tokens: response.data.usage.completion_tokens,
+                    total_tokens: response.data.usage.total_tokens
+                };
+            }
 
-            const generatedMessage = response.data.choices[0].message.content.trim();
+            console.log('[SUCCESS] === MESSAGE GENERATION SUCCESSFUL ===');
+            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (🛡️ INSURANCE ACTIVATED)' : ''}`);
+            console.log(`[GPT] Latency: ${latencyMs}ms`);
+            console.log(`[GPT] Token usage: ${tokenUsage.input_tokens} input, ${tokenUsage.output_tokens} output, ${tokenUsage.total_tokens} total`);
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
             console.log(`[GPT] Message within 220 chars: ${generatedMessage.length <= 220 ? '✅' : '❌'}`);
@@ -550,29 +647,31 @@ Generate the LinkedIn inbox message now:`;
             console.log('[DEBUG] ✅ Target profile processed successfully'); 
             console.log('[DEBUG] ✅ Context processed successfully');
             console.log('[DEBUG] ✅ Message generated successfully');
-            console.log('[DEBUG] Total tokens used:', response.data.usage.total_tokens);
+            console.log('[DEBUG] Total tokens used:', tokenUsage.total_tokens);
+            if (fallbackTriggered) {
+                console.log('[DEBUG] 🛡️ Insurance policy activated - service continuity maintained');
+            }
 
             return {
                 success: true,
                 message: generatedMessage,
-                tokenUsage: {
-                    input_tokens: response.data.usage.prompt_tokens,
-                    output_tokens: response.data.usage.completion_tokens,
-                    total_tokens: response.data.usage.total_tokens
-                },
+                tokenUsage: tokenUsage,
                 metadata: {
-                    model_name: this.model,
+                    model_name: modelUsed,
+                    primary_model: this.model,
+                    fallback_triggered: fallbackTriggered,
+                    primary_error: primaryError,
                     prompt_version: 'inbox_message_target_centric_v2',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
                 rawResponse: {
-                    id: response.data.id,
-                    object: response.data.object,
-                    created: response.data.created,
-                    model: response.data.model,
-                    choices: response.data.choices,
-                    usage: response.data.usage
+                    id: modelUsed.includes('gemini') ? 'gemini-generated-' + Date.now() : response.data.id,
+                    object: modelUsed.includes('gemini') ? 'gemini.generation' : response.data.object,
+                    created: modelUsed.includes('gemini') ? Math.floor(Date.now() / 1000) : response.data.created,
+                    model: modelUsed,
+                    choices: modelUsed.includes('gemini') ? [{message: {content: generatedMessage}}] : response.data.choices,
+                    usage: tokenUsage
                 }
             };
 
@@ -580,7 +679,7 @@ Generate the LinkedIn inbox message now:`;
             const endTime = Date.now();
             const latencyMs = endTime - startTime;
 
-            console.error('[ERROR] === GPT-5 MESSAGE GENERATION FAILED ===');
+            console.error('[ERROR] === MESSAGE GENERATION FAILED ===');
             console.error('[ERROR] Error message:', error.message);
             
             if (error.response) {
@@ -608,13 +707,13 @@ Generate the LinkedIn inbox message now:`;
                     return 'API rate limit exceeded. Please try again in a moment.';
                 case 400:
                     if (error.response.data?.error?.code === 'model_not_found') {
-                        return `Model "${this.model}" not found. Please check model availability.`;
+                        return `Model not found. Please check model availability.`;
                     }
                     return 'Invalid request. Please try again.';
                 case 500:
                 case 502:
                 case 503:
-                    return 'OpenAI service temporarily unavailable. Please try again.';
+                    return 'AI service temporarily unavailable. Please try again.';
                 default:
                     return 'Message generation service temporarily unavailable.';
             }
