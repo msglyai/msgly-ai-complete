@@ -16,6 +16,7 @@ CHANGELOG - services/gptService.js:
    - Never mutate source objects (all operations on copies)
    - Clean and deterministic output with stable section order
    - Enhanced debug logging (non-PII, shows presence/counts not raw content)
+4. UPDATED PROMPT: Changed to target-centric approach with 220 char limit, required greeting/closing, 3 details minimum
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
@@ -48,37 +49,29 @@ class GPTService {
         console.log('[DEBUG] Target profile preview (first 200 chars):', targetProfileText.substring(0, 200) + '...');
         console.log('[DEBUG] Context preview (first 100 chars):', context?.substring(0, 100) + '...');
         
-        // Use the exact prompt template from the brief
-        const systemPrompt = `Inbox Message (Final Enterprise)
-[MODE: INBOX_MESSAGE]
-
+        // Updated prompt template with target-centric approach
+        const systemPrompt = `[MODE: INBOX_MESSAGE]
 You are an AI LinkedIn Outreach Assistant.
-
 Inputs:
 1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
 2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
 3. CONTEXT — the business or conversational goal.
-
 Task:
-- Generate ONE personalized LinkedIn inbox message.
-
+- Generate ONE highly personalized LinkedIn inbox message.
 Message rules:
-• Absolute maximum: 150 characters (count before finalizing).  
-• Written as a direct inbox message (to an existing connection).  
-• Friendly, professional, approachable — avoid email or sales tone.  
-• Use ONLY details from inputs (never invent information).  
-• Highlight common ground or value naturally; do not restate CONTEXT literally.  
-• Avoid generic phrases unless no other detail exists.  
-• End with a polite close (e.g., "Looking forward to hearing from you") within the 150 characters.  
-• Keep the message focused on one clear idea.  
-• Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity"); keep tone respectful.  
-• If insufficient data → create a polite and general LinkedIn-style message ≤150 characters.  
-• Always write in English unless the provided inputs are primarily in another language.  
-• Do not include emojis, hashtags, line breaks, or special symbols.  
-• Keep tone consistently professional, respectful, and approachable.  
-• Prioritize clarity and precision over creativity.  
-• Never output explanations, labels, JSON, markdown, or quotation marks.  
-• Output only the final message text.`;
+• Absolute maximum: 220 characters (count before finalizing).
+• Must always start with: "Hi [TARGET_FIRSTNAME],"
+• Must always end with sender's first name (e.g., "… Thanks, Ziv").
+• Focus primarily on the TARGET PROFILE — highlight what is valuable or relevant for them.
+• At least 3 details must be referenced (two from TARGET PROFILE, one from USER PROFILE).
+• Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
+• Avoid focusing too much on the sender; keep emphasis on what the target gains from the conversation.
+• Keep it friendly, professional, approachable — avoid email or sales tone.
+• If inputs are poor → still greet + close, and create a polite, concise LinkedIn-style message ≤220 chars.
+• Avoid generic phrases; avoid relying only on job titles or company names.
+• Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity").
+• No emojis, hashtags, line breaks, or special symbols.
+• Output only the final message text — no explanations, no labels, no JSON.`;
 
         const userPrompt = `USER PROFILE:
 ${userProfileText}
@@ -546,7 +539,7 @@ Generate the LinkedIn inbox message now:`;
             const generatedMessage = response.data.choices[0].message.content.trim();
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
-            console.log(`[GPT] Message within 150 chars: ${generatedMessage.length <= 150 ? '✅' : '❌'}`);
+            console.log(`[GPT] Message within 220 chars: ${generatedMessage.length <= 220 ? '✅' : '❌'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
@@ -569,7 +562,7 @@ Generate the LinkedIn inbox message now:`;
                 },
                 metadata: {
                     model_name: this.model,
-                    prompt_version: 'inbox_message_final_enterprise_v1',
+                    prompt_version: 'inbox_message_target_centric_v2',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
