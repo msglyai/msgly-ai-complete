@@ -533,7 +533,7 @@ Generate the LinkedIn inbox message now:`;
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 30000 // 30 second timeout
+                timeout: 120000 // 2 minutes timeout for GPT-5
             });
 
             const endTime = Date.now();
