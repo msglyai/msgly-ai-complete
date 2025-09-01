@@ -10,7 +10,7 @@ CHANGELOG - server.js:
 3. ADDED Chargebee integration: Import and test route
 4. NEW: Added Chargebee webhook handler and checkout creation routes
 5. FIXED: /test-chargebee route to match actual chargebeeService response format
-6. UPDATED: Fixed plan ID mapping from 'Silver-Monthly' to 'Silver'
+6. FIXED: CHARGEBEE_PLAN_MAPPING - Updated 'Silver-PAYG' to 'Silver-PAYG-USD' to match actual Chargebee Item Price IDs
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION
@@ -118,14 +118,14 @@ const staticRoutes = require('./routes/static');
 const activeProcessing = new Map();
 
 // NEW: CHARGEBEE PLAN MAPPING - Maps Chargebee plan IDs to database plan codes
-// FIXED: Changed 'Silver-Monthly' to 'Silver' to match frontend and Chargebee dashboard
+// FIXED: Updated 'Silver-PAYG' to 'Silver-PAYG-USD' to match actual Chargebee Item Price IDs
 const CHARGEBEE_PLAN_MAPPING = {
-    'Silver': {  // CHANGED: Was 'Silver-Monthly', now matches Chargebee dashboard and frontend
+    'Silver-Monthly': {
         planCode: 'silver-monthly',
         renewableCredits: 30,
         billingModel: 'monthly'
     },
-    'Silver-PAYG': {  // UNCHANGED: Already matches Chargebee dashboard
+    'Silver-PAYG-USD': {  // FIXED: Changed from 'Silver-PAYG' to 'Silver-PAYG-USD'
         planCode: 'silver-payasyougo', 
         payasyougoCredits: 30,
         billingModel: 'one_time'
