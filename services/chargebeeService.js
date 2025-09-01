@@ -1,4 +1,7 @@
-// services/chargebeeService.js - Fixed Chargebee Service
+// services/chargebeeService.js - Enhanced Chargebee Service with Silver Plan Integration
+// STEP 8A: Added checkout creation, plan management, and subscription handling
+// Preserves all existing functionality while adding Silver plan support
+
 const chargebee = require('chargebee');
 require('dotenv').config();
 
@@ -17,13 +20,43 @@ try {
     console.log('[CHARGEBEE] ❌ SDK configuration failed:', error.message);
 }
 
+// STEP 8A: Plan mapping between Chargebee and database
+const CHARGEBEE_PLAN_MAPPING = {
+    'Silver-Monthly': {
+        planCode: 'silver-monthly',
+        renewableCredits: 30,
+        billingModel: 'monthly',
+        displayName: 'Silver Monthly'
+    },
+    'Silver-PAYG': {
+        planCode: 'silver-payasyougo', 
+        payasyougoCredits: 30,
+        billingModel: 'one_time',
+        displayName: 'Silver Pay-as-you-go'
+    },
+    // Future plans can be added here
+    'Gold-Monthly': {
+        planCode: 'gold-monthly',
+        renewableCredits: 100,
+        billingModel: 'monthly',
+        displayName: 'Gold Monthly'
+    },
+    'Platinum-Monthly': {
+        planCode: 'platinum-monthly',
+        renewableCredits: 250,
+        billingModel: 'monthly', 
+        displayName: 'Platinum Monthly'
+    }
+};
+
 class ChargebeeService {
     constructor() {
         this.isConfigured = false;
-        console.log('[CHARGEBEE] Service initialized');
+        this.planMapping = CHARGEBEE_PLAN_MAPPING;
+        console.log('[CHARGEBEE] Service initialized with Silver plan support');
     }
 
-    // Test connection using Product Catalog 2.0 API
+    // EXISTING METHOD: Test connection using Product Catalog 2.0 API (preserved)
     async testConnection() {
         try {
             console.log('[CHARGEBEE] Testing connection with item list (Product Catalog 2.0)...');
@@ -74,7 +107,7 @@ class ChargebeeService {
         }
     }
 
-    // Alternative test method using item_price (Product Catalog 2.0)
+    // EXISTING METHOD: Alternative test method (preserved)
     async testConnectionAlternative() {
         try {
             console.log('[CHARGEBEE] Testing with item_price list (Product Catalog 2.0)...');
@@ -119,10 +152,162 @@ class ChargebeeService {
             }
         }
     }
+
+    // NEW METHOD: Create checkout session for Silver plans
+    async createCheckout(options) {
+        try {
+            console.log('[CHARGEBEE] Creating checkout session...', {
+                planId: options.planId,
+                customerEmail: options.customerEmail
+            });
+
+            // Validate plan ID
+            if (!this.planMapping[options.planId]) {
+                throw new Error(`Unknown plan ID: ${options.planId}`);
+            }
+
+            const planInfo = this.planMapping[options.planId];
+            
+            // Create checkout using Chargebee hosted page
+            const result = await chargebee.hosted_page.checkout_new({
+                subscription: {
+                    plan_id: options.planId
+                },
+                customer: {
+                    email: options.customerEmail,
+                    first_name: options.customerName || options.customerEmail.split('@')[0]
+                },
+                redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
+                cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
+            }).request();
+
+            console.log('[CHARGEBEE] ✅ Checkout created successfully');
+            
+            return {
+                success: true,
+                checkoutUrl: result.hosted_page.url,
+                hostedPageId: result.hosted_page.id,
+                planInfo: planInfo
+            };
+
+        } catch (error) {
+            console.error('[CHARGEBEE] ❌ Checkout creation failed:', error);
+            return {
+                success: false,
+                error: error.message,
+                details: error
+            };
+        }
+    }
+
+    // NEW METHOD: Get available plans
+    async getPlans() {
+        try {
+            console.log('[CHARGEBEE] Retrieving available plans...');
+            
+            // For now, return our mapped plans
+            // In production, you might want to fetch from Chargebee directly
+            const availablePlans = Object.entries(this.planMapping).map(([chargebeePlanId, planInfo]) => ({
+                chargebeePlanId,
+                ...planInfo,
+                active: true
+            }));
+
+            return {
+                success: true,
+                plans: availablePlans
+            };
+
+        } catch (error) {
+            console.error('[CHARGEBEE] ❌ Failed to get plans:', error);
+            return {
+                success: false,
+                error: error.message,
+                plans: []
+            };
+        }
+    }
+
+    // NEW METHOD: Handle subscription events (for webhook processing)
+    async handleSubscriptionEvent(eventType, subscription, customer) {
+        try {
+            console.log('[CHARGEBEE] Processing subscription event:', eventType);
+            
+            const planId = subscription.plan_id;
+            const planInfo = this.planMapping[planId];
+            
+            if (!planInfo) {
+                console.warn('[CHARGEBEE] ⚠️ Unknown plan ID in subscription:', planId);
+                return {
+                    success: false,
+                    error: `Unknown plan: ${planId}`
+                };
+            }
+
+            return {
+                success: true,
+                eventType,
+                planInfo,
+                subscription: {
+                    id: subscription.id,
+                    planId: subscription.plan_id,
+                    status: subscription.status,
+                    startedAt: subscription.started_at,
+                    nextBillingAt: subscription.next_billing_at,
+                    customerId: subscription.customer_id
+                },
+                customer: {
+                    id: customer?.id,
+                    email: customer?.email,
+                    firstName: customer?.first_name
+                }
+            };
+
+        } catch (error) {
+            console.error('[CHARGEBEE] ❌ Error processing subscription event:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    // NEW METHOD: Validate webhook signature (for security)
+    validateWebhookSignature(payload, signature) {
+        try {
+            // In production, implement proper webhook signature validation
+            // For testing, we'll skip signature validation
+            console.log('[CHARGEBEE] Webhook signature validation (test mode)');
+            return true;
+
+        } catch (error) {
+            console.error('[CHARGEBEE] ❌ Webhook signature validation failed:', error);
+            return false;
+        }
+    }
+
+    // NEW METHOD: Get plan info by Chargebee plan ID
+    getPlanInfo(chargebeePlanId) {
+        return this.planMapping[chargebeePlanId] || null;
+    }
+
+    // NEW METHOD: Get all mapped plan IDs
+    getMappedPlanIds() {
+        return Object.keys(this.planMapping);
+    }
+
+    // NEW METHOD: Check if service is ready for production
+    isProductionReady() {
+        return this.isConfigured && 
+               process.env.CHARGEBEE_SITE && 
+               process.env.CHARGEBEE_API_KEY;
+    }
 }
 
 const chargebeeService = new ChargebeeService();
 
+// Export both the service instance and plan mapping
 module.exports = {
-    chargebeeService
+    chargebeeService,
+    CHARGEBEE_PLAN_MAPPING
 };
