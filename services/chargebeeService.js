@@ -4,6 +4,7 @@
 // FIXED: Updated createCheckout method for Product Catalog 2.0
 // FINAL FIX: Updated to match actual Chargebee Item Price IDs
 // PAYG FIX: Fixed one-time purchase checkout to use invoice_items instead of subscription_items
+// CRITICAL FIX: Use correct API methods - checkout_one_time_for_items for PAYG
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -157,7 +158,7 @@ class ChargebeeService {
         }
     }
 
-    // FIXED: Create checkout session for Silver plans - UPDATED FOR PRODUCT CATALOG 2.0 + PAYG FIX
+    // CRITICAL FIX: Complete rewrite of createCheckout to use correct API methods
     async createCheckout(options) {
         try {
             console.log('[CHARGEBEE] Creating checkout session for Product Catalog 2.0...', {
@@ -174,15 +175,18 @@ class ChargebeeService {
             console.log('[CHARGEBEE] Plan info:', planInfo);
             console.log('[CHARGEBEE] Billing model:', planInfo.billingModel);
             
-            // PAYG FIX: Check billing model and use correct API structure
-            let checkoutParams;
+            let result;
             
+            // CRITICAL FIX: Use completely different API methods based on billing model
             if (planInfo.billingModel === 'one_time') {
-                // PAYG plans use invoice_items for one-time purchases
+                // PAYG plans use checkout_one_time_for_items API method
                 console.log('[CHARGEBEE] Creating one-time purchase checkout (PAYG)...');
-                checkoutParams = {
-                    invoice_items: [{
-                        item_price_id: options.planId  // Use invoice_items for one-time purchases
+                console.log('[CHARGEBEE] Using checkout_one_time_for_items API');
+                
+                const checkoutParams = {
+                    item_prices: [{  // Use item_prices for one-time purchases
+                        item_price_id: options.planId,
+                        quantity: 1
                     }],
                     customer: {
                         email: options.customerEmail,
@@ -191,12 +195,21 @@ class ChargebeeService {
                     redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
                     cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
                 };
+
+                console.log('[CHARGEBEE] PAYG Checkout parameters:', JSON.stringify(checkoutParams, null, 2));
+
+                // CRITICAL: Use checkout_one_time_for_items for one-time purchases
+                result = await chargebee.hosted_page.checkout_one_time_for_items(checkoutParams).request();
+
             } else {
-                // Monthly plans use subscription_items for recurring subscriptions
+                // Monthly plans use checkout_new_for_items API method (KEEP AS IS - WORKING)
                 console.log('[CHARGEBEE] Creating recurring subscription checkout (Monthly)...');
-                checkoutParams = {
-                    subscription_items: [{
-                        item_price_id: options.planId  // Use subscription_items for recurring subscriptions
+                console.log('[CHARGEBEE] Using checkout_new_for_items API');
+                
+                const checkoutParams = {
+                    subscription_items: [{  // Use subscription_items for recurring subscriptions
+                        item_price_id: options.planId,
+                        quantity: 1
                     }],
                     customer: {
                         email: options.customerEmail,
@@ -205,12 +218,12 @@ class ChargebeeService {
                     redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
                     cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
                 };
+
+                console.log('[CHARGEBEE] Monthly Checkout parameters:', JSON.stringify(checkoutParams, null, 2));
+
+                // Use checkout_new_for_items for recurring subscriptions (WORKING)
+                result = await chargebee.hosted_page.checkout_new_for_items(checkoutParams).request();
             }
-
-            console.log('[CHARGEBEE] Checkout parameters:', JSON.stringify(checkoutParams, null, 2));
-
-            // FIXED: Use Product Catalog 2.0 API with correct parameters based on billing model
-            const result = await chargebee.hosted_page.checkout_new_for_items(checkoutParams).request();
 
             console.log('[CHARGEBEE] ✅ Checkout created successfully (Product Catalog 2.0)');
             
@@ -222,7 +235,13 @@ class ChargebeeService {
             };
 
         } catch (error) {
-            console.error('[CHARGEBEE] ❌ Checkout creation failed:', error);
+            console.error('[CHARGEBEE] ❌ Checkout creation failed:', {
+                message: error.message,
+                api_error_code: error.api_error_code,
+                error_code: error.error_code,
+                error_msg: error.error_msg,
+                http_status_code: error.http_status_code
+            });
             return {
                 success: false,
                 error: error.message,
