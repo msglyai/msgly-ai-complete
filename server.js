@@ -9,6 +9,7 @@ CHANGELOG - server.js:
 2. No changes to auth, routing, credits, or endpoints
 3. ADDED Chargebee integration: Import and test route
 4. NEW: Added Chargebee webhook handler and checkout creation routes
+5. FIXED: /test-chargebee route to match actual chargebeeService response format
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION
@@ -1459,13 +1460,13 @@ app.post('/create-checkout', authenticateToken, async (req, res) => {
             });
         }
         
-        console.log(`[CHECKOUT] Checkout created successfully: ${checkout.hostedPageUrl}`);
+        console.log(`[CHECKOUT] Checkout created successfully: ${checkout.checkoutUrl}`);
         
         res.json({
             success: true,
             message: 'Checkout session created successfully',
             data: {
-                checkoutUrl: checkout.hostedPageUrl,
+                checkoutUrl: checkout.checkoutUrl,
                 hostedPageId: checkout.hostedPageId,
                 planId: planId
             }
@@ -2215,7 +2216,7 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// NEW: Chargebee Connection Test Route
+// FIXED: Chargebee Connection Test Route
 app.get('/test-chargebee', async (req, res) => {
     try {
         console.log('[TEST] Testing Chargebee connection...');
@@ -2226,10 +2227,8 @@ app.get('/test-chargebee', async (req, res) => {
             res.json({
                 success: true,
                 message: '✅ Chargebee connection successful!',
-                data: {
-                    siteName: result.site.name,
-                    currency: result.site.currency_code,
-                    status: result.site.status,
+                data: result.data || {
+                    siteName: 'Connected',
                     isConfigured: chargebeeService.isConfigured
                 }
             });
