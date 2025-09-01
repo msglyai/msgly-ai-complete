@@ -1,6 +1,7 @@
 // services/chargebeeService.js - Enhanced Chargebee Service with Silver Plan Integration
 // STEP 8A: Added checkout creation, plan management, and subscription handling
 // Preserves all existing functionality while adding Silver plan support
+// FIXED: Updated createCheckout method for Product Catalog 2.0
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -153,10 +154,10 @@ class ChargebeeService {
         }
     }
 
-    // NEW METHOD: Create checkout session for Silver plans
+    // FIXED: Create checkout session for Silver plans - UPDATED FOR PRODUCT CATALOG 2.0
     async createCheckout(options) {
         try {
-            console.log('[CHARGEBEE] Creating checkout session...', {
+            console.log('[CHARGEBEE] Creating checkout session for Product Catalog 2.0...', {
                 planId: options.planId,
                 customerEmail: options.customerEmail
             });
@@ -168,11 +169,11 @@ class ChargebeeService {
 
             const planInfo = this.planMapping[options.planId];
             
-            // Create checkout using Chargebee hosted page
-            const result = await chargebee.hosted_page.checkout_new({
-                subscription: {
-                    plan_id: options.planId
-                },
+            // FIXED: Use Product Catalog 2.0 API - checkout_new_for_items instead of checkout_new
+            const result = await chargebee.hosted_page.checkout_new_for_items({
+                subscription_items: [{
+                    item_price_id: options.planId  // Use item_price_id for Product Catalog 2.0
+                }],
                 customer: {
                     email: options.customerEmail,
                     first_name: options.customerName || options.customerEmail.split('@')[0]
@@ -181,7 +182,7 @@ class ChargebeeService {
                 cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
             }).request();
 
-            console.log('[CHARGEBEE] ✅ Checkout created successfully');
+            console.log('[CHARGEBEE] ✅ Checkout created successfully (Product Catalog 2.0)');
             
             return {
                 success: true,
