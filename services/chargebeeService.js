@@ -2,7 +2,7 @@
 // STEP 8A: Added checkout creation, plan management, and subscription handling
 // Preserves all existing functionality while adding Silver plan support
 // FIXED: Updated createCheckout method for Product Catalog 2.0
-// UPDATED: Fixed plan ID mapping to match frontend and Chargebee dashboard
+// FINAL FIX: Updated to match actual Chargebee Item Price IDs
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -23,15 +23,15 @@ try {
 }
 
 // STEP 8A: Plan mapping between Chargebee and database
-// FIXED: Changed 'Silver-Monthly' to 'Silver' to match frontend and Chargebee dashboard
+// FINAL FIX: Updated to match actual Chargebee Item Price IDs
 const CHARGEBEE_PLAN_MAPPING = {
-    'Silver': {  // CHANGED: Was 'Silver-Monthly', now matches Chargebee dashboard
+    'Silver-Monthly': {  // FINAL FIX: Back to 'Silver-Monthly' to match actual Chargebee Item Price ID
         planCode: 'silver-monthly',
         renewableCredits: 30,
         billingModel: 'monthly',
         displayName: 'Silver Monthly'
     },
-    'Silver-PAYG': {  // UNCHANGED: Already matches Chargebee dashboard
+    'Silver-PAYG-USD': {  // FINAL FIX: Changed to 'Silver-PAYG-USD' to match actual Chargebee Item Price ID
         planCode: 'silver-payasyougo', 
         payasyougoCredits: 30,
         billingModel: 'one_time',
