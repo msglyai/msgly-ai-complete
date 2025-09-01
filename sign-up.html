@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -545,7 +544,7 @@
         }
 
         .agreement-checkbox input[type="checkbox"]:checked + .checkmark::after {
-            content: '✓';
+            content: 'âœ"';
             color: var(--white);
             font-weight: bold;
             font-size: 12px;
@@ -953,19 +952,19 @@
             
             <div class="features-list">
                 <div class="feature-item">
-                    <div class="feature-icon">✓</div>
+                    <div class="feature-icon">âœ"</div>
                     <span>AI analyzes profiles for perfect personalization</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">✓</div>
+                    <div class="feature-icon">âœ"</div>
                     <span>10x higher response rates than generic messages</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">✓</div>
+                    <div class="feature-icon">âœ"</div>
                     <span>Works directly in LinkedIn with Chrome extension</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">✓</div>
+                    <div class="feature-icon">âœ"</div>
                     <span>Start free with 10 messages per month</span>
                 </div>
             </div>
@@ -982,7 +981,7 @@
             <!-- Registration Form -->
             <div id="registrationForm">
                 <h2 class="registration-title">Get Started Free</h2>
-                <p class="registration-subtitle">No credit card required • 10 free messages</p>
+                <p class="registration-subtitle">No credit card required â€¢ 10 free messages</p>
 
                 <!-- Step 1: Google Sign In -->
                 <div id="step1Content">
@@ -1030,8 +1029,7 @@
                             </ul>
                         </div>
                         
-                        <div class="package-card disabled">
-                            <span class="coming-soon-badge">Coming Soon</span>
+                        <div class="package-card" onclick="selectPackage('silver')">
                             <div class="plan-name">Silver</div>
                             <div class="plan-price" id="silverPrice">$17<span id="silverPeriod">/one-time</span></div>
                             <div class="plan-credits" id="silverCredits">30 Credits</div>
@@ -1139,7 +1137,7 @@
 
             <!-- Enhanced Thank You State -->
             <div class="success-message" id="successState">
-                <div class="success-icon">✓</div>
+                <div class="success-icon">âœ"</div>
                 <h3 class="success-title">Thank You for Joining Msgly AI!</h3>
                 <p class="success-subtitle">Your account has been created successfully.</p>
                 
@@ -1213,7 +1211,7 @@
 
             <!-- Redirecting State (for complete users) -->
             <div class="redirecting" id="redirectingState">
-                <div class="redirecting-icon">🚀</div>
+                <div class="redirecting-icon">ðŸš€</div>
                 <h3 class="redirecting-title">Welcome Back!</h3>
                 <p class="redirecting-subtitle">Your registration is already complete. Redirecting you to your dashboard...</p>
             </div>
@@ -1222,6 +1220,7 @@
 
     <script>
         let selectedPackage = 'free';
+        let currentPricingMode = 'payAsYouGo';
         let userToken = null;
 
         // Pricing data
@@ -1238,16 +1237,16 @@
             }
         };
 
-        // ✅ FIXED: SMART ROUTING with registration_completed check
+        // âœ… FIXED: SMART ROUTING with registration_completed check
         window.addEventListener('load', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             
             if (token) {
                 userToken = token;
-                console.log('✅ Received token from OAuth:', token);
+                console.log('âœ… Received token from OAuth:', token);
                 
-                // ✅ FIXED: Check if user registration is already complete
+                // âœ… FIXED: Check if user registration is already complete
                 try {
                     const response = await fetch('https://api.msgly.ai/profile', {
                         method: 'GET',
@@ -1262,18 +1261,18 @@
                         const user = data.data.user;
                         const syncStatus = data.data.syncStatus;
 
-                        console.log('✅ User profile fetched for registration check');
-                        console.log('   - Registration completed:', user.registrationCompleted);  // ✅ FIXED: Changed from profileCompleted
+                        console.log('âœ… User profile fetched for registration check');
+                        console.log('   - Registration completed:', user.registrationCompleted);  // âœ… FIXED: Changed from profileCompleted
                         console.log('   - LinkedIn URL:', !!user.linkedinUrl);
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
 
-                        // ✅ FIXED: Check registration_completed status
-                        const isRegistrationComplete = user.registrationCompleted &&  // ✅ FIXED: Changed from profileCompleted
+                        // âœ… FIXED: Check registration_completed status
+                        const isRegistrationComplete = user.registrationCompleted &&  // âœ… FIXED: Changed from profileCompleted
                                                      user.linkedinUrl &&
                                                      !syncStatus.isIncomplete;
 
                         if (isRegistrationComplete) {
-                            console.log('✅ User registration is complete - redirecting to dashboard');
+                            console.log('âœ… User registration is complete - redirecting to dashboard');
                             
                             // Store token for dashboard access
                             localStorage.setItem('authToken', token);
@@ -1289,7 +1288,7 @@
                             
                             return; // Stop here - don't show registration form
                         } else {
-                            console.log('📝 User registration is incomplete - showing sign-up form');
+                            console.log('ðŸ" User registration is incomplete - showing sign-up form');
                             console.log('   - Needs LinkedIn URL or profile sync');
                             // Continue with normal sign-up flow
                         }
@@ -1314,6 +1313,7 @@
 
         // Toggle pricing
         function togglePricing(type) {
+            currentPricingMode = type;
             document.querySelectorAll('.toggle-option').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -1338,10 +1338,11 @@
             window.location.href = `https://api.msgly.ai/auth/google?package=${selectedPackage}`;
         }
 
-        // Handle package selection
+        // UPDATED: Handle package selection - Allow Silver selection
         function selectPackage(packageType) {
-            if (packageType !== 'free') {
-                alert('Premium packages coming soon! Start with our free plan.');
+            // Remove restriction for Silver plan
+            if (packageType !== 'free' && packageType !== 'silver') {
+                alert('This premium package is coming soon! Try Silver or start with our free plan.');
                 return;
             }
             
@@ -1392,7 +1393,7 @@
                     const prevStep = document.getElementById(steps[currentStep - 1]);
                     prevStep.classList.remove('active');
                     prevStep.classList.add('completed');
-                    prevStep.querySelector('.extraction-step-icon').textContent = '✓';
+                    prevStep.querySelector('.extraction-step-icon').textContent = 'âœ"';
                 }
                 
                 if (currentStep < steps.length) {
@@ -1409,7 +1410,7 @@
             }, 1500); // 1.5 seconds per step
         }
 
-        // ✅ FIXED: Complete registration - Sets registration_completed = true
+        // UPDATED: Complete registration with Silver plan support
         async function completeRegistration() {
             const termsAgreed = document.getElementById('termsAgreement').checked;
             const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
@@ -1435,6 +1436,59 @@
                 return;
             }
             
+            // Handle Silver plan checkout flow
+            if (selectedPackage === 'silver') {
+                try {
+                    // Determine the correct plan ID based on pricing mode
+                    let planId;
+                    if (currentPricingMode === 'monthly') {
+                        planId = 'Silver'; // Monthly Silver plan
+                    } else {
+                        planId = 'Silver-PAYG'; // Pay-as-you-go Silver plan
+                    }
+                    
+                    console.log(`Creating checkout for Silver plan: ${planId} (${currentPricingMode})`);
+                    
+                    // Create Chargebee checkout session
+                    const checkoutResponse = await fetch('https://api.msgly.ai/create-checkout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify({
+                            planId: planId
+                        })
+                    });
+                    
+                    const checkoutResult = await checkoutResponse.json();
+                    
+                    if (!checkoutResult.success) {
+                        throw new Error(checkoutResult.error || 'Failed to create checkout session');
+                    }
+                    
+                    // Store registration data for after payment
+                    sessionStorage.setItem('pendingRegistration', JSON.stringify({
+                        linkedinUrl: linkedinUrl,
+                        packageType: selectedPackage,
+                        termsAccepted: termsAgreed,
+                        userToken: userToken
+                    }));
+                    
+                    console.log('Redirecting to Chargebee checkout:', checkoutResult.data.checkoutUrl);
+                    
+                    // Redirect to Chargebee checkout
+                    window.location.href = checkoutResult.data.checkoutUrl;
+                    return;
+                    
+                } catch (error) {
+                    console.error('Checkout creation error:', error);
+                    alert('Payment setup failed: ' + error.message + '. Please try again.');
+                    return;
+                }
+            }
+            
+            // Handle free plan registration (existing flow)
             // Show loading state
             document.getElementById('registrationForm').style.display = 'none';
             document.getElementById('loadingState').style.display = 'block';
@@ -1447,7 +1501,7 @@
             animateExtractionProgress();
             
             try {
-                // ✅ FIXED: Send to /complete-registration endpoint which sets registration_completed = true
+                // âœ… FIXED: Send to /complete-registration endpoint which sets registration_completed = true
                 const response = await fetch('https://api.msgly.ai/complete-registration', {
                     method: 'POST',
                     headers: {
@@ -1467,11 +1521,11 @@
                     throw new Error(result.error || 'Failed to complete registration');
                 }
                 
-                console.log('✅ Registration completed successfully - registration_completed set to true');
+                console.log('âœ… Registration completed successfully - registration_completed set to true');
                 
                 // Store token in localStorage for dashboard access
                 localStorage.setItem('authToken', userToken);
-                console.log('✅ Token stored in localStorage:', userToken);
+                console.log('âœ… Token stored in localStorage:', userToken);
                 
                 // Wait for loading animation to complete (6 seconds total)
                 await new Promise(resolve => setTimeout(resolve, 6000));
@@ -1480,7 +1534,7 @@
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('successState').style.display = 'block';
                 
-                console.log('✅ Registration completed successfully! registration_completed = true set in database');
+                console.log('âœ… Registration completed successfully! registration_completed = true set in database');
                 
             } catch (error) {
                 console.error('Registration error:', error);
@@ -1499,7 +1553,7 @@
 
         // Add to Chrome Extension
         function addToChromeExtension() {
-            alert('🚀 Chrome Extension will be available soon!\n\nFor now, you can:\n✅ Access dashboard\n✅ Get ready for LinkedIn integration\n✅ Start your free plan');
+            alert('ðŸš€ Chrome Extension will be available soon!\n\nFor now, you can:\nâœ… Access dashboard\nâœ… Get ready for LinkedIn integration\nâœ… Start your free plan');
         }
 
         // Go to dashboard with token already stored
@@ -1508,12 +1562,12 @@
             const storedToken = localStorage.getItem('authToken');
             
             if (!storedToken) {
-                console.error('❌ No token found in localStorage');
+                console.error('âŒ No token found in localStorage');
                 alert('Authentication issue. Please try completing registration again.');
                 return;
             }
             
-            console.log('✅ Redirecting to dashboard with stored token - registration_completed = true');
+            console.log('âœ… Redirecting to dashboard with stored token - registration_completed = true');
             window.location.href = '/dashboard';
         }
     </script>
