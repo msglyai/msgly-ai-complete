@@ -8,7 +8,7 @@ CHANGELOG - server.js:
    - Ensured gemini_raw_data is passed through to gptService
 2. No changes to auth, routing, credits, or endpoints
 3. ADDED Chargebee integration: Import and test route
-4. FIXED /test-chargebee route to handle chargebeeService response properly
+4. NEW: Added Chargebee webhook handler and checkout creation routes
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION
@@ -114,6 +114,21 @@ const staticRoutes = require('./routes/static');
 
 // NEW: RACE CONDITION FIX - Track active profile processing to prevent duplicates
 const activeProcessing = new Map();
+
+// NEW: CHARGEBEE PLAN MAPPING - Maps Chargebee plan IDs to database plan codes
+const CHARGEBEE_PLAN_MAPPING = {
+    'Silver-Monthly': {
+        planCode: 'silver-monthly',
+        renewableCredits: 30,
+        billingModel: 'monthly'
+    },
+    'Silver-PAYG': {
+        planCode: 'silver-payasyougo', 
+        payasyougoCredits: 30,
+        billingModel: 'one_time'
+    }
+    // Gold and Platinum will be added later
+};
 
 // NEW: Robust token number cleaner
 function cleanTokenNumber(value) {
@@ -1042,6 +1057,153 @@ async function handleGenerateConnection(req, res) {
     }
 }
 
+// NEW: CHARGEBEE WEBHOOK HANDLER FUNCTIONS
+async function handleSubscriptionCreated(subscription, customer) {
+    try {
+        console.log('[WEBHOOK] Processing subscription_created');
+        console.log('  - Subscription ID:', subscription.id);
+        console.log('  - Customer email:', customer.email);
+        console.log('  - Plan ID:', subscription.plan_id);
+        
+        // Find user by email
+        const user = await getUserByEmail(customer.email);
+        if (!user) {
+            console.error('[WEBHOOK] User not found:', customer.email);
+            return;
+        }
+        
+        // Map Chargebee plan to database plan
+        const planMapping = CHARGEBEE_PLAN_MAPPING[subscription.plan_id];
+        if (!planMapping) {
+            console.error('[WEBHOOK] Unknown plan ID:', subscription.plan_id);
+            return;
+        }
+        
+        let planCode = planMapping.planCode;
+        let renewableCredits = planMapping.renewableCredits || 0;
+        let payasyougoCredits = planMapping.payasyougoCredits || 0;
+        
+        // Update user subscription
+        await pool.query(`
+            UPDATE users 
+            SET 
+                plan_code = $1,
+                renewable_credits = $2,
+                payasyougo_credits = COALESCE(payasyougo_credits, 0) + $3,
+                subscription_starts_at = $4,
+                next_billing_date = $5,
+                chargebee_subscription_id = $6,
+                subscription_status = 'active',
+                updated_at = NOW()
+            WHERE id = $7
+        `, [
+            planCode,
+            renewableCredits,
+            payasyougoCredits,
+            new Date(subscription.started_at * 1000),
+            subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
+            subscription.id,
+            user.id
+        ]);
+        
+        console.log(`[WEBHOOK] User ${user.id} upgraded to ${planCode}`);
+        console.log(`  - Renewable credits: ${renewableCredits}`);
+        console.log(`  - Pay-as-you-go credits added: ${payasyougoCredits}`);
+        
+    } catch (error) {
+        console.error('[WEBHOOK] Error handling subscription_created:', error);
+    }
+}
+
+async function handleSubscriptionActivated(subscription, customer) {
+    try {
+        console.log('[WEBHOOK] Processing subscription_activated');
+        console.log('  - Subscription ID:', subscription.id);
+        console.log('  - Customer email:', customer.email);
+        
+        // Find user by Chargebee subscription ID or email
+        let user = await pool.query(`
+            SELECT * FROM users 
+            WHERE chargebee_subscription_id = $1 OR email = $2
+        `, [subscription.id, customer.email]);
+        
+        if (user.rows.length === 0) {
+            console.error('[WEBHOOK] User not found for subscription activation:', customer.email);
+            return;
+        }
+        
+        user = user.rows[0];
+        
+        // Update subscription status
+        await pool.query(`
+            UPDATE users 
+            SET 
+                subscription_status = 'active',
+                chargebee_subscription_id = $1,
+                updated_at = NOW()
+            WHERE id = $2
+        `, [subscription.id, user.id]);
+        
+        console.log(`[WEBHOOK] Subscription activated for user ${user.id}`);
+        
+    } catch (error) {
+        console.error('[WEBHOOK] Error handling subscription_activated:', error);
+    }
+}
+
+async function handleInvoiceGenerated(invoice, subscription) {
+    try {
+        console.log('[WEBHOOK] Processing invoice_generated');
+        console.log('  - Invoice ID:', invoice.id);
+        console.log('  - Subscription ID:', subscription?.id);
+        console.log('  - Amount:', invoice.total);
+        
+        if (!subscription) {
+            console.log('[WEBHOOK] No subscription associated with invoice');
+            return;
+        }
+        
+        // Find user by Chargebee subscription ID
+        const user = await pool.query(`
+            SELECT * FROM users 
+            WHERE chargebee_subscription_id = $1
+        `, [subscription.id]);
+        
+        if (user.rows.length === 0) {
+            console.error('[WEBHOOK] User not found for invoice:', subscription.id);
+            return;
+        }
+        
+        const userData = user.rows[0];
+        console.log(`[WEBHOOK] Invoice generated for user ${userData.id}`);
+        
+        // Handle renewal if this is a recurring subscription
+        if (invoice.status === 'paid' && subscription.plan_id) {
+            const planMapping = CHARGEBEE_PLAN_MAPPING[subscription.plan_id];
+            if (planMapping && planMapping.billingModel === 'monthly') {
+                // Reset renewable credits for monthly subscription
+                await pool.query(`
+                    UPDATE users 
+                    SET 
+                        renewable_credits = $1,
+                        next_billing_date = $2,
+                        updated_at = NOW()
+                    WHERE id = $3
+                `, [
+                    planMapping.renewableCredits,
+                    subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
+                    userData.id
+                ]);
+                
+                console.log(`[WEBHOOK] Renewable credits reset to ${planMapping.renewableCredits} for user ${userData.id}`);
+            }
+        }
+        
+    } catch (error) {
+        console.error('[WEBHOOK] Error handling invoice_generated:', error);
+    }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -1212,6 +1374,113 @@ app.use('/', healthRoutes);
 // STEP 2E: Mount user routes
 app.use('/', userRoutes);
 
+// ==================== NEW: CHARGEBEE WEBHOOK AND CHECKOUT ROUTES ====================
+
+// NEW: Chargebee Webhook Handler
+app.post('/chargebee-webhook', express.raw({type: 'application/json'}), async (req, res) => {
+    try {
+        console.log('[WEBHOOK] Chargebee webhook received');
+        
+        // Parse the webhook payload
+        const event = JSON.parse(req.body.toString());
+        const eventType = event.event_type;
+        
+        console.log(`[WEBHOOK] Event type: ${eventType}`);
+        
+        switch (eventType) {
+            case 'subscription_created':
+                await handleSubscriptionCreated(event.content.subscription, event.content.customer);
+                break;
+            case 'subscription_activated':
+                await handleSubscriptionActivated(event.content.subscription, event.content.customer);
+                break;
+            case 'invoice_generated':
+                await handleInvoiceGenerated(event.content.invoice, event.content.subscription);
+                break;
+            case 'payment_succeeded':
+                console.log(`[WEBHOOK] Payment succeeded for subscription: ${event.content.subscription?.id}`);
+                // Handle successful payment if needed
+                break;
+            default:
+                console.log(`[WEBHOOK] Unhandled event type: ${eventType}`);
+        }
+        
+        res.status(200).json({ 
+            success: true,
+            message: 'Webhook processed successfully'
+        });
+    } catch (error) {
+        console.error('[WEBHOOK] Error processing webhook:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Webhook processing failed' 
+        });
+    }
+});
+
+// NEW: Create Chargebee Checkout
+app.post('/create-checkout', authenticateToken, async (req, res) => {
+    try {
+        const { planId } = req.body;
+        const userId = req.user.id;
+        
+        console.log(`[CHECKOUT] Creating checkout for user ${userId}, plan ${planId}`);
+        
+        if (!planId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Plan ID is required'
+            });
+        }
+        
+        // Validate plan ID
+        if (!CHARGEBEE_PLAN_MAPPING[planId]) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid plan ID'
+            });
+        }
+        
+        // Create Chargebee checkout
+        const checkout = await chargebeeService.createCheckout({
+            planId: planId,
+            customerEmail: req.user.email,
+            customerName: req.user.display_name,
+            successUrl: 'https://api.msgly.ai/dashboard?upgrade=success',
+            cancelUrl: 'https://api.msgly.ai/dashboard?upgrade=cancelled'
+        });
+        
+        if (!checkout.success) {
+            console.error('[CHECKOUT] Checkout creation failed:', checkout.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create checkout session',
+                details: checkout.error
+            });
+        }
+        
+        console.log(`[CHECKOUT] Checkout created successfully: ${checkout.hostedPageUrl}`);
+        
+        res.json({
+            success: true,
+            message: 'Checkout session created successfully',
+            data: {
+                checkoutUrl: checkout.hostedPageUrl,
+                hostedPageId: checkout.hostedPageId,
+                planId: planId
+            }
+        });
+        
+    } catch (error) {
+        console.error('[CHECKOUT] Error creating checkout:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create checkout session',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
@@ -1345,7 +1614,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         );
         
         console.log('[SUCCESS] Chrome extension authentication successful');
-        console.log(`💤 User ID: ${user.id}`);
+        console.log(`👤 User ID: ${user.id}`);
         console.log(`🆔 Extension ID: ${extensionId}`);
         console.log(`🆕 Is new user: ${isNewUser}`);
         console.log(`🎯 Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
@@ -1946,29 +2215,37 @@ app.get('/packages', (req, res) => {
     });
 });
 
-// FIXED: Chargebee Connection Test Route
+// NEW: Chargebee Connection Test Route
 app.get('/test-chargebee', async (req, res) => {
     try {
         console.log('[TEST] Testing Chargebee connection...');
         
         const result = await chargebeeService.testConnection();
         
-        console.log('[TEST] Chargebee test result:', result);
-        
-        // Send the result directly - the chargebeeService already formats it properly
-        res.status(200).json(result);
-        
+        if (result.success) {
+            res.json({
+                success: true,
+                message: '✅ Chargebee connection successful!',
+                data: {
+                    siteName: result.site.name,
+                    currency: result.site.currency_code,
+                    status: result.site.status,
+                    isConfigured: chargebeeService.isConfigured
+                }
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: '❌ Chargebee connection failed',
+                error: result.error
+            });
+        }
     } catch (error) {
-        console.log('[TEST] Chargebee test error:', error);
-        
+        console.error('[TEST] Chargebee test error:', error);
         res.status(500).json({
             success: false,
             message: 'Test failed',
-            error: error.message || 'Unknown error',
-            details: {
-                timestamp: new Date().toISOString(),
-                endpoint: '/test-chargebee'
-            }
+            error: error.message
         });
     }
 });
@@ -2041,7 +2318,9 @@ app.use((req, res, next) => {
             'GET /user/plan (NEW: Real plan data - NO MOCK!)',
             'GET /credits/balance (NEW: Dual credit management)',
             'GET /credits/history (NEW: Transaction history)',
-            'GET /test-chargebee (FIXED: Test Chargebee connection)'
+            'GET /test-chargebee (NEW: Test Chargebee connection)',
+            'POST /chargebee-webhook (NEW: Handle Chargebee payment notifications)',
+            'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
         ]
     });
 });
@@ -2070,6 +2349,8 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
             console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
+            console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
+            console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
@@ -2081,7 +2362,9 @@ const startServer = async () => {
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
-            console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration (FIXED)`);
+            console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
+            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee`);
+            console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
@@ -2112,11 +2395,13 @@ const startServer = async () => {
             console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
             console.log(`[SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
             console.log(`   [CONNECTION] Chargebee service with connection testing`);
-            console.log(`   [TEST] /test-chargebee endpoint for configuration validation (FIXED)`);
+            console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
             console.log(`   [PLANS] Subscription plan management and synchronization`);
             console.log(`   [CHECKOUT] Hosted checkout integration for seamless payments`);
             console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management`);
             console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
+            console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
+            console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
             console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION AND CHARGEBEE PAYMENTS!`);
         });
         
