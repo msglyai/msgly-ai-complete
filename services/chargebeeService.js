@@ -3,6 +3,7 @@
 // Preserves all existing functionality while adding Silver plan support
 // FIXED: Updated createCheckout method for Product Catalog 2.0
 // FINAL FIX: Updated to match actual Chargebee Item Price IDs
+// PAYG FIX: Fixed one-time purchase checkout to use invoice_items instead of subscription_items
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -156,7 +157,7 @@ class ChargebeeService {
         }
     }
 
-    // FIXED: Create checkout session for Silver plans - UPDATED FOR PRODUCT CATALOG 2.0
+    // FIXED: Create checkout session for Silver plans - UPDATED FOR PRODUCT CATALOG 2.0 + PAYG FIX
     async createCheckout(options) {
         try {
             console.log('[CHARGEBEE] Creating checkout session for Product Catalog 2.0...', {
@@ -170,19 +171,46 @@ class ChargebeeService {
             }
 
             const planInfo = this.planMapping[options.planId];
+            console.log('[CHARGEBEE] Plan info:', planInfo);
+            console.log('[CHARGEBEE] Billing model:', planInfo.billingModel);
             
-            // FIXED: Use Product Catalog 2.0 API - checkout_new_for_items instead of checkout_new
-            const result = await chargebee.hosted_page.checkout_new_for_items({
-                subscription_items: [{
-                    item_price_id: options.planId  // Use item_price_id for Product Catalog 2.0
-                }],
-                customer: {
-                    email: options.customerEmail,
-                    first_name: options.customerName || options.customerEmail.split('@')[0]
-                },
-                redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
-                cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
-            }).request();
+            // PAYG FIX: Check billing model and use correct API structure
+            let checkoutParams;
+            
+            if (planInfo.billingModel === 'one_time') {
+                // PAYG plans use invoice_items for one-time purchases
+                console.log('[CHARGEBEE] Creating one-time purchase checkout (PAYG)...');
+                checkoutParams = {
+                    invoice_items: [{
+                        item_price_id: options.planId  // Use invoice_items for one-time purchases
+                    }],
+                    customer: {
+                        email: options.customerEmail,
+                        first_name: options.customerName || options.customerEmail.split('@')[0]
+                    },
+                    redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
+                    cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
+                };
+            } else {
+                // Monthly plans use subscription_items for recurring subscriptions
+                console.log('[CHARGEBEE] Creating recurring subscription checkout (Monthly)...');
+                checkoutParams = {
+                    subscription_items: [{
+                        item_price_id: options.planId  // Use subscription_items for recurring subscriptions
+                    }],
+                    customer: {
+                        email: options.customerEmail,
+                        first_name: options.customerName || options.customerEmail.split('@')[0]
+                    },
+                    redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
+                    cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
+                };
+            }
+
+            console.log('[CHARGEBEE] Checkout parameters:', JSON.stringify(checkoutParams, null, 2));
+
+            // FIXED: Use Product Catalog 2.0 API with correct parameters based on billing model
+            const result = await chargebee.hosted_page.checkout_new_for_items(checkoutParams).request();
 
             console.log('[CHARGEBEE] ✅ Checkout created successfully (Product Catalog 2.0)');
             
