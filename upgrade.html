@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upgrade Your Plan - Msgly AI</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-purple: #8039DF;
+            --dark-purple: #3E0075;
+            --glow-purple: #9F4EFF;
+            --neon-purple: #7B2CBF;
+            --electric-purple: #6A1B9A;
+            --light-purple: #F5EDFF;
+            --accent-pink: #FF2370;
+            --success-green: #10B981;
+            --warning-orange: #F59E0B;
+            --black: #111827;
+            --charcoal: #1F2937;
+            --dark-gray: #374151;
+            --gray: #6B7280;
+            --light-gray: #F9FAFB;
+            --white: #FFFFFF;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
+            --glow-shadow: 0 0 40px rgba(128, 57, 223, 0.3);
+            --intense-glow: 0 0 60px rgba(128, 57, 223, 0.4);
+            --neon-glow: 0 0 80px rgba(128, 57, 223, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--black) 0%, var(--charcoal) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            background: var(--white);
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            min-height: 600px;
+        }
+
+        /* Left side - Features */
+        .features-side {
+            flex: 1;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            padding: 60px;
+            color: var(--white);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .features-side::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.3; }
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo i {
+            font-size: 1.8rem;
+            color: var(--white);
+            margin-right: 8px;
+        }
+
+        .logo-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .logo-main {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--white);
+        }
+
+        .logo-sub {
+            font-size: 0.7rem;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1;
+            margin-top: 2px;
+        }
+
+        .features-title {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            line-height: 1.2;
+            position: relative;
+            z-index: 1;
+        }
+
+        .features-subtitle {
+            font-size: 18px;
+            opacity: 0.95;
+            margin-bottom: 40px;
+            line-height: 1.5;
+            position: relative;
+            z-index: 1;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            font-size: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .feature-icon {
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Right side - Upgrade */
+        .upgrade-side {
+            flex: 1;
+            padding: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: var(--white);
+        }
+
+        .upgrade-title {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--black);
+        }
+
+        .upgrade-subtitle {
+            font-size: 16px;
+            color: var(--gray);
+            margin-bottom: 30px;
+        }
+
+        /* Current Plan Status */
+        .current-plan-status {
+            background: linear-gradient(135deg, rgba(128, 57, 223, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%);
+            border: 2px solid rgba(128, 57, 223, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .current-plan-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .current-plan-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-purple);
+            margin-bottom: 8px;
+        }
+
+        .current-plan-details {
+            font-size: 14px;
+            color: var(--dark-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .plan-detail {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Pricing toggle */
+        .pricing-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin: 2rem auto 3rem auto;
+            background: var(--light-gray);
+            border-radius: 12px;
+            padding: 6px;
+            max-width: 400px;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-option {
+            flex: 1;
+            padding: 14px 20px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            color: var(--gray);
+            position: relative;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 0.9rem;
+            z-index: 2;
+        }
+
+        .toggle-option.active {
+            background: linear-gradient(135deg, var(--dark-purple) 0%, var(--primary-purple) 100%);
+            color: var(--white);
+            box-shadow: var(--glow-shadow);
+            transform: translateY(-1px);
+        }
+
+        .toggle-option:hover:not(.active) {
+            color: var(--primary-purple);
+            background: rgba(128, 57, 223, 0.05);
+        }
+
+        .pricing-badge {
+            position: absolute;
+            top: -10px;
+            right: 4px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: var(--glow-shadow);
+            white-space: nowrap;
+            z-index: 3;
+        }
+
+        .package-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .package-card {
+            background: var(--white);
+            border: 2px solid rgba(128, 57, 223, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            text-align: center;
+        }
+
+        .package-card:hover:not(.disabled):not(.current) {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .package-card.selected {
+            border-color: var(--primary-purple);
+            background: var(--white);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .package-card.current {
+            border-color: var(--success-green);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .package-card.featured {
+            border-color: var(--primary-purple);
+            transform: scale(1.02);
+        }
+
+        .package-card.featured::before {
+            content: 'Most Popular';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--dark-purple) 0%, var(--primary-purple) 100%);
+            color: var(--white);
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .package-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .package-card.disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .current-plan-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--success-green);
+            color: var(--white);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .coming-soon-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-pink);
+            color: var(--white);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .plan-name {
+            font-weight: 600;
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--black);
+        }
+
+        .plan-price {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-purple);
+            margin-bottom: 0.25rem;
+        }
+
+        .plan-price span {
+            font-size: 0.875rem;
+            color: var(--gray);
+            font-weight: 400;
+        }
+
+        .plan-credits {
+            font-size: 0.875rem;
+            color: var(--gray);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Upgrade button */
+        .upgrade-btn {
+            width: 100%;
+            padding: 18px 24px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: block;
+            box-shadow: var(--shadow);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upgrade-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .upgrade-btn:hover::before {
+            left: 100%;
+        }
+
+        .upgrade-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-3px);
+            box-shadow: var(--intense-glow);
+        }
+
+        .upgrade-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Loading state */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--light-gray);
+            border-top: 4px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: var(--glow-shadow);
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-message {
+            color: var(--dark-gray);
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* Success state */
+        .success-message {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--success-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 40px;
+            color: var(--white);
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.3);
+        }
+
+        .success-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--black);
+        }
+
+        .success-subtitle {
+            font-size: 16px;
+            color: var(--gray);
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .back-to-dashboard-btn {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, var(--primary-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 16px;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-to-dashboard-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--intense-glow);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                max-width: 100%;
+            }
+
+            .features-side {
+                padding: 40px;
+                min-height: auto;
+            }
+
+            .upgrade-side {
+                padding: 40px;
+            }
+
+            .package-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .package-card.featured {
+                transform: none;
+            }
+
+            .pricing-toggle {
+                max-width: 100%;
+                margin: 1.5rem auto 2rem auto;
+            }
+
+            .toggle-option {
+                padding: 12px 16px;
+                font-size: 0.85rem;
+            }
+
+            .pricing-badge {
+                font-size: 0.55rem;
+                padding: 2px 5px;
+                top: -8px;
+                right: 2px;
+            }
+
+            .features-title {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Side - Features -->
+        <div class="features-side">
+            <div class="logo">
+                <div class="logo-content">
+                    <i class="fas fa-comments"></i>
+                    <div class="logo-text">
+                        <div class="logo-main">Msgly.AI</div>
+                        <div class="logo-sub">By Chopa AI LTD</div>
+                    </div>
+                </div>
+            </div>
+            
+            <h1 class="features-title">Upgrade Your LinkedIn Outreach</h1>
+            <p class="features-subtitle">Unlock more AI-powered messages and advanced features</p>
+            
+            <div class="features-list">
+                <div class="feature-item">
+                    <div class="feature-icon">✨</div>
+                    <span>Enhanced AI analysis for better personalization</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">⚡</div>
+                    <span>More monthly credits for increased outreach</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🎯</div>
+                    <span>Advanced targeting and message optimization</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">📈</div>
+                    <span>Detailed analytics and performance insights</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side - Upgrade -->
+        <div class="upgrade-side">
+            <!-- Upgrade Form -->
+            <div id="upgradeForm">
+                <h2 class="upgrade-title">Upgrade Your Plan</h2>
+                <p class="upgrade-subtitle">Choose a plan that fits your LinkedIn outreach needs</p>
+
+                <!-- Current Plan Status -->
+                <div class="current-plan-status">
+                    <div class="current-plan-title">Current Plan</div>
+                    <div class="current-plan-name" id="currentPlanName">Loading...</div>
+                    <div class="current-plan-details" id="currentPlanDetails">
+                        <div class="plan-detail">
+                            <i class="fas fa-coins"></i>
+                            <span id="currentCredits">Loading...</span>
+                        </div>
+                        <div class="plan-detail">
+                            <i class="fas fa-calendar"></i>
+                            <span id="currentBilling">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Toggle -->
+                <div class="pricing-toggle">
+                    <button class="toggle-option active" onclick="togglePricing('payAsYouGo')">
+                        Pay-As-You-Go
+                        <div class="pricing-badge">One-time</div>
+                    </button>
+                    <button class="toggle-option" onclick="togglePricing('monthly')">
+                        Monthly
+                        <div class="pricing-badge">Recurring</div>
+                    </button>
+                </div>
+                
+                <!-- Package Selection -->
+                <div class="package-grid">
+                    <div class="package-card" id="freeCard" onclick="selectPackage('free')">
+                        <div class="plan-name">Free</div>
+                        <div class="plan-price">$0<span>/forever</span></div>
+                        <div class="plan-credits">7 free Credits forever</div>
+                    </div>
+                    
+                    <div class="package-card featured" onclick="selectPackage('silver')">
+                        <div class="plan-name">Silver</div>
+                        <div class="plan-price" id="silverPrice">$17<span id="silverPeriod">/one-time</span></div>
+                        <div class="plan-credits" id="silverCredits">30 Credits</div>
+                    </div>
+                    
+                    <div class="package-card disabled">
+                        <span class="coming-soon-badge">Coming Soon</span>
+                        <div class="plan-name">Gold</div>
+                        <div class="plan-price" id="goldPrice">$39<span id="goldPeriod">/one-time</span></div>
+                        <div class="plan-credits" id="goldCredits">100 Credits</div>
+                    </div>
+                    
+                    <div class="package-card disabled">
+                        <span class="coming-soon-badge">Coming Soon</span>
+                        <div class="plan-name">Platinum</div>
+                        <div class="plan-price" id="platinumPrice">$78<span id="platinumPeriod">/one-time</span></div>
+                        <div class="plan-credits" id="platinumCredits">250 Credits</div>
+                    </div>
+                </div>
+
+                <button class="upgrade-btn" id="upgradeBtn" onclick="processUpgrade()">
+                    <span>Upgrade Plan</span>
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <div class="loading-message" id="loadingMessage">Processing upgrade...</div>
+            </div>
+
+            <!-- Success State -->
+            <div class="success-message" id="successState">
+                <div class="success-icon">✓</div>
+                <h3 class="success-title">Upgrade Successful!</h3>
+                <p class="success-subtitle">Your plan has been upgraded successfully.</p>
+                
+                <a href="/dashboard" class="back-to-dashboard-btn">
+                    <i class="fas fa-tachometer-alt" style="margin-right: 8px;"></i>
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedPackage = null;
+        let currentPricingMode = 'payAsYouGo';
+        let userToken = null;
+        let currentUser = null;
+
+        // Pricing data
+        const pricing = {
+            payAsYouGo: {
+                silver: { price: '$17', period: '/one-time', credits: '30 Credits' },
+                gold: { price: '$39', period: '/one-time', credits: '100 Credits' },
+                platinum: { price: '$78', period: '/one-time', credits: '250 Credits' }
+            },
+            monthly: {
+                silver: { price: '$13.90', period: '/month', credits: '30 Credits' },
+                gold: { price: '$32', period: '/month', credits: '100 Credits' },
+                platinum: { price: '$63.87', period: '/month', credits: '250 Credits' }
+            }
+        };
+
+        // Check authentication and load user data on page load
+        window.addEventListener('load', async () => {
+            await checkAuthentication();
+            await loadCurrentPlan();
+        });
+
+        // Check if user is authenticated
+        async function checkAuthentication() {
+            userToken = localStorage.getItem('authToken');
+            
+            if (!userToken) {
+                console.log('No auth token found - redirecting to login');
+                window.location.href = '/login?redirect=/upgrade';
+                return;
+            }
+
+            try {
+                const response = await fetch('https://api.msgly.ai/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Authentication failed');
+                }
+
+                const data = await response.json();
+                currentUser = data.data.user;
+                console.log('User authenticated:', currentUser.email);
+
+            } catch (error) {
+                console.error('Authentication check failed:', error);
+                localStorage.removeItem('authToken');
+                window.location.href = '/login?redirect=/upgrade';
+            }
+        }
+
+        // Load current plan information
+        async function loadCurrentPlan() {
+            if (!currentUser) return;
+
+            try {
+                // Display current plan info (placeholder - replace with actual API call)
+                const currentPlan = currentUser.currentPlan || 'Free';
+                const currentCredits = currentUser.currentCredits || 7;
+                const billingType = currentUser.billingType || 'Forever';
+
+                document.getElementById('currentPlanName').textContent = currentPlan;
+                document.getElementById('currentCredits').textContent = `${currentCredits} credits`;
+                document.getElementById('currentBilling').textContent = billingType;
+
+                // Mark current plan card
+                if (currentPlan.toLowerCase() === 'free') {
+                    const freeCard = document.getElementById('freeCard');
+                    freeCard.classList.add('current');
+                    const badge = document.createElement('span');
+                    badge.className = 'current-plan-badge';
+                    badge.textContent = 'Current Plan';
+                    freeCard.appendChild(badge);
+                }
+
+            } catch (error) {
+                console.error('Failed to load current plan:', error);
+                // Set defaults
+                document.getElementById('currentPlanName').textContent = 'Free';
+                document.getElementById('currentCredits').textContent = '7 credits';
+                document.getElementById('currentBilling').textContent = 'Forever';
+            }
+        }
+
+        // Toggle pricing
+        function togglePricing(type) {
+            currentPricingMode = type;
+            document.querySelectorAll('.toggle-option').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            const data = pricing[type];
+            
+            document.getElementById('silverPrice').innerHTML = `${data.silver.price}<span id="silverPeriod">${data.silver.period}</span>`;
+            document.getElementById('silverCredits').textContent = data.silver.credits;
+            
+            document.getElementById('goldPrice').innerHTML = `${data.gold.price}<span id="goldPeriod">${data.gold.period}</span>`;
+            document.getElementById('goldCredits').textContent = data.gold.credits;
+            
+            document.getElementById('platinumPrice').innerHTML = `${data.platinum.price}<span id="platinumPeriod">${data.platinum.period}</span>`;
+            document.getElementById('platinumCredits').textContent = data.platinum.credits;
+        }
+
+        // Handle package selection
+        function selectPackage(packageType) {
+            // Only allow Silver for now
+            if (packageType !== 'silver' && packageType !== 'free') {
+                alert('This premium package is coming soon! Try Silver or continue with your free plan.');
+                return;
+            }
+            
+            // Don't allow downgrade to free
+            if (packageType === 'free') {
+                alert('You already have access to the free plan. Choose Silver to upgrade!');
+                return;
+            }
+            
+            selectedPackage = packageType;
+            
+            document.querySelectorAll('.package-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            // Update button text
+            const upgradeBtn = document.getElementById('upgradeBtn');
+            upgradeBtn.innerHTML = `<span>Upgrade to ${packageType.charAt(0).toUpperCase() + packageType.slice(1)}</span>`;
+        }
+
+        // Process upgrade
+        async function processUpgrade() {
+            if (!selectedPackage) {
+                alert('Please select a plan to upgrade to.');
+                return;
+            }
+
+            if (!userToken) {
+                alert('Authentication error. Please login again.');
+                window.location.href = '/login';
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('upgradeForm').style.display = 'none';
+            document.getElementById('loadingState').style.display = 'block';
+
+            try {
+                // Determine the correct plan ID based on pricing mode
+                let planId;
+                if (currentPricingMode === 'monthly') {
+                    planId = 'Silver-Monthly'; // Monthly Silver plan
+                } else {
+                    planId = 'Silver-PAYG-USD'; // Pay-as-you-go Silver plan
+                }
+                
+                console.log(`Creating upgrade checkout for: ${planId} (${currentPricingMode})`);
+                
+                // Create Chargebee checkout session for upgrade
+                const checkoutResponse = await fetch('https://api.msgly.ai/create-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${userToken}`
+                    },
+                    body: JSON.stringify({
+                        planId: planId,
+                        isUpgrade: true // Flag to indicate this is an upgrade
+                    })
+                });
+                
+                const checkoutResult = await checkoutResponse.json();
+                
+                if (!checkoutResult.success) {
+                    throw new Error(checkoutResult.error || 'Failed to create upgrade checkout session');
+                }
+                
+                console.log('Redirecting to Chargebee upgrade checkout:', checkoutResult.data.checkoutUrl);
+                
+                // Redirect to Chargebee checkout
+                window.location.href = checkoutResult.data.checkoutUrl;
+                
+            } catch (error) {
+                console.error('Upgrade error:', error);
+                
+                // Show error and go back to form
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('upgradeForm').style.display = 'block';
+                
+                alert('Upgrade failed: ' + error.message + '. Please try again.');
+            }
+        }
+
+        // Handle successful upgrade (called from URL params)
+        function handleUpgradeSuccess() {
+            document.getElementById('upgradeForm').style.display = 'none';
+            document.getElementById('successState').style.display = 'block';
+        }
+
+        // Check for upgrade success from URL params
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('upgrade') === 'success') {
+                setTimeout(handleUpgradeSuccess, 100);
+            }
+        });
+    </script>
+</body>
+</html>
