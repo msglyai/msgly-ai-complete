@@ -192,6 +192,7 @@ class ChargebeeService {
                         email: options.customerEmail,
                         first_name: options.customerName || options.customerEmail.split('@')[0]
                     },
+                    currency_code: "USD",  // CRITICAL FIX: Required for one-time purchases
                     redirect_url: options.successUrl || 'https://api.msgly.ai/dashboard?upgrade=success',
                     cancel_url: options.cancelUrl || 'https://api.msgly.ai/dashboard?upgrade=cancelled'
                 };
