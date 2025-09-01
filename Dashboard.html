@@ -272,6 +272,98 @@
             font-size: 1rem;
         }
 
+        /* UPGRADE SUCCESS/ERROR NOTIFICATIONS */
+        .notification-banner {
+            border-radius: 14px;
+            padding: 1.2rem;
+            margin-bottom: 1.5rem;
+            display: none;
+            animation: slideInDown 0.5s ease-out;
+            position: relative;
+        }
+
+        .notification-banner.success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+            border: 2px solid var(--success-green);
+        }
+
+        .notification-banner.error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+            border: 2px solid var(--error-red);
+        }
+
+        .notification-banner.warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border: 2px solid var(--warning-orange);
+        }
+
+        .notification-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .notification-icon {
+            width: 22px;
+            height: 22px;
+            font-size: 1.1rem;
+        }
+
+        .notification-banner.success .notification-icon {
+            color: var(--success-green);
+        }
+
+        .notification-banner.error .notification-icon {
+            color: var(--error-red);
+        }
+
+        .notification-banner.warning .notification-icon {
+            color: var(--warning-orange);
+        }
+
+        .notification-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .notification-banner.success .notification-title {
+            color: var(--success-green);
+        }
+
+        .notification-banner.error .notification-title {
+            color: var(--error-red);
+        }
+
+        .notification-banner.warning .notification-title {
+            color: var(--warning-orange);
+        }
+
+        .notification-message {
+            color: var(--dark-gray);
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+
+        .notification-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--gray);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.2rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .notification-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+            color: var(--black);
+        }
+
         /* 🚦 TRAFFIC LIGHT SYSTEM */
         .traffic-light-warning {
             border-radius: 14px;
@@ -747,7 +839,7 @@
             line-height: 1.4;
         }
 
-        /* 👤 FULL PROFILE VIEW SECTION */
+        /* 💤 FULL PROFILE VIEW SECTION */
         .full-profile-section {
             display: none;
             background: var(--white);
@@ -1133,6 +1225,46 @@
                 <p class="page-subtitle">Welcome to your AI-powered LinkedIn messaging center</p>
             </div>
 
+            <!-- UPGRADE SUCCESS/ERROR NOTIFICATIONS -->
+            <div class="notification-banner success" id="successNotification">
+                <button class="notification-close" onclick="closeNotification('successNotification')">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="notification-header">
+                    <i class="fas fa-check-circle notification-icon"></i>
+                    <div class="notification-title">Upgrade Successful!</div>
+                </div>
+                <div class="notification-message" id="successMessage">
+                    Welcome to your new plan! Your credits have been updated and are ready to use.
+                </div>
+            </div>
+
+            <div class="notification-banner error" id="errorNotification">
+                <button class="notification-close" onclick="closeNotification('errorNotification')">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="notification-header">
+                    <i class="fas fa-exclamation-triangle notification-icon"></i>
+                    <div class="notification-title">Upgrade Failed</div>
+                </div>
+                <div class="notification-message" id="errorMessage">
+                    There was an issue processing your upgrade. Please try again or contact support.
+                </div>
+            </div>
+
+            <div class="notification-banner warning" id="cancelNotification">
+                <button class="notification-close" onclick="closeNotification('cancelNotification')">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="notification-header">
+                    <i class="fas fa-info-circle notification-icon"></i>
+                    <div class="notification-title">Upgrade Cancelled</div>
+                </div>
+                <div class="notification-message" id="cancelMessage">
+                    No worries! Your upgrade was cancelled and no charges were made. You can upgrade anytime.
+                </div>
+            </div>
+
             <!-- 🚦 TRAFFIC LIGHT WARNING SYSTEM -->
             <div class="traffic-light-warning red" id="redWarning">
                 <div class="traffic-light-header">
@@ -1340,7 +1472,7 @@
                 </div>
             </div>
 
-            <!-- 👤 FULL PROFILE VIEW SECTION -->
+            <!-- 💤 FULL PROFILE VIEW SECTION -->
             <div class="full-profile-section" id="fullProfileSection">
                 <div class="full-profile-header">
                     <div class="full-profile-icon">
@@ -1367,8 +1499,98 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // UPGRADE HANDLING: Check for upgrade status parameters first
+            handleUpgradeParams();
+            
+            // Then proceed with normal authentication
             checkAuthentication();
         });
+
+        // UPGRADE HANDLING FUNCTIONS
+        function handleUpgradeParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const upgradeStatus = urlParams.get('upgrade');
+            
+            if (upgradeStatus) {
+                // Clean URL without page refresh
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Show appropriate notification
+                switch (upgradeStatus) {
+                    case 'success':
+                        showUpgradeSuccessNotification();
+                        break;
+                    case 'cancelled':
+                        showUpgradeCancelledNotification();
+                        break;
+                    case 'error':
+                        showUpgradeErrorNotification();
+                        break;
+                }
+            }
+        }
+
+        function showUpgradeSuccessNotification() {
+            const notification = document.getElementById('successNotification');
+            const message = document.getElementById('successMessage');
+            
+            // Customize message based on possible plan parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const planName = urlParams.get('plan') || 'new';
+            
+            message.textContent = `Welcome to your ${planName} plan! Your credits have been updated and are ready to use. Thank you for upgrading!`;
+            
+            notification.style.display = 'block';
+            
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                closeNotification('successNotification');
+            }, 10000);
+            
+            // Refresh dashboard data to show updated subscription
+            setTimeout(() => {
+                if (currentUserData) {
+                    refreshDashboardData();
+                }
+            }, 2000);
+        }
+
+        function showUpgradeErrorNotification() {
+            const notification = document.getElementById('errorNotification');
+            notification.style.display = 'block';
+            
+            // Auto-hide after 8 seconds
+            setTimeout(() => {
+                closeNotification('errorNotification');
+            }, 8000);
+        }
+
+        function showUpgradeCancelledNotification() {
+            const notification = document.getElementById('cancelNotification');
+            notification.style.display = 'block';
+            
+            // Auto-hide after 6 seconds
+            setTimeout(() => {
+                closeNotification('cancelNotification');
+            }, 6000);
+        }
+
+        function closeNotification(notificationId) {
+            const notification = document.getElementById(notificationId);
+            notification.style.display = 'none';
+        }
+
+        async function refreshDashboardData() {
+            const token = getAuthToken();
+            if (token) {
+                try {
+                    await loadDashboardData(token);
+                    console.log('Dashboard data refreshed after upgrade');
+                } catch (error) {
+                    console.error('Error refreshing dashboard data:', error);
+                }
+            }
+        }
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -1391,7 +1613,7 @@
                     if (trafficLightStatus === 'green') {
                         showFullProfile();
                     } else {
-                        alert('👤 Complete your LinkedIn profile sync first to access this section.');
+                        alert('Complete your LinkedIn profile sync first to access this section.');
                     }
                     break;
                 default:
@@ -1404,7 +1626,7 @@
             const token = getAuthToken();
             
             if (!token) {
-                console.log('❌ No authentication token found - redirecting to login');
+                console.log('No authentication token found - redirecting to login');
                 window.location.href = '/login';
                 return;
             }
@@ -1663,7 +1885,7 @@
             }, 1000);
         }
 
-        // 👤 FULL PROFILE VIEW FUNCTIONS
+        // 💤 FULL PROFILE VIEW FUNCTIONS
         function showFullProfile() {
             if (trafficLightStatus !== 'green') {
                 alert('Please complete your profile sync first to view your full profile.');
