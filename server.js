@@ -11,6 +11,7 @@ CHANGELOG - server.js:
 4. NEW: Added Chargebee webhook handler and checkout creation routes
 5. FIXED: /test-chargebee route to match actual chargebeeService response format
 6. FIXED: CHARGEBEE_PLAN_MAPPING - Updated 'Silver-PAYG' to 'Silver-PAYG-USD' to match actual Chargebee Item Price IDs
+7. MINIMAL: Added /upgrade route to serve upgrade.html
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION
@@ -1371,6 +1372,11 @@ app.use((req, res, next) => {
 // STEP 2C: Mount static routes FIRST (before other routes)
 app.use('/', staticRoutes);
 
+// Serve upgrade page
+app.get('/upgrade', (req, res) => {
+    res.sendFile(path.join(__dirname, 'upgrade.html'));
+});
+
 // MODULARIZATION: Mount health routes
 app.use('/', healthRoutes);
 
@@ -2296,6 +2302,7 @@ app.use((req, res, next) => {
             'GET /sign-up',
             'GET /login', 
             'GET /dashboard',
+            'GET /upgrade (NEW: Upgrade page for existing users)',
             'GET /health',
             'POST /register',
             'POST /login',
@@ -2352,6 +2359,7 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
+            console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
             console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
@@ -2366,6 +2374,7 @@ const startServer = async () => {
             console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
             console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
+            console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
