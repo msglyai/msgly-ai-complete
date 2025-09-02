@@ -13,6 +13,7 @@ CHANGELOG - server.js:
 6. FIXED: CHARGEBEE_PLAN_MAPPING - Updated 'Silver-PAYG' to 'Silver-PAYG-USD' to match actual Chargebee Item Price IDs
 7. MINIMAL: Added /upgrade route to serve upgrade.html
 8. NEW: Added MailerSend integration with minimal changes (import + 2 function calls)
+9. FIXED: Added welcome email logic to OAuth callback for new users (2 minimal changes)
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND
@@ -1879,6 +1880,45 @@ app.get('/auth/google/callback',
             console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
             console.log(`   - Needs onboarding: ${needsOnboarding}`);
             
+            // NEW: Send welcome email for new users (NON-BLOCKING)
+            if (req.user.isNewUser) {
+                console.log(`[MAILER] NEW USER DETECTED - Sending welcome email to ${req.user.email}`);
+                try {
+                    // Check if welcome email already sent
+                    const emailCheck = await pool.query(
+                        'SELECT welcome_email_sent FROM users WHERE id = $1',
+                        [req.user.id]
+                    );
+                    
+                    if (emailCheck.rows.length > 0 && !emailCheck.rows[0].welcome_email_sent) {
+                        console.log(`[MAILER] Sending welcome email for OAuth new user: ${req.user.email}`);
+                        
+                        const emailResult = await sendWelcomeEmail({
+                            toEmail: req.user.email,
+                            toName: req.user.display_name,
+                            userId: req.user.id
+                        });
+                        
+                        if (emailResult.ok) {
+                            // Mark as sent
+                            await pool.query(
+                                'UPDATE users SET welcome_email_sent = true WHERE id = $1',
+                                [req.user.id]
+                            );
+                            
+                            console.log(`[MAILER] OAuth welcome email sent successfully: ${emailResult.messageId}`);
+                        } else {
+                            console.error(`[MAILER] OAuth welcome email failed: ${emailResult.error}`);
+                        }
+                    } else {
+                        console.log(`[MAILER] Welcome email already sent for user ${req.user.id}`);
+                    }
+                } catch (emailError) {
+                    console.error('[MAILER] Non-blocking OAuth email error:', emailError);
+                    // Don't fail the OAuth flow - email is not critical
+                }
+            }
+            
             if (needsOnboarding) {
                 console.log(`[ARROW] Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
@@ -2441,7 +2481,7 @@ app.use((req, res, next) => {
             'POST /register',
             'POST /login',
             'GET /auth/google',
-            'GET /auth/google/callback',
+            'GET /auth/google/callback (✅ WELCOME EMAIL for new users)',
             'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
             'POST /complete-registration (✅ WELCOME EMAIL for free users)',
             'POST /update-profile',
@@ -2516,7 +2556,7 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
             console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
-            console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation for free and paid users`);
+            console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation for all users`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
@@ -2538,6 +2578,7 @@ const startServer = async () => {
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
             console.log(`   [EMAIL] /complete-registration: Welcome email for free users`);
+            console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
@@ -2578,6 +2619,7 @@ const startServer = async () => {
             console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
             console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
             console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
+            console.log(`   [OAUTH] New users: Welcome email after OAuth signup`);
             console.log(`   [GUARD] Database column welcome_email_sent prevents duplicates`);
             console.log(`   [SAFE] Non-blocking: Email failures don't affect signup flow`);
             console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
