@@ -9,7 +9,7 @@ const path = require('path');
 let MailerSend, EmailParams, Sender, Recipient;
 
 try {
-    const mailerSendModule = require('@mailersend/sdk');
+    const mailerSendModule = require('mailersend');
     MailerSend = mailerSendModule.MailerSend;
     EmailParams = mailerSendModule.EmailParams;
     Sender = mailerSendModule.Sender;
