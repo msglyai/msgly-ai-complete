@@ -18,6 +18,8 @@ CHANGELOG - services/gptService.js:
    - Enhanced debug logging (non-PII, shows presence/counts not raw content)
 4. UPDATED PROMPT: Changed to target-centric approach with 220 char limit, required greeting/closing, 3 details minimum
 5. ADDED GEMINI FALLBACK: Insurance policy - Gemini 2.5 Pro activates only when GPT-5 fails
+6. COMPLETED CONNECTION REQUEST: Full implementation following LinkedIn message pattern
+7. ADDED INTRO REQUEST: New method for mutual connection introductions
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
@@ -79,6 +81,7 @@ class GPTService {
     // Build the complete prompt for LinkedIn message generation with debugging
     buildPrompt(userProfile, targetProfile, context, messageType) {
         console.log('[GPT] === BUILDING PROMPT FOR GPT-5 ===');
+        console.log(`[GPT] Message Type: ${messageType}`);
         
         // Extract user profile data
         const userProfileText = this.formatUserProfile(userProfile);
@@ -92,8 +95,78 @@ class GPTService {
         console.log('[DEBUG] Target profile preview (first 200 chars):', targetProfileText.substring(0, 200) + '...');
         console.log('[DEBUG] Context preview (first 100 chars):', context?.substring(0, 100) + '...');
         
-        // Updated prompt template with target-centric approach
-        const systemPrompt = `[MODE: INBOX_MESSAGE]
+        // Select prompt template based on message type
+        let systemPrompt;
+        
+        switch (messageType) {
+            case 'connection_request':
+                systemPrompt = `[MODE: CONNECTION_REQUEST]
+
+You are an AI LinkedIn Outreach Assistant.
+
+Inputs:
+1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT — the business or conversational goal.
+
+Task:
+- Generate ONE highly personalized LinkedIn connection request message.
+
+Message rules:
+• Absolute maximum: 150 characters (count before finalizing).
+• Must always start with: "Hi [TARGET_FIRSTNAME],"
+• Focus primarily on the TARGET PROFILE — highlight what is valuable or relevant for them.
+• At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
+• Integrate CONTEXT naturally — frame it as potential mutual value, not a literal repeat.
+• Written as a connection request (invitation to connect).
+• Keep it friendly, professional, approachable — avoid email or sales tone.
+• Avoid generic phrases like "Let's connect" unless no other detail exists.
+• Do not include offers, links, or calls-to-action.
+• Do not phrase the connection request as a question.
+• If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
+• If inputs are poor → still greet politely and write a general invite ≤150 chars.
+• Avoid exaggerated adjectives.
+• No emojis, hashtags, line breaks, or special symbols.
+• Output only the final message text — no explanations, no labels, no JSON.`;
+                break;
+                
+            case 'intro_request':
+                systemPrompt = `[MODE: INTRO_REQUEST]
+
+You are an AI LinkedIn Outreach Assistant.
+
+Inputs:
+1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT — the business or conversational goal.
+4. MUTUAL CONNECTION — the LinkedIn profile of the shared connection who could make the intro.
+
+Task:
+- Generate ONE LinkedIn intro request consisting of two short parts:
+  Part A: The message you would send to the mutual connection asking for an introduction. ≤150 characters.
+  Part B: The short message the mutual connection could forward to the target. ≤220 characters.
+- Combined total must never exceed 370 characters.
+
+Message rules:
+• Both parts must always start with: "Hi [FIRSTNAME],"
+• Both parts must always end with sender's first name (e.g., "… Thanks, Ziv").
+• Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
+• Integrate CONTEXT naturally; do not restate it literally.
+• Keep it friendly, professional, approachable — avoid email or sales tone.
+• No offers, links, or calls-to-action in Part A or Part B.
+• Do not phrase Part A or Part B as a question.
+• Avoid generic phrases; avoid relying only on job titles or company names.
+• Avoid exaggerated adjectives.
+• No emojis, hashtags, line breaks, or special symbols.
+• If insufficient data → still produce polite, general LinkedIn-style messages within limits.
+• Output format:
+  Part A: [intro request to mutual connection]
+  Part B: [forwardable message to target]
+• Output only the two message texts — no explanations, no labels, no JSON.`;
+                break;
+                
+            default: // 'inbox_message'
+                systemPrompt = `[MODE: INBOX_MESSAGE]
 You are an AI LinkedIn Outreach Assistant.
 Inputs:
 1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
@@ -115,6 +188,7 @@ Message rules:
 • Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity").
 • No emojis, hashtags, line breaks, or special symbols.
 • Output only the final message text — no explanations, no labels, no JSON.`;
+        }
 
         const userPrompt = `USER PROFILE:
 ${userProfileText}
@@ -125,7 +199,7 @@ ${targetProfileText}
 CONTEXT:
 ${context}
 
-Generate the LinkedIn inbox message now:`;
+Generate the ${messageType === 'connection_request' ? 'connection request' : messageType === 'intro_request' ? 'intro request' : 'LinkedIn inbox message'} now:`;
 
         console.log('[DEBUG] Final system prompt length:', systemPrompt.length);
         console.log('[DEBUG] Final user prompt length:', userPrompt.length);
@@ -636,7 +710,7 @@ Generate the LinkedIn inbox message now:`;
             console.log(`[GPT] Token usage: ${tokenUsage.input_tokens} input, ${tokenUsage.output_tokens} output, ${tokenUsage.total_tokens} total`);
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
-            console.log(`[GPT] Message within 220 chars: ${generatedMessage.length <= 220 ? '✅' : '❌'}`);
+            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : 220) ? '✅' : '❌'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
@@ -661,7 +735,7 @@ Generate the LinkedIn inbox message now:`;
                     primary_model: this.model,
                     fallback_triggered: fallbackTriggered,
                     primary_error: primaryError,
-                    prompt_version: 'inbox_message_target_centric_v2',
+                    prompt_version: messageType === 'connection_request' ? 'connection_request_v1' : messageType === 'intro_request' ? 'intro_request_v1' : 'inbox_message_target_centric_v2',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
@@ -695,6 +769,25 @@ Generate the LinkedIn inbox message now:`;
                 userMessage: this.getUserFriendlyError(error)
             };
         }
+    }
+
+    // COMPLETED: Connection Request Generation (follows exact same pattern as LinkedIn message)
+    async generateLinkedInConnection(userProfile, targetProfile, context) {
+        console.log('[GPT] === STARTING CONNECTION REQUEST GENERATION ===');
+        return await this.generateLinkedInMessage(userProfile, targetProfile, context, 'connection_request');
+    }
+
+    // NEW: Intro Request Generation (follows exact same pattern as LinkedIn message)
+    async generateIntroRequest(userProfile, targetProfile, context, mutualConnectionName = null) {
+        console.log('[GPT] === STARTING INTRO REQUEST GENERATION ===');
+        console.log(`[GPT] Mutual connection: ${mutualConnectionName || 'Unknown'}`);
+        
+        // Add mutual connection info to context for better prompt building
+        const enhancedContext = mutualConnectionName ? 
+            `${context} [Mutual connection: ${mutualConnectionName}]` : 
+            context;
+        
+        return await this.generateLinkedInMessage(userProfile, targetProfile, enhancedContext, 'intro_request');
     }
 
     // Convert API errors to user-friendly messages
