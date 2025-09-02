@@ -14,6 +14,9 @@ CHANGELOG - server.js:
 7. MINIMAL: Added /upgrade route to serve upgrade.html
 8. NEW: Added MailerSend integration with minimal changes (import + 2 function calls)
 9. FIXED: Added welcome email logic to OAuth callback for new users (2 minimal changes)
+10. COMPLETED: handleGenerateConnection() with full GPT service integration
+11. NEW: Added handleGenerateIntro() function with GPT service integration
+12. NEW: Added /generate-intro route
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND
@@ -967,7 +970,7 @@ async function handleGenerateMessage(req, res) {
     }
 }
 
-// ENHANCED: Connection Request Generation with dual credit system
+// COMPLETED: Connection Request Generation with dual credit system
 async function handleGenerateConnection(req, res) {
     let holdId = null;
     
@@ -984,6 +987,9 @@ async function handleGenerateConnection(req, res) {
                 error: 'Target profile URL and outreach context are required'
             });
         }
+
+        console.log('[CHECK] targetProfileUrl:', targetProfileUrl.substring(0, 50) + '...');
+        console.log('[CHECK] outreachContext length:', outreachContext.length);
 
         // Create credit hold
         console.log('[CREDIT] Creating credit hold for connection generation...');
@@ -1014,15 +1020,142 @@ async function handleGenerateConnection(req, res) {
         holdId = holdResult.holdId;
         console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
 
-        // TODO: Implement actual connection message generation with AI
-        // For now, return a placeholder
-        const generatedConnection = `I'd love to connect with you given your background in ${outreachContext}. Looking forward to potential collaboration opportunities.`;
+        // STEP 1: Load user profile from database
+        console.log('[DATABASE] Loading user profile JSON...');
+        const userProfileResult = await pool.query(`
+            SELECT 
+                gemini_raw_data,
+                full_name,
+                headline,
+                current_job_title,
+                current_company,
+                location,
+                experience,
+                education,
+                skills,
+                about
+            FROM user_profiles
+            WHERE user_id = $1
+        `, [userId]);
 
-        // Complete the credit hold (this handles the deduction)
+        if (userProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'user_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+
+        const userProfile = userProfileResult.rows[0];
+        console.log('[CHECK] user profile has name:', !!userProfile.full_name);
+
+        // STEP 2: Load target profile from database  
+        console.log('[DATABASE] Loading target profile JSON...');
+        const cleanTargetUrl = cleanLinkedInUrl(targetProfileUrl);
+        const targetProfileResult = await pool.query(`
+            SELECT 
+                id,
+                data_json,
+                linkedin_url
+            FROM target_profiles
+            WHERE linkedin_url = $1 OR linkedin_url = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        `, [cleanTargetUrl, targetProfileUrl]);
+
+        if (targetProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'target_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the target profile first.'
+            });
+        }
+
+        const targetProfile = targetProfileResult.rows[0];
+        console.log('[CHECK] target profile ID:', targetProfile.id);
+
+        // STEP 3: Call GPT service for connection generation
+        console.log('[GPT] Calling GPT service for connection generation...');
+        const gptStartTime = Date.now();
+        
+        const gptResult = await gptService.generateLinkedInConnection(
+            userProfile,
+            targetProfile,
+            outreachContext
+        );
+
+        const gptEndTime = Date.now();
+        const gptLatency = gptEndTime - gptStartTime;
+
+        console.log(`[GPT] Connection generation completed in ${gptLatency}ms`);
+        console.log('[CHECK] GPT success:', gptResult.success);
+
+        if (!gptResult.success) {
+            console.error('[ERROR] Connection generation failed:', gptResult.error);
+            await releaseCreditHold(userId, holdId, 'gpt_generation_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Connection generation failed',
+                details: gptResult.userMessage || 'AI service temporarily unavailable'
+            });
+        }
+
+        const generatedConnection = gptResult.message;
+        console.log('[SUCCESS] Connection request generated successfully');
+        console.log('[GPT] Generated connection preview:', generatedConnection.substring(0, 120) + '...');
+
+        // STEP 4: Store in message_logs table
+        console.log('[DATABASE] Storing connection generation data...');
+        
+        const messageLogResult = await pool.query(`
+            INSERT INTO message_logs (
+                user_id,
+                target_profile_url,
+                generated_message,
+                context_text,
+                message_type,
+                target_first_name,
+                target_title,
+                target_company,
+                model_name,
+                prompt_version,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                latency_ms,
+                data_json,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+            RETURNING id
+        `, [
+            userId,
+            targetProfileUrl,
+            generatedConnection,
+            outreachContext,
+            'connection_request',
+            gptResult.metadata.target_first_name,
+            gptResult.metadata.target_title,
+            gptResult.metadata.target_company,
+            gptResult.metadata.model_name,
+            gptResult.metadata.prompt_version,
+            gptResult.tokenUsage.input_tokens,
+            gptResult.tokenUsage.output_tokens,
+            gptResult.tokenUsage.total_tokens,
+            gptResult.metadata.latency_ms,
+            JSON.stringify(gptResult.rawResponse)
+        ]);
+
+        const messageLogId = messageLogResult.rows[0].id;
+        console.log('[SUCCESS] Connection log inserted with ID:', messageLogId);
+
+        // STEP 5: Complete the credit hold
         const completionResult = await completeOperation(userId, holdId, {
             connectionGenerated: true,
             messageLength: generatedConnection.length,
-            targetUrl: targetProfileUrl
+            targetUrl: targetProfileUrl,
+            messageLogId: messageLogId,
+            tokenUsage: gptResult.tokenUsage
         });
 
         if (!completionResult.success) {
@@ -1041,7 +1174,10 @@ async function handleGenerateConnection(req, res) {
             data: {
                 generatedConnection: generatedConnection,
                 outreachContext: outreachContext,
-                targetProfileUrl: targetProfileUrl
+                targetProfileUrl: targetProfileUrl,
+                messageLogId: messageLogId,
+                tokenUsage: gptResult.tokenUsage,
+                processingTime: gptLatency
             },
             credits: {
                 deducted: completionResult.creditsDeducted,
@@ -1062,6 +1198,251 @@ async function handleGenerateConnection(req, res) {
         res.status(500).json({
             success: false,
             error: 'Connection generation failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+}
+
+// NEW: Intro Request Generation with dual credit system
+async function handleGenerateIntro(req, res) {
+    let holdId = null;
+    
+    try {
+        console.log('[INTRO] === INTRO REQUEST GENERATION WITH DUAL CREDITS ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
+        
+        const { targetProfileUrl, outreachContext, mutualConnectionName } = req.body;
+        const userId = req.user.id;
+        
+        if (!targetProfileUrl || !outreachContext || !mutualConnectionName) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL, outreach context, and mutual connection name are required'
+            });
+        }
+
+        console.log('[CHECK] targetProfileUrl:', targetProfileUrl.substring(0, 50) + '...');
+        console.log('[CHECK] outreachContext length:', outreachContext.length);
+        console.log('[CHECK] mutualConnectionName:', mutualConnectionName);
+
+        // Create credit hold
+        console.log('[CREDIT] Creating credit hold for intro generation...');
+        const holdResult = await createCreditHold(userId, 'intro_generation', {
+            targetProfileUrl: targetProfileUrl,
+            outreachContext: outreachContext,
+            mutualConnectionName: mutualConnectionName,
+            timestamp: new Date().toISOString()
+        });
+
+        if (!holdResult.success) {
+            if (holdResult.error === 'insufficient_credits') {
+                return res.status(402).json({
+                    success: false,
+                    error: 'insufficient_credits',
+                    userMessage: holdResult.userMessage,
+                    currentCredits: holdResult.currentCredits,
+                    requiredCredits: holdResult.requiredCredits
+                });
+            }
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create credit hold',
+                details: holdResult.error
+            });
+        }
+
+        holdId = holdResult.holdId;
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+
+        // STEP 1: Load user profile from database
+        console.log('[DATABASE] Loading user profile JSON...');
+        const userProfileResult = await pool.query(`
+            SELECT 
+                gemini_raw_data,
+                full_name,
+                headline,
+                current_job_title,
+                current_company,
+                location,
+                experience,
+                education,
+                skills,
+                about
+            FROM user_profiles
+            WHERE user_id = $1
+        `, [userId]);
+
+        if (userProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'user_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+
+        const userProfile = userProfileResult.rows[0];
+        console.log('[CHECK] user profile has name:', !!userProfile.full_name);
+
+        // STEP 2: Load target profile from database  
+        console.log('[DATABASE] Loading target profile JSON...');
+        const cleanTargetUrl = cleanLinkedInUrl(targetProfileUrl);
+        const targetProfileResult = await pool.query(`
+            SELECT 
+                id,
+                data_json,
+                linkedin_url
+            FROM target_profiles
+            WHERE linkedin_url = $1 OR linkedin_url = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        `, [cleanTargetUrl, targetProfileUrl]);
+
+        if (targetProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'target_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the target profile first.'
+            });
+        }
+
+        const targetProfile = targetProfileResult.rows[0];
+        console.log('[CHECK] target profile ID:', targetProfile.id);
+
+        // STEP 3: Call GPT service for intro generation
+        console.log('[GPT] Calling GPT service for intro generation...');
+        const gptStartTime = Date.now();
+        
+        const gptResult = await gptService.generateIntroRequest(
+            userProfile,
+            targetProfile,
+            outreachContext,
+            mutualConnectionName
+        );
+
+        const gptEndTime = Date.now();
+        const gptLatency = gptEndTime - gptStartTime;
+
+        console.log(`[GPT] Intro generation completed in ${gptLatency}ms`);
+        console.log('[CHECK] GPT success:', gptResult.success);
+
+        if (!gptResult.success) {
+            console.error('[ERROR] Intro generation failed:', gptResult.error);
+            await releaseCreditHold(userId, holdId, 'gpt_generation_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Intro generation failed',
+                details: gptResult.userMessage || 'AI service temporarily unavailable'
+            });
+        }
+
+        // Extract Part A and Part B from GPT result
+        const partA = gptResult.partA || '';
+        const partB = gptResult.partB || '';
+        const combinedMessage = `Part A: ${partA}\nPart B: ${partB}`;
+        
+        console.log('[SUCCESS] Intro request generated successfully');
+        console.log('[GPT] Part A preview:', partA.substring(0, 80) + '...');
+        console.log('[GPT] Part B preview:', partB.substring(0, 80) + '...');
+
+        // STEP 4: Store in message_logs table (concatenated format)
+        console.log('[DATABASE] Storing intro generation data...');
+        
+        const messageLogResult = await pool.query(`
+            INSERT INTO message_logs (
+                user_id,
+                target_profile_url,
+                generated_message,
+                context_text,
+                message_type,
+                target_first_name,
+                target_title,
+                target_company,
+                model_name,
+                prompt_version,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                latency_ms,
+                data_json,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+            RETURNING id
+        `, [
+            userId,
+            targetProfileUrl,
+            combinedMessage,
+            outreachContext,
+            'intro_request',
+            gptResult.metadata.target_first_name,
+            gptResult.metadata.target_title,
+            gptResult.metadata.target_company,
+            gptResult.metadata.model_name,
+            gptResult.metadata.prompt_version,
+            gptResult.tokenUsage.input_tokens,
+            gptResult.tokenUsage.output_tokens,
+            gptResult.tokenUsage.total_tokens,
+            gptResult.metadata.latency_ms,
+            JSON.stringify({ partA, partB, mutualConnectionName, rawResponse: gptResult.rawResponse })
+        ]);
+
+        const messageLogId = messageLogResult.rows[0].id;
+        console.log('[SUCCESS] Intro log inserted with ID:', messageLogId);
+
+        // STEP 5: Complete the credit hold
+        const completionResult = await completeOperation(userId, holdId, {
+            introGenerated: true,
+            messageLength: combinedMessage.length,
+            targetUrl: targetProfileUrl,
+            mutualConnectionName: mutualConnectionName,
+            messageLogId: messageLogId,
+            tokenUsage: gptResult.tokenUsage
+        });
+
+        if (!completionResult.success) {
+            console.error('[ERROR] Failed to complete operation:', completionResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process credits after successful generation'
+            });
+        }
+
+        console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
+
+        res.json({
+            success: true,
+            message: 'Intro request generated successfully',
+            data: {
+                partA: partA,
+                partB: partB,
+                combinedMessage: combinedMessage,
+                outreachContext: outreachContext,
+                targetProfileUrl: targetProfileUrl,
+                mutualConnectionName: mutualConnectionName,
+                messageLogId: messageLogId,
+                tokenUsage: gptResult.tokenUsage,
+                processingTime: gptLatency
+            },
+            credits: {
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                renewableCredits: completionResult.renewableCredits,
+                payasyougoCredits: completionResult.payasyougoCredits,
+                transactionId: completionResult.transactionId
+            }
+        });
+
+    } catch (error) {
+        console.error('[ERROR] Intro generation error:', error);
+        
+        if (holdId) {
+            await releaseCreditHold(req.user.id, holdId, 'processing_error');
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Intro generation failed',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -1752,6 +2133,7 @@ app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
 // ENHANCED: Message Generation Endpoints with GPT-5 integration
 app.post('/generate-message', authenticateToken, handleGenerateMessage);
 app.post('/generate-connection', authenticateToken, handleGenerateConnection);
+app.post('/generate-intro', authenticateToken, handleGenerateIntro); // NEW ROUTE
 
 // NEW: User Plan Endpoint - Returns real plan data (NO MORE MOCK DATA!)
 app.get('/user/plan', authenticateToken, async (req, res) => {
@@ -2492,6 +2874,7 @@ app.use((req, res, next) => {
             'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
             'POST /generate-message (NEW: GPT-5 integration with 1 credit dual system)',
             'POST /generate-connection (NEW: 1 credit with dual system)',
+            'POST /generate-intro (NEW: 1 credit with dual system)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -2573,6 +2956,8 @@ const startServer = async () => {
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
+            console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation`);
+            console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation`);
             console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
             console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
@@ -2592,6 +2977,7 @@ const startServer = async () => {
             console.log(`   [BOOM] Already Analyzed: FREE with marketing message`);
             console.log(`   [MESSAGE] Message Generation: 1.0 credits (GPT-5 powered)`);
             console.log(`   [CONNECT] Connection Generation: 1.0 credits`);
+            console.log(`   [INTRO] Intro Generation: 1.0 credits`);
             console.log(`   [LOCK] Credit holds prevent double-spending`);
             console.log(`   [MONEY] Deduction AFTER successful operations`);
             console.log(`   [DATA] Complete transaction audit trail`);
@@ -2599,7 +2985,7 @@ const startServer = async () => {
             console.log(`   [CLEAN] Automatic cleanup of expired holds`);
             console.log(`   [SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
             console.log(`   [API] OpenAI GPT-5 integration with proper error handling`);
-            console.log(`   [PROMPT] LinkedIn-specific prompt engineering for 150-char messages`);
+            console.log(`   [PROMPT] LinkedIn-specific prompt engineering for different message types`);
             console.log(`   [DATABASE] User + target profile loading from database`);
             console.log(`   [LOG] Comprehensive logging: request ID, user ID, target ID, token usage`);
             console.log(`   [STORE] Full message generation data stored in message_logs table`);
