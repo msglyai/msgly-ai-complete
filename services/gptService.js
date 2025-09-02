@@ -20,6 +20,7 @@ CHANGELOG - services/gptService.js:
 5. ADDED GEMINI FALLBACK: Insurance policy - Gemini 2.5 Pro activates only when GPT-5 fails
 6. COMPLETED CONNECTION REQUEST: Full implementation following LinkedIn message pattern
 7. ADDED INTRO REQUEST: New method for mutual connection introductions
+8. ADDED CALL-TO-ACTION REQUIREMENT: All message types now require CTA at the end
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
@@ -105,29 +106,28 @@ class GPTService {
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT — the business or conversational goal.
+1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT â€" the business or conversational goal.
 
 Task:
 - Generate ONE highly personalized LinkedIn connection request message.
 
 Message rules:
-• Absolute maximum: 150 characters (count before finalizing).
-• Must always start with: "Hi [TARGET_FIRSTNAME],"
-• Focus primarily on the TARGET PROFILE — highlight what is valuable or relevant for them.
-• At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
-• Integrate CONTEXT naturally — frame it as potential mutual value, not a literal repeat.
-• Written as a connection request (invitation to connect).
-• Keep it friendly, professional, approachable — avoid email or sales tone.
-• Avoid generic phrases like "Let's connect" unless no other detail exists.
-• Do not include offers, links, or calls-to-action.
-• Do not phrase the connection request as a question.
-• If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
-• If inputs are poor → still greet politely and write a general invite ≤150 chars.
-• Avoid exaggerated adjectives.
-• No emojis, hashtags, line breaks, or special symbols.
-• Output only the final message text — no explanations, no labels, no JSON.`;
+â€¢ Absolute maximum: 150 characters (count before finalizing).
+â€¢ Must always start with: "Hi [TARGET_FIRSTNAME],"
+â€¢ Focus primarily on the TARGET PROFILE â€" highlight what is valuable or relevant for them.
+â€¢ At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
+â€¢ Integrate CONTEXT naturally â€" frame it as potential mutual value, not a literal repeat.
+â€¢ Written as a connection request (invitation to connect).
+â€¢ MUST end with a brief call-to-action (e.g., "Let's connect!", "Would love to connect", "Connect?").
+â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
+â€¢ Do not phrase the connection request as a question (except for the CTA).
+â€¢ If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
+â€¢ If inputs are poor â†' still greet politely and write a general invite â‰¤150 chars with CTA.
+â€¢ Avoid exaggerated adjectives.
+â€¢ No emojis, hashtags, line breaks, or special symbols.
+â€¢ Output only the final message text â€" no explanations, no labels, no JSON.`;
                 break;
                 
             case 'intro_request':
@@ -136,58 +136,60 @@ Message rules:
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT — the business or conversational goal.
-4. MUTUAL CONNECTION — the LinkedIn profile of the shared connection who could make the intro.
+1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT â€" the business or conversational goal.
+4. MUTUAL CONNECTION â€" the LinkedIn profile of the shared connection who could make the intro.
 
 Task:
 - Generate ONE LinkedIn intro request consisting of two short parts:
-  Part A: The message you would send to the mutual connection asking for an introduction. ≤150 characters.
-  Part B: The short message the mutual connection could forward to the target. ≤220 characters.
+  Part A: The message you would send to the mutual connection asking for an introduction. â‰¤150 characters.
+  Part B: The short message the mutual connection could forward to the target. â‰¤220 characters.
 - Combined total must never exceed 370 characters.
 
 Message rules:
-• Both parts must always start with: "Hi [FIRSTNAME],"
-• Both parts must always end with sender's first name (e.g., "… Thanks, Ziv").
-• Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
-• Integrate CONTEXT naturally; do not restate it literally.
-• Keep it friendly, professional, approachable — avoid email or sales tone.
-• No offers, links, or calls-to-action in Part A or Part B.
-• Do not phrase Part A or Part B as a question.
-• Avoid generic phrases; avoid relying only on job titles or company names.
-• Avoid exaggerated adjectives.
-• No emojis, hashtags, line breaks, or special symbols.
-• If insufficient data → still produce polite, general LinkedIn-style messages within limits.
-• Output format:
+â€¢ Both parts must always start with: "Hi [FIRSTNAME],"
+â€¢ Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
+â€¢ Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
+â€¢ Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
+â€¢ Integrate CONTEXT naturally; do not restate it literally.
+â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
+â€¢ No offers, links, or additional calls-to-action beyond the required ones.
+â€¢ Do not phrase Part A or Part B as a question (except for the CTAs).
+â€¢ Avoid generic phrases; avoid relying only on job titles or company names.
+â€¢ Avoid exaggerated adjectives.
+â€¢ No emojis, hashtags, line breaks, or special symbols.
+â€¢ If insufficient data â†' still produce polite, general LinkedIn-style messages within limits with required CTAs.
+â€¢ Output format:
   Part A: [intro request to mutual connection]
   Part B: [forwardable message to target]
-• Output only the two message texts — no explanations, no labels, no JSON.`;
+â€¢ Output only the two message texts â€" no explanations, no labels, no JSON.`;
                 break;
                 
             default: // 'inbox_message'
                 systemPrompt = `[MODE: INBOX_MESSAGE]
 You are an AI LinkedIn Outreach Assistant.
 Inputs:
-1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT — the business or conversational goal.
+1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT â€" the business or conversational goal.
 Task:
 - Generate ONE highly personalized LinkedIn inbox message.
 Message rules:
-• Absolute maximum: 220 characters (count before finalizing).
-• Must always start with: "Hi [TARGET_FIRSTNAME],"
-• Must always end with sender's first name (e.g., "… Thanks, Ziv").
-• Focus primarily on the TARGET PROFILE — highlight what is valuable or relevant for them.
-• At least 3 details must be referenced (two from TARGET PROFILE, one from USER PROFILE).
-• Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
-• Avoid focusing too much on the sender; keep emphasis on what the target gains from the conversation.
-• Keep it friendly, professional, approachable — avoid email or sales tone.
-• If inputs are poor → still greet + close, and create a polite, concise LinkedIn-style message ≤220 chars.
-• Avoid generic phrases; avoid relying only on job titles or company names.
-• Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity").
-• No emojis, hashtags, line breaks, or special symbols.
-• Output only the final message text — no explanations, no labels, no JSON.`;
+â€¢ Absolute maximum: 220 characters (count before finalizing).
+â€¢ Must always start with: "Hi [TARGET_FIRSTNAME],"
+â€¢ Must include a brief call-to-action before the closing (e.g., "Would love to chat", "Let's discuss", "Interested in connecting?").
+â€¢ Must always end with sender's first name (e.g., "â€¦ Thanks, Ziv").
+â€¢ Focus primarily on the TARGET PROFILE â€" highlight what is valuable or relevant for them.
+â€¢ At least 3 details must be referenced (two from TARGET PROFILE, one from USER PROFILE).
+â€¢ Integrate CONTEXT naturally â€" frame it around the benefit or shared value for the target.
+â€¢ Avoid focusing too much on the sender; keep emphasis on what the target gains from the conversation.
+â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
+â€¢ If inputs are poor â†' still greet + CTA + close, and create a polite, concise LinkedIn-style message â‰¤220 chars.
+â€¢ Avoid generic phrases; avoid relying only on job titles or company names.
+â€¢ Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity").
+â€¢ No emojis, hashtags, line breaks, or special symbols.
+â€¢ Output only the final message text â€" no explanations, no labels, no JSON.`;
         }
 
         const userPrompt = `USER PROFILE:
@@ -705,25 +707,25 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             }
 
             console.log('[SUCCESS] === MESSAGE GENERATION SUCCESSFUL ===');
-            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (🛡️ INSURANCE ACTIVATED)' : ''}`);
+            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (ðŸ›¡ï¸ INSURANCE ACTIVATED)' : ''}`);
             console.log(`[GPT] Latency: ${latencyMs}ms`);
             console.log(`[GPT] Token usage: ${tokenUsage.input_tokens} input, ${tokenUsage.output_tokens} output, ${tokenUsage.total_tokens} total`);
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
-            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : 220) ? '✅' : '❌'}`);
+            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : 220) ? 'âœ…' : 'âŒ'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
 
             // FINAL SUCCESS DEBUG
             console.log('[DEBUG] === GENERATION SUCCESS SUMMARY ===');
-            console.log('[DEBUG] ✅ User profile processed successfully');
-            console.log('[DEBUG] ✅ Target profile processed successfully'); 
-            console.log('[DEBUG] ✅ Context processed successfully');
-            console.log('[DEBUG] ✅ Message generated successfully');
+            console.log('[DEBUG] âœ… User profile processed successfully');
+            console.log('[DEBUG] âœ… Target profile processed successfully'); 
+            console.log('[DEBUG] âœ… Context processed successfully');
+            console.log('[DEBUG] âœ… Message generated successfully');
             console.log('[DEBUG] Total tokens used:', tokenUsage.total_tokens);
             if (fallbackTriggered) {
-                console.log('[DEBUG] 🛡️ Insurance policy activated - service continuity maintained');
+                console.log('[DEBUG] ðŸ›¡ï¸ Insurance policy activated - service continuity maintained');
             }
 
             return {
@@ -735,7 +737,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                     primary_model: this.model,
                     fallback_triggered: fallbackTriggered,
                     primary_error: primaryError,
-                    prompt_version: messageType === 'connection_request' ? 'connection_request_v1' : messageType === 'intro_request' ? 'intro_request_v1' : 'inbox_message_target_centric_v2',
+                    prompt_version: messageType === 'connection_request' ? 'connection_request_v2_cta' : messageType === 'intro_request' ? 'intro_request_v2_cta' : 'inbox_message_target_centric_v3_cta',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
