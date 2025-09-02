@@ -1,0 +1,53 @@
+================================
+WELCOME TO MSGLY.AI
+By Chopa AI LTD
+================================
+
+Hi {{name}}!
+
+Congratulations! You've just joined thousands of professionals who are getting 3x better response rates with AI-powered LinkedIn messages. Your personalized messaging assistant is now setting up in the background.
+
+🚨 CHROME EXTENSION REQUIRED 🚨
+=====================================
+
+You MUST install our Chrome extension to use Msgly.AI.
+Without it, you can't generate AI messages on LinkedIn profiles.
+
+📝 EASY UPDATE: Replace this URL with your Chrome Web Store link
+Extension URL: [Chrome Web Store URL Coming Soon]
+
+⚠️ PROFILE SYNC REQUIRED
+==========================
+
+Your profile is not fully synced yet.
+
+To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit your own LinkedIn profile with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+
+📊 YOUR DASHBOARD
+==================
+
+Open your dashboard: https://api.msgly.ai/dashboard
+
+NEED HELP?
+==========
+
+Questions? We're here to help!
+Reply to this email or reach out at support@msgly.ai
+
+QUICK LINKS
+===========
+
+Dashboard: https://api.msgly.ai/dashboard
+Website: https://msgly.ai
+Privacy Policy: https://msgly.ai/Privacy-Policy/
+Terms of Service: https://msgly.ai/Terms-of-Service/
+
+---
+
+Thank you for choosing Msgly.AI to supercharge your LinkedIn networking!
+
+Chopa AI LTD
+Transforming Professional Networking with AI
+
+Don't want to receive these emails? 
+Unsubscribe: [Unsubscribe link will be added by MailerSend]
