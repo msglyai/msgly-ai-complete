@@ -364,7 +364,7 @@
             color: var(--black);
         }
 
-        /* 🚦 TRAFFIC LIGHT SYSTEM */
+        /* TRAFFIC LIGHT SYSTEM */
         .traffic-light-warning {
             border-radius: 14px;
             padding: 1.2rem;
@@ -437,6 +437,59 @@
         .traffic-light-highlight {
             font-weight: 600;
             color: var(--black);
+        }
+
+        .download-extension-btn {
+            margin-top: 1.2rem;
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: var(--glow-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .download-extension-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .download-extension-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-2px);
+            box-shadow: var(--intense-glow);
+        }
+
+        .download-extension-btn:hover::before {
+            left: 100%;
+        }
+
+        .download-extension-btn:active {
+            transform: translateY(0);
+        }
+
+        .download-extension-btn i {
+            font-size: 1.2rem;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
         }
 
         .orange-progress {
@@ -839,7 +892,7 @@
             line-height: 1.4;
         }
 
-        /* 💤 FULL PROFILE VIEW SECTION */
+        /* FULL PROFILE VIEW SECTION */
         .full-profile-section {
             display: none;
             background: var(--white);
@@ -848,6 +901,7 @@
             margin-top: 2rem;
             box-shadow: var(--shadow-lg);
             border: 1px solid rgba(16, 185, 129, 0.2);
+            position: relative;
         }
 
         .full-profile-section::before {
@@ -1265,15 +1319,19 @@
                 </div>
             </div>
 
-            <!-- 🚦 TRAFFIC LIGHT WARNING SYSTEM -->
+            <!-- TRAFFIC LIGHT WARNING SYSTEM -->
             <div class="traffic-light-warning red" id="redWarning">
                 <div class="traffic-light-header">
                     <i class="fas fa-exclamation-triangle traffic-light-icon"></i>
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
+                <button class="download-extension-btn" onclick="downloadChromeExtension()">
+                    <i class="fab fa-chrome"></i>
+                    Download Chrome Extension
+                </button>
             </div>
 
             <div class="traffic-light-warning orange" id="orangeWarning">
@@ -1465,14 +1523,14 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard – Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 💤 FULL PROFILE VIEW SECTION -->
+            <!-- FULL PROFILE VIEW SECTION -->
             <div class="full-profile-section" id="fullProfileSection">
                 <div class="full-profile-header">
                     <div class="full-profile-icon">
@@ -1697,13 +1755,13 @@
             const sidebarInitials = getInitials(user.displayName || user.email);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
-            // 🚦 DETERMINE TRAFFIC LIGHT STATUS
+            // DETERMINE TRAFFIC LIGHT STATUS
             const isRegistrationComplete = user.registrationCompleted;
             const isInitialScrapingDone = profile?.initialScrapingDone || false;
             const extractionStatus = profile?.extractionStatus || 'pending';
             const hasExperience = profile?.experience && Array.isArray(profile.experience) && profile.experience.length > 0;
 
-            console.log('🚦 Traffic Light Debug:', {
+            console.log('Traffic Light Debug:', {
                 registrationCompleted: isRegistrationComplete,
                 initialScrapingDone: isInitialScrapingDone, 
                 extractionStatus: extractionStatus,
@@ -1811,7 +1869,7 @@
             document.getElementById('dashboardContent').style.display = 'block';
         }
 
-        // 🚦 TRAFFIC LIGHT FUNCTIONS
+        // TRAFFIC LIGHT FUNCTIONS
         function hideAllWarnings() {
             document.getElementById('redWarning').style.display = 'none';
             document.getElementById('orangeWarning').style.display = 'none';
@@ -1885,7 +1943,7 @@
             }, 1000);
         }
 
-        // 💤 FULL PROFILE VIEW FUNCTIONS
+        // FULL PROFILE VIEW FUNCTIONS
         function showFullProfile() {
             if (trafficLightStatus !== 'green') {
                 alert('Please complete your profile sync first to view your full profile.');
@@ -2100,6 +2158,13 @@
 
         function upgradeAccount() {
             alert('Upgrade functionality coming soon! Premium plans will be available shortly.');
+        }
+
+        function downloadChromeExtension() {
+            // Open Chrome Web Store link for the extension
+            // Replace with your actual Chrome extension URL
+            const extensionUrl = 'https://chrome.google.com/webstore/detail/msgly-ai-extension/[your-extension-id]';
+            window.open(extensionUrl, '_blank');
         }
 
         function logout() {
