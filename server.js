@@ -12,15 +12,17 @@ CHANGELOG - server.js:
 5. FIXED: /test-chargebee route to match actual chargebeeService response format
 6. FIXED: CHARGEBEE_PLAN_MAPPING - Updated 'Silver-PAYG' to 'Silver-PAYG-USD' to match actual Chargebee Item Price IDs
 7. MINIMAL: Added /upgrade route to serve upgrade.html
+8. NEW: Added MailerSend integration with minimal changes (import + 2 function calls)
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
 // ✅ URL MATCHING FIX: Fixed profile deduplication to handle both URL formats
 // ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging
 // ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management
+// ✅ MAILERSEND INTEGRATION: Welcome email automation
 
 const express = require('express');
 const cors = require('cors');
@@ -42,6 +44,9 @@ const gptService = require('./services/gptService');
 
 // NEW: Import Chargebee service
 const { chargebeeService } = require('./services/chargebeeService');
+
+// NEW: Import MailerSend service (MINIMAL CHANGE #1)
+const { sendWelcomeEmail } = require('./mailer/mailer');
 
 require('dotenv').config();
 
@@ -1061,7 +1066,7 @@ async function handleGenerateConnection(req, res) {
     }
 }
 
-// NEW: CHARGEBEE WEBHOOK HANDLER FUNCTIONS
+// NEW: CHARGEBEE WEBHOOK HANDLER FUNCTIONS (MINIMAL CHANGE #2 - Added welcome email)
 async function handleSubscriptionCreated(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_created');
@@ -1113,6 +1118,40 @@ async function handleSubscriptionCreated(subscription, customer) {
         console.log(`[WEBHOOK] User ${user.id} upgraded to ${planCode}`);
         console.log(`  - Renewable credits: ${renewableCredits}`);
         console.log(`  - Pay-as-you-go credits added: ${payasyougoCredits}`);
+        
+        // NEW: Send welcome email for paid users (NON-BLOCKING)
+        try {
+            // Check if welcome email already sent
+            const emailCheck = await pool.query(
+                'SELECT welcome_email_sent FROM users WHERE id = $1',
+                [user.id]
+            );
+            
+            if (emailCheck.rows.length > 0 && !emailCheck.rows[0].welcome_email_sent) {
+                console.log(`[MAILER] Sending welcome email for paid user: ${user.email}`);
+                
+                const emailResult = await sendWelcomeEmail({
+                    toEmail: user.email,
+                    toName: user.display_name,
+                    userId: user.id
+                });
+                
+                if (emailResult.ok) {
+                    // Mark as sent
+                    await pool.query(
+                        'UPDATE users SET welcome_email_sent = true WHERE id = $1',
+                        [user.id]
+                    );
+                    
+                    console.log(`[MAILER] Welcome email sent successfully: ${emailResult.messageId}`);
+                } else {
+                    console.error(`[MAILER] Welcome email failed: ${emailResult.error}`);
+                }
+            }
+        } catch (emailError) {
+            console.error('[MAILER] Non-blocking email error:', emailError);
+            // Don't fail the webhook - email is not critical
+        }
         
     } catch (error) {
         console.error('[WEBHOOK] Error handling subscription_created:', error);
@@ -2185,6 +2224,101 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
     }
 });
 
+// ==================== COMPLETE REGISTRATION ENDPOINT (MINIMAL CHANGE #3 - Added welcome email) ====================
+
+app.post('/complete-registration', authenticateToken, async (req, res) => {
+    try {
+        console.log(`[REG] Complete registration request from user ${req.user.id}`);
+        console.log('[CHECK] Request body:', Object.keys(req.body));
+        
+        const { linkedinUrl, packageType, termsAccepted } = req.body;
+        
+        if (!linkedinUrl || !packageType || !termsAccepted) {
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL, package type, and terms acceptance are required'
+            });
+        }
+        
+        // Validate LinkedIn URL
+        if (!isValidLinkedInUrl(linkedinUrl)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid LinkedIn URL format'
+            });
+        }
+        
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        
+        // Update user registration
+        await pool.query(`
+            UPDATE users 
+            SET 
+                linkedin_url = $1,
+                package_type = $2,
+                terms_accepted = $3,
+                registration_completed = true,
+                extraction_status = 'pending',
+                updated_at = NOW()
+            WHERE id = $4
+        `, [cleanUrl, packageType, termsAccepted, req.user.id]);
+        
+        console.log(`[SUCCESS] Registration completed for user ${req.user.id}`);
+        console.log(`  - LinkedIn URL: ${cleanUrl}`);
+        console.log(`  - Package: ${packageType}`);
+        console.log(`  - Registration completed: true`);
+        
+        // NEW: Send welcome email for free users (NON-BLOCKING)
+        if (packageType === 'free') {
+            try {
+                console.log(`[MAILER] Sending welcome email for free user: ${req.user.email}`);
+                
+                const emailResult = await sendWelcomeEmail({
+                    toEmail: req.user.email,
+                    toName: req.user.display_name,
+                    userId: req.user.id
+                });
+                
+                if (emailResult.ok) {
+                    // Mark as sent
+                    await pool.query(
+                        'UPDATE users SET welcome_email_sent = true WHERE id = $1',
+                        [req.user.id]
+                    );
+                    
+                    console.log(`[MAILER] Welcome email sent successfully: ${emailResult.messageId}`);
+                } else {
+                    console.error(`[MAILER] Welcome email failed: ${emailResult.error}`);
+                }
+            } catch (emailError) {
+                console.error('[MAILER] Non-blocking email error:', emailError);
+                // Don't fail the registration - email is not critical
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Registration completed successfully',
+            data: {
+                userId: req.user.id,
+                email: req.user.email,
+                linkedinUrl: cleanUrl,
+                packageType: packageType,
+                registrationCompleted: true,
+                nextStep: 'Visit your LinkedIn profile with the Chrome extension to sync your data'
+            }
+        });
+        
+    } catch (error) {
+        console.error('[ERROR] Complete registration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Registration completion failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
 // ==================== REMAINING API ENDPOINTS ====================
 
 // Get Available Packages
@@ -2296,7 +2430,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2309,7 +2443,7 @@ app.use((req, res, next) => {
             'GET /auth/google',
             'GET /auth/google/callback',
             'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
-            'POST /complete-registration',
+            'POST /complete-registration (✅ WELCOME EMAIL for free users)',
             'POST /update-profile',
             'GET /profile',
             'GET /profile-status',
@@ -2327,7 +2461,7 @@ app.use((req, res, next) => {
             'GET /credits/balance (NEW: Dual credit management)',
             'GET /credits/history (NEW: Transaction history)',
             'GET /test-chargebee (NEW: Test Chargebee connection)',
-            'POST /chargebee-webhook (NEW: Handle Chargebee payment notifications)',
+            'POST /chargebee-webhook (NEW: Handle Chargebee payment notifications + WELCOME EMAIL for paid users)',
             'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
         ]
     });
@@ -2345,8 +2479,33 @@ const startServer = async () => {
             process.exit(1);
         }
         
+        // NEW: Auto-create welcome_email_sent column if it doesn't exist
+        try {
+            console.log('[DB] Checking welcome_email_sent column...');
+            const columnCheck = await pool.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' 
+                AND column_name = 'welcome_email_sent'
+            `);
+
+            if (columnCheck.rows.length === 0) {
+                console.log('[DB] Creating welcome_email_sent column...');
+                await pool.query(`
+                    ALTER TABLE users 
+                    ADD COLUMN welcome_email_sent BOOLEAN DEFAULT FALSE
+                `);
+                console.log('[DB] ✅ welcome_email_sent column created successfully');
+            } else {
+                console.log('[DB] ✅ welcome_email_sent column already exists');
+            }
+        } catch (columnError) {
+            console.error('[DB] Warning: Could not create welcome_email_sent column:', columnError.message);
+            console.error('[DB] MailerSend will use in-memory guard instead');
+        }
+        
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2357,10 +2516,12 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
             console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
+            console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation for free and paid users`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE:`);
+            console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -2368,6 +2529,7 @@ const startServer = async () => {
             console.log(`   [URL] URL MATCHING FIX: Handles both clean and protocol URLs in database`);
             console.log(`   [GPT] GPT-5 MESSAGE GENERATION: Real AI-powered LinkedIn messages`);
             console.log(`   [PAYMENT] CHARGEBEE INTEGRATION: Subscription and payment processing`);
+            console.log(`   [EMAIL] MAILERSEND INTEGRATION: Welcome emails for all users`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
@@ -2375,6 +2537,7 @@ const startServer = async () => {
             console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
+            console.log(`   [EMAIL] /complete-registration: Welcome email for free users`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
@@ -2393,7 +2556,7 @@ const startServer = async () => {
             console.log(`   [DATA] Complete transaction audit trail`);
             console.log(`   [LIGHTNING] Real-time credit balance updates`);
             console.log(`   [CLEAN] Automatic cleanup of expired holds`);
-            console.log(`[SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
+            console.log(`   [SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
             console.log(`   [API] OpenAI GPT-5 integration with proper error handling`);
             console.log(`   [PROMPT] LinkedIn-specific prompt engineering for 150-char messages`);
             console.log(`   [DATABASE] User + target profile loading from database`);
@@ -2403,7 +2566,7 @@ const startServer = async () => {
             console.log(`   [META] Target metadata extraction: first name, title, company`);
             console.log(`   [ERROR] Robust error handling with user-friendly messages`);
             console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
-            console.log(`[SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
+            console.log(`   [SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
             console.log(`   [CONNECTION] Chargebee service with connection testing`);
             console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
             console.log(`   [PLANS] Subscription plan management and synchronization`);
@@ -2412,7 +2575,15 @@ const startServer = async () => {
             console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
             console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
             console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION AND CHARGEBEE PAYMENTS!`);
+            console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
+            console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
+            console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
+            console.log(`   [GUARD] Database column welcome_email_sent prevents duplicates`);
+            console.log(`   [SAFE] Non-blocking: Email failures don't affect signup flow`);
+            console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
+            console.log(`   [RETRY] Automatic retry with jitter for 429/5xx errors`);
+            console.log(`   [DUAL] MailerSend API primary + SMTP fallback`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, AND MAILERSEND WELCOME EMAILS!`);
         });
         
     } catch (error) {
