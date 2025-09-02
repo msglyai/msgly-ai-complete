@@ -5,6 +5,7 @@
 // ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
 // ✅ URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
 // ✅ GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
+// ✅ FIXED: Added message_type column for connection/intro message differentiation
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -442,7 +443,7 @@ const initDB = async () => {
                 }
             }
 
-            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table
+            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX
             const gpt5MessageColumns = [
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_profile_url TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS context_text TEXT',
@@ -455,14 +456,21 @@ const initDB = async () => {
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS total_tokens INTEGER',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS latency_ms INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS data_json JSONB'
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS data_json JSONB',
+                
+                // ✅ CRITICAL FIX: Add missing message_type column for connection/intro message differentiation
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS message_type VARCHAR(50) DEFAULT \'message\''
             ];
 
-            console.log('-- ✅ NEW: GPT-5 Message Logging columns');
+            console.log('-- ✅ NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX');
             
             for (const columnQuery of gpt5MessageColumns) {
                 try {
                     await pool.query(columnQuery);
+                    // Log successful addition of message_type column
+                    if (columnQuery.includes('message_type')) {
+                        console.log('✅ FIXED: Added message_type column to message_logs table');
+                    }
                 } catch (err) {
                     console.log(`GPT-5 column might already exist: ${err.message}`);
                 }
@@ -501,11 +509,12 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
                 
-                -- ✅ NEW: Message logs indexes for GPT-5 integration
+                -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE
                 CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_model_name ON message_logs(model_name);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_target_profile_url ON message_logs(target_profile_url);
+                CREATE INDEX IF NOT EXISTS idx_message_logs_message_type ON message_logs(message_type);
             `);
             console.log('Database indexes created successfully');
         } catch (err) {
@@ -523,7 +532,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('Enhanced database with dual credit system, URL deduplication fix, and GPT-5 message logging created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, and MESSAGE_TYPE column created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1126,7 +1135,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX
 module.exports = {
     // Database connection
     pool,
