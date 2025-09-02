@@ -2479,6 +2479,31 @@ const startServer = async () => {
             process.exit(1);
         }
         
+        // NEW: Auto-create welcome_email_sent column if it doesn't exist
+        try {
+            console.log('[DB] Checking welcome_email_sent column...');
+            const columnCheck = await pool.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' 
+                AND column_name = 'welcome_email_sent'
+            `);
+
+            if (columnCheck.rows.length === 0) {
+                console.log('[DB] Creating welcome_email_sent column...');
+                await pool.query(`
+                    ALTER TABLE users 
+                    ADD COLUMN welcome_email_sent BOOLEAN DEFAULT FALSE
+                `);
+                console.log('[DB] ✅ welcome_email_sent column created successfully');
+            } else {
+                console.log('[DB] ✅ welcome_email_sent column already exists');
+            }
+        } catch (columnError) {
+            console.error('[DB] Warning: Could not create welcome_email_sent column:', columnError.message);
+            console.error('[DB] MailerSend will use in-memory guard instead');
+        }
+        
         app.listen(PORT, '0.0.0.0', () => {
             console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
