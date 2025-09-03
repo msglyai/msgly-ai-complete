@@ -20,6 +20,7 @@ CHANGELOG - server.js:
 13. WEBHOOK FIX: Fixed JSON parsing error in Chargebee webhook handler
 14. WEBHOOK PLAN FIX: Fixed plan ID extraction from subscription_items array instead of plan_id field
 15. CRITICAL PAYG FIX: Enhanced handleInvoiceGenerated to support PAYG one-time purchases
+16. REGISTRATION DEBUG: Added comprehensive logging to /complete-registration endpoint
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND
@@ -32,6 +33,7 @@ CHANGELOG - server.js:
 // ✅ MAILERSEND INTEGRATION: Welcome email automation
 // ✅ WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error
 // ✅ PAYG FIX: Fixed one-time purchase webhook handling
+// ✅ REGISTRATION DEBUG: Added comprehensive logging to identify registration failures
 
 const express = require('express');
 const cors = require('cors');
@@ -2556,7 +2558,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_PAYG_FIXED'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_PAYG_FIXED_REGISTRATION_DEBUG'
                 }
             }
         });
@@ -2634,7 +2636,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + PAYG FIXED'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + PAYG FIXED + REGISTRATION DEBUG'
             };
         }
 
@@ -2732,7 +2734,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_PAYG_FIXED'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_PAYG_FIXED_REGISTRATION_DEBUG'
             }
         });
     } catch (error) {
@@ -2784,7 +2786,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_PAYG_FIXED',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_PAYG_FIXED_REGISTRATION_DEBUG',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2794,34 +2796,128 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
     }
 });
 
-// ==================== COMPLETE REGISTRATION ENDPOINT (MINIMAL CHANGE #3 - Added welcome email) ====================
+// ==================== COMPLETE REGISTRATION ENDPOINT (ENHANCED WITH COMPREHENSIVE DEBUG LOGGING) ====================
 
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     try {
+        console.log(`[REG] ========================================`);
+        console.log(`[REG] COMPLETE REGISTRATION DEBUG - START`);
+        console.log(`[REG] ========================================`);
         console.log(`[REG] Complete registration request from user ${req.user.id}`);
-        console.log('[CHECK] Request body:', Object.keys(req.body));
+        console.log('[REG] Request method:', req.method);
+        console.log('[REG] Request headers:', JSON.stringify({
+            'content-type': req.headers['content-type'],
+            'authorization': req.headers['authorization'] ? 'Bearer ***' : 'None',
+            'origin': req.headers.origin
+        }, null, 2));
+        console.log('[REG] Request body keys:', Object.keys(req.body));
+        console.log('[REG] Request body data:', JSON.stringify(req.body, null, 2));
+        console.log('[REG] User object from auth:', JSON.stringify({
+            id: req.user.id,
+            email: req.user.email,
+            displayName: req.user.display_name,
+            packageType: req.user.package_type,
+            registrationCompleted: req.user.registration_completed,
+            linkedinUrl: req.user.linkedin_url
+        }, null, 2));
         
         const { linkedinUrl, packageType, termsAccepted } = req.body;
         
-        if (!linkedinUrl || !packageType || !termsAccepted) {
+        console.log('[REG] Extracted values from request body:');
+        console.log('  - linkedinUrl:', linkedinUrl);
+        console.log('  - packageType:', packageType);
+        console.log('  - termsAccepted:', termsAccepted);
+        console.log('  - linkedinUrl type:', typeof linkedinUrl);
+        console.log('  - packageType type:', typeof packageType);
+        console.log('  - termsAccepted type:', typeof termsAccepted);
+        console.log('  - linkedinUrl truthy:', !!linkedinUrl);
+        console.log('  - packageType truthy:', !!packageType);
+        console.log('  - termsAccepted truthy:', !!termsAccepted);
+        
+        // VALIDATION STEP 1: Check required fields
+        console.log('[REG] VALIDATION STEP 1: Checking required fields...');
+        if (!linkedinUrl) {
+            console.log('[REG] ❌ VALIDATION FAILED: linkedinUrl is missing');
             return res.status(400).json({
                 success: false,
-                error: 'LinkedIn URL, package type, and terms acceptance are required'
+                error: 'LinkedIn URL is required',
+                received: { linkedinUrl, packageType, termsAccepted }
             });
         }
         
-        // Validate LinkedIn URL
-        if (!isValidLinkedInUrl(linkedinUrl)) {
+        if (!packageType) {
+            console.log('[REG] ❌ VALIDATION FAILED: packageType is missing');
             return res.status(400).json({
                 success: false,
-                error: 'Invalid LinkedIn URL format'
+                error: 'Package type is required',
+                received: { linkedinUrl, packageType, termsAccepted }
             });
         }
+        
+        if (!termsAccepted) {
+            console.log('[REG] ❌ VALIDATION FAILED: termsAccepted is missing');
+            return res.status(400).json({
+                success: false,
+                error: 'Terms acceptance is required',
+                received: { linkedinUrl, packageType, termsAccepted }
+            });
+        }
+        
+        console.log('[REG] ✅ VALIDATION STEP 1: All required fields present');
+        
+        // VALIDATION STEP 2: Check LinkedIn URL format
+        console.log('[REG] VALIDATION STEP 2: Validating LinkedIn URL format...');
+        console.log('[REG] Raw LinkedIn URL:', linkedinUrl);
+        console.log('[REG] About to call isValidLinkedInUrl...');
+        
+        const isValidUrl = isValidLinkedInUrl(linkedinUrl);
+        console.log('[REG] isValidLinkedInUrl result:', isValidUrl);
+        
+        if (!isValidUrl) {
+            console.log('[REG] ❌ VALIDATION FAILED: Invalid LinkedIn URL format');
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid LinkedIn URL format',
+                received: { linkedinUrl, packageType, termsAccepted }
+            });
+        }
+        
+        console.log('[REG] ✅ VALIDATION STEP 2: LinkedIn URL format is valid');
+        
+        // VALIDATION STEP 3: Clean URL
+        console.log('[REG] VALIDATION STEP 3: Cleaning LinkedIn URL...');
+        console.log('[REG] About to call cleanLinkedInUrl...');
         
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        console.log('[REG] Cleaned URL:', cleanUrl);
+        console.log('[REG] ✅ VALIDATION STEP 3: URL cleaned successfully');
         
-        // Update user registration
-        await pool.query(`
+        // DATABASE STEP 1: Check current user state
+        console.log('[REG] DATABASE STEP 1: Checking current user state...');
+        const currentUserQuery = `
+            SELECT 
+                id,
+                email,
+                linkedin_url,
+                package_type,
+                registration_completed,
+                terms_accepted,
+                plan_code,
+                renewable_credits,
+                payasyougo_credits,
+                subscription_status
+            FROM users 
+            WHERE id = $1
+        `;
+        
+        console.log('[REG] About to execute user state query...');
+        const currentUserResult = await pool.query(currentUserQuery, [req.user.id]);
+        console.log('[REG] User state query executed successfully');
+        console.log('[REG] Current user state:', JSON.stringify(currentUserResult.rows[0], null, 2));
+        
+        // DATABASE STEP 2: Update user registration
+        console.log('[REG] DATABASE STEP 2: Updating user registration...');
+        const updateQuery = `
             UPDATE users 
             SET 
                 linkedin_url = $1,
@@ -2831,17 +2927,79 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                 extraction_status = 'pending',
                 updated_at = NOW()
             WHERE id = $4
-        `, [cleanUrl, packageType, termsAccepted, req.user.id]);
+            RETURNING 
+                id,
+                email,
+                linkedin_url,
+                package_type,
+                registration_completed,
+                terms_accepted,
+                extraction_status,
+                updated_at
+        `;
         
-        console.log(`[SUCCESS] Registration completed for user ${req.user.id}`);
-        console.log(`  - LinkedIn URL: ${cleanUrl}`);
-        console.log(`  - Package: ${packageType}`);
-        console.log(`  - Registration completed: true`);
+        console.log('[REG] About to execute UPDATE query with parameters:');
+        console.log('  - param1 (linkedin_url):', cleanUrl);
+        console.log('  - param2 (package_type):', packageType);
+        console.log('  - param3 (terms_accepted):', termsAccepted);
+        console.log('  - param4 (user_id):', req.user.id);
         
-        // NEW: Send welcome email for free users (NON-BLOCKING)
+        const updateResult = await pool.query(updateQuery, [cleanUrl, packageType, termsAccepted, req.user.id]);
+        console.log('[REG] UPDATE query executed successfully');
+        console.log('[REG] Update result:', JSON.stringify(updateResult.rows[0], null, 2));
+        
+        // DATABASE STEP 3: Verify update was successful
+        console.log('[REG] DATABASE STEP 3: Verifying update was successful...');
+        const verifyQuery = `
+            SELECT 
+                id,
+                email,
+                linkedin_url,
+                package_type,
+                registration_completed,
+                terms_accepted,
+                extraction_status,
+                updated_at
+            FROM users 
+            WHERE id = $1
+        `;
+        
+        console.log('[REG] About to execute verification query...');
+        const verifyResult = await pool.query(verifyQuery, [req.user.id]);
+        console.log('[REG] Verification query executed successfully');
+        console.log('[REG] Verified user state after update:', JSON.stringify(verifyResult.rows[0], null, 2));
+        
+        const updatedUser = verifyResult.rows[0];
+        
+        // VALIDATION STEP 4: Confirm registration_completed = true
+        console.log('[REG] VALIDATION STEP 4: Confirming registration completion...');
+        console.log('[REG] registration_completed value:', updatedUser.registration_completed);
+        console.log('[REG] registration_completed type:', typeof updatedUser.registration_completed);
+        
+        if (!updatedUser.registration_completed) {
+            console.log('[REG] ❌ CRITICAL ERROR: registration_completed is still false after update!');
+            console.log('[REG] This indicates a database constraint or trigger preventing the update');
+            return res.status(500).json({
+                success: false,
+                error: 'Database update failed - registration_completed not set to true',
+                debug: {
+                    beforeUpdate: currentUserResult.rows[0],
+                    afterUpdate: updatedUser,
+                    expectedResult: true,
+                    actualResult: updatedUser.registration_completed
+                }
+            });
+        }
+        
+        console.log('[REG] ✅ VALIDATION STEP 4: registration_completed successfully set to true');
+        
+        // EMAIL STEP: Send welcome email for free users (NON-BLOCKING)
+        console.log('[REG] EMAIL STEP: Checking if welcome email should be sent...');
+        console.log('[REG] Package type for email check:', packageType);
+        
         if (packageType === 'free') {
             try {
-                console.log(`[MAILER] Sending welcome email for free user: ${req.user.email}`);
+                console.log(`[MAILER] [REG] Sending welcome email for free user: ${req.user.email}`);
                 
                 const emailResult = await sendWelcomeEmail({
                     toEmail: req.user.email,
@@ -2856,17 +3014,21 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                         [req.user.id]
                     );
                     
-                    console.log(`[MAILER] Welcome email sent successfully: ${emailResult.messageId}`);
+                    console.log(`[MAILER] [REG] Welcome email sent successfully: ${emailResult.messageId}`);
                 } else {
-                    console.error(`[MAILER] Welcome email failed: ${emailResult.error}`);
+                    console.error(`[MAILER] [REG] Welcome email failed: ${emailResult.error}`);
                 }
             } catch (emailError) {
-                console.error('[MAILER] Non-blocking email error:', emailError);
+                console.error('[MAILER] [REG] Non-blocking email error:', emailError);
                 // Don't fail the registration - email is not critical
             }
+        } else {
+            console.log('[REG] EMAIL STEP: Skipping welcome email for paid users (will be sent via webhook)');
         }
         
-        res.json({
+        // SUCCESS RESPONSE
+        console.log('[REG] SUCCESS RESPONSE: Preparing successful response...');
+        const successResponse = {
             success: true,
             message: 'Registration completed successfully',
             data: {
@@ -2877,13 +3039,50 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                 registrationCompleted: true,
                 nextStep: 'Visit your LinkedIn profile with the Chrome extension to sync your data'
             }
-        });
+        };
+        
+        console.log('[REG] About to send success response:', JSON.stringify(successResponse, null, 2));
+        
+        console.log(`[REG] ========================================`);
+        console.log(`[REG] COMPLETE REGISTRATION DEBUG - SUCCESS`);
+        console.log(`[REG] ========================================`);
+        console.log(`[SUCCESS] Registration completed for user ${req.user.id}`);
+        console.log(`  - LinkedIn URL: ${cleanUrl}`);
+        console.log(`  - Package: ${packageType}`);
+        console.log(`  - Registration completed: true`);
+        
+        res.json(successResponse);
         
     } catch (error) {
-        console.error('[ERROR] Complete registration error:', error);
+        console.log(`[REG] ========================================`);
+        console.log(`[REG] COMPLETE REGISTRATION DEBUG - ERROR`);
+        console.log(`[REG] ========================================`);
+        console.error('[REG] ❌ CRITICAL ERROR in /complete-registration:', error);
+        console.error('[REG] Error name:', error.name);
+        console.error('[REG] Error message:', error.message);
+        console.error('[REG] Error stack:', error.stack);
+        
+        if (error.code) {
+            console.error('[REG] Database error code:', error.code);
+        }
+        if (error.detail) {
+            console.error('[REG] Database error detail:', error.detail);
+        }
+        if (error.hint) {
+            console.error('[REG] Database error hint:', error.hint);
+        }
+        
         res.status(500).json({
             success: false,
             error: 'Registration completion failed',
+            debug: {
+                errorName: error.name,
+                errorMessage: error.message,
+                errorCode: error.code || 'No code',
+                errorDetail: error.detail || 'No detail',
+                userId: req.user.id,
+                timestamp: new Date().toISOString()
+            },
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -3000,7 +3199,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK JSON FIX + PAYG WEBHOOK FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK JSON FIX + PAYG WEBHOOK FIX + REGISTRATION DEBUG',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -3013,7 +3212,7 @@ app.use((req, res, next) => {
             'GET /auth/google',
             'GET /auth/google/callback (✅ WELCOME EMAIL for new users)',
             'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
-            'POST /complete-registration (✅ WELCOME EMAIL for free users)',
+            'POST /complete-registration (✅ ENHANCED DEBUG LOGGING + WELCOME EMAIL for free users)',
             'POST /update-profile',
             'GET /profile',
             'GET /profile-status',
@@ -3076,7 +3275,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK JSON PARSING FIX + WEBHOOK PLAN EXTRACTION FIX + PAYG WEBHOOK SUPPORT ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK JSON PARSING FIX + WEBHOOK PLAN EXTRACTION FIX + PAYG WEBHOOK SUPPORT + REGISTRATION DEBUG ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -3091,11 +3290,13 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ WEBHOOK JSON FIX: Chargebee webhook parsing error resolved`);
             console.log(`[SUCCESS] ✅ WEBHOOK PLAN FIX: Plan extraction from subscription_items array instead of plan_id field`);
             console.log(`[SUCCESS] ✅ PAYG WEBHOOK FIX: One-time purchase support added to handleInvoiceGenerated`);
+            console.log(`[SUCCESS] ✅ REGISTRATION DEBUG: Comprehensive logging added to /complete-registration endpoint`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
             console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK FIXES + PAYG SUPPORT:`);
+            console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK FIXES + PAYG SUPPORT + REGISTRATION DEBUG:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -3107,6 +3308,7 @@ const startServer = async () => {
             console.log(`   [WEBHOOK] JSON PARSING FIX: SyntaxError eliminated, webhooks working`);
             console.log(`   [WEBHOOK] PLAN EXTRACTION FIX: subscription_items array extraction working`);
             console.log(`   [PAYG] ONE-TIME PURCHASE FIX: PAYG webhooks now update database correctly`);
+            console.log(`   [DEBUG] REGISTRATION DEBUG: Comprehensive logging to identify endpoint failures`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
@@ -3116,7 +3318,7 @@ const startServer = async () => {
             console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee (FIXED + PLAN FIX + PAYG FIX)`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
-            console.log(`   [EMAIL] /complete-registration: Welcome email for free users`);
+            console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
             console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
             console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
@@ -3182,7 +3384,13 @@ const startServer = async () => {
             console.log(`   [PAYG] Plan extraction from invoice.line_items for PAYG purchases`);
             console.log(`   [PAYG] Customer identification for one-time purchases without subscriptions`);
             console.log(`   [PAYG] Email automation for PAYG users after successful payment`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, AND PAYG SUPPORT!`);
+            console.log(`   [SUCCESS] ✅ REGISTRATION DEBUG LOGGING:`);
+            console.log(`   [DEBUG] Comprehensive logging added to /complete-registration endpoint`);
+            console.log(`   [TRACE] Step-by-step validation and database operation tracking`);
+            console.log(`   [ERROR] Enhanced error reporting with debug information`);
+            console.log(`   [VERIFY] Database state verification after updates`);
+            console.log(`   [FAIL] Silent failure detection and reporting`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, AND REGISTRATION DEBUG LOGGING!`);
         });
         
     } catch (error) {
