@@ -297,12 +297,6 @@
             border: 2px solid var(--warning-orange);
         }
 
-        /* NEW: Registration completion notification */
-        .notification-banner.registration {
-            background: linear-gradient(135deg, rgba(128, 57, 223, 0.1) 0%, rgba(128, 57, 223, 0.05) 100%);
-            border: 2px solid var(--primary-purple);
-        }
-
         .notification-header {
             display: flex;
             align-items: center;
@@ -328,10 +322,6 @@
             color: var(--warning-orange);
         }
 
-        .notification-banner.registration .notification-icon {
-            color: var(--primary-purple);
-        }
-
         .notification-title {
             font-size: 1rem;
             font-weight: 600;
@@ -347,10 +337,6 @@
 
         .notification-banner.warning .notification-title {
             color: var(--warning-orange);
-        }
-
-        .notification-banner.registration .notification-title {
-            color: var(--primary-purple);
         }
 
         .notification-message {
@@ -376,133 +362,6 @@
         .notification-close:hover {
             background: rgba(0, 0, 0, 0.1);
             color: var(--black);
-        }
-
-        /* FALLBACK MODAL */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            display: none;
-            z-index: 2000;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .modal {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--white);
-            border-radius: 20px;
-            padding: 2rem;
-            max-width: 500px;
-            width: 90%;
-            box-shadow: var(--shadow-lg);
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideIn {
-            from { transform: translate(-50%, -60%); opacity: 0; }
-            to { transform: translate(-50%, -50%); opacity: 1; }
-        }
-
-        .modal-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--light-gray);
-        }
-
-        .modal-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            border-radius: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--white);
-            font-size: 1.4rem;
-            box-shadow: var(--glow-shadow);
-        }
-
-        .modal-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--black);
-        }
-
-        .modal-message {
-            color: var(--dark-gray);
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
-            font-size: 1rem;
-        }
-
-        .modal-linkedin-input {
-            width: 100%;
-            padding: 1rem;
-            border: 2px solid rgba(128, 57, 223, 0.2);
-            border-radius: 12px;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .modal-linkedin-input:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-            box-shadow: var(--glow-shadow);
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
-        }
-
-        .modal-btn {
-            flex: 1;
-            padding: 1rem 1.5rem;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .modal-btn-primary {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            box-shadow: var(--glow-shadow);
-        }
-
-        .modal-btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--intense-glow);
-        }
-
-        .modal-btn-secondary {
-            background: var(--light-gray);
-            color: var(--dark-gray);
-            border: 2px solid var(--gray);
-        }
-
-        .modal-btn-secondary:hover {
-            background: var(--gray);
-            color: var(--white);
         }
 
         /* TRAFFIC LIGHT SYSTEM */
@@ -1232,6 +1091,17 @@
             100% { transform: rotate(360deg); }
         }
 
+        @keyframes slideInDown {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
         /* Error State */
         .error {
             text-align: center;
@@ -1314,15 +1184,6 @@
 
             .skills-grid {
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            }
-
-            .modal {
-                width: 95%;
-                padding: 1.5rem;
-            }
-
-            .modal-buttons {
-                flex-direction: column;
             }
         }
     </style>
@@ -1432,20 +1293,6 @@
                 </div>
             </div>
 
-            <!-- NEW: Registration Completion Notification -->
-            <div class="notification-banner registration" id="registrationNotification">
-                <button class="notification-close" onclick="closeNotification('registrationNotification')">
-                    <i class="fas fa-times"></i>
-                </button>
-                <div class="notification-header">
-                    <i class="fas fa-user-check notification-icon"></i>
-                    <div class="notification-title">Registration Completed!</div>
-                </div>
-                <div class="notification-message" id="registrationMessage">
-                    Your account setup is complete. Now visit your LinkedIn profile with the Chrome extension to unlock AI messaging.
-                </div>
-            </div>
-
             <div class="notification-banner error" id="errorNotification">
                 <button class="notification-close" onclick="closeNotification('errorNotification')">
                     <i class="fas fa-times"></i>
@@ -1479,7 +1326,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1676,7 +1523,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard â€" Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1699,36 +1546,6 @@
                     <!-- Profile content will be populated by JavaScript -->
                 </div>
             </div>
-
-            <!-- NEW: Fallback Registration Modal -->
-            <div class="modal-overlay" id="fallbackModal">
-                <div class="modal">
-                    <div class="modal-header">
-                        <div class="modal-icon">
-                            <i class="fas fa-user-check"></i>
-                        </div>
-                        <div class="modal-title">Complete Your Setup</div>
-                    </div>
-                    <div class="modal-message">
-                        Thank you for your payment! To finish setting up your account and start using AI messaging, please provide your LinkedIn profile URL.
-                    </div>
-                    <input 
-                        type="url" 
-                        class="modal-linkedin-input" 
-                        placeholder="https://www.linkedin.com/in/your-profile"
-                        id="fallbackLinkedinUrl"
-                    >
-                    <div class="modal-buttons">
-                        <button class="modal-btn modal-btn-primary" onclick="completeFallbackRegistration()">
-                            <i class="fas fa-check"></i>
-                            Complete Setup
-                        </button>
-                        <button class="modal-btn modal-btn-secondary" onclick="skipFallbackRegistration()">
-                            Skip for Now
-                        </button>
-                    </div>
-                </div>
-            </div>
         </main>
     </div>
 
@@ -1738,236 +1555,29 @@
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
 
-        // MODIFIED: Initialize on page load - Handle post-payment registration FIRST
+        // ✅ CLEANED: Simplified initialization - webhook handles registration
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('[DASHBOARD] Page loaded - starting initialization...');
-            
-            // STEP 1: Handle post-payment registration completion FIRST
-            handlePostPaymentFlow();
+            console.log('[DASHBOARD] Page loaded - starting authentication...');
+            checkAuthentication();
         });
 
-        // NEW: Post-Payment Registration Completion Handler
-        async function handlePostPaymentFlow() {
-            console.log('[REGISTRATION] Checking for post-payment registration...');
-            
-            // Check URL parameters for payment success
+        // ✅ CLEANED: Handle URL parameters for upgrade status only
+        function checkUpgradeStatus() {
             const urlParams = new URLSearchParams(window.location.search);
             const upgradeStatus = urlParams.get('upgrade');
             
             if (upgradeStatus === 'success') {
-                console.log('[PAYMENT] Payment success detected - cleaning URL and checking for pending registration...');
-                
-                // Clean URL first to prevent duplicate processing
+                // Clean URL and show success notification
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
-                // Check for pending registration data from sessionStorage
-                const pendingRegistrationData = sessionStorage.getItem('pendingRegistration');
-                
-                if (pendingRegistrationData) {
-                    console.log('[REGISTRATION] Pending registration data found - completing registration...');
-                    await completePostPaymentRegistration(pendingRegistrationData);
-                } else {
-                    console.log('[FALLBACK] No sessionStorage data found - fallback will be handled in populateDashboard if needed...');
-                }
-                
-                // Show upgrade success notification
                 showUpgradeSuccessNotification();
             } else if (upgradeStatus === 'cancelled') {
-                // Clean URL and show cancelled notification
+                // Clean URL and show cancelled notification  
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showUpgradeCancelledNotification();
             } else if (upgradeStatus === 'error') {
                 // Clean URL and show error notification
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showUpgradeErrorNotification();
-            } else {
-                console.log('[REGISTRATION] No payment status detected - proceeding with normal flow...');
-            }
-            
-            // STEP 2: Proceed with normal authentication
-            checkAuthentication();
-        }
-
-        // NEW: Complete registration using sessionStorage data
-        async function completePostPaymentRegistration(pendingRegistrationData) {
-            try {
-                const registrationData = JSON.parse(pendingRegistrationData);
-                console.log('[REGISTRATION] Completing registration with stored data:', {
-                    hasLinkedinUrl: !!registrationData.linkedinUrl,
-                    packageType: registrationData.packageType,
-                    termsAccepted: registrationData.termsAccepted
-                });
-
-                const token = registrationData.userToken || getAuthToken();
-                if (!token) {
-                    console.error('[REGISTRATION] No token available for registration completion');
-                    return;
-                }
-
-                console.log('[REGISTRATION] Calling /complete-registration endpoint...');
-                const response = await fetch('https://api.msgly.ai/complete-registration', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        linkedinUrl: registrationData.linkedinUrl,
-                        packageType: registrationData.packageType,
-                        termsAccepted: registrationData.termsAccepted
-                    })
-                });
-
-                console.log('[REGISTRATION] Registration API response status:', response.status);
-
-                if (response.ok) {
-                    const result = await response.json();
-                    console.log('[REGISTRATION] Registration API response:', result);
-
-                    if (result.success) {
-                        console.log('[REGISTRATION] Registration completed successfully!');
-                        
-                        // Clear sessionStorage
-                        sessionStorage.removeItem('pendingRegistration');
-                        
-                        // Show registration completion notification
-                        showRegistrationCompletedNotification(registrationData.packageType);
-                        
-                        // Store token for continued use if provided
-                        if (registrationData.userToken) {
-                            localStorage.setItem('authToken', registrationData.userToken);
-                        }
-                    } else {
-                        console.error('[REGISTRATION] Registration completion failed:', result.error);
-                        // Don't clear sessionStorage if it failed - they can retry via fallback
-                    }
-                } else {
-                    console.error('[REGISTRATION] Registration API call failed with status:', response.status);
-                    const errorText = await response.text();
-                    console.error('[REGISTRATION] Registration error response:', errorText);
-                }
-                
-            } catch (error) {
-                console.error('[REGISTRATION] Error completing post-payment registration:', error);
-                // Keep sessionStorage for potential retry
-            }
-        }
-
-        // NEW: Show registration completed notification
-        function showRegistrationCompletedNotification(packageType) {
-            const notification = document.getElementById('registrationNotification');
-            const message = document.getElementById('registrationMessage');
-            
-            const planName = getPlanDisplayName(packageType);
-            message.textContent = `Your ${planName} account is now fully set up! Visit your LinkedIn profile with the Chrome extension to start generating AI messages.`;
-            
-            notification.style.display = 'block';
-            
-            // Auto-hide after 8 seconds
-            setTimeout(() => {
-                closeNotification('registrationNotification');
-            }, 8000);
-        }
-
-        // NEW: Get plan display name helper
-        function getPlanDisplayName(packageType) {
-            const planNames = {
-                'silver': 'Silver',
-                'gold': 'Gold', 
-                'platinum': 'Platinum',
-                'free': 'Free'
-            };
-            return planNames[packageType] || 'Premium';
-        }
-
-        // NEW: Handle fallback registration (when sessionStorage is lost)
-        function showFallbackModal() {
-            console.log('[FALLBACK] Showing fallback registration modal for paid user without registration...');
-            document.getElementById('fallbackModal').style.display = 'block';
-        }
-
-        // NEW: Complete fallback registration
-        async function completeFallbackRegistration() {
-            const linkedinUrl = document.getElementById('fallbackLinkedinUrl').value.trim();
-            
-            if (!linkedinUrl) {
-                alert('Please enter your LinkedIn profile URL to complete setup.');
-                return;
-            }
-            
-            if (!linkedinUrl.includes('linkedin.com/in/')) {
-                alert('Please enter a valid LinkedIn profile URL (e.g., https://www.linkedin.com/in/your-profile)');
-                return;
-            }
-
-            const token = getAuthToken();
-            if (!token) {
-                alert('Authentication error. Please try logging in again.');
-                return;
-            }
-            
-            try {
-                console.log('[FALLBACK] Completing fallback registration with manual LinkedIn URL...');
-                const response = await fetch('https://api.msgly.ai/complete-registration', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        linkedinUrl: linkedinUrl,
-                        packageType: currentUserData.user.packageType || 'silver',
-                        termsAccepted: true
-                    })
-                });
-
-                console.log('[FALLBACK] Fallback registration API response status:', response.status);
-
-                if (response.ok) {
-                    const result = await response.json();
-                    console.log('[FALLBACK] Fallback registration API response:', result);
-
-                    if (result.success) {
-                        console.log('[FALLBACK] Registration completed successfully via fallback!');
-                        
-                        // Close modal
-                        document.getElementById('fallbackModal').style.display = 'none';
-                        
-                        // Show success notification
-                        showRegistrationCompletedNotification(currentUserData.user.packageType);
-                        
-                        // Refresh dashboard data to show updated registration status
-                        await refreshDashboardData();
-                    } else {
-                        alert('Registration completion failed: ' + (result.error || 'Unknown error') + '. Please try again.');
-                    }
-                } else {
-                    alert('Registration completion failed. Please try again or contact support.');
-                }
-                
-            } catch (error) {
-                console.error('[FALLBACK] Error in fallback registration:', error);
-                alert('Setup completion failed. Please try again or contact support.');
-            }
-        }
-
-        // NEW: Skip fallback registration
-        function skipFallbackRegistration() {
-            document.getElementById('fallbackModal').style.display = 'none';
-            console.log('[FALLBACK] User skipped fallback registration');
-        }
-
-        // NEW: Refresh dashboard data after registration completion
-        async function refreshDashboardData() {
-            const token = getAuthToken();
-            if (token) {
-                try {
-                    console.log('[DASHBOARD] Refreshing dashboard data after registration completion...');
-                    await loadDashboardData(token);
-                    console.log('[DASHBOARD] Dashboard data refreshed successfully');
-                } catch (error) {
-                    console.error('[DASHBOARD] Error refreshing dashboard data:', error);
-                }
             }
         }
 
@@ -2039,7 +1649,7 @@
             }
         }
 
-        // Authentication check - UNCHANGED from original
+        // Authentication check - ENHANCED with upgrade status check
         async function checkAuthentication() {
             const token = getAuthToken();
             
@@ -2048,6 +1658,9 @@
                 window.location.href = '/login';
                 return;
             }
+
+            // Check for upgrade status after getting token
+            checkUpgradeStatus();
 
             try {
                 await loadDashboardData(token);
@@ -2106,7 +1719,7 @@
             }
         }
 
-        // ENHANCED: populateDashboard with fallback registration detection
+        // ✅ CLEANED: Simplified populateDashboard - no fallback registration logic
         function populateDashboard(data) {
             const { user, profile, syncStatus } = data;
             
@@ -2119,23 +1732,6 @@
                 totalCredits: user.credits,
                 packageType: user.packageType
             });
-
-            // NEW: Check for fallback registration needs (for paid users without registration)
-            const needsFallbackRegistration = (
-                !user.registrationCompleted && 
-                user.packageType !== 'free' &&
-                (user.payasyougoCredits > 0 || user.renewableCredits > 7)
-            );
-
-            if (needsFallbackRegistration) {
-                console.log('[FALLBACK] Paid user without registration detected - showing fallback modal...', {
-                    registrationCompleted: user.registrationCompleted,
-                    packageType: user.packageType,
-                    payasyougoCredits: user.payasyougoCredits,
-                    renewableCredits: user.renewableCredits
-                });
-                showFallbackModal();
-            }
 
             // Update sidebar user info
             document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
@@ -2186,15 +1782,15 @@
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
+                    profileSyncStatusEl.textContent = '✅ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸŸ  Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2293,7 +1889,7 @@
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 // Mixed credits (both types)
                 creditBreakdownEl.textContent = `${payasyougoCredits} PAYG + ${renewableCredits} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 // PAYG only
                 creditBreakdownEl.textContent = `${payasyougoCredits} Pay-as-you-go credits`;
@@ -2639,17 +2235,6 @@
                 !toggle.contains(event.target) && 
                 sidebar.classList.contains('active')) {
                 sidebar.classList.remove('active');
-            }
-        });
-
-        // NEW: Close modal when clicking outside
-        document.addEventListener('click', function(event) {
-            const modal = document.getElementById('fallbackModal');
-            const modalContent = modal.querySelector('.modal');
-            
-            if (modal.style.display === 'block' && 
-                !modalContent.contains(event.target)) {
-                skipFallbackRegistration();
             }
         });
 
