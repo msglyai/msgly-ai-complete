@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -6,6 +6,7 @@
 // ✅ URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
 // ✅ GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
 // ✅ FIXED: Added message_type column for connection/intro message differentiation
+// ✅ CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -101,7 +102,7 @@ const ensureTargetProfilesTable = async () => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -142,7 +143,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -164,6 +165,10 @@ const initDB = async () => {
                 -- NEW: Billing Cycle Management
                 subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 next_billing_date TIMESTAMP,
+                
+                -- ✅ CHARGEBEE FIX: Add missing Chargebee columns
+                chargebee_subscription_id VARCHAR(100) UNIQUE,
+                chargebee_customer_id VARCHAR(100),
                 
                 -- Legacy field (will be calculated from dual credits)
                 credits_remaining INTEGER DEFAULT 7,
@@ -361,7 +366,7 @@ const initDB = async () => {
         // NEW: TARGET_PROFILES TABLE with proper UNIQUE constraint
         await ensureTargetProfilesTable();
 
-        // Add missing columns (safe operation)
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -380,14 +385,25 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP'
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP',
+                
+                // ✅ CHARGEBEE FIX: Add missing Chargebee columns
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100) UNIQUE',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
                     await pool.query(columnQuery);
+                    // Log Chargebee column additions
+                    if (columnQuery.includes('chargebee_subscription_id')) {
+                        console.log('✅ CHARGEBEE FIX: Added chargebee_subscription_id column');
+                    }
+                    if (columnQuery.includes('chargebee_customer_id')) {
+                        console.log('✅ CHARGEBEE FIX: Added chargebee_customer_id column');
+                    }
                 } catch (err) {
                     console.log(`Column might already exist: ${err.message}`);
                 }
@@ -481,7 +497,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes
+        // Create indexes + CHARGEBEE INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -495,6 +511,10 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_users_plan_code ON users(plan_code);
+                
+                -- ✅ CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
+                CREATE INDEX IF NOT EXISTS idx_users_chargebee_subscription_id ON users(chargebee_subscription_id);
+                CREATE INDEX IF NOT EXISTS idx_users_chargebee_customer_id ON users(chargebee_customer_id);
                 
                 -- Plans indexes
                 CREATE INDEX IF NOT EXISTS idx_plans_plan_code ON plans(plan_code);
@@ -516,7 +536,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_target_profile_url ON message_logs(target_profile_url);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_message_type ON message_logs(message_type);
             `);
-            console.log('Database indexes created successfully');
+            console.log('Database indexes created successfully (including Chargebee indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -532,7 +552,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, and MESSAGE_TYPE column created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, and CHARGEBEE COLUMNS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -553,6 +573,8 @@ const getUserPlan = async (userId) => {
                 u.subscription_starts_at,
                 u.next_billing_date,
                 u.subscription_status,
+                u.chargebee_subscription_id,
+                u.chargebee_customer_id,
                 p.plan_name,
                 p.billing_model,
                 p.price_cents,
@@ -605,6 +627,10 @@ const getUserPlan = async (userId) => {
                 subscriptionStartsAt: user.subscription_starts_at,
                 nextBillingDate: user.next_billing_date,
                 renewalDate: renewalDate,
+                
+                // ✅ CHARGEBEE FIX: Include Chargebee IDs for debugging
+                chargebeeSubscriptionId: user.chargebee_subscription_id,
+                chargebeeCustomerId: user.chargebee_customer_id,
                 
                 // UI display data
                 creditsDisplay: `${totalCredits}/${Number(user.plan_renewable_credits) || 7} Credits`,
@@ -1135,7 +1161,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS
 module.exports = {
     // Database connection
     pool,
