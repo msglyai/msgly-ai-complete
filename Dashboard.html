@@ -297,6 +297,12 @@
             border: 2px solid var(--warning-orange);
         }
 
+        /* NEW: Registration completion notification */
+        .notification-banner.registration {
+            background: linear-gradient(135deg, rgba(128, 57, 223, 0.1) 0%, rgba(128, 57, 223, 0.05) 100%);
+            border: 2px solid var(--primary-purple);
+        }
+
         .notification-header {
             display: flex;
             align-items: center;
@@ -322,6 +328,10 @@
             color: var(--warning-orange);
         }
 
+        .notification-banner.registration .notification-icon {
+            color: var(--primary-purple);
+        }
+
         .notification-title {
             font-size: 1rem;
             font-weight: 600;
@@ -337,6 +347,10 @@
 
         .notification-banner.warning .notification-title {
             color: var(--warning-orange);
+        }
+
+        .notification-banner.registration .notification-title {
+            color: var(--primary-purple);
         }
 
         .notification-message {
@@ -364,6 +378,133 @@
             color: var(--black);
         }
 
+        /* FALLBACK MODAL */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            z-index: 2000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--white);
+            border-radius: 20px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translate(-50%, -60%); opacity: 0; }
+            to { transform: translate(-50%, -50%); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-gray);
+        }
+
+        .modal-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 1.4rem;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .modal-message {
+            color: var(--dark-gray);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+        }
+
+        .modal-linkedin-input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(128, 57, 223, 0.2);
+            border-radius: 12px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .modal-linkedin-input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--intense-glow);
+        }
+
+        .modal-btn-secondary {
+            background: var(--light-gray);
+            color: var(--dark-gray);
+            border: 2px solid var(--gray);
+        }
+
+        .modal-btn-secondary:hover {
+            background: var(--gray);
+            color: var(--white);
+        }
+
         /* TRAFFIC LIGHT SYSTEM */
         .traffic-light-warning {
             border-radius: 14px;
@@ -371,17 +512,6 @@
             margin-bottom: 1.5rem;
             display: none;
             animation: slideInDown 0.5s ease-out;
-        }
-
-        @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .traffic-light-warning.red {
@@ -1185,6 +1315,15 @@
             .skills-grid {
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             }
+
+            .modal {
+                width: 95%;
+                padding: 1.5rem;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -1293,6 +1432,20 @@
                 </div>
             </div>
 
+            <!-- NEW: Registration Completion Notification -->
+            <div class="notification-banner registration" id="registrationNotification">
+                <button class="notification-close" onclick="closeNotification('registrationNotification')">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="notification-header">
+                    <i class="fas fa-user-check notification-icon"></i>
+                    <div class="notification-title">Registration Completed!</div>
+                </div>
+                <div class="notification-message" id="registrationMessage">
+                    Your account setup is complete. Now visit your LinkedIn profile with the Chrome extension to unlock AI messaging.
+                </div>
+            </div>
+
             <div class="notification-banner error" id="errorNotification">
                 <button class="notification-close" onclick="closeNotification('errorNotification')">
                     <i class="fas fa-times"></i>
@@ -1326,7 +1479,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1452,8 +1605,8 @@
                             <div class="credits-info">
                                 <div class="credits-text">Credits Remaining</div>
                                 <div class="credits-details" id="creditsDetails">
-                                    Used this month: <span id="creditsUsed">0</span><br>
-                                    <span id="renewalInfo">Refreshes monthly</span>
+                                    <span id="creditBreakdown">Loading...</span><br>
+                                    <span id="renewalInfo">Loading...</span>
                                 </div>
                             </div>
                         </div>
@@ -1523,7 +1676,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard — Coming Soon</h3>
+                            <h3>Analytics Dashboard – Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1546,6 +1699,36 @@
                     <!-- Profile content will be populated by JavaScript -->
                 </div>
             </div>
+
+            <!-- NEW: Fallback Registration Modal -->
+            <div class="modal-overlay" id="fallbackModal">
+                <div class="modal">
+                    <div class="modal-header">
+                        <div class="modal-icon">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <div class="modal-title">Complete Your Setup</div>
+                    </div>
+                    <div class="modal-message">
+                        Thank you for your payment! To finish setting up your account and start using AI messaging, please provide your LinkedIn profile URL.
+                    </div>
+                    <input 
+                        type="url" 
+                        class="modal-linkedin-input" 
+                        placeholder="https://www.linkedin.com/in/your-profile"
+                        id="fallbackLinkedinUrl"
+                    >
+                    <div class="modal-buttons">
+                        <button class="modal-btn modal-btn-primary" onclick="completeFallbackRegistration()">
+                            <i class="fas fa-check"></i>
+                            Complete Setup
+                        </button>
+                        <button class="modal-btn modal-btn-secondary" onclick="skipFallbackRegistration()">
+                            Skip for Now
+                        </button>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -1557,60 +1740,209 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // UPGRADE HANDLING: Check for upgrade status parameters first
-            handleUpgradeParams();
+            console.log('[DASHBOARD] Page loaded - starting initialization...');
             
-            // Then proceed with normal authentication
-            checkAuthentication();
+            // STEP 1: Handle post-payment registration completion FIRST
+            handlePostPaymentFlow();
         });
 
-        // UPGRADE HANDLING FUNCTIONS
-        function handleUpgradeParams() {
+        // NEW: Post-Payment Registration Completion Handler
+        async function handlePostPaymentFlow() {
+            console.log('[REGISTRATION] Checking for post-payment registration...');
+            
+            // Check URL parameters for payment success
             const urlParams = new URLSearchParams(window.location.search);
             const upgradeStatus = urlParams.get('upgrade');
             
-            if (upgradeStatus) {
-                // Clean URL without page refresh
+            if (upgradeStatus === 'success') {
+                console.log('[PAYMENT] Payment success detected - checking for pending registration...');
+                
+                // Clean URL first
                 window.history.replaceState({}, document.title, window.location.pathname);
                 
-                // Show appropriate notification
-                switch (upgradeStatus) {
-                    case 'success':
-                        showUpgradeSuccessNotification();
-                        break;
-                    case 'cancelled':
-                        showUpgradeCancelledNotification();
-                        break;
-                    case 'error':
-                        showUpgradeErrorNotification();
-                        break;
+                // Check for pending registration data
+                const pendingRegistrationData = sessionStorage.getItem('pendingRegistration');
+                
+                if (pendingRegistrationData) {
+                    console.log('[REGISTRATION] Pending registration data found - completing registration...');
+                    await completePostPaymentRegistration(pendingRegistrationData);
+                } else {
+                    console.log('[FALLBACK] No sessionStorage data - checking if fallback needed...');
+                    // Continue to authentication - fallback will be handled in populateDashboard
                 }
+                
+                // Show upgrade success notification
+                showUpgradeSuccessNotification();
+            } else if (upgradeStatus === 'cancelled') {
+                // Clean URL and show cancelled notification
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showUpgradeCancelledNotification();
+            } else if (upgradeStatus === 'error') {
+                // Clean URL and show error notification
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showUpgradeErrorNotification();
+            } else {
+                console.log('[REGISTRATION] No payment status - proceeding with normal flow...');
+            }
+            
+            // STEP 2: Proceed with normal authentication
+            checkAuthentication();
+        }
+
+        // NEW: Complete registration using sessionStorage data
+        async function completePostPaymentRegistration(pendingRegistrationData) {
+            try {
+                const registrationData = JSON.parse(pendingRegistrationData);
+                console.log('[REGISTRATION] Completing registration with stored data:', {
+                    hasLinkedinUrl: !!registrationData.linkedinUrl,
+                    packageType: registrationData.packageType,
+                    termsAccepted: registrationData.termsAccepted
+                });
+
+                const token = registrationData.userToken || getAuthToken();
+                if (!token) {
+                    console.error('[REGISTRATION] No token available for registration completion');
+                    return;
+                }
+
+                console.log('[REGISTRATION] Calling /complete-registration endpoint...');
+                const response = await fetch('https://api.msgly.ai/complete-registration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        linkedinUrl: registrationData.linkedinUrl,
+                        packageType: registrationData.packageType,
+                        termsAccepted: registrationData.termsAccepted
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('[REGISTRATION] Registration completed successfully!');
+                    
+                    // Clear sessionStorage
+                    sessionStorage.removeItem('pendingRegistration');
+                    
+                    // Show registration completion notification
+                    showRegistrationCompletedNotification(registrationData.packageType);
+                    
+                    // Store token for continued use
+                    if (registrationData.userToken) {
+                        localStorage.setItem('authToken', registrationData.userToken);
+                    }
+                } else {
+                    console.error('[REGISTRATION] Registration completion failed:', result.error);
+                    // Don't clear sessionStorage if it failed - they can retry
+                }
+                
+            } catch (error) {
+                console.error('[REGISTRATION] Error completing post-payment registration:', error);
+                // Keep sessionStorage for retry
             }
         }
 
+        // NEW: Show registration completed notification
+        function showRegistrationCompletedNotification(packageType) {
+            const notification = document.getElementById('registrationNotification');
+            const message = document.getElementById('registrationMessage');
+            
+            const planName = packageType === 'silver' ? 'Silver' : packageType.charAt(0).toUpperCase() + packageType.slice(1);
+            message.textContent = `Your ${planName} account is now fully set up! Visit your LinkedIn profile with the Chrome extension to start generating AI messages.`;
+            
+            notification.style.display = 'block';
+            
+            // Auto-hide after 8 seconds
+            setTimeout(() => {
+                closeNotification('registrationNotification');
+            }, 8000);
+        }
+
+        // NEW: Handle fallback registration (when sessionStorage is lost)
+        function showFallbackModal(userData) {
+            console.log('[FALLBACK] Showing fallback registration modal for paid user without registration...');
+            document.getElementById('fallbackModal').style.display = 'block';
+        }
+
+        // NEW: Complete fallback registration
+        async function completeFallbackRegistration() {
+            const linkedinUrl = document.getElementById('fallbackLinkedinUrl').value.trim();
+            
+            if (!linkedinUrl) {
+                alert('Please enter your LinkedIn profile URL to complete setup.');
+                return;
+            }
+            
+            if (!linkedinUrl.includes('linkedin.com/in/')) {
+                alert('Please enter a valid LinkedIn profile URL (e.g., https://www.linkedin.com/in/your-profile)');
+                return;
+            }
+
+            const token = getAuthToken();
+            if (!token) {
+                alert('Authentication error. Please try logging in again.');
+                return;
+            }
+            
+            try {
+                console.log('[FALLBACK] Completing fallback registration...');
+                const response = await fetch('https://api.msgly.ai/complete-registration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        linkedinUrl: linkedinUrl,
+                        packageType: currentUserData.user.packageType || 'silver',
+                        termsAccepted: true
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('[FALLBACK] Registration completed via fallback!');
+                    
+                    // Close modal
+                    document.getElementById('fallbackModal').style.display = 'none';
+                    
+                    // Show success notification
+                    showRegistrationCompletedNotification(currentUserData.user.packageType);
+                    
+                    // Refresh dashboard data to show updated registration status
+                    await refreshDashboardData();
+                } else {
+                    alert('Registration completion failed: ' + result.error + '. Please try again.');
+                }
+                
+            } catch (error) {
+                console.error('[FALLBACK] Error in fallback registration:', error);
+                alert('Setup completion failed. Please try again or contact support.');
+            }
+        }
+
+        // NEW: Skip fallback registration
+        function skipFallbackRegistration() {
+            document.getElementById('fallbackModal').style.display = 'none';
+            console.log('[FALLBACK] User skipped fallback registration');
+        }
+
+        // UPGRADE HANDLING FUNCTIONS
         function showUpgradeSuccessNotification() {
             const notification = document.getElementById('successNotification');
             const message = document.getElementById('successMessage');
             
-            // Customize message based on possible plan parameter
-            const urlParams = new URLSearchParams(window.location.search);
-            const planName = urlParams.get('plan') || 'new';
-            
-            message.textContent = `Welcome to your ${planName} plan! Your credits have been updated and are ready to use. Thank you for upgrading!`;
-            
+            message.textContent = 'Payment successful! Your plan has been upgraded and credits are ready to use.';
             notification.style.display = 'block';
             
             // Auto-hide after 10 seconds
             setTimeout(() => {
                 closeNotification('successNotification');
             }, 10000);
-            
-            // Refresh dashboard data to show updated subscription
-            setTimeout(() => {
-                if (currentUserData) {
-                    refreshDashboardData();
-                }
-            }, 2000);
         }
 
         function showUpgradeErrorNotification() {
@@ -1642,10 +1974,11 @@
             const token = getAuthToken();
             if (token) {
                 try {
+                    console.log('[DASHBOARD] Refreshing dashboard data...');
                     await loadDashboardData(token);
-                    console.log('Dashboard data refreshed after upgrade');
+                    console.log('[DASHBOARD] Dashboard data refreshed successfully');
                 } catch (error) {
-                    console.error('Error refreshing dashboard data:', error);
+                    console.error('[DASHBOARD] Error refreshing dashboard data:', error);
                 }
             }
         }
@@ -1684,7 +2017,7 @@
             const token = getAuthToken();
             
             if (!token) {
-                console.log('No authentication token found - redirecting to login');
+                console.log('[AUTH] No authentication token found - redirecting to login');
                 window.location.href = '/login';
                 return;
             }
@@ -1692,11 +2025,11 @@
             try {
                 await loadDashboardData(token);
             } catch (error) {
-                console.error('Dashboard load error:', error);
+                console.error('[AUTH] Dashboard load error:', error);
                 if (error.message.includes('401') || error.message.includes('403')) {
                     window.location.href = '/login';
                 } else {
-                    showError('Failed to load dashboard data. Please try logging in again.');
+                    showError('Failed to load dashboard data. Please try refreshing the page or logging in again.');
                 }
             }
         }
@@ -1741,13 +2074,35 @@
                 populateDashboard(data.data);
                 
             } catch (error) {
-                console.error('API Error:', error);
+                console.error('[API] Error:', error);
                 throw error;
             }
         }
 
         function populateDashboard(data) {
             const { user, profile, syncStatus } = data;
+            
+            console.log('[DASHBOARD] Populating dashboard with user data:', {
+                userId: user.id,
+                registrationCompleted: user.registrationCompleted,
+                planCode: user.planCode,
+                renewableCredits: user.renewableCredits,
+                payasyougoCredits: user.payasyougoCredits,
+                totalCredits: user.credits,
+                packageType: user.packageType
+            });
+
+            // Check for fallback registration needs (for paid users without registration)
+            const needsFallbackRegistration = (
+                !user.registrationCompleted && 
+                user.packageType !== 'free' &&
+                (user.payasyougoCredits > 0 || user.renewableCredits > 7)
+            );
+
+            if (needsFallbackRegistration) {
+                console.log('[FALLBACK] Paid user needs fallback registration - showing modal...');
+                showFallbackModal(user);
+            }
 
             // Update sidebar user info
             document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
@@ -1755,20 +2110,20 @@
             const sidebarInitials = getInitials(user.displayName || user.email);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
-            // DETERMINE TRAFFIC LIGHT STATUS
+            // DETERMINE TRAFFIC LIGHT STATUS (Profile sync, not registration)
             const isRegistrationComplete = user.registrationCompleted;
             const isInitialScrapingDone = profile?.initialScrapingDone || false;
             const extractionStatus = profile?.extractionStatus || 'pending';
             const hasExperience = profile?.experience && Array.isArray(profile.experience) && profile.experience.length > 0;
 
-            console.log('Traffic Light Debug:', {
+            console.log('[TRAFFIC] Traffic Light Debug:', {
                 registrationCompleted: isRegistrationComplete,
                 initialScrapingDone: isInitialScrapingDone, 
                 extractionStatus: extractionStatus,
                 hasExperience: hasExperience
             });
 
-            // Determine traffic light state
+            // Determine traffic light state (profile sync status)
             if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
                 trafficLightStatus = 'green';
                 hideAllWarnings();
@@ -1811,25 +2166,8 @@
                     break;
             }
 
-            // Enhanced Subscription & Credits
-            const planName = (user.packageType || 'free').charAt(0).toUpperCase() + (user.packageType || 'free').slice(1);
-            document.getElementById('currentPlan').textContent = `${planName} Plan`;
-            document.getElementById('creditsRemaining').textContent = user.credits || 0;
-            
-            // Update plan badge color based on plan
-            const planBadge = document.getElementById('planBadge');
-            if (user.packageType === 'free') {
-                planBadge.style.background = 'linear-gradient(135deg, var(--success-green) 0%, #059669 100%)';
-            } else if (user.packageType === 'silver') {
-                planBadge.style.background = 'linear-gradient(135deg, #6B7280 0%, #4B5563 100%)';
-            } else if (user.packageType === 'gold') {
-                planBadge.style.background = 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)';
-            } else if (user.packageType === 'platinum') {
-                planBadge.style.background = 'linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%)';
-            }
-
-            document.getElementById('subscriptionStatus').textContent = (user.subscriptionStatus || 'active').charAt(0).toUpperCase() + (user.subscriptionStatus || 'active').slice(1);
-            document.getElementById('billingModel').textContent = (user.billingModel || 'monthly').charAt(0).toUpperCase() + (user.billingModel || 'monthly').slice(1);
+            // ENHANCED: Subscription & Credits with Proper Plan Display
+            updateSubscriptionDisplay(user);
 
             // LinkedIn Profile Summary
             if (profile) {
@@ -1867,6 +2205,88 @@
             // Show dashboard content
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
+        }
+
+        // NEW: Enhanced subscription display with correct plan data
+        function updateSubscriptionDisplay(user) {
+            // PLAN NAME MAPPING - Match your server's planCode values
+            const planDisplayNames = {
+                'free': 'Free Plan',
+                'silver-monthly': 'Silver Monthly',
+                'silver-payasyougo': 'Silver Pay-as-you-go',
+                'gold-monthly': 'Gold Monthly',
+                'gold-payasyougo': 'Gold Pay-as-you-go',
+                'platinum-monthly': 'Platinum Monthly',
+                'platinum-payasyougo': 'Platinum Pay-as-you-go'
+            };
+
+            const planCode = user.planCode || 'free';
+            const planDisplayName = planDisplayNames[planCode] || 'Unknown Plan';
+            
+            console.log('[DISPLAY] Updating plan display:', {
+                planCode: planCode,
+                displayName: planDisplayName,
+                renewableCredits: user.renewableCredits,
+                payasyougoCredits: user.payasyougoCredits,
+                totalCredits: user.credits
+            });
+
+            // Update plan badge
+            document.getElementById('currentPlan').textContent = planDisplayName;
+            
+            // Update plan badge color based on plan type
+            const planBadge = document.getElementById('planBadge');
+            if (planCode === 'free') {
+                planBadge.style.background = 'linear-gradient(135deg, var(--success-green) 0%, #059669 100%)';
+            } else if (planCode.startsWith('silver')) {
+                planBadge.style.background = 'linear-gradient(135deg, #6B7280 0%, #4B5563 100%)';
+            } else if (planCode.startsWith('gold')) {
+                planBadge.style.background = 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)';
+            } else if (planCode.startsWith('platinum')) {
+                planBadge.style.background = 'linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%)';
+            }
+
+            // ENHANCED: Display total credits and breakdown
+            const totalCredits = user.credits || 0;
+            const renewableCredits = user.renewableCredits || 0;
+            const payasyougoCredits = user.payasyougoCredits || 0;
+            
+            document.getElementById('creditsRemaining').textContent = totalCredits;
+            
+            // NEW: Enhanced credit breakdown display
+            const creditBreakdownEl = document.getElementById('creditBreakdown');
+            const renewalInfoEl = document.getElementById('renewalInfo');
+            
+            if (payasyougoCredits > 0 && renewableCredits > 0) {
+                // Mixed credits (both types)
+                creditBreakdownEl.textContent = `${payasyougoCredits} PAYG + ${renewableCredits} Monthly`;
+                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
+            } else if (payasyougoCredits > 0) {
+                // PAYG only
+                creditBreakdownEl.textContent = `${payasyougoCredits} Pay-as-you-go credits`;
+                renewalInfoEl.textContent = `Credits never expire`;
+            } else {
+                // Monthly only
+                creditBreakdownEl.textContent = `${renewableCredits} Monthly credits`;
+                renewalInfoEl.textContent = `Refreshes monthly`;
+            }
+
+            // Update subscription status and billing model
+            document.getElementById('subscriptionStatus').textContent = (user.subscriptionStatus || 'active').charAt(0).toUpperCase() + (user.subscriptionStatus || 'active').slice(1);
+            
+            // ENHANCED: Billing model display
+            let billingDisplay;
+            if (planCode.includes('payasyougo')) {
+                billingDisplay = 'One-time Purchase';
+            } else if (planCode.includes('monthly')) {
+                billingDisplay = 'Monthly Subscription';
+            } else {
+                billingDisplay = (user.billingModel || 'monthly').charAt(0).toUpperCase() + (user.billingModel || 'monthly').slice(1);
+            }
+            document.getElementById('billingModel').textContent = billingDisplay;
+
+            // Messages sent (would come from message_logs table in future)
+            document.getElementById('messagesSent').textContent = '0'; // TODO: Get from API
         }
 
         // TRAFFIC LIGHT FUNCTIONS
@@ -2182,6 +2602,17 @@
                 !toggle.contains(event.target) && 
                 sidebar.classList.contains('active')) {
                 sidebar.classList.remove('active');
+            }
+        });
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('fallbackModal');
+            const modalContent = modal.querySelector('.modal');
+            
+            if (modal.style.display === 'block' && 
+                !modalContent.contains(event.target)) {
+                skipFallbackRegistration();
             }
         });
 
