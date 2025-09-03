@@ -18,6 +18,7 @@ CHANGELOG - server.js:
 11. NEW: Added handleGenerateIntro() function with GPT service integration
 12. NEW: Added /generate-intro route
 13. WEBHOOK FIX: Fixed JSON parsing error in Chargebee webhook handler
+14. WEBHOOK PLAN FIX: Fixed plan ID extraction from subscription_items array instead of plan_id field
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND
