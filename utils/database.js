@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -7,6 +7,7 @@
 // ✅ GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
 // ✅ FIXED: Added message_type column for connection/intro message differentiation
 // ✅ CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
+// ✅ REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -98,11 +99,50 @@ const ensureTargetProfilesTable = async () => {
     }
 };
 
+// ✅ NEW: Ensure pending_registrations table exists
+const ensurePendingRegistrationsTable = async () => {
+    try {
+        console.log('[INIT] Creating pending_registrations table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pending_registrations (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                linkedin_url TEXT NOT NULL,
+                package_type VARCHAR(50) NOT NULL,
+                terms_accepted BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                expired_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
+            );
+        `);
+        
+        // Create indexes for fast lookup
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_pending_registrations_user_id 
+                ON pending_registrations(user_id);
+                CREATE INDEX IF NOT EXISTS idx_pending_registrations_created_at 
+                ON pending_registrations(created_at);
+            `);
+            console.log('[SUCCESS] Created pending_registrations indexes');
+        } catch (err) {
+            console.log('[INFO] Pending registrations indexes might already exist:', err.message);
+        }
+        
+        console.log('[SUCCESS] pending_registrations table ensured');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure pending_registrations table:', error);
+        throw error;
+    }
+};
+
 // ==================== DATABASE INITIALIZATION ====================
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -365,6 +405,9 @@ const initDB = async () => {
 
         // NEW: TARGET_PROFILES TABLE with proper UNIQUE constraint
         await ensureTargetProfilesTable();
+        
+        // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
+        await ensurePendingRegistrationsTable();
 
         // Add missing columns (safe operation) + CHARGEBEE COLUMNS
         try {
@@ -552,7 +595,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, and CHARGEBEE COLUMNS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, and PENDING REGISTRATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -836,6 +879,140 @@ const resetRenewableCredits = async (userId) => {
         };
     } catch (error) {
         console.error('Error resetting renewable credits:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ==================== PENDING REGISTRATIONS FUNCTIONS ====================
+
+// ✅ NEW: Store pending registration before payment
+const storePendingRegistration = async (userId, linkedinUrl, packageType) => {
+    try {
+        // Remove any existing pending registrations for this user
+        await pool.query(
+            'DELETE FROM pending_registrations WHERE user_id = $1',
+            [userId]
+        );
+        
+        // Store new pending registration
+        const result = await pool.query(`
+            INSERT INTO pending_registrations (
+                user_id, linkedin_url, package_type, terms_accepted
+            ) VALUES ($1, $2, $3, $4) 
+            RETURNING *
+        `, [userId, linkedinUrl, packageType, true]);
+        
+        console.log(`[PENDING_REG] Stored pending registration for user ${userId}: ${packageType}`);
+        
+        return {
+            success: true,
+            data: result.rows[0]
+        };
+    } catch (error) {
+        console.error('Error storing pending registration:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ✅ NEW: Get pending registration for user
+const getPendingRegistration = async (userId) => {
+    try {
+        const result = await pool.query(`
+            SELECT * FROM pending_registrations 
+            WHERE user_id = $1 AND completed_at IS NULL AND expired_at > CURRENT_TIMESTAMP
+            ORDER BY created_at DESC
+            LIMIT 1
+        `, [userId]);
+        
+        if (result.rows.length === 0) {
+            return {
+                success: false,
+                error: 'No pending registration found'
+            };
+        }
+        
+        return {
+            success: true,
+            data: result.rows[0]
+        };
+    } catch (error) {
+        console.error('Error getting pending registration:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ✅ NEW: Complete pending registration (called by webhook)
+const completePendingRegistration = async (userId) => {
+    try {
+        const client = await pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Get pending registration
+            const pendingResult = await client.query(`
+                SELECT * FROM pending_registrations 
+                WHERE user_id = $1 AND completed_at IS NULL AND expired_at > CURRENT_TIMESTAMP
+                ORDER BY created_at DESC
+                LIMIT 1
+            `, [userId]);
+            
+            if (pendingResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return {
+                    success: false,
+                    error: 'No pending registration found'
+                };
+            }
+            
+            const pendingReg = pendingResult.rows[0];
+            
+            // Update user with LinkedIn URL and mark registration complete
+            await client.query(`
+                UPDATE users 
+                SET linkedin_url = $1, 
+                    registration_completed = true,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+            `, [pendingReg.linkedin_url, userId]);
+            
+            // Mark pending registration as completed
+            await client.query(`
+                UPDATE pending_registrations 
+                SET completed_at = CURRENT_TIMESTAMP
+                WHERE id = $1
+            `, [pendingReg.id]);
+            
+            await client.query('COMMIT');
+            
+            console.log(`[PENDING_REG] Completed registration for user ${userId} with LinkedIn URL: ${pendingReg.linkedin_url}`);
+            
+            return {
+                success: true,
+                data: {
+                    linkedinUrl: pendingReg.linkedin_url,
+                    packageType: pendingReg.package_type,
+                    registrationCompleted: true
+                }
+            };
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error completing pending registration:', error);
         return {
             success: false,
             error: error.message
@@ -1161,7 +1338,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS
 module.exports = {
     // Database connection
     pool,
@@ -1173,6 +1350,7 @@ module.exports = {
     // NEW: Cleanup functions
     cleanupDuplicateTargetProfiles,
     ensureTargetProfilesTable,
+    ensurePendingRegistrationsTable,
     
     // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
@@ -1190,6 +1368,11 @@ module.exports = {
     updateUserCredits,
     spendUserCredits,
     resetRenewableCredits,
+    
+    // ✅ NEW: Pending Registration Management
+    storePendingRegistration,
+    getPendingRegistration,
+    completePendingRegistration,
     
     // Data processing helpers (used by USER profiles only)
     sanitizeForJSON,
