@@ -1451,13 +1451,18 @@ async function handleGenerateIntro(req, res) {
     }
 }
 
-// NEW: CHARGEBEE WEBHOOK HANDLER FUNCTIONS (MINIMAL CHANGE #2 - Added welcome email)
+// FIXED: CHARGEBEE WEBHOOK HANDLER FUNCTIONS - Extract plan from subscription_items array
 async function handleSubscriptionCreated(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_created');
         console.log('  - Subscription ID:', subscription.id);
         console.log('  - Customer email:', customer.email);
-        console.log('  - Plan ID:', subscription.plan_id);
+        
+        // FIXED: Extract plan from subscription_items array instead of subscription.plan_id
+        const planItem = subscription.subscription_items?.find(item => item.item_type === 'plan');
+        const planId = planItem?.item_price_id;
+        console.log('  - Plan Item:', planItem);
+        console.log('  - Plan ID (from subscription_items):', planId);
         
         // Find user by email
         const user = await getUserByEmail(customer.email);
@@ -1467,9 +1472,9 @@ async function handleSubscriptionCreated(subscription, customer) {
         }
         
         // Map Chargebee plan to database plan
-        const planMapping = CHARGEBEE_PLAN_MAPPING[subscription.plan_id];
+        const planMapping = CHARGEBEE_PLAN_MAPPING[planId];
         if (!planMapping) {
-            console.error('[WEBHOOK] Unknown plan ID:', subscription.plan_id);
+            console.error('[WEBHOOK] Unknown plan ID:', planId);
             return;
         }
         
@@ -1579,6 +1584,7 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
+// FIXED: Extract plan from subscription_items array for invoice renewals
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
@@ -1605,25 +1611,32 @@ async function handleInvoiceGenerated(invoice, subscription) {
         const userData = user.rows[0];
         console.log(`[WEBHOOK] Invoice generated for user ${userData.id}`);
         
-        // Handle renewal if this is a recurring subscription
-        if (invoice.status === 'paid' && subscription.plan_id) {
-            const planMapping = CHARGEBEE_PLAN_MAPPING[subscription.plan_id];
-            if (planMapping && planMapping.billingModel === 'monthly') {
-                // Reset renewable credits for monthly subscription
-                await pool.query(`
-                    UPDATE users 
-                    SET 
-                        renewable_credits = $1,
-                        next_billing_date = $2,
-                        updated_at = NOW()
-                    WHERE id = $3
-                `, [
-                    planMapping.renewableCredits,
-                    subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
-                    userData.id
-                ]);
-                
-                console.log(`[WEBHOOK] Renewable credits reset to ${planMapping.renewableCredits} for user ${userData.id}`);
+        // FIXED: Handle renewal if this is a recurring subscription - Extract plan from subscription_items
+        if (invoice.status === 'paid' && subscription.subscription_items) {
+            const planItem = subscription.subscription_items.find(item => item.item_type === 'plan');
+            const planId = planItem?.item_price_id;
+            
+            console.log('  - Plan ID (from subscription_items for renewal):', planId);
+            
+            if (planId) {
+                const planMapping = CHARGEBEE_PLAN_MAPPING[planId];
+                if (planMapping && planMapping.billingModel === 'monthly') {
+                    // Reset renewable credits for monthly subscription
+                    await pool.query(`
+                        UPDATE users 
+                        SET 
+                            renewable_credits = $1,
+                            next_billing_date = $2,
+                            updated_at = NOW()
+                        WHERE id = $3
+                    `, [
+                        planMapping.renewableCredits,
+                        subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
+                        userData.id
+                    ]);
+                    
+                    console.log(`[WEBHOOK] Renewable credits reset to ${planMapping.renewableCredits} for user ${userData.id}`);
+                }
             }
         }
         
@@ -1917,7 +1930,7 @@ app.post('/create-checkout', authenticateToken, async (req, res) => {
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔍 Chrome Extension OAuth request received');
+    console.log('🔐 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -2887,7 +2900,7 @@ app.use((req, res, next) => {
             'GET /credits/balance (NEW: Dual credit management)',
             'GET /credits/history (NEW: Transaction history)',
             'GET /test-chargebee (NEW: Test Chargebee connection)',
-            'POST /chargebee-webhook (FIXED: Chargebee payment notifications with JSON parsing fix)',
+            'POST /chargebee-webhook (FIXED: Chargebee payment notifications with JSON parsing fix + plan extraction fix)',
             'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
         ]
     });
@@ -2931,7 +2944,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK JSON PARSING FIX ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK JSON PARSING FIX + WEBHOOK PLAN EXTRACTION FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2944,11 +2957,12 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
             console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation for all users`);
             console.log(`[SUCCESS] ✅ WEBHOOK JSON FIX: Chargebee webhook parsing error resolved`);
+            console.log(`[SUCCESS] ✅ WEBHOOK PLAN FIX: Plan extraction from subscription_items array instead of plan_id field`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
             console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK FIX:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK FIXES:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -2958,13 +2972,14 @@ const startServer = async () => {
             console.log(`   [PAYMENT] CHARGEBEE INTEGRATION: Subscription and payment processing`);
             console.log(`   [EMAIL] MAILERSEND INTEGRATION: Welcome emails for all users`);
             console.log(`   [WEBHOOK] JSON PARSING FIX: SyntaxError eliminated, webhooks working`);
+            console.log(`   [WEBHOOK] PLAN EXTRACTION FIX: subscription_items array extraction working`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
             console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation`);
             console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation`);
             console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
-            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee (FIXED)`);
+            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications from Chargebee (FIXED + PLAN FIX)`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
             console.log(`   [EMAIL] /complete-registration: Welcome email for free users`);
@@ -3003,7 +3018,7 @@ const startServer = async () => {
             console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
             console.log(`   [PLANS] Subscription plan management and synchronization`);
             console.log(`   [CHECKOUT] Hosted checkout integration for seamless payments`);
-            console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management (FIXED)`);
+            console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management (FIXED + PLAN FIX)`);
             console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
             console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
             console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
@@ -3016,13 +3031,16 @@ const startServer = async () => {
             console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
             console.log(`   [RETRY] Automatic retry with jitter for 429/5xx errors`);
             console.log(`   [DUAL] MailerSend API primary + SMTP fallback`);
-            console.log(`   [SUCCESS] ✅ WEBHOOK JSON PARSING FIX:`);
+            console.log(`   [SUCCESS] ✅ WEBHOOK FIXES:`);
             console.log(`   [JSON] Fixed express.raw() + JSON.parse() conflict`);
             console.log(`   [PARSE] Changed to express.json() middleware`);
             console.log(`   [ERROR] Eliminated SyntaxError: Unexpected token o in JSON at position 1`);
             console.log(`   [TEST] Chargebee webhook test now returns 200 instead of 500`);
             console.log(`   [USER] User database updates now work after successful payments`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, AND FIXED WEBHOOK JSON PARSING!`);
+            console.log(`   [PLAN] Plan extraction from subscription_items array instead of non-existent plan_id field`);
+            console.log(`   [MAPPING] Proper plan mapping: Silver-Monthly -> silver-monthly, Silver-PAYG-USD -> silver-payasyougo`);
+            console.log(`   [RENEWAL] Monthly subscription renewal properly resets renewable credits`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, AND COMPLETE WEBHOOK FIXES!`);
         });
         
     } catch (error) {
