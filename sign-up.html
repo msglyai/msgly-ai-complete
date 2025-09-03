@@ -1288,7 +1288,7 @@
                             
                             return; // Stop here - don't show registration form
                         } else {
-                            console.log('🔍 User registration is incomplete - showing sign-up form');
+                            console.log('🔧 User registration is incomplete - showing sign-up form');
                             console.log('   - Needs LinkedIn URL or profile sync');
                             // Continue with normal sign-up flow
                         }
@@ -1410,7 +1410,7 @@
             }, 1500); // 1.5 seconds per step
         }
 
-        // UPDATED: Complete registration with Silver plan support - FIXED PLAN IDS
+        // ✅ UPDATED: Complete registration with database storage instead of sessionStorage
         async function completeRegistration() {
             const termsAgreed = document.getElementById('termsAgreement').checked;
             const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
@@ -1449,6 +1449,29 @@
                     
                     console.log(`Creating checkout for Silver plan: ${planId} (${currentPricingMode})`);
                     
+                    // ✅ NEW: Store registration data in DATABASE before payment
+                    console.log('[PENDING_REG] Storing registration data in database...');
+                    const storePendingResponse = await fetch('https://api.msgly.ai/store-pending-registration', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify({
+                            linkedinUrl: linkedinUrl,
+                            packageType: selectedPackage,
+                            termsAccepted: termsAgreed
+                        })
+                    });
+                    
+                    const storePendingResult = await storePendingResponse.json();
+                    
+                    if (!storePendingResult.success) {
+                        throw new Error(storePendingResult.error || 'Failed to store registration data');
+                    }
+                    
+                    console.log('[PENDING_REG] Registration data stored successfully in database');
+                    
                     // Create Chargebee checkout session
                     const checkoutResponse = await fetch('https://api.msgly.ai/create-checkout', {
                         method: 'POST',
@@ -1466,14 +1489,6 @@
                     if (!checkoutResult.success) {
                         throw new Error(checkoutResult.error || 'Failed to create checkout session');
                     }
-                    
-                    // Store registration data for after payment
-                    sessionStorage.setItem('pendingRegistration', JSON.stringify({
-                        linkedinUrl: linkedinUrl,
-                        packageType: selectedPackage,
-                        termsAccepted: termsAgreed,
-                        userToken: userToken
-                    }));
                     
                     console.log('Redirecting to Chargebee checkout:', checkoutResult.data.checkoutUrl);
                     
@@ -1562,7 +1577,7 @@
             const storedToken = localStorage.getItem('authToken');
             
             if (!storedToken) {
-                console.error('❌ No token found in localStorage');
+                console.error('⚠ No token found in localStorage');
                 alert('Authentication issue. Please try completing registration again.');
                 return;
             }
