@@ -2347,6 +2347,39 @@
                 document.getElementById('linkedinUrl').textContent = 'LinkedIn URL will appear after connection';
             }
 
+            // LinkedIn Profile Summary (separate section)
+            if (profile) {
+                document.getElementById('profileFullName').textContent = profile.fullName || 'Profile name not synced yet';
+                document.getElementById('profileHeadline').textContent = profile.headline || 'Professional headline awaiting sync...';
+                
+                const companyName = profile.currentCompanyName || profile.currentCompany || 'Company info pending sync...';
+                document.getElementById('profileCompany').textContent = companyName;
+                
+                const locationElement = document.getElementById('profileLocation');
+                locationElement.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${profile.location || 'Location awaiting sync...'}`;
+                
+                const profileUrlElement = document.getElementById('profileUrl');
+                if (profile.linkedinUrl) {
+                    profileUrlElement.href = profile.linkedinUrl;
+                    profileUrlElement.textContent = profile.linkedinUrl;
+                } else {
+                    profileUrlElement.textContent = 'LinkedIn URL will appear after sync';
+                    profileUrlElement.removeAttribute('href');
+                }
+
+                const initials = getInitials(profile.fullName || user.displayName || user.email);
+                document.getElementById('profileInitials').textContent = initials;
+            } else {
+                document.getElementById('profileFullName').textContent = 'LinkedIn profile not connected yet';
+                document.getElementById('profileHeadline').textContent = 'Connect your profile to see your headline here';
+                document.getElementById('profileCompany').textContent = 'Your company info will appear after sync';
+                document.getElementById('profileLocation').innerHTML = '<i class="fas fa-map-marker-alt"></i> Location will sync automatically';
+                document.getElementById('profileUrl').textContent = 'LinkedIn URL will appear after connection';
+                
+                const initials = getInitials(user.displayName || user.email);
+                document.getElementById('profileInitials').textContent = initials;
+            }
+
             // ENHANCED: Subscription & Credits with Proper Plan Display
             updateSubscriptionDisplay(user);
 
