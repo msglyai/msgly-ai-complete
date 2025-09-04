@@ -2321,6 +2321,7 @@
             return row;
         }
 
+        // STATUS MANAGEMENT FUNCTIONS
         function getStatusIcon(status) {
             switch(status) {
                 case 'yes': return '✓';
@@ -2334,6 +2335,114 @@
                 case 'yes': return 'Yes';
                 case 'no': return 'No';
                 default: return 'Pending';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message) return;
+            
+            // Cycle through: pending -> yes -> no -> pending
+            switch(message[field]) {
+                case 'pending':
+                    message[field] = 'yes';
+                    break;
+                case 'yes':
+                    message[field] = 'no';
+                    break;
+                case 'no':
+                    message[field] = 'pending';
+                    break;
+            }
+            
+            markMessageModified(messageId);
+            updateToggleDisplay(messageId, field, message[field]);
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            const selector = `[onclick="toggleStatus(${messageId}, '${field}')"]`;
+            const toggle = document.querySelector(selector);
+            
+            if (toggle) {
+                toggle.className = `toggle-switch ${status} modified`;
+                const slider = toggle.querySelector('.toggle-slider');
+                const label = toggle.nextElementSibling;
+                
+                if (slider) slider.textContent = getStatusIcon(status);
+                if (label) label.textContent = getStatusLabel(status);
+            }
+        }
+
+        function updateComment(messageId, value) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (message) {
+                message.comments = value;
+                markMessageModified(messageId);
+            }
+        }
+
+        function markFieldModified(messageId) {
+            markMessageModified(messageId);
+            const commentField = document.querySelector(`textarea[onchange*="${messageId}"]`);
+            if (commentField) commentField.classList.add('modified');
+        }
+
+        function markMessageModified(messageId) {
+            if (!pendingChanges.has(messageId)) {
+                pendingChanges.set(messageId, true);
+            }
+            
+            const saveButton = document.querySelector(`#save-${messageId}`);
+            if (saveButton) saveButton.classList.add('modified');
+        }
+
+        async function saveMessage(messageId) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message || !pendingChanges.has(messageId)) return;
+            
+            const saveButton = document.querySelector(`#save-${messageId}`);
+            
+            try {
+                saveButton.classList.add('saving');
+                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                
+                // TODO: Replace with actual API call
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                // Success state
+                saveButton.classList.remove('saving', 'modified');
+                saveButton.classList.add('saved');
+                saveButton.innerHTML = '<i class="fas fa-check"></i>';
+                
+                pendingChanges.delete(messageId);
+                
+                // Remove modified indicators
+                const toggles = document.querySelectorAll(`[onclick*="${messageId}"]`);
+                toggles.forEach(toggle => toggle.classList.remove('modified'));
+                
+                const commentField = document.querySelector(`textarea[onchange*="${messageId}"]`);
+                if (commentField) commentField.classList.remove('modified');
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    saveButton.classList.remove('saved');
+                    saveButton.innerHTML = '<i class="fas fa-save"></i>';
+                }, 2000);
+                
+                console.log('[MESSAGES] Message saved successfully:', messageId);
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error saving message:', error);
+                
+                saveButton.classList.remove('saving');
+                saveButton.classList.add('error');
+                saveButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                
+                setTimeout(() => {
+                    saveButton.classList.remove('error');
+                    saveButton.classList.add('modified');
+                    saveButton.innerHTML = '<i class="fas fa-save"></i>';
+                }, 3000);
             }
         }
 
