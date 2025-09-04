@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - Msgly AI</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-purple: #8039DF;
+            --dark-purple: #3E0075;
+            --glow-purple: #9F4EFF;
+            --neon-purple: #7B2CBF;
+            --electric-purple: #6A1B9A;
+            --light-purple: #F5EDFF;
+            --accent-pink: #FF2370;
+            --success-green: #10B981;
+            --warning-orange: #F59E0B;
+            --error-red: #EF4444;
+            --black: #111827;
+            --charcoal: #1F2937;
+            --dark-gray: #374151;
+            --gray: #6B7280;
+            --light-gray: #F9FAFB;
+            --white: #FFFFFF;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
+            --glow-shadow: 0 0 30px rgba(128, 57, 223, 0.25);
+            --intense-glow: 0 0 45px rgba(128, 57, 223, 0.35);
+            --neon-glow: 0 0 60px rgba(128, 57, 223, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--light-gray);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--white);
+            border-bottom: 1px solid var(--light-gray);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: var(--primary-purple);
+        }
+
+        .logo i {
+            font-size: 1.8rem;
+            margin-right: 12px;
+            filter: drop-shadow(0 0 10px rgba(128, 57, 223, 0.3));
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-main {
+            font-size: 1.4rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .logo-sub {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.5rem 1rem;
+            background: var(--light-purple);
+            border-radius: 12px;
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--black);
+        }
+
+        .user-email {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        .back-to-dashboard {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .back-to-dashboard:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.6rem 1rem;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-red);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background: var(--error-red);
+            color: var(--white);
+            transform: translateY(-1px);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.4rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--gray);
+            font-size: 1.1rem;
+        }
+
+        /* Search and Filter Bar */
+        .controls-bar {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(128, 57, 223, 0.08);
+        }
+
+        .controls-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .search-filters {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .filter-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .search-input, .filter-select {
+            padding: 0.8rem 1rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+
+        .search-input:focus, .filter-select:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
+        }
+
+        .search-input {
+            position: relative;
+        }
+
+        .search-group {
+            position: relative;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray);
+            font-size: 0.9rem;
+            z-index: 2;
+        }
+
+        .search-input {
+            padding-left: 2.5rem;
+        }
+
+        .controls-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .clear-filters-btn {
+            padding: 0.8rem 1.2rem;
+            background: var(--light-gray);
+            border: none;
+            border-radius: 8px;
+            color: var(--dark-gray);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-filters-btn:hover {
+            background: var(--gray);
+            color: var(--white);
+        }
+
+        .results-count {
+            font-size: 0.9rem;
+            color: var(--gray);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* Messages Container */
+        .messages-container {
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(128, 57, 223, 0.08);
+            overflow: hidden;
+        }
+
+        .messages-header {
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
+            padding: 1.5rem 2rem;
+            border-bottom: 2px solid var(--primary-purple);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .messages-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--black);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .messages-title i {
+            color: var(--primary-purple);
+            font-size: 1.4rem;
+        }
+
+        .messages-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(128, 57, 223, 0.1);
+            color: var(--primary-purple);
+        }
+
+        .export-btn {
+            padding: 0.7rem 1.2rem;
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Messages Table */
+        .messages-table-container {
+            overflow-x: auto;
+        }
+
+        .messages-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .messages-table th {
+            background: rgba(128, 57, 223, 0.05);
+            color: var(--dark-gray);
+            font-weight: 700;
+            padding: 1.2rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--light-gray);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .messages-table td {
+            padding: 1.2rem 1rem;
+            border-bottom: 1px solid var(--light-gray);
+            vertical-align: top;
+        }
+
+        .messages-table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .messages-table tbody tr:hover {
+            background: rgba(128, 57, 223, 0.02);
+        }
+
+        /* Column Widths */
+        .col-select { width: 3%; }
+        .col-message { width: 30%; }
+        .col-target { width: 20%; }
+        .col-sent { width: 8%; }
+        .col-reply { width: 8%; }
+        .col-date { width: 10%; }
+        .col-comment { width: 16%; }
+        .col-actions { width: 5%; }
+
+        /* Checkbox Selection */
+        .select-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* Message Content */
+        .message-content {
+            max-width: 350px;
+        }
+
+        .message-text {
+            line-height: 1.5;
+            color: var(--dark-gray);
+            margin-bottom: 0.5rem;
+        }
+
+        .message-text.truncated {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .message-expand {
+            color: var(--primary-purple);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .message-expand:hover {
+            color: var(--dark-purple);
+            text-decoration: underline;
+        }
+
+        .message-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .message-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0.2rem 0.6rem;
+            background: rgba(128, 57, 223, 0.1);
+            color: var(--primary-purple);
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        /* Target Profile */
+        .target-profile {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .target-name {
+            font-weight: 700;
+            color: var(--black);
+            font-size: 0.95rem;
+        }
+
+        .target-role {
+            color: var(--dark-gray);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .target-company {
+            color: var(--gray);
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .target-company i {
+            font-size: 0.7rem;
+        }
+
+        /* STATUS TOGGLES - Modern Design */
+        .status-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 28px;
+            background: var(--light-gray);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .toggle-switch.pending {
+            background: var(--light-gray);
+        }
+
+        .toggle-switch.yes {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            border-color: var(--success-green);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .toggle-switch.no {
+            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
+            border-color: var(--error-red);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+        }
+
+        .toggle-switch.modified {
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: var(--white);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-switch.pending .toggle-slider {
+            background: var(--gray);
+            color: var(--white);
+        }
+
+        .toggle-switch.yes .toggle-slider {
+            transform: translateX(32px);
+            background: var(--white);
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no .toggle-slider {
+            background: var(--white);
+            color: var(--error-red);
+        }
+
+        .toggle-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            min-width: 35px;
+        }
+
+        .toggle-switch.pending + .toggle-label {
+            color: var(--gray);
+        }
+
+        .toggle-switch.yes + .toggle-label {
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no + .toggle-label {
+            color: var(--error-red);
+        }
+
+        /* Date Display */
+        .date-display {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .date-main {
+            font-weight: 600;
+            color: var(--dark-gray);
+            font-size: 0.85rem;
+        }
+
+        .date-time {
+            color: var(--gray);
+            font-size: 0.75rem;
+        }
+
+        /* Comments Field */
+        .comment-field {
+            width: 100%;
+            min-height: 60px;
+            max-height: 120px;
+            padding: 0.6rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        .comment-field:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
+        }
+
+        .comment-field.modified {
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 80px;
+        }
+
+        .save-btn {
+            padding: 0.5rem 0.8rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            opacity: 0.7;
+            transform: scale(0.95);
+        }
+
+        .save-btn.modified {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 2px 8px rgba(128, 57, 223, 0.25);
+        }
+
+        .save-btn:hover.modified {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px) scale(1);
+        }
+
+        .save-btn.saving {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .save-btn.saved {
+            background: var(--success-green);
+        }
+
+        .delete-btn {
+            padding: 0.5rem 0.8rem;
+            background: var(--error-red);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            opacity: 0.8;
+        }
+
+        .delete-btn:hover {
+            opacity: 1;
+            transform: translateY(-1px);
+        }
+
+        /* Bulk Actions Bar */
+        .bulk-actions-bar {
+            display: none;
+            position: sticky;
+            top: 0;
+            background: var(--primary-purple);
+            color: var(--white);
+            padding: 1rem 2rem;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 50;
+            animation: slideDown 0.3s ease;
+        }
+
+        .bulk-actions-bar.show {
+            display: flex;
+        }
+
+        .bulk-selection-info {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .bulk-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .bulk-action-btn {
+            padding: 0.6rem 1.2rem;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--white);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .bulk-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .bulk-close {
+            background: none;
+            border: none;
+            color: var(--white);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+        }
+
+        /* Empty State */
+        .messages-empty {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--gray);
+        }
+
+        .messages-empty i {
+            font-size: 4rem;
+            margin-bottom: 2rem;
+            color: var(--primary-purple);
+            opacity: 0.5;
+        }
+
+        .messages-empty h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--dark-gray);
+        }
+
+        .messages-empty p {
+            font-size: 1rem;
+            line-height: 1.6;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* Error State */
+        .error-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--error-red);
+        }
+
+        .error-state i {
+            font-size: 4rem;
+            margin-bottom: 2rem;
+        }
+
+        .error-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-state p {
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .retry-btn {
+            margin-top: 1.5rem;
+            padding: 0.8rem 2rem;
+            background: var(--error-red);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .retry-btn:hover {
+            background: #DC2626;
+            transform: translateY(-1px);
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 1024px) {
+            .search-filters {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.8rem;
+            }
+
+            .controls-row {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .controls-actions {
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            .messages-table {
+                min-width: 1000px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .header-content {
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .controls-bar {
+                padding: 1rem;
+            }
+
+            .search-filters {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .messages-header {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .messages-actions {
+                align-self: flex-end;
+            }
+
+            .messages-table {
+                font-size: 0.8rem;
+            }
+
+            .messages-table th,
+            .messages-table td {
+                padding: 0.8rem 0.5rem;
+            }
+
+            .bulk-actions-bar {
+                padding: 0.8rem 1rem;
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .bulk-actions {
+                align-self: stretch;
+                justify-content: space-between;
+            }
+
+            .user-details {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/dashboard" class="logo">
+                <i class="fas fa-comments"></i>
+                <div class="logo-text">
+                    <div class="logo-main">Msgly.AI</div>
+                    <div class="logo-sub">Messages Center</div>
+                </div>
+            </a>
+            
+            <div class="header-actions">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">??</div>
+                    <div class="user-details">
+                        <div class="user-name" id="userName">Loading...</div>
+                        <div class="user-email" id="userEmail">Loading...</div>
+                    </div>
+                </div>
+                
+                <a href="/dashboard" class="back-to-dashboard">
+                    <i class="fas fa-arrow-left"></i>
+                    Dashboard
+                </a>
+                
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1 class="page-title">Message Management</h1>
+            <p class="page-subtitle">Manage and track all your LinkedIn outreach messages</p>
+        </div>
+
+        <!-- Search and Filter Controls -->
+        <div class="controls-bar">
+            <div class="controls-row">
+                <div class="search-filters">
+                    <div class="filter-group">
+                        <label class="filter-label">Search Messages</label>
+                        <div class="search-group">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" class="search-input" id="searchInput" 
+                                   placeholder="Search by message content, name, or company..." 
+                                   oninput="applyFilters()">
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label class="filter-label">Sent Status</label>
+                        <select class="filter-select" id="sentFilter" onchange="applyFilters()">
+                            <option value="">All Status</option>
+                            <option value="yes">Sent</option>
+                            <option value="no">Not Sent</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label class="filter-label">Reply Status</label>
+                        <select class="filter-select" id="replyFilter" onchange="applyFilters()">
+                            <option value="">All Replies</option>
+                            <option value="yes">Got Reply</option>
+                            <option value="no">No Reply</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label class="filter-label">Date Range</label>
+                        <select class="filter-select" id="dateFilter" onchange="applyFilters()">
+                            <option value="">All Dates</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="quarter">Last 3 Months</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="controls-actions">
+                    <button class="clear-filters-btn" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                    <div class="results-count" id="resultsCount">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading" id="loadingState">
+            <div class="spinner"></div>
+            <p>Loading your messages...</p>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-state" id="errorState" style="display: none;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Unable to load messages</h3>
+            <p id="errorMessage">Please try refreshing the page or check your connection.</p>
+            <button class="retry-btn" onclick="loadMessages()">
+                <i class="fas fa-redo"></i> Retry
+            </button>
+        </div>
+
+        <!-- Bulk Actions Bar -->
+        <div class="bulk-actions-bar" id="bulkActionsBar">
+            <div class="bulk-selection-info">
+                <span id="selectedCount">0</span> messages selected
+            </div>
+            <div class="bulk-actions">
+                <button class="bulk-action-btn" onclick="bulkMarkSent()">
+                    <i class="fas fa-check"></i> Mark as Sent
+                </button>
+                <button class="bulk-action-btn" onclick="bulkMarkReply()">
+                    <i class="fas fa-reply"></i> Mark Got Reply
+                </button>
+                <button class="bulk-action-btn" onclick="bulkDelete()">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            </div>
+            <button class="bulk-close" onclick="clearSelection()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Messages Container -->
+        <div class="messages-container" id="messagesContainer" style="display: none;">
+            <div class="messages-header">
+                <div class="messages-title">
+                    <i class="fas fa-comments"></i>
+                    All Messages
+                </div>
+                <div class="messages-actions">
+                    <button class="refresh-btn" onclick="refreshMessages()" title="Refresh Messages">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="export-btn" onclick="exportMessages()">
+                        <i class="fas fa-download"></i>
+                        Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="messages-table-container">
+                <table class="messages-table">
+                    <thead>
+                        <tr>
+                            <th class="col-select">
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="select-checkbox">
+                            </th>
+                            <th class="col-message">Message</th>
+                            <th class="col-target">Target Profile</th>
+                            <th class="col-sent">Sent</th>
+                            <th class="col-reply">Reply</th>
+                            <th class="col-date">Date</th>
+                            <th class="col-comment">Comments</th>
+                            <th class="col-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="messagesTableBody">
+                        <!-- Messages will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="messages-empty" id="messagesEmpty" style="display: none;">
+            <i class="fas fa-envelope-open"></i>
+            <h3>No messages found</h3>
+            <p>Your messages will appear here when you start sending LinkedIn outreach messages. Use the filters above to narrow down your search.</p>
+        </div>
+    </main>
+
+    <script>
+        // Global variables
+        let currentUserData = null;
+        let allMessages = [];
+        let filteredMessages = [];
+        let selectedMessages = new Set();
+        let pendingChanges = new Map();
+
+        // Extended Mock Messages Data for demonstration
+        const mockMessages = [
+            {
+                id: 1,
+                message: "Hi John, I noticed your impressive work in sustainable energy solutions at Tesla. I'd love to connect and discuss potential collaboration opportunities in the renewable sector. Your recent article on battery technology was particularly insightful.",
+                targetProfile: {
+                    firstName: "John",
+                    lastNameInitial: "D",
+                    role: "Senior Engineer",
+                    company: "Tesla"
+                },
+                sent: "pending",
+                gotReply: "pending", 
+                comments: "Research shows high engagement with Tesla employees",
+                createdAt: "2024-03-15T10:30:00Z"
+            },
+            {
+                id: 2,
+                message: "Hello Sarah, Your expertise in AI and machine learning caught my attention. I'm working on a project that could benefit from your insights. Would you be interested in a brief call?",
+                targetProfile: {
+                    firstName: "Sarah",
+                    lastNameInitial: "M",
+                    role: "AI Research Lead",
+                    company: "Google"
+                },
+                sent: "yes",
+                gotReply: "no",
+                comments: "Sent via LinkedIn, no response yet after 5 days. Considering follow-up approach.",
+                createdAt: "2024-03-14T14:20:00Z"
+            },
+            {
+                id: 3,
+                message: "Hey Mike, I saw your post about the latest developments in blockchain technology. As someone working in fintech, I'd appreciate your perspective on regulatory challenges.",
+                targetProfile: {
+                    firstName: "Mike",
+                    lastNameInitial: "R",
+                    role: "Blockchain Developer", 
+                    company: "Coinbase"
+                },
+                sent: "yes",
+                gotReply: "yes",
+                comments: "Great response! Scheduled follow-up meeting for next week. Very promising connection.",
+                createdAt: "2024-03-13T09:15:00Z"
+            },
+            {
+                id: 4,
+                message: "Dear Jennifer, I came across your article on digital marketing trends. Your insights on social media engagement are particularly relevant to my current campaign. Would love to exchange ideas.",
+                targetProfile: {
+                    firstName: "Jennifer",
+                    lastNameInitial: "L",
+                    role: "Marketing Director",
+                    company: "HubSpot"
+                },
+                sent: "no",
+                gotReply: "pending",
+                comments: "Draft ready, waiting for approval from team lead. Message needs final review.",
+                createdAt: "2024-03-12T16:45:00Z"
+            },
+            {
+                id: 5,
+                message: "Hi David, Your presentation at the recent tech conference was outstanding. I'm particularly interested in your approach to scaling distributed systems. Could we schedule a brief chat?",
+                targetProfile: {
+                    firstName: "David",
+                    lastNameInitial: "K",
+                    role: "Principal Architect",
+                    company: "Amazon"
+                },
+                sent: "yes",
+                gotReply: "pending",
+                comments: "Sent yesterday, message was viewed but no response yet. Will wait 3 more days.",
+                createdAt: "2024-03-11T11:30:00Z"
+            },
+            {
+                id: 6,
+                message: "Hello Emma, I noticed your background in UX design and your work at Figma. I'm building a design system for a startup and would value your feedback on our approach.",
+                targetProfile: {
+                    firstName: "Emma",
+                    lastNameInitial: "W",
+                    role: "Senior UX Designer",
+                    company: "Figma"
+                },
+                sent: "yes",
+                gotReply: "no",
+                comments: "No response after a week, considering follow-up with different angle. Profile still active.",
+                createdAt: "2024-03-10T15:20:00Z"
+            },
+            {
+                id: 7,
+                message: "Hi Alex, Your LinkedIn post about remote team management resonated with me. As a fellow engineering manager, I'd love to share experiences and perhaps collaborate on best practices.",
+                targetProfile: {
+                    firstName: "Alex",
+                    lastNameInitial: "T",
+                    role: "Engineering Manager",
+                    company: "Spotify"
+                },
+                sent: "yes",
+                gotReply: "yes",
+                comments: "Excellent conversation! We're planning to co-author an article on remote team management.",
+                createdAt: "2024-03-09T08:45:00Z"
+            },
+            {
+                id: 8,
+                message: "Dear Dr. Chen, Your research on quantum computing applications in cryptography is fascinating. I'm working on a related project and would appreciate your academic perspective.",
+                targetProfile: {
+                    firstName: "Dr. Lisa",
+                    lastNameInitial: "C",
+                    role: "Quantum Research Scientist",
+                    company: "IBM Research"
+                },
+                sent: "pending",
+                gotReply: "pending",
+                comments: "Need to refine technical language before sending. Awaiting team input on quantum aspects.",
+                createdAt: "2024-03-08T13:10:00Z"
+            },
+            {
+                id: 9,
+                message: "Hello Maria, I came across your work in sustainable fashion and was impressed by your innovative approach to eco-friendly materials. Would love to discuss potential synergies.",
+                targetProfile: {
+                    firstName: "Maria",
+                    lastNameInitial: "G",
+                    role: "Sustainability Director",
+                    company: "Patagonia"
+                },
+                sent: "yes",
+                gotReply: "no",
+                comments: "Sent 3 days ago. Profile shows recent activity but no response. Industry is typically slower to respond.",
+                createdAt: "2024-03-07T16:30:00Z"
+            },
+            {
+                id: 10,
+                message: "Hi Robert, Your expertise in fintech regulations caught my attention. I'm launching a new payment platform and would value your insights on compliance requirements.",
+                targetProfile: {
+                    firstName: "Robert",
+                    lastNameInitial: "B",
+                    role: "Compliance Officer",
+                    company: "Square"
+                },
+                sent: "no",
+                gotReply: "pending",
+                comments: "Legal team reviewing message content before sending. Compliance language needs to be precise.",
+                createdAt: "2024-03-06T10:15:00Z"
+            }
+        ];
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[MESSAGES] Page loaded - starting authentication...');
+            checkAuthentication();
+        });
+
+        // Authentication check - same as dashboard
+        async function checkAuthentication() {
+            const token = getAuthToken();
+            
+            if (!token) {
+                console.log('[AUTH] No authentication token found - redirecting to login');
+                window.location.href = '/login';
+                return;
+            }
+
+            try {
+                await loadUserData(token);
+            } catch (error) {
+                console.error('[AUTH] Authentication error:', error);
+                if (error.message.includes('401') || error.message.includes('403')) {
+                    window.location.href = '/login';
+                } else {
+                    showError('Failed to authenticate. Please try logging in again.');
+                }
+            }
+        }
+
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+
+        async function loadUserData(token) {
+            try {
+                const response = await fetch('https://api.msgly.ai/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load user data');
+                }
+
+                currentUserData = data.data;
+                populateUserInfo(data.data.user);
+                await loadMessages();
+                
+            } catch (error) {
+                console.error('[API] Error:', error);
+                throw error;
+            }
+        }
+
+        function populateUserInfo(user) {
+            document.getElementById('userName').textContent = user.displayName || user.email;
+            document.getElementById('userEmail').textContent = user.email;
+            const initials = getInitials(user.displayName || user.email);
+            document.getElementById('userAvatar').textContent = initials;
+        }
+
+        // MESSAGES LOADING AND MANAGEMENT
+        async function loadMessages() {
+            try {
+                console.log('[MESSAGES] Loading all messages...');
+                
+                // Show loading state
+                document.getElementById('loadingState').style.display = 'flex';
+                document.getElementById('messagesContainer').style.display = 'none';
+                document.getElementById('messagesEmpty').style.display = 'none';
+                document.getElementById('errorState').style.display = 'none';
+                
+                // TODO: Replace with actual API call
+                // const response = await fetch('https://api.msgly.ai/messages', {
+                //     headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+                // });
+                // const data = await response.json();
+                // allMessages = data.messages;
+                
+                // For now, use mock data
+                await new Promise(resolve => setTimeout(resolve, 1200)); // Simulate API delay
+                allMessages = [...mockMessages];
+                
+                filteredMessages = [...allMessages];
+                renderMessages();
+                updateResultsCount();
+                
+                // Hide loading and show content
+                document.getElementById('loadingState').style.display = 'none';
+                
+                if (filteredMessages.length === 0) {
+                    document.getElementById('messagesEmpty').style.display = 'block';
+                } else {
+                    document.getElementById('messagesContainer').style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error loading messages:', error);
+                showError('Failed to load messages. Please check your connection and try again.');
+            }
+        }
+
+        function renderMessages() {
+            const tableBody = document.getElementById('messagesTableBody');
+            tableBody.innerHTML = '';
+            
+            filteredMessages.forEach(message => {
+                const row = createMessageRow(message);
+                tableBody.appendChild(row);
+            });
+        }
+
+        function createMessageRow(message) {
+            const row = document.createElement('tr');
+            const isSelected = selectedMessages.has(message.id);
+            
+            row.innerHTML = `
+                <td class="col-select">
+                    <input type="checkbox" class="select-checkbox" 
+                           ${isSelected ? 'checked' : ''} 
+                           onchange="toggleMessageSelection(${message.id})">
+                </td>
+                <td class="col-message">
+                    <div class="message-content">
+                        <div class="message-text ${message.message.length > 150 ? 'truncated' : ''}" 
+                             id="message-${message.id}">
+                            ${message.message}
+                        </div>
+                        ${message.message.length > 150 ? 
+                            `<div class="message-expand" onclick="toggleMessageExpand(${message.id})">Read more...</div>` : ''
+                        }
+                        <div class="message-meta">
+                            <div class="message-tag">
+                                <i class="fas fa-hashtag"></i> ID: ${message.id}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class="col-target">
+                    <div class="target-profile">
+                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-role">${message.targetProfile.role}</div>
+                        <div class="target-company">
+                            <i class="fas fa-building"></i> ${message.targetProfile.company}
+                        </div>
+                    </div>
+                </td>
+                <td class="col-sent">
+                    <div class="status-toggle">
+                        <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
+                            <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
+                        </div>
+                        <div class="toggle-label">${getStatusLabel(message.sent)}</div>
+                    </div>
+                </td>
+                <td class="col-reply">
+                    <div class="status-toggle">
+                        <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
+                            <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
+                        </div>
+                        <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
+                    </div>
+                </td>
+                <td class="col-date">
+                    <div class="date-display">
+                        <div class="date-main">${formatDate(message.createdAt)}</div>
+                        <div class="date-time">${formatTime(message.createdAt)}</div>
+                    </div>
+                </td>
+                <td class="col-comment">
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add your notes..."
+                        onchange="updateComment(${message.id}, this.value)"
+                        onkeyup="markFieldModified(${message.id})"
+                    >${message.comments}</textarea>
+                </td>
+                <td class="col-actions">
+                    <div class="action-buttons">
+                        <button class="save-btn" id="save-${message.id}" onclick="saveMessage(${message.id})">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button class="delete-btn" onclick="deleteMessage(${message.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            
+            return row;
+        }
+
+        // STATUS MANAGEMENT
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'yes': return '✓';
+                case 'no': return '✗';
+                default: return '?';
+            }
+        }
+
+        function getStatusLabel(status) {
+            switch(status) {
+                case 'yes': return 'Yes';
+                case 'no': return 'No';
+                default: return 'Pending';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            const message = allMessages.find(m => m.id === messageId);
+            if (!message) return;
+            
+            // Cycle through: pending -> yes -> no -> pending
+            switch(message[field]) {
+                case 'pending':
+                    message[field] = 'yes';
+                    break;
+                case 'yes':
+                    message[field] = 'no';
+                    break;
+                case 'no':
+                    message[field] = 'pending';
+                    break;
+            }
+            
+            markMessageModified(messageId);
+            updateToggleDisplay(messageId, field, message[field]);
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            const selector = `[onclick="toggleStatus(${messageId}, '${field}')"]`;
+            const toggle = document.querySelector(selector);
+            
+            if (toggle) {
+                toggle.className = `toggle-switch ${status} modified`;
+                const slider = toggle.querySelector('.toggle-slider');
+                const label = toggle.nextElementSibling;
+                
+                if (slider) slider.textContent = getStatusIcon(status);
+                if (label) label.textContent = getStatusLabel(status);
+            }
+        }
+
+        function updateComment(messageId, value) {
+            const message = allMessages.find(m => m.id === messageId);
+            if (message) {
+                message.comments = value;
+                markMessageModified(messageId);
+            }
+        }
+
+        function markFieldModified(messageId) {
+            markMessageModified(messageId);
+            const commentField = document.querySelector(`textarea[onchange*="${messageId}"]`);
+            if (commentField) commentField.classList.add('modified');
+        }
+
+        function markMessageModified(messageId) {
+            if (!pendingChanges.has(messageId)) {
+                pendingChanges.set(messageId, true);
+            }
+            
+            const saveButton = document.querySelector(`#save-${messageId}`);
+            if (saveButton) saveButton.classList.add('modified');
+        }
+
+        async function saveMessage(messageId) {
+            const message = allMessages.find(m => m.id === messageId);
+            if (!message || !pendingChanges.has(messageId)) return;
+            
+            const saveButton = document.querySelector(`#save-${messageId}`);
+            
+            try {
+                saveButton.classList.add('saving');
+                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                
+                // TODO: Replace with actual API call
+                // await fetch(`https://api.msgly.ai/messages/${messageId}`, {
+                //     method: 'PUT',
+                //     headers: { 
+                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Content-Type': 'application/json'
+                //     },
+                //     body: JSON.stringify(message)
+                // });
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                // Success state
+                saveButton.classList.remove('saving', 'modified');
+                saveButton.classList.add('saved');
+                saveButton.innerHTML = '<i class="fas fa-check"></i>';
+                
+                pendingChanges.delete(messageId);
+                
+                // Remove modified indicators
+                const toggles = document.querySelectorAll(`[onclick*="${messageId}"]`);
+                toggles.forEach(toggle => toggle.classList.remove('modified'));
+                
+                const commentField = document.querySelector(`textarea[onchange*="${messageId}"]`);
+                if (commentField) commentField.classList.remove('modified');
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    saveButton.classList.remove('saved');
+                    saveButton.innerHTML = '<i class="fas fa-save"></i>';
+                }, 2000);
+                
+                console.log('[MESSAGES] Message saved successfully:', messageId);
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error saving message:', error);
+                
+                saveButton.classList.remove('saving');
+                saveButton.classList.add('error');
+                saveButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                
+                setTimeout(() => {
+                    saveButton.classList.remove('error');
+                    saveButton.classList.add('modified');
+                    saveButton.innerHTML = '<i class="fas fa-save"></i>';
+                }, 3000);
+            }
+        }
+
+        async function deleteMessage(messageId) {
+            if (!confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                // TODO: Replace with actual API call
+                // await fetch(`https://api.msgly.ai/messages/${messageId}`, {
+                //     method: 'DELETE',
+                //     headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+                // });
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Remove from local data
+                allMessages = allMessages.filter(m => m.id !== messageId);
+                filteredMessages = filteredMessages.filter(m => m.id !== messageId);
+                selectedMessages.delete(messageId);
+                pendingChanges.delete(messageId);
+                
+                renderMessages();
+                updateResultsCount();
+                updateBulkActionsBar();
+                
+                console.log('[MESSAGES] Message deleted successfully:', messageId);
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error deleting message:', error);
+                alert('Failed to delete message. Please try again.');
+            }
+        }
+
+        function toggleMessageExpand(messageId) {
+            const messageEl = document.getElementById(`message-${messageId}`);
+            const expandBtn = messageEl.nextElementSibling;
+            
+            if (messageEl.classList.contains('truncated')) {
+                messageEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                messageEl.classList.add('truncated');
+                expandBtn.textContent = 'Read more...';
+            }
+        }
+
+        // SEARCH AND FILTER FUNCTIONALITY
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const sentFilter = document.getElementById('sentFilter').value;
+            const replyFilter = document.getElementById('replyFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+            
+            filteredMessages = allMessages.filter(message => {
+                // Search filter
+                if (searchTerm && !matchesSearch(message, searchTerm)) {
+                    return false;
+                }
+                
+                // Sent status filter
+                if (sentFilter && message.sent !== sentFilter) {
+                    return false;
+                }
+                
+                // Reply status filter
+                if (replyFilter && message.gotReply !== replyFilter) {
+                    return false;
+                }
+                
+                // Date filter
+                if (dateFilter && !matchesDateFilter(message, dateFilter)) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            renderMessages();
+            updateResultsCount();
+            clearSelection();
+        }
+
+        function matchesSearch(message, searchTerm) {
+            return (
+                message.message.toLowerCase().includes(searchTerm) ||
+                message.targetProfile.firstName.toLowerCase().includes(searchTerm) ||
+                message.targetProfile.role.toLowerCase().includes(searchTerm) ||
+                message.targetProfile.company.toLowerCase().includes(searchTerm) ||
+                message.comments.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        function matchesDateFilter(message, dateFilter) {
+            const messageDate = new Date(message.createdAt);
+            const now = new Date();
+            
+            switch(dateFilter) {
+                case 'today':
+                    return isSameDay(messageDate, now);
+                case 'week':
+                    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    return messageDate >= weekAgo;
+                case 'month':
+                    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    return messageDate >= monthAgo;
+                case 'quarter':
+                    const quarterAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                    return messageDate >= quarterAgo;
+                default:
+                    return true;
+            }
+        }
+
+        function isSameDay(date1, date2) {
+            return date1.getFullYear() === date2.getFullYear() &&
+                   date1.getMonth() === date2.getMonth() &&
+                   date1.getDate() === date2.getDate();
+        }
+
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('sentFilter').value = '';
+            document.getElementById('replyFilter').value = '';
+            document.getElementById('dateFilter').value = '';
+            applyFilters();
+        }
+
+        function updateResultsCount() {
+            const count = filteredMessages.length;
+            const total = allMessages.length;
+            document.getElementById('resultsCount').textContent = 
+                `${count} of ${total} messages`;
+        }
+
+        // SELECTION AND BULK ACTIONS
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const isChecked = selectAllCheckbox.checked;
+            
+            if (isChecked) {
+                filteredMessages.forEach(message => selectedMessages.add(message.id));
+            } else {
+                selectedMessages.clear();
+            }
+            
+            // Update individual checkboxes
+            const checkboxes = document.querySelectorAll('.select-checkbox:not(#selectAll)');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            
+            updateBulkActionsBar();
+        }
+
+        function toggleMessageSelection(messageId) {
+            const checkbox = document.querySelector(`input[onchange*="${messageId}"]`);
+            
+            if (checkbox.checked) {
+                selectedMessages.add(messageId);
+            } else {
+                selectedMessages.delete(messageId);
+            }
+            
+            // Update select all checkbox
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const totalFilteredMessages = filteredMessages.length;
+            const selectedCount = selectedMessages.size;
+            
+            selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < totalFilteredMessages;
+            selectAllCheckbox.checked = selectedCount === totalFilteredMessages;
+            
+            updateBulkActionsBar();
+        }
+
+        function updateBulkActionsBar() {
+            const bulkActionsBar = document.getElementById('bulkActionsBar');
+            const selectedCount = selectedMessages.size;
+            
+            if (selectedCount > 0) {
+                bulkActionsBar.classList.add('show');
+                document.getElementById('selectedCount').textContent = selectedCount;
+            } else {
+                bulkActionsBar.classList.remove('show');
+            }
+        }
+
+        function clearSelection() {
+            selectedMessages.clear();
+            
+            const checkboxes = document.querySelectorAll('.select-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                checkbox.indeterminate = false;
+            });
+            
+            updateBulkActionsBar();
+        }
+
+        async function bulkMarkSent() {
+            if (selectedMessages.size === 0) return;
+            
+            const messageIds = Array.from(selectedMessages);
+            
+            try {
+                // TODO: Replace with actual API call
+                // await fetch('https://api.msgly.ai/messages/bulk-update', {
+                //     method: 'PUT',
+                //     headers: { 
+                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Content-Type': 'application/json'
+                //     },
+                //     body: JSON.stringify({ messageIds, updates: { sent: 'yes' } })
+                // });
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Update local data
+                messageIds.forEach(id => {
+                    const message = allMessages.find(m => m.id === id);
+                    if (message) {
+                        message.sent = 'yes';
+                    }
+                });
+                
+                renderMessages();
+                clearSelection();
+                
+                console.log('[BULK] Marked messages as sent:', messageIds);
+                
+            } catch (error) {
+                console.error('[BULK] Error updating messages:', error);
+                alert('Failed to update messages. Please try again.');
+            }
+        }
+
+        async function bulkMarkReply() {
+            if (selectedMessages.size === 0) return;
+            
+            const messageIds = Array.from(selectedMessages);
+            
+            try {
+                // Update local data
+                messageIds.forEach(id => {
+                    const message = allMessages.find(m => m.id === id);
+                    if (message) {
+                        message.gotReply = 'yes';
+                    }
+                });
+                
+                renderMessages();
+                clearSelection();
+                
+                console.log('[BULK] Marked messages as replied:', messageIds);
+                
+            } catch (error) {
+                console.error('[BULK] Error updating messages:', error);
+                alert('Failed to update messages. Please try again.');
+            }
+        }
+
+        async function bulkDelete() {
+            if (selectedMessages.size === 0) return;
+            
+            const count = selectedMessages.size;
+            if (!confirm(`Are you sure you want to delete ${count} selected message${count > 1 ? 's' : ''}? This action cannot be undone.`)) {
+                return;
+            }
+            
+            const messageIds = Array.from(selectedMessages);
+            
+            try {
+                // Remove from local data
+                allMessages = allMessages.filter(m => !messageIds.includes(m.id));
+                filteredMessages = filteredMessages.filter(m => !messageIds.includes(m.id));
+                
+                messageIds.forEach(id => {
+                    selectedMessages.delete(id);
+                    pendingChanges.delete(id);
+                });
+                
+                renderMessages();
+                updateResultsCount();
+                updateBulkActionsBar();
+                
+                console.log('[BULK] Deleted messages:', messageIds);
+                
+            } catch (error) {
+                console.error('[BULK] Error deleting messages:', error);
+                alert('Failed to delete messages. Please try again.');
+            }
+        }
+
+        // EXPORT FUNCTIONALITY
+        function exportMessages() {
+            try {
+                const csvContent = generateCSV(filteredMessages);
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', `messages-export-${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log('[EXPORT] CSV export completed');
+                
+            } catch (error) {
+                console.error('[EXPORT] Error exporting messages:', error);
+                alert('Failed to export messages. Please try again.');
+            }
+        }
+
+        function generateCSV(messages) {
+            const headers = ['ID', 'Message', 'Target Name', 'Role', 'Company', 'Sent', 'Got Reply', 'Comments', 'Created Date'];
+            
+            const rows = messages.map(message => [
+                message.id,
+                `"${message.message.replace(/"/g, '""')}"`, // Escape quotes
+                `${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.`,
+                message.targetProfile.role,
+                message.targetProfile.company,
+                message.sent,
+                message.gotReply,
+                `"${message.comments.replace(/"/g, '""')}"`, // Escape quotes
+                formatDate(message.createdAt)
+            ]);
+            
+            return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+        }
+
+        // REFRESH FUNCTIONALITY
+        async function refreshMessages() {
+            const refreshBtn = document.querySelector('.refresh-btn i');
+            refreshBtn.classList.add('fa-spin');
+            
+            try {
+                await loadMessages();
+            } finally {
+                refreshBtn.classList.remove('fa-spin');
+            }
+        }
+
+        // UTILITY FUNCTIONS
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function getInitials(name) {
+            if (!name) return '??';
+            
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                return name.substring(0, 2).toUpperCase();
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('messagesContainer').style.display = 'none';
+            document.getElementById('messagesEmpty').style.display = 'none';
+            
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorState').style.display = 'block';
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>
