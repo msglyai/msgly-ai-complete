@@ -2751,6 +2751,184 @@
             if (commentFieldCard) commentFieldCard.classList.add('unsaved');
         }
 
+        // Dashboard messages preview functions
+        function populateMessagesPreview() {
+            const previewList = document.getElementById('messagesPreviewList');
+            
+            if (!previewList) return;
+            
+            // Use sample data (replace with API call in production)
+            const messages = SAMPLE_MESSAGES.slice(0, 5); // Show first 5 messages
+            
+            if (messages.length === 0) {
+                previewList.innerHTML = `
+                    <div class="message-preview-empty">
+                        <i class="fas fa-envelope-open-text"></i>
+                        <h4>No Messages Yet</h4>
+                        <p>Start your LinkedIn outreach campaigns to see messages here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            previewList.innerHTML = '';
+            
+            messages.forEach(message => {
+                const previewItem = createMessagePreviewItem(message);
+                previewList.appendChild(previewItem);
+            });
+        }
+
+        function createMessagePreviewItem(message) {
+            const item = document.createElement('div');
+            item.className = 'message-preview-item';
+            item.onclick = () => {
+                showSection('messages');
+                // Scroll to specific message if needed
+                setTimeout(() => {
+                    const messageRow = document.getElementById(`message-row-${message.id}`);
+                    const messageCard = document.getElementById(`message-card-${message.id}`);
+                    if (messageRow) messageRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (messageCard) messageCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            };
+            
+            const profileName = formatProfileName(message.targetProfile.firstName, message.targetProfile.lastName);
+            const initials = getInitials(`${message.targetProfile.firstName} ${message.targetProfile.lastName}`);
+            const truncatedMessage = truncateText(message.message, 80);
+            
+            // Determine status indicators
+            let statusIndicators = '';
+            if (message.sentStatus === true) {
+                statusIndicators += '<div class="mini-status sent" title="Message Sent"></div>';
+            }
+            if (message.replyStatus === true) {
+                statusIndicators += '<div class="mini-status replied" title="Got Reply"></div>';
+            } else if (message.replyStatus === false) {
+                statusIndicators += '<div class="mini-status no-reply" title="No Reply Yet"></div>';
+            } else if (message.sentStatus === true) {
+                statusIndicators += '<div class="mini-status pending" title="Waiting for Reply"></div>';
+            }
+            
+            item.innerHTML = `
+                <div class="message-preview-avatar">${initials}</div>
+                <div class="message-preview-content">
+                    <div class="message-preview-header">
+                        <div class="message-preview-name">${profileName}</div>
+                        <div class="message-preview-status">${statusIndicators}</div>
+                    </div>
+                    <div class="message-preview-company">${message.targetProfile.company}</div>
+                    <div class="message-preview-text">${truncatedMessage}</div>
+                </div>
+            `;
+            
+            return item;
+        }
+
+        // Message interaction functions
+        function toggleMessageExpansion(messageId, type = 'table') {
+            const suffix = type === 'card' ? `-card-${messageId}` : `-${messageId}`;
+            const fullDiv = document.getElementById(`message-full${suffix}`);
+            const expandText = document.getElementById(`expand-text${suffix}`);
+            const expandIcon = document.getElementById(`expand-icon${suffix}`);
+            
+            if (fullDiv && expandText && expandIcon) {
+                const isExpanded = fullDiv.style.display === 'block';
+                
+                if (isExpanded) {
+                    fullDiv.style.display = 'none';
+                    expandText.textContent = 'Show more';
+                    expandIcon.className = 'fas fa-chevron-down';
+                } else {
+                    fullDiv.style.display = 'block';
+                    expandText.textContent = 'Show less';
+                    expandIcon.className = 'fas fa-chevron-up';
+                }
+            }
+        }
+
+        function toggleStatus(type, messageId, toggleElement) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message) return;
+            
+            const currentStatus = type === 'sent' ? message.sentStatus : message.replyStatus;
+            let newStatus;
+            
+            // Cycle through: null -> true -> false -> null
+            if (currentStatus === null || currentStatus === undefined) {
+                newStatus = true;
+            } else if (currentStatus === true) {
+                newStatus = false;
+            } else {
+                newStatus = null;
+            }
+            
+            // Update data
+            if (type === 'sent') {
+                message.sentStatus = newStatus;
+            } else {
+                message.replyStatus = newStatus;
+                
+                // Enable/disable reply content field based on reply status
+                updateReplyContentField(messageId, newStatus);
+            }
+            
+            // Update UI
+            toggleElement.className = `toggle-switch ${getToggleClass(newStatus)} unsaved`;
+            toggleElement.querySelector('.toggle-knob').textContent = getToggleIcon(newStatus);
+            toggleElement.nextElementSibling.textContent = getToggleLabel(newStatus);
+            
+            markUnsaved(messageId);
+        }
+
+        function updateReplyContentField(messageId, replyStatus) {
+            // Update both desktop and mobile reply content fields
+            const replyField = document.getElementById(`reply-content-${messageId}`);
+            const replyFieldCard = document.getElementById(`reply-content-card-${messageId}`);
+            
+            const isEnabled = replyStatus === true;
+            const placeholder = isEnabled ? 'Enter the reply content received...' : 'Mark as replied first to add content';
+            
+            [replyField, replyFieldCard].forEach(field => {
+                if (field) {
+                    field.disabled = !isEnabled;
+                    field.placeholder = placeholder;
+                    if (!isEnabled && field.value) {
+                        // Clear content if disabling field
+                        field.value = '';
+                        markUnsaved(messageId);
+                    }
+                }
+            });
+        }
+
+        function markUnsaved(messageId) {
+            unsavedChanges.add(messageId);
+            
+            // Show save buttons
+            const saveBtn = document.getElementById(`save-btn-${messageId}`);
+            const saveBtnCard = document.getElementById(`save-btn-card-${messageId}`);
+            
+            if (saveBtn) {
+                saveBtn.className = 'save-btn visible';
+            }
+            if (saveBtnCard) {
+                saveBtnCard.className = 'save-btn visible';
+            }
+            
+            // Add unsaved styling to all editable fields
+            const fields = [
+                `comment-${messageId}`, `comment-card-${messageId}`,
+                `reply-content-${messageId}`, `reply-content-card-${messageId}`,
+                `action-${messageId}`, `action-card-${messageId}`
+            ];
+            
+            fields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) field.classList.add('unsaved');
+            });
+        }
+
         async function saveMessageData(messageId) {
             const saveBtn = document.getElementById(`save-btn-${messageId}`);
             const saveBtnCard = document.getElementById(`save-btn-card-${messageId}`);
@@ -2769,17 +2947,24 @@
             }
             
             try {
-                // Get current comment value
-                const commentField = document.getElementById(`comment-${messageId}`) || 
-                                   document.getElementById(`comment-card-${messageId}`);
-                const currentComment = commentField ? commentField.value : '';
+                // Get current field values
+                const getFieldValue = (id) => {
+                    const field = document.getElementById(id);
+                    return field ? field.value : '';
+                };
+                
+                const currentComment = getFieldValue(`comment-${messageId}`) || getFieldValue(`comment-card-${messageId}`);
+                const currentReplyContent = getFieldValue(`reply-content-${messageId}`) || getFieldValue(`reply-content-card-${messageId}`);
+                const currentAction = getFieldValue(`action-${messageId}`) || getFieldValue(`action-card-${messageId}`);
                 
                 // Prepare data to save
                 const updateData = {
                     id: messageId,
                     sentStatus: message.sentStatus,
                     replyStatus: message.replyStatus,
+                    replyContent: currentReplyContent,
                     comment: currentComment,
+                    action: currentAction,
                     lastUpdated: new Date().toISOString()
                 };
                 
@@ -2798,6 +2983,8 @@
                 
                 // Update local data
                 message.comment = currentComment;
+                message.replyContent = currentReplyContent;
+                message.action = currentAction;
                 message.lastUpdated = updateData.lastUpdated;
                 
                 // Update UI to saved state
@@ -2821,17 +3008,27 @@
                     }, 2000);
                 }
                 
-                // Remove unsaved styling
-                const commentFieldEl = document.getElementById(`comment-${messageId}`);
-                const commentFieldCardEl = document.getElementById(`comment-card-${messageId}`);
+                // Remove unsaved styling from all fields
+                const fields = [
+                    `comment-${messageId}`, `comment-card-${messageId}`,
+                    `reply-content-${messageId}`, `reply-content-card-${messageId}`,
+                    `action-${messageId}`, `action-card-${messageId}`
+                ];
                 
-                if (commentFieldEl) commentFieldEl.classList.remove('unsaved');
-                if (commentFieldCardEl) commentFieldCardEl.classList.remove('unsaved');
+                fields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (field) field.classList.remove('unsaved');
+                });
                 
                 // Remove unsaved styling from toggles
                 document.querySelectorAll(`#message-row-${messageId} .toggle-switch, #message-card-${messageId} .toggle-switch`).forEach(toggle => {
                     toggle.classList.remove('unsaved');
                 });
+                
+                // Update messages preview if on dashboard
+                if (document.getElementById('dashboardSection').classList.contains('active')) {
+                    populateMessagesPreview();
+                }
                 
                 console.log('[MESSAGES] Saved message data:', updateData);
                 
