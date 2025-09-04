@@ -5,13 +5,14 @@ CHANGELOG - services/gptService.js:
    - Rich summary building from comprehensive data (experience, roles, industries, achievements, etc.)
    - Graceful fallback to basic fields when gemini_raw_data missing
    - Added debug logging for gemini_raw_data presence and parsing
-   - Prudent trimming of overly long sections while keeping key signals
+   - REMOVED ALL TRUNCATION: Send complete data without pruning
 2. ENHANCED formatTargetProfile function: 
    - Primary source: data_json.data.profile nested structure extraction
    - Proper extraction of awards and skills from nested paths
    - Defensive null checks throughout to prevent errors
    - Fallback to existing flat fields when nested structure missing
    - Added debug logging for nested profile presence
+   - REMOVED ALL TRUNCATION: Send complete data without pruning
 3. Shared improvements:
    - Never mutate source objects (all operations on copies)
    - Clean and deterministic output with stable section order
@@ -21,9 +22,10 @@ CHANGELOG - services/gptService.js:
 6. COMPLETED CONNECTION REQUEST: Full implementation following LinkedIn message pattern
 7. ADDED INTRO REQUEST: New method for mutual connection introductions
 8. ADDED CALL-TO-ACTION REQUIREMENT: All message types now require CTA at the end
+9. MODIFIED: All data formatting functions now send COMPLETE DATA without any truncation
 */
 
-// server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging
+// server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging - FULL DATA VERSION
 const axios = require('axios');
 
 class GPTService {
@@ -106,28 +108,28 @@ class GPTService {
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT â€" the business or conversational goal.
+1. USER PROFILE – sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE – recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT – the business or conversational goal.
 
 Task:
 - Generate ONE highly personalized LinkedIn connection request message.
 
 Message rules:
-â€¢ Absolute maximum: 150 characters (count before finalizing).
-â€¢ Must always start with: "Hi [TARGET_FIRSTNAME],"
-â€¢ Focus primarily on the TARGET PROFILE â€" highlight what is valuable or relevant for them.
-â€¢ At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
-â€¢ Integrate CONTEXT naturally â€" frame it as potential mutual value, not a literal repeat.
-â€¢ Written as a connection request (invitation to connect).
-â€¢ MUST end with a brief call-to-action (e.g., "Let's connect!", "Would love to connect", "Connect?").
-â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
-â€¢ Do not phrase the connection request as a question (except for the CTA).
-â€¢ If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
-â€¢ If inputs are poor â†' still greet politely and write a general invite â‰¤150 chars with CTA.
-â€¢ Avoid exaggerated adjectives.
-â€¢ No emojis, hashtags, line breaks, or special symbols.
-â€¢ Output only the final message text â€" no explanations, no labels, no JSON.`;
+• Absolute maximum: 150 characters (count before finalizing).
+• Must always start with: "Hi [TARGET_FIRSTNAME],"
+• Focus primarily on the TARGET PROFILE – highlight what is valuable or relevant for them.
+• At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
+• Integrate CONTEXT naturally – frame it as potential mutual value, not a literal repeat.
+• Written as a connection request (invitation to connect).
+• MUST end with a brief call-to-action (e.g., "Let's connect!", "Would love to connect", "Connect?").
+• Keep it friendly, professional, approachable – avoid email or sales tone.
+• Do not phrase the connection request as a question (except for the CTA).
+• If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
+• If inputs are poor – still greet politely and write a general invite ≤150 chars with CTA.
+• Avoid exaggerated adjectives.
+• No emojis, hashtags, line breaks, or special symbols.
+• Output only the final message text – no explanations, no labels, no JSON.`;
                 break;
                 
             case 'intro_request':
@@ -136,60 +138,60 @@ Message rules:
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT â€" the business or conversational goal.
-4. MUTUAL CONNECTION â€" the LinkedIn profile of the shared connection who could make the intro.
+1. USER PROFILE – sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE – recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT – the business or conversational goal.
+4. MUTUAL CONNECTION – the LinkedIn profile of the shared connection who could make the intro.
 
 Task:
 - Generate ONE LinkedIn intro request consisting of two short parts:
-  Part A: The message you would send to the mutual connection asking for an introduction. â‰¤150 characters.
-  Part B: The short message the mutual connection could forward to the target. â‰¤220 characters.
+  Part A: The message you would send to the mutual connection asking for an introduction. ≤150 characters.
+  Part B: The short message the mutual connection could forward to the target. ≤220 characters.
 - Combined total must never exceed 370 characters.
 
 Message rules:
-â€¢ Both parts must always start with: "Hi [FIRSTNAME],"
-â€¢ Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
-â€¢ Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
-â€¢ Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
-â€¢ Integrate CONTEXT naturally; do not restate it literally.
-â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
-â€¢ No offers, links, or additional calls-to-action beyond the required ones.
-â€¢ Do not phrase Part A or Part B as a question (except for the CTAs).
-â€¢ Avoid generic phrases; avoid relying only on job titles or company names.
-â€¢ Avoid exaggerated adjectives.
-â€¢ No emojis, hashtags, line breaks, or special symbols.
-â€¢ If insufficient data â†' still produce polite, general LinkedIn-style messages within limits with required CTAs.
-â€¢ Output format:
+• Both parts must always start with: "Hi [FIRSTNAME],"
+• Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
+• Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
+• Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
+• Integrate CONTEXT naturally; do not restate it literally.
+• Keep it friendly, professional, approachable – avoid email or sales tone.
+• No offers, links, or additional calls-to-action beyond the required ones.
+• Do not phrase Part A or Part B as a question (except for the CTAs).
+• Avoid generic phrases; avoid relying only on job titles or company names.
+• Avoid exaggerated adjectives.
+• No emojis, hashtags, line breaks, or special symbols.
+• If insufficient data – still produce polite, general LinkedIn-style messages within limits with required CTAs.
+• Output format:
   Part A: [intro request to mutual connection]
   Part B: [forwardable message to target]
-â€¢ Output only the two message texts â€" no explanations, no labels, no JSON.`;
+• Output only the two message texts – no explanations, no labels, no JSON.`;
                 break;
                 
             default: // 'inbox_message'
                 systemPrompt = `[MODE: INBOX_MESSAGE]
 You are an AI LinkedIn Outreach Assistant.
 Inputs:
-1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT â€" the business or conversational goal.
+1. USER PROFILE – sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE – recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT – the business or conversational goal.
 Task:
 - Generate ONE highly personalized LinkedIn inbox message.
 Message rules:
-â€¢ Absolute maximum: 220 characters (count before finalizing).
-â€¢ Must always start with: "Hi [TARGET_FIRSTNAME],"
-â€¢ Must include a brief call-to-action before the closing (e.g., "Would love to chat", "Let's discuss", "Interested in connecting?").
-â€¢ Must always end with sender's first name (e.g., "â€¦ Thanks, Ziv").
-â€¢ Focus primarily on the TARGET PROFILE â€" highlight what is valuable or relevant for them.
-â€¢ At least 3 details must be referenced (two from TARGET PROFILE, one from USER PROFILE).
-â€¢ Integrate CONTEXT naturally â€" frame it around the benefit or shared value for the target.
-â€¢ Avoid focusing too much on the sender; keep emphasis on what the target gains from the conversation.
-â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
-â€¢ If inputs are poor â†' still greet + CTA + close, and create a polite, concise LinkedIn-style message â‰¤220 chars.
-â€¢ Avoid generic phrases; avoid relying only on job titles or company names.
-â€¢ Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity").
-â€¢ No emojis, hashtags, line breaks, or special symbols.
-â€¢ Output only the final message text â€" no explanations, no labels, no JSON.`;
+• Absolute maximum: 220 characters (count before finalizing).
+• Must always start with: "Hi [TARGET_FIRSTNAME],"
+• Must include a brief call-to-action before the closing (e.g., "Would love to chat", "Let's discuss", "Interested in connecting?").
+• Must always end with sender's first name (e.g., "… Thanks, Ziv").
+• Focus primarily on the TARGET PROFILE – highlight what is valuable or relevant for them.
+• At least 3 details must be referenced (two from TARGET PROFILE, one from USER PROFILE).
+• Integrate CONTEXT naturally – frame it around the benefit or shared value for the target.
+• Avoid focusing too much on the sender; keep emphasis on what the target gains from the conversation.
+• Keep it friendly, professional, approachable – avoid email or sales tone.
+• If inputs are poor – still greet + CTA + close, and create a polite, concise LinkedIn-style message ≤220 chars.
+• Avoid generic phrases; avoid relying only on job titles or company names.
+• Avoid exaggerated adjectives (e.g., "excited", "amazing opportunity").
+• No emojis, hashtags, line breaks, or special symbols.
+• Output only the final message text – no explanations, no labels, no JSON.`;
         }
 
         const userPrompt = `USER PROFILE:
@@ -213,9 +215,9 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
         };
     }
 
-    // ENHANCED: Format user profile data using gemini_raw_data for comprehensive information
+    // MODIFIED: Format user profile data using ALL gemini_raw_data (NO TRUNCATION)
     formatUserProfile(profile) {
-        console.log('[DEBUG] === USER PROFILE FORMATTING ===');
+        console.log('[DEBUG] === USER PROFILE FORMATTING (FULL DATA) ===');
         console.log('[DEBUG] Profile received:', !!profile);
         console.log('[DEBUG] Profile keys:', Object.keys(profile || {}));
         console.log('[DEBUG] Has gemini_raw_data:', !!profile?.gemini_raw_data);
@@ -261,85 +263,127 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                 if (profileData.location) {
                     parts.push(`Location: ${profileData.location}`);
                 }
+                
+                // FULL About section - NO TRUNCATION
                 if (profileData.about) {
-                    // Prudent trimming - keep key signals, limit length
-                    const aboutText = profileData.about.length > 400 
-                        ? profileData.about.substring(0, 400) + '...' 
-                        : profileData.about;
-                    parts.push(`About: ${aboutText}`);
+                    parts.push(`About: ${profileData.about}`);
                 }
                 
-                // Comprehensive experience data with key signal preservation
+                // FULL Experience data - ALL ENTRIES, NO TRUNCATION
                 const experience = richData.data?.experience || richData.experience || profileData.experience || [];
                 console.log('[DEBUG] Experience found:', Array.isArray(experience), experience.length);
                 if (experience && Array.isArray(experience) && experience.length > 0) {
-                    const recentExperience = experience.slice(0, 4).map(exp => {
+                    const fullExperience = experience.map(exp => {
                         const title = exp.title || exp.position || exp.role || '';
                         const company = exp.company || exp.companyName || '';
                         const duration = exp.duration || exp.dates || exp.period || '';
-                        // Trim long descriptions but keep key achievements
-                        const description = exp.description ? 
-                            (exp.description.length > 150 ? 
-                                ` - ${exp.description.substring(0, 150)}...` : 
-                                ` - ${exp.description}`) : '';
+                        // FULL DESCRIPTION - NO TRUNCATION
+                        const description = exp.description ? ` - ${exp.description}` : '';
                         return `${title} at ${company}${duration ? ` (${duration})` : ''}${description}`;
                     }).filter(exp => exp.trim() !== ' at').join('; ');
-                    if (recentExperience) parts.push(`Experience: ${recentExperience}`);
+                    if (fullExperience) parts.push(`Experience: ${fullExperience}`);
                 }
                 
-                // Education data
+                // FULL Education data - ALL ENTRIES
                 const education = richData.data?.education || richData.education || profileData.education || [];
                 console.log('[DEBUG] Education found:', Array.isArray(education), education.length);
                 if (education && Array.isArray(education) && education.length > 0) {
-                    const educationText = education.slice(0, 3).map(edu => {
+                    const fullEducation = education.map(edu => {
                         const degree = edu.degree || edu.degreeName || edu.qualification || '';
                         const field = edu.field || edu.fieldOfStudy || edu.major || '';
                         const school = edu.institution || edu.school || edu.schoolName || edu.university || '';
                         return `${degree}${field ? ` in ${field}` : ''} from ${school}`;
                     }).filter(edu => edu.trim() !== ' from').join('; ');
-                    if (educationText) parts.push(`Education: ${educationText}`);
+                    if (fullEducation) parts.push(`Education: ${fullEducation}`);
                 }
                 
-                // Skills data - focus on most relevant
+                // ALL Skills data
                 const skills = richData.data?.skills || richData.skills || profileData.skills || [];
                 console.log('[DEBUG] Skills found:', Array.isArray(skills), skills.length);
                 if (skills && Array.isArray(skills) && skills.length > 0) {
-                    const skillsText = skills.slice(0, 12).map(skill => 
+                    const allSkills = skills.map(skill => 
                         typeof skill === 'string' ? skill : (skill.name || skill.skill || skill.title || skill)
                     ).filter(skill => skill && typeof skill === 'string').join(', ');
-                    if (skillsText) parts.push(`Skills: ${skillsText}`);
+                    if (allSkills) parts.push(`Skills: ${allSkills}`);
                 }
                 
-                // Awards - key achievements
+                // ALL Awards
                 const awards = richData.data?.awards || richData.awards || profileData.awards || [];
                 console.log('[DEBUG] Awards found:', Array.isArray(awards), awards.length);
                 if (awards && Array.isArray(awards) && awards.length > 0) {
-                    const awardsText = awards.slice(0, 3).map(award => {
+                    const allAwards = awards.map(award => {
                         const title = award.title || award.name || '';
                         const issuer = award.issuer || award.organization || '';
                         const date = award.date || '';
                         return `${title}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
                     }).filter(award => award.trim()).join('; ');
-                    if (awardsText) parts.push(`Awards: ${awardsText}`);
+                    if (allAwards) parts.push(`Awards: ${allAwards}`);
                 }
                 
-                // Languages - if available
+                // ALL Languages
                 const languages = richData.data?.languages || richData.languages || profileData.languages || [];
                 if (languages && Array.isArray(languages) && languages.length > 0) {
-                    const languagesText = languages.slice(0, 5).map(lang => 
+                    const allLanguages = languages.map(lang => 
                         typeof lang === 'string' ? lang : (lang.name || lang.language || lang)
                     ).filter(lang => lang).join(', ');
-                    if (languagesText) parts.push(`Languages: ${languagesText}`);
+                    if (allLanguages) parts.push(`Languages: ${allLanguages}`);
                 }
                 
-                // Industries/Roles - if available
+                // Industries/Roles
                 if (profileData.industry) {
                     parts.push(`Industry: ${profileData.industry}`);
                 }
                 
+                // ALL Certifications
+                const certifications = richData.data?.certifications || richData.certifications || profileData.certifications || [];
+                if (certifications && Array.isArray(certifications) && certifications.length > 0) {
+                    const allCertifications = certifications.map(cert => {
+                        const name = cert.name || cert.title || cert.certification || '';
+                        const issuer = cert.issuer || cert.organization || cert.authority || '';
+                        const date = cert.date || cert.dateIssued || '';
+                        return `${name}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
+                    }).filter(cert => cert.trim()).join('; ');
+                    if (allCertifications) parts.push(`Certifications: ${allCertifications}`);
+                }
+                
+                // ALL Volunteer Experience
+                const volunteer = richData.data?.volunteer || richData.volunteer || profileData.volunteer || [];
+                if (volunteer && Array.isArray(volunteer) && volunteer.length > 0) {
+                    const allVolunteer = volunteer.map(vol => {
+                        const role = vol.role || vol.title || vol.position || '';
+                        const organization = vol.organization || vol.company || '';
+                        const cause = vol.cause || vol.description || '';
+                        return `${role} at ${organization}${cause ? ` - ${cause}` : ''}`;
+                    }).filter(vol => vol.trim() !== ' at').join('; ');
+                    if (allVolunteer) parts.push(`Volunteer Experience: ${allVolunteer}`);
+                }
+                
+                // ALL Projects
+                const projects = richData.data?.projects || richData.projects || profileData.projects || [];
+                if (projects && Array.isArray(projects) && projects.length > 0) {
+                    const allProjects = projects.map(proj => {
+                        const name = proj.name || proj.title || '';
+                        const description = proj.description || proj.summary || '';
+                        return `${name}${description ? ` - ${description}` : ''}`;
+                    }).filter(proj => proj.trim()).join('; ');
+                    if (allProjects) parts.push(`Projects: ${allProjects}`);
+                }
+                
+                // ALL Publications
+                const publications = richData.data?.publications || richData.publications || profileData.publications || [];
+                if (publications && Array.isArray(publications) && publications.length > 0) {
+                    const allPublications = publications.map(pub => {
+                        const title = pub.title || pub.name || '';
+                        const publisher = pub.publisher || pub.publication || '';
+                        const date = pub.date || '';
+                        return `${title}${publisher ? ` in ${publisher}` : ''}${date ? ` (${date})` : ''}`;
+                    }).filter(pub => pub.trim()).join('; ');
+                    if (allPublications) parts.push(`Publications: ${allPublications}`);
+                }
+                
                 const result = parts.length > 0 ? parts.join('\n') : "Rich user profile data available but could not format.";
-                console.log('[DEBUG] Formatted rich user profile length:', result.length);
-                console.log('[DEBUG] Rich user profile sections:', parts.length);
+                console.log('[DEBUG] Formatted FULL user profile length:', result.length);
+                console.log('[DEBUG] FULL user profile sections:', parts.length);
                 return result;
                 
             } catch (error) {
@@ -360,33 +404,32 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
         if (profile.current_company) parts.push(`Current Company: ${profile.current_company}`);
         if (profile.current_job_title) parts.push(`Current Position: ${profile.current_job_title}`);
         if (profile.location) parts.push(`Location: ${profile.location}`);
+        
+        // FULL About - NO TRUNCATION
         if (profile.about) {
-            const aboutText = profile.about.length > 250 
-                ? profile.about.substring(0, 250) + '...' 
-                : profile.about;
-            parts.push(`About: ${aboutText}`);
+            parts.push(`About: ${profile.about}`);
         }
         
-        // Add experience
+        // ALL Experience - NO TRUNCATION
         if (profile.experience && Array.isArray(profile.experience)) {
-            const recentExperience = profile.experience.slice(0, 3).map(exp => 
-                `${exp.title || ''} at ${exp.company || ''}${exp.duration ? ` (${exp.duration})` : ''}`
+            const fullExperience = profile.experience.map(exp => 
+                `${exp.title || ''} at ${exp.company || ''}${exp.duration ? ` (${exp.duration})` : ''}${exp.description ? ` - ${exp.description}` : ''}`
             ).filter(exp => exp.trim() !== ' at').join('; ');
-            if (recentExperience) parts.push(`Experience: ${recentExperience}`);
+            if (fullExperience) parts.push(`Experience: ${fullExperience}`);
         }
         
-        // Add education
+        // ALL Education - NO TRUNCATION
         if (profile.education && Array.isArray(profile.education)) {
-            const education = profile.education.slice(0, 2).map(edu => 
+            const fullEducation = profile.education.map(edu => 
                 `${edu.degree || ''} ${edu.field ? `in ${edu.field}` : ''} from ${edu.institution || ''}`
             ).filter(edu => edu.trim() !== ' from').join('; ');
-            if (education) parts.push(`Education: ${education}`);
+            if (fullEducation) parts.push(`Education: ${fullEducation}`);
         }
         
-        // Add skills
+        // ALL Skills - NO TRUNCATION
         if (profile.skills && Array.isArray(profile.skills)) {
-            const skills = profile.skills.slice(0, 10).join(', ');
-            if (skills) parts.push(`Skills: ${skills}`);
+            const allSkills = profile.skills.join(', ');
+            if (allSkills) parts.push(`Skills: ${allSkills}`);
         }
         
         const result = parts.length > 0 ? parts.join('\n') : "Limited user profile information available.";
@@ -395,9 +438,9 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
         return result;
     }
 
-    // ENHANCED: Format target profile data for prompt with proper nested structure handling
+    // MODIFIED: Format target profile data for prompt with ALL nested structure data (NO TRUNCATION)
     formatTargetProfile(profileData) {
-        console.log('[DEBUG] === TARGET PROFILE FORMATTING ===');
+        console.log('[DEBUG] === TARGET PROFILE FORMATTING (FULL DATA) ===');
         console.log('[DEBUG] Target profile data received:', !!profileData);
         console.log('[DEBUG] Target profile keys:', Object.keys(profileData || {}));
         console.log('[DEBUG] Has data_json:', !!profileData?.data_json);
@@ -445,75 +488,70 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             if (profileInfo.location) {
                 parts.push(`Location: ${profileInfo.location}`);
             }
+            
+            // FULL About section - NO TRUNCATION
             if (profileInfo.about) {
-                // Prudent trimming while preserving key information
-                const aboutText = profileInfo.about.length > 400 
-                    ? profileInfo.about.substring(0, 400) + '...' 
-                    : profileInfo.about;
-                parts.push(`About: ${aboutText}`);
+                parts.push(`About: ${profileInfo.about}`);
             }
             
-            // ENHANCED: Extract skills from nested data structure (data.skills OR profile.skills)
+            // ALL Skills from nested data structure
             const skills = dataSection.skills || profileInfo.skills || [];
             console.log('[DEBUG] Target skills found:', Array.isArray(skills), skills.length);
             if (skills && Array.isArray(skills) && skills.length > 0) {
-                const skillsText = skills.slice(0, 12).map(skill => 
+                const allSkills = skills.map(skill => 
                     typeof skill === 'string' ? skill : (skill.name || skill.skill || skill.title || skill)
                 ).filter(skill => skill && typeof skill === 'string').join(', ');
-                if (skillsText) parts.push(`Skills: ${skillsText}`);
+                if (allSkills) parts.push(`Skills: ${allSkills}`);
             }
             
-            // ENHANCED: Extract awards from nested data structure (data.awards OR profile.awards)
+            // ALL Awards from nested data structure
             const awards = dataSection.awards || profileInfo.awards || [];
             console.log('[DEBUG] Target awards found:', Array.isArray(awards), awards.length);
             if (awards && Array.isArray(awards) && awards.length > 0) {
-                const awardsText = awards.slice(0, 3).map(award => {
+                const allAwards = awards.map(award => {
                     const title = award.title || award.name || '';
                     const issuer = award.issuer || award.organization || '';
                     const date = award.date || award.year || '';
                     return `${title}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
                 }).filter(award => award.trim()).join('; ');
-                if (awardsText) parts.push(`Awards: ${awardsText}`);
+                if (allAwards) parts.push(`Awards: ${allAwards}`);
             }
             
-            // Experience from nested data structure
+            // ALL Experience from nested data structure - NO TRUNCATION
             const experience = dataSection.experience || profileInfo.experience || [];
             console.log('[DEBUG] Target experience found:', Array.isArray(experience), experience.length);
             if (experience && Array.isArray(experience) && experience.length > 0) {
-                const recentExperience = experience.slice(0, 4).map(exp => {
+                const fullExperience = experience.map(exp => {
                     const title = exp.title || exp.position || '';
                     const company = exp.company || exp.companyName || '';
                     const duration = exp.duration || exp.dates || exp.period || '';
-                    // Trim long descriptions but preserve key achievements
-                    const description = exp.description ? 
-                        (exp.description.length > 150 ? 
-                            ` - ${exp.description.substring(0, 150)}...` : 
-                            ` - ${exp.description}`) : '';
+                    // FULL DESCRIPTION - NO TRUNCATION
+                    const description = exp.description ? ` - ${exp.description}` : '';
                     return `${title} at ${company}${duration ? ` (${duration})` : ''}${description}`;
                 }).filter(exp => exp.trim() !== ' at').join('; ');
-                if (recentExperience) parts.push(`Experience: ${recentExperience}`);
+                if (fullExperience) parts.push(`Experience: ${fullExperience}`);
             }
             
-            // Education from nested data structure
+            // ALL Education from nested data structure
             const education = dataSection.education || profileInfo.education || [];
             console.log('[DEBUG] Target education found:', Array.isArray(education), education.length);
             if (education && Array.isArray(education) && education.length > 0) {
-                const educationText = education.slice(0, 3).map(edu => {
+                const fullEducation = education.map(edu => {
                     const degree = edu.degree || edu.degreeName || '';
                     const field = edu.field || edu.fieldOfStudy || edu.major || '';
                     const school = edu.institution || edu.school || edu.schoolName || edu.university || '';
                     return `${degree}${field ? ` in ${field}` : ''} from ${school}`;
                 }).filter(edu => edu.trim() !== ' from').join('; ');
-                if (educationText) parts.push(`Education: ${educationText}`);
+                if (fullEducation) parts.push(`Education: ${fullEducation}`);
             }
             
-            // Languages from nested structure if available
+            // ALL Languages from nested structure
             const languages = dataSection.languages || profileInfo.languages || [];
             if (languages && Array.isArray(languages) && languages.length > 0) {
-                const languagesText = languages.slice(0, 5).map(lang => 
+                const allLanguages = languages.map(lang => 
                     typeof lang === 'string' ? lang : (lang.name || lang.language || lang)
                 ).filter(lang => lang).join(', ');
-                if (languagesText) parts.push(`Languages: ${languagesText}`);
+                if (allLanguages) parts.push(`Languages: ${allLanguages}`);
             }
             
             // Industry from nested structure
@@ -521,18 +559,76 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                 parts.push(`Industry: ${dataSection.industry || profileInfo.industry}`);
             }
             
-            // Interests if available
+            // ALL Interests
             const interests = dataSection.interests || profileInfo.interests || [];
             if (interests && Array.isArray(interests) && interests.length > 0) {
-                const interestsText = interests.slice(0, 5).map(interest => 
+                const allInterests = interests.map(interest => 
                     typeof interest === 'string' ? interest : (interest.name || interest)
                 ).filter(interest => interest).join(', ');
-                if (interestsText) parts.push(`Interests: ${interestsText}`);
+                if (allInterests) parts.push(`Interests: ${allInterests}`);
+            }
+            
+            // ALL Certifications
+            const certifications = dataSection.certifications || profileInfo.certifications || [];
+            if (certifications && Array.isArray(certifications) && certifications.length > 0) {
+                const allCertifications = certifications.map(cert => {
+                    const name = cert.name || cert.title || cert.certification || '';
+                    const issuer = cert.issuer || cert.organization || cert.authority || '';
+                    const date = cert.date || cert.dateIssued || '';
+                    return `${name}${issuer ? ` from ${issuer}` : ''}${date ? ` (${date})` : ''}`;
+                }).filter(cert => cert.trim()).join('; ');
+                if (allCertifications) parts.push(`Certifications: ${allCertifications}`);
+            }
+            
+            // ALL Volunteer Experience
+            const volunteer = dataSection.volunteer || profileInfo.volunteer || [];
+            if (volunteer && Array.isArray(volunteer) && volunteer.length > 0) {
+                const allVolunteer = volunteer.map(vol => {
+                    const role = vol.role || vol.title || vol.position || '';
+                    const organization = vol.organization || vol.company || '';
+                    const cause = vol.cause || vol.description || '';
+                    return `${role} at ${organization}${cause ? ` - ${cause}` : ''}`;
+                }).filter(vol => vol.trim() !== ' at').join('; ');
+                if (allVolunteer) parts.push(`Volunteer Experience: ${allVolunteer}`);
+            }
+            
+            // ALL Projects
+            const projects = dataSection.projects || profileInfo.projects || [];
+            if (projects && Array.isArray(projects) && projects.length > 0) {
+                const allProjects = projects.map(proj => {
+                    const name = proj.name || proj.title || '';
+                    const description = proj.description || proj.summary || '';
+                    return `${name}${description ? ` - ${description}` : ''}`;
+                }).filter(proj => proj.trim()).join('; ');
+                if (allProjects) parts.push(`Projects: ${allProjects}`);
+            }
+            
+            // ALL Publications
+            const publications = dataSection.publications || profileInfo.publications || [];
+            if (publications && Array.isArray(publications) && publications.length > 0) {
+                const allPublications = publications.map(pub => {
+                    const title = pub.title || pub.name || '';
+                    const publisher = pub.publisher || pub.publication || '';
+                    const date = pub.date || '';
+                    return `${title}${publisher ? ` in ${publisher}` : ''}${date ? ` (${date})` : ''}`;
+                }).filter(pub => pub.trim()).join('; ');
+                if (allPublications) parts.push(`Publications: ${allPublications}`);
+            }
+            
+            // ALL Activity/Posts
+            const activity = dataSection.activity || profileInfo.activity || [];
+            if (activity && Array.isArray(activity) && activity.length > 0) {
+                const allActivity = activity.map(act => {
+                    const type = act.type || '';
+                    const content = act.content || act.text || act.description || '';
+                    return `${type}${content ? `: ${content}` : ''}`;
+                }).filter(act => act.trim()).join('; ');
+                if (allActivity) parts.push(`Recent Activity: ${allActivity}`);
             }
             
             const result = parts.length > 0 ? parts.join('\n') : "Limited target profile information available.";
-            console.log('[DEBUG] Formatted target profile length:', result.length);
-            console.log('[DEBUG] Target profile sections:', parts.length);
+            console.log('[DEBUG] Formatted FULL target profile length:', result.length);
+            console.log('[DEBUG] FULL target profile sections:', parts.length);
             return result;
             
         } catch (error) {
@@ -707,25 +803,25 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             }
 
             console.log('[SUCCESS] === MESSAGE GENERATION SUCCESSFUL ===');
-            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (ðŸ›¡ï¸ INSURANCE ACTIVATED)' : ''}`);
+            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (🛡️ INSURANCE ACTIVATED)' : ''}`);
             console.log(`[GPT] Latency: ${latencyMs}ms`);
             console.log(`[GPT] Token usage: ${tokenUsage.input_tokens} input, ${tokenUsage.output_tokens} output, ${tokenUsage.total_tokens} total`);
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
-            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : 220) ? 'âœ…' : 'âŒ'}`);
+            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : 220) ? '✅' : '❌'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
 
             // FINAL SUCCESS DEBUG
             console.log('[DEBUG] === GENERATION SUCCESS SUMMARY ===');
-            console.log('[DEBUG] âœ… User profile processed successfully');
-            console.log('[DEBUG] âœ… Target profile processed successfully'); 
-            console.log('[DEBUG] âœ… Context processed successfully');
-            console.log('[DEBUG] âœ… Message generated successfully');
+            console.log('[DEBUG] ✅ User profile processed successfully');
+            console.log('[DEBUG] ✅ Target profile processed successfully'); 
+            console.log('[DEBUG] ✅ Context processed successfully');
+            console.log('[DEBUG] ✅ Message generated successfully');
             console.log('[DEBUG] Total tokens used:', tokenUsage.total_tokens);
             if (fallbackTriggered) {
-                console.log('[DEBUG] ðŸ›¡ï¸ Insurance policy activated - service continuity maintained');
+                console.log('[DEBUG] 🛡️ Insurance policy activated - service continuity maintained');
             }
 
             return {
@@ -737,7 +833,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                     primary_model: this.model,
                     fallback_triggered: fallbackTriggered,
                     primary_error: primaryError,
-                    prompt_version: messageType === 'connection_request' ? 'connection_request_v2_cta' : messageType === 'intro_request' ? 'intro_request_v2_cta' : 'inbox_message_target_centric_v3_cta',
+                    prompt_version: messageType === 'connection_request' ? 'connection_request_v2_cta_full_data' : messageType === 'intro_request' ? 'intro_request_v2_cta_full_data' : 'inbox_message_target_centric_v3_cta_full_data',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
