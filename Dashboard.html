@@ -531,6 +531,14 @@
             margin-bottom: 1.5rem;
         }
 
+        /* Three column row for including messages summary */
+        .dashboard-row-three {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+
         /* Section Containers */
         .section {
             display: none;
@@ -859,6 +867,14 @@
             color: var(--gray);
         }
 
+        /* Comment and Action Fields Container */
+        .fields-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            min-width: 200px;
+        }
+
         /* Comment Field */
         .comment-field {
             width: 100%;
@@ -885,16 +901,89 @@
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--white) 100%);
         }
 
+        /* Reply Content Field */
+        .reply-content-field {
+            width: 100%;
+            min-height: 50px;
+            max-height: 100px;
+            padding: 0.6rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 0.75rem;
+            transition: all 0.3s ease;
+            background: var(--white);
+        }
+
+        .reply-content-field:focus {
+            outline: none;
+            border-color: var(--success-green);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        .reply-content-field.unsaved {
+            border-color: var(--warning-orange);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--white) 100%);
+        }
+
+        .reply-content-field:disabled {
+            background: var(--light-gray);
+            color: var(--gray);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /* Action Field */
+        .action-field {
+            width: 100%;
+            min-height: 50px;
+            max-height: 100px;
+            padding: 0.6rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 0.75rem;
+            transition: all 0.3s ease;
+            background: var(--white);
+        }
+
+        .action-field:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .action-field.unsaved {
+            border-color: var(--warning-orange);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--white) 100%);
+        }
+
+        /* Field Labels */
+        .field-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            margin-bottom: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .field-label.reply {
+            color: var(--success-green);
+        }
+
         /* Action Buttons */
         .actions-cell {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
-            min-width: 100px;
+            min-width: 80px;
         }
 
         .save-btn {
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1rem;
             border: none;
             border-radius: 8px;
             font-size: 0.75rem;
@@ -903,6 +992,10 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
 
         .save-btn.hidden {
@@ -1000,13 +1093,281 @@
             margin-bottom: 1rem;
         }
 
-        .message-card-comment {
-            margin-bottom: 1rem;
+        .message-card-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
 
         .message-card-actions {
             display: flex;
             justify-content: flex-end;
+            margin-top: 1rem;
+        }
+
+        /* Messages Summary Card */
+        .messages-summary {
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.1) 100%);
+            border: 1px solid rgba(128, 57, 223, 0.2);
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--white);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            margin-bottom: 0.3rem;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--dark-gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .reply-rate {
+            text-align: center;
+            padding: 1rem;
+            background: var(--white);
+            border-radius: 12px;
+            border: 2px solid var(--success-green);
+        }
+
+        .reply-rate-number {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--success-green);
+            margin-bottom: 0.3rem;
+        }
+
+        .reply-rate-label {
+            font-size: 0.9rem;
+            color: var(--dark-gray);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* Dashboard Messages Preview */
+        .dashboard-messages-preview {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(128, 57, 223, 0.08);
+            margin-top: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-messages-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+        }
+
+        .messages-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--light-gray);
+        }
+
+        .messages-preview-title {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .messages-preview-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 1.1rem;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .messages-preview-title h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .view-all-btn {
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .view-all-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .messages-preview-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message-preview-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--light-gray);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .message-preview-item:hover {
+            background: var(--light-purple);
+            transform: translateX(4px);
+            box-shadow: var(--shadow);
+        }
+
+        .message-preview-avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 0.9rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .message-preview-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .message-preview-name {
+            font-weight: 700;
+            color: var(--black);
+            font-size: 0.9rem;
+        }
+
+        .message-preview-status {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .mini-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .mini-status.sent {
+            background: var(--success-green);
+        }
+
+        .mini-status.replied {
+            background: var(--primary-purple);
+        }
+
+        .mini-status.pending {
+            background: var(--warning-orange);
+        }
+
+        .mini-status.no-reply {
+            background: var(--error-red);
+        }
+
+        .message-preview-company {
+            color: var(--primary-purple);
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .message-preview-text {
+            color: var(--dark-gray);
+            font-size: 0.8rem;
+            line-height: 1.3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .message-preview-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--gray);
+        }
+
+        .message-preview-empty i {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary-purple);
+            opacity: 0.6;
+        }
+
+        .message-preview-empty h4 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark-gray);
+        }
+
+        .message-preview-empty p {
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
 
         /* Optimized Account Info Card */
@@ -1570,12 +1931,20 @@
             .dashboard-row {
                 grid-template-columns: 1fr;
             }
+
+            .dashboard-row-three {
+                grid-template-columns: 1fr;
+            }
             
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
 
             .subscription-details {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-stats {
                 grid-template-columns: 1fr;
             }
         }
@@ -1852,8 +2221,8 @@
 
                 <!-- Dashboard Content -->
                 <div id="dashboardContent" style="display: none;">
-                    <!-- Top Row: Account Info and Subscription -->
-                    <div class="dashboard-row">
+                    <!-- Top Row: Account Info, Subscription, and Messages Summary -->
+                    <div class="dashboard-row-three">
                         <!-- Enhanced Account Information -->
                         <div class="card">
                             <div class="card-header">
@@ -1961,9 +2330,35 @@
                                 Upgrade Plan / Buy Credits
                             </button>
                         </div>
+
+                        <!-- Messages Summary Card -->
+                        <div class="card messages-summary">
+                            <div class="card-header">
+                                <div class="card-icon">
+                                    <i class="fas fa-chart-bar"></i>
+                                </div>
+                                <h3 class="card-title">Messages Summary</h3>
+                            </div>
+                            
+                            <div class="summary-stats">
+                                <div class="stat-item">
+                                    <div class="stat-number" id="totalMessages">0</div>
+                                    <div class="stat-label">Total Messages</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-number" id="messagesSentCount">0</div>
+                                    <div class="stat-label">Messages Sent</div>
+                                </div>
+                            </div>
+                            
+                            <div class="reply-rate">
+                                <div class="reply-rate-number" id="replyRatePercent">0%</div>
+                                <div class="reply-rate-label">Reply Rate</div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Bottom Row: LinkedIn Profile -->
+                    <!-- Bottom Row: LinkedIn Profile and Analytics -->
                     <div class="dashboard-row">
                         <!-- LinkedIn Profile Summary -->
                         <div class="card">
@@ -2015,6 +2410,26 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Messages Preview Section -->
+                    <div class="dashboard-messages-preview">
+                        <div class="messages-preview-header">
+                            <div class="messages-preview-title">
+                                <div class="messages-preview-icon">
+                                    <i class="fas fa-envelope"></i>
+                                </div>
+                                <h3>Recent Messages</h3>
+                            </div>
+                            <button class="view-all-btn" onclick="showSection('messages')">
+                                <i class="fas fa-eye"></i>
+                                View All
+                            </button>
+                        </div>
+
+                        <div class="messages-preview-list" id="messagesPreviewList">
+                            <!-- Messages preview will be populated by JavaScript -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2051,8 +2466,9 @@
                                 <th>Target Profile</th>
                                 <th>Message Sent</th>
                                 <th>Got Reply</th>
-                                <th>Comments</th>
+                                <th>Comments & Reply</th>
                                 <th>Actions</th>
+                                <th>Save</th>
                             </tr>
                         </thead>
                         <tbody id="messagesTableBody">
@@ -2115,7 +2531,9 @@
                 },
                 sentStatus: true, // true/false/null
                 replyStatus: null, // true/false/null  
+                replyContent: "",
                 comment: "Great background in ML. Follow up in 1 week.",
+                action: "Schedule follow-up call next week",
                 sentDate: "2025-01-15T10:30:00Z",
                 lastUpdated: "2025-01-15T10:30:00Z"
             },
@@ -2130,7 +2548,9 @@
                 },
                 sentStatus: true,
                 replyStatus: true,
-                comment: "",
+                replyContent: "Thanks for reaching out! I'd love to discuss growth strategies. How about we schedule a 30-minute call this Friday?",
+                comment: "Very positive response, high engagement potential",
+                action: "Book Friday call - send calendar invite",
                 sentDate: "2025-01-14T14:20:00Z",
                 lastUpdated: "2025-01-16T09:15:00Z"
             },
@@ -2145,7 +2565,9 @@
                 },
                 sentStatus: false,
                 replyStatus: null,
+                replyContent: "",
                 comment: "Need to research their recent product launches before sending.",
+                action: "Research StartupX Q4 product releases",
                 sentDate: null,
                 lastUpdated: "2025-01-16T16:45:00Z"
             },
@@ -2160,7 +2582,9 @@
                 },
                 sentStatus: true,
                 replyStatus: false,
+                replyContent: "",
                 comment: "No response after 5 days. Consider follow-up.",
+                action: "Send follow-up message with case study",
                 sentDate: "2025-01-12T11:00:00Z",
                 lastUpdated: "2025-01-17T13:20:00Z"
             },
@@ -2175,9 +2599,45 @@
                 },
                 sentStatus: null,
                 replyStatus: null,
+                replyContent: "",
                 comment: "",
+                action: "Wait for profile analysis completion",
                 sentDate: null,
                 lastUpdated: "2025-01-17T08:30:00Z"
+            },
+            {
+                id: 6,
+                message: "Hi Lisa, your recent article on blockchain scalability solutions was incredibly insightful. I'm working on similar challenges at our fintech startup and would value your perspective.",
+                targetProfile: {
+                    firstName: "Lisa",
+                    lastName: "Wang",
+                    role: "Blockchain Architect",
+                    company: "CryptoFlow Systems"
+                },
+                sentStatus: true,
+                replyStatus: true,
+                replyContent: "Hi! Glad you found the article useful. I'm always interested in discussing scalability challenges. What specific issues are you facing?",
+                comment: "Expert in our target area",
+                action: "Prepare technical discussion points",
+                sentDate: "2025-01-13T09:15:00Z",
+                lastUpdated: "2025-01-15T11:30:00Z"
+            },
+            {
+                id: 7,
+                message: "Dear Robert, your leadership in healthcare innovation is impressive. I believe our AI diagnostic tools could complement your current initiatives. Would you be open to exploring potential synergies?",
+                targetProfile: {
+                    firstName: "Robert",
+                    lastName: "Martinez",
+                    role: "Chief Medical Officer",
+                    company: "HealthTech Innovations"
+                },
+                sentStatus: true,
+                replyStatus: false,
+                replyContent: "",
+                comment: "High-value target, but no response yet",
+                action: "Research their recent AI partnerships",
+                sentDate: "2025-01-11T16:45:00Z",
+                lastUpdated: "2025-01-17T14:20:00Z"
             }
         ];
 
@@ -2459,6 +2919,10 @@
             // Show dashboard content
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
+            
+            // Populate messages preview and summary on dashboard
+            populateMessagesPreview();
+            populateMessagesSummary();
         }
 
         // MESSAGES FUNCTIONALITY
@@ -2528,6 +2992,9 @@
             const truncatedMessage = truncateText(message.message, 100);
             const profileName = formatProfileName(message.targetProfile.firstName, message.targetProfile.lastName);
             
+            // Determine if reply content field should be enabled
+            const isReplyFieldEnabled = message.replyStatus === true;
+            
             row.innerHTML = `
                 <td class="message-content">
                     <div class="message-preview" onclick="toggleMessageExpansion(${message.id})">
@@ -2565,16 +3032,36 @@
                     <div class="toggle-label">${getToggleLabel(message.replyStatus)}</div>
                 </td>
                 <td>
-                    <textarea class="comment-field" 
-                              id="comment-${message.id}"
-                              placeholder="Add notes or comments..."
-                              onchange="markUnsaved(${message.id})">${message.comment || ''}</textarea>
+                    <div class="fields-container">
+                        <div>
+                            <div class="field-label">Comments</div>
+                            <textarea class="comment-field" 
+                                      id="comment-${message.id}"
+                                      placeholder="Add notes or comments..."
+                                      onchange="markUnsaved(${message.id})">${message.comment || ''}</textarea>
+                        </div>
+                        <div>
+                            <div class="field-label reply">Reply Content</div>
+                            <textarea class="reply-content-field" 
+                                      id="reply-content-${message.id}"
+                                      placeholder="${isReplyFieldEnabled ? 'Enter the reply content received...' : 'Mark as replied first to add content'}"
+                                      onchange="markUnsaved(${message.id})"
+                                      ${!isReplyFieldEnabled ? 'disabled' : ''}>${message.replyContent || ''}</textarea>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <textarea class="action-field" 
+                              id="action-${message.id}"
+                              placeholder="Next action to take..."
+                              onchange="markUnsaved(${message.id})">${message.action || ''}</textarea>
                 </td>
                 <td class="actions-cell">
                     <button class="save-btn hidden" 
                             id="save-btn-${message.id}"
                             onclick="saveMessageData(${message.id})">
-                        <i class="fas fa-save"></i> Save
+                        <i class="fas fa-save"></i>
+                        Save
                     </button>
                 </td>
             `;
@@ -2589,6 +3076,7 @@
             
             const truncatedMessage = truncateText(message.message, 120);
             const profileName = formatProfileName(message.targetProfile.firstName, message.targetProfile.lastName);
+            const isReplyFieldEnabled = message.replyStatus === true;
             
             card.innerHTML = `
                 <div class="message-card-header">
@@ -2630,11 +3118,31 @@
                     ` : ''}
                 </div>
                 
-                <div class="message-card-comment">
-                    <textarea class="comment-field" 
-                              id="comment-card-${message.id}"
-                              placeholder="Add notes or comments..."
-                              onchange="markUnsaved(${message.id})">${message.comment || ''}</textarea>
+                <div class="message-card-fields">
+                    <div>
+                        <div class="field-label">Comments</div>
+                        <textarea class="comment-field" 
+                                  id="comment-card-${message.id}"
+                                  placeholder="Add notes or comments..."
+                                  onchange="markUnsaved(${message.id})">${message.comment || ''}</textarea>
+                    </div>
+                    
+                    <div>
+                        <div class="field-label reply">Reply Content</div>
+                        <textarea class="reply-content-field" 
+                                  id="reply-content-card-${message.id}"
+                                  placeholder="${isReplyFieldEnabled ? 'Enter the reply content received...' : 'Mark as replied first to add content'}"
+                                  onchange="markUnsaved(${message.id})"
+                                  ${!isReplyFieldEnabled ? 'disabled' : ''}>${message.replyContent || ''}</textarea>
+                    </div>
+
+                    <div>
+                        <div class="field-label">Action</div>
+                        <textarea class="action-field" 
+                                  id="action-card-${message.id}"
+                                  placeholder="Next action to take..."
+                                  onchange="markUnsaved(${message.id})">${message.action || ''}</textarea>
+                    </div>
                 </div>
                 
                 <div class="message-card-actions">
@@ -2647,108 +3155,6 @@
             `;
             
             return card;
-        }
-
-        // Helper functions for message rendering
-        function formatProfileName(firstName, lastName) {
-            if (!firstName && !lastName) return 'Unknown';
-            if (!lastName) return firstName;
-            return `${firstName} ${lastName.charAt(0).toUpperCase()}.`;
-        }
-
-        function truncateText(text, maxLength) {
-            if (text.length <= maxLength) return text;
-            return text.substring(0, maxLength) + '...';
-        }
-
-        function getToggleClass(status) {
-            if (status === null || status === undefined) return 'unknown';
-            return status ? 'active' : 'inactive';
-        }
-
-        function getToggleIcon(status) {
-            if (status === null || status === undefined) return '?';
-            return status ? '✓' : '✗';
-        }
-
-        function getToggleLabel(status) {
-            if (status === null || status === undefined) return 'Unknown';
-            return status ? 'Yes' : 'No';
-        }
-
-        // Message interaction functions
-        function toggleMessageExpansion(messageId, type = 'table') {
-            const suffix = type === 'card' ? `-card-${messageId}` : `-${messageId}`;
-            const fullDiv = document.getElementById(`message-full${suffix}`);
-            const expandText = document.getElementById(`expand-text${suffix}`);
-            const expandIcon = document.getElementById(`expand-icon${suffix}`);
-            
-            if (fullDiv && expandText && expandIcon) {
-                const isExpanded = fullDiv.style.display === 'block';
-                
-                if (isExpanded) {
-                    fullDiv.style.display = 'none';
-                    expandText.textContent = 'Show more';
-                    expandIcon.className = 'fas fa-chevron-down';
-                } else {
-                    fullDiv.style.display = 'block';
-                    expandText.textContent = 'Show less';
-                    expandIcon.className = 'fas fa-chevron-up';
-                }
-            }
-        }
-
-        function toggleStatus(type, messageId, toggleElement) {
-            const message = messagesData.find(m => m.id === messageId);
-            if (!message) return;
-            
-            const currentStatus = type === 'sent' ? message.sentStatus : message.replyStatus;
-            let newStatus;
-            
-            // Cycle through: null -> true -> false -> null
-            if (currentStatus === null || currentStatus === undefined) {
-                newStatus = true;
-            } else if (currentStatus === true) {
-                newStatus = false;
-            } else {
-                newStatus = null;
-            }
-            
-            // Update data
-            if (type === 'sent') {
-                message.sentStatus = newStatus;
-            } else {
-                message.replyStatus = newStatus;
-            }
-            
-            // Update UI
-            toggleElement.className = `toggle-switch ${getToggleClass(newStatus)} unsaved`;
-            toggleElement.querySelector('.toggle-knob').textContent = getToggleIcon(newStatus);
-            toggleElement.nextElementSibling.textContent = getToggleLabel(newStatus);
-            
-            markUnsaved(messageId);
-        }
-
-        function markUnsaved(messageId) {
-            unsavedChanges.add(messageId);
-            
-            // Show save buttons
-            const saveBtn = document.getElementById(`save-btn-${messageId}`);
-            const saveBtnCard = document.getElementById(`save-btn-card-${messageId}`);
-            
-            if (saveBtn) {
-                saveBtn.className = 'save-btn visible';
-            }
-            if (saveBtnCard) {
-                saveBtnCard.className = 'save-btn visible';
-            }
-            
-            // Add unsaved styling to comment field
-            const commentField = document.getElementById(`comment-${messageId}`);
-            const commentFieldCard = document.getElementById(`comment-card-${messageId}`);
-            
-            if (commentField) commentField.classList.add('unsaved');
-            if (commentFieldCard) commentFieldCard.classList.add('unsaved');
         }
 
         // Dashboard messages preview functions
@@ -2777,6 +3183,21 @@
                 const previewItem = createMessagePreviewItem(message);
                 previewList.appendChild(previewItem);
             });
+        }
+
+        function populateMessagesSummary() {
+            // Calculate message statistics from sample data
+            const messages = SAMPLE_MESSAGES;
+            const totalMessages = messages.length;
+            const sentMessages = messages.filter(m => m.sentStatus === true).length;
+            const repliedMessages = messages.filter(m => m.replyStatus === true).length;
+            
+            const replyRate = sentMessages > 0 ? Math.round((repliedMessages / sentMessages) * 100) : 0;
+            
+            // Update summary elements
+            document.getElementById('totalMessages').textContent = totalMessages;
+            document.getElementById('messagesSentCount').textContent = sentMessages;
+            document.getElementById('replyRatePercent').textContent = `${replyRate}%`;
         }
 
         function createMessagePreviewItem(message) {
@@ -2823,6 +3244,33 @@
             `;
             
             return item;
+        }
+
+        // Helper functions for message rendering
+        function formatProfileName(firstName, lastName) {
+            if (!firstName && !lastName) return 'Unknown';
+            if (!lastName) return firstName;
+            return `${firstName} ${lastName.charAt(0).toUpperCase()}.`;
+        }
+
+        function truncateText(text, maxLength) {
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+
+        function getToggleClass(status) {
+            if (status === null || status === undefined) return 'unknown';
+            return status ? 'active' : 'inactive';
+        }
+
+        function getToggleIcon(status) {
+            if (status === null || status === undefined) return '?';
+            return status ? '✓' : '✗';
+        }
+
+        function getToggleLabel(status) {
+            if (status === null || status === undefined) return 'Unknown';
+            return status ? 'Yes' : 'No';
         }
 
         // Message interaction functions
@@ -3025,9 +3473,10 @@
                     toggle.classList.remove('unsaved');
                 });
                 
-                // Update messages preview if on dashboard
+                // Update messages preview and summary if on dashboard
                 if (document.getElementById('dashboardSection').classList.contains('active')) {
                     populateMessagesPreview();
+                    populateMessagesSummary();
                 }
                 
                 console.log('[MESSAGES] Saved message data:', updateData);
