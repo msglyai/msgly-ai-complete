@@ -628,6 +628,23 @@
             font-size: 0.8rem;
         }
 
+        /* ENHANCED ACCOUNT INFO WITH LINKEDIN */
+        .linkedin-link {
+            color: var(--primary-purple);
+            text-decoration: none;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .linkedin-link:hover {
+            text-decoration: underline;
+        }
+
+        .info-item.full-width {
+            grid-column: 1 / -1;
+            margin-top: 1rem;
+        }
+
         /* Optimized Subscription Card */
         .subscription-header {
             display: flex;
@@ -754,75 +771,6 @@
             box-shadow: var(--intense-glow);
         }
 
-        /* Optimized LinkedIn Profile Card */
-        .profile-summary {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.2rem;
-        }
-
-        .profile-avatar {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--white);
-            font-size: 1.8rem;
-            font-weight: 700;
-            box-shadow: var(--glow-shadow);
-        }
-
-        .profile-details {
-            flex: 1;
-        }
-
-        .profile-name {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--black);
-            margin-bottom: 0.3rem;
-        }
-
-        .profile-headline {
-            color: var(--gray);
-            font-size: 0.85rem;
-            margin-bottom: 0.5rem;
-            line-height: 1.3;
-        }
-
-        .profile-company {
-            color: var(--dark-gray);
-            font-size: 0.8rem;
-            margin-bottom: 0.3rem;
-            font-weight: 600;
-        }
-
-        .profile-location {
-            color: var(--gray);
-            font-size: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .profile-url {
-            background: var(--light-gray);
-            padding: 0.7rem;
-            border-radius: 10px;
-            margin: 1rem 0;
-        }
-
-        .profile-url a {
-            color: var(--primary-purple);
-            text-decoration: none;
-            font-size: 0.8rem;
-            word-break: break-all;
-            font-weight: 500;
-        }
-
         .view-profile-btn {
             width: 100%;
             padding: 0.7rem;
@@ -856,7 +804,439 @@
             box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
         }
 
-        /* Optimized Analytics Card */
+        /* MESSAGES SECTION STYLES */
+        .messages-card {
+            grid-column: 1 / -1;
+            max-width: none;
+        }
+
+        .card-header .messages-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .refresh-messages-btn {
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .refresh-messages-btn:hover {
+            background: var(--light-purple);
+            color: var(--primary-purple);
+        }
+
+        .messages-count {
+            font-size: 0.85rem;
+            color: var(--gray);
+            font-weight: 600;
+        }
+
+        .messages-container {
+            min-height: 400px;
+            position: relative;
+        }
+
+        .messages-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            height: 200px;
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .spinner-small {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--light-gray);
+            border-top: 2px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* MESSAGES TABLE STYLES */
+        .messages-table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--light-gray);
+            background: var(--white);
+        }
+
+        .messages-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .messages-table th {
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
+            color: var(--dark-gray);
+            font-weight: 700;
+            padding: 1rem 0.75rem;
+            text-align: left;
+            border-bottom: 2px solid var(--primary-purple);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .messages-table td {
+            padding: 1rem 0.75rem;
+            border-bottom: 1px solid var(--light-gray);
+            vertical-align: top;
+        }
+
+        .messages-table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .messages-table tbody tr:hover {
+            background: rgba(128, 57, 223, 0.02);
+        }
+
+        /* Column Widths */
+        .col-message { width: 30%; }
+        .col-target { width: 25%; }
+        .col-sent { width: 10%; }
+        .col-reply { width: 10%; }
+        .col-comment { width: 20%; }
+        .col-actions { width: 5%; }
+
+        /* Message Content */
+        .message-content {
+            max-width: 300px;
+        }
+
+        .message-text {
+            line-height: 1.4;
+            color: var(--dark-gray);
+        }
+
+        .message-text.truncated {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .message-expand {
+            color: var(--primary-purple);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .message-expand:hover {
+            color: var(--dark-purple);
+            text-decoration: underline;
+        }
+
+        /* Target Profile */
+        .target-profile {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .target-name {
+            font-weight: 700;
+            color: var(--black);
+            font-size: 0.9rem;
+        }
+
+        .target-role {
+            color: var(--dark-gray);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .target-company {
+            color: var(--gray);
+            font-size: 0.75rem;
+        }
+
+        /* STATUS TOGGLES - Modern Design */
+        .status-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 28px;
+            background: var(--light-gray);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .toggle-switch.pending {
+            background: var(--light-gray);
+        }
+
+        .toggle-switch.yes {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            border-color: var(--success-green);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .toggle-switch.no {
+            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
+            border-color: var(--error-red);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+        }
+
+        .toggle-switch.modified {
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: var(--white);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-switch.pending .toggle-slider {
+            background: var(--gray);
+            color: var(--white);
+        }
+
+        .toggle-switch.yes .toggle-slider {
+            transform: translateX(32px);
+            background: var(--white);
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no .toggle-slider {
+            background: var(--white);
+            color: var(--error-red);
+        }
+
+        .toggle-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            min-width: 30px;
+        }
+
+        .toggle-switch.pending + .toggle-label {
+            color: var(--gray);
+        }
+
+        .toggle-switch.yes + .toggle-label {
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no + .toggle-label {
+            color: var(--error-red);
+        }
+
+        /* Comments Field */
+        .comment-field {
+            width: 100%;
+            min-height: 40px;
+            max-height: 120px;
+            padding: 0.5rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        .comment-field:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
+        }
+
+        .comment-field.modified {
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 80px;
+        }
+
+        .save-btn {
+            padding: 0.4rem 0.8rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            opacity: 0.7;
+            transform: scale(0.95);
+        }
+
+        .save-btn.modified {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 2px 8px rgba(128, 57, 223, 0.25);
+        }
+
+        .save-btn:hover.modified {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px) scale(1);
+        }
+
+        .save-btn.saving {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .save-btn.saved {
+            background: var(--success-green);
+        }
+
+        /* MOBILE CARDS VIEW */
+        .messages-cards {
+            display: none;
+        }
+
+        .message-card {
+            background: var(--white);
+            border: 1px solid var(--light-gray);
+            border-radius: 12px;
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .message-card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-1px);
+        }
+
+        .message-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+
+        .card-target-profile {
+            flex: 1;
+        }
+
+        .card-message-content {
+            margin-bottom: 1.2rem;
+        }
+
+        .card-message-text {
+            background: var(--light-gray);
+            padding: 0.8rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: var(--dark-gray);
+        }
+
+        .card-status-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .card-status-item {
+            text-align: center;
+        }
+
+        .card-status-label {
+            font-size: 0.7rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-comment {
+            margin-bottom: 1rem;
+        }
+
+        .card-comment label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--dark-gray);
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        /* Empty State */
+        .messages-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--gray);
+        }
+
+        .messages-empty i {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary-purple);
+            opacity: 0.5;
+        }
+
+        .messages-empty h3 {
+            font-size: 1.3rem;
+            margin-bottom: 0.8rem;
+            color: var(--dark-gray);
+        }
+
+        .messages-empty p {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* Analytics Placeholder */
         .analytics-placeholder {
             text-align: center;
             padding: 2rem 1rem;
@@ -1123,6 +1503,14 @@
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
+
+            .messages-table-wrapper {
+                overflow-x: auto;
+            }
+
+            .messages-table {
+                min-width: 800px;
+            }
         }
 
         @media (max-width: 768px) {
@@ -1156,18 +1544,6 @@
                 padding: 1rem;
             }
 
-            .profile-summary {
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-            }
-
-            .profile-avatar {
-                width: 60px;
-                height: 60px;
-                font-size: 1.5rem;
-            }
-
             .subscription-details {
                 grid-template-columns: 1fr;
             }
@@ -1184,6 +1560,51 @@
 
             .skills-grid {
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+
+            /* MESSAGES MOBILE STYLES */
+            .messages-table-wrapper {
+                display: none;
+            }
+
+            .messages-cards {
+                display: block;
+            }
+
+            .account-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .messages-actions {
+                align-self: flex-end;
+                margin-left: auto;
+                margin-top: -2rem;
+            }
+
+            .card-status-row {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .toggle-switch {
+                width: 50px;
+                height: 24px;
+            }
+
+            .toggle-slider {
+                width: 18px;
+                height: 18px;
+                font-size: 0.6rem;
+            }
+
+            .toggle-switch.yes .toggle-slider {
+                transform: translateX(26px);
             }
         }
     </style>
@@ -1243,7 +1664,7 @@
                     <i class="fas fa-user-circle"></i>
                     <span class="nav-item-text">Profile</span>
                 </a>
-                <a href="#" class="nav-item" onclick="openBillingPortal()">
+                <a href="#" class="nav-item" onclick="showSection('billing')">
                     <i class="fas fa-credit-card"></i>
                     <span class="nav-item-text">Billing</span>
                 </a>
@@ -1326,7 +1747,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1367,13 +1788,13 @@
             <div id="dashboardContent" style="display: none;">
                 <!-- Top Row: Account Info and Subscription -->
                 <div class="dashboard-row">
-                    <!-- Enhanced Account Information -->
+                    <!-- Enhanced Account Information with LinkedIn Profile -->
                     <div class="card">
                         <div class="card-header">
                             <div class="card-icon">
                                 <i class="fas fa-user-circle"></i>
                             </div>
-                            <h3 class="card-title">Account Information</h3>
+                            <h3 class="card-title">Account & Profile Information</h3>
                         </div>
                         
                         <div class="account-info-grid">
@@ -1423,6 +1844,56 @@
                                     Profile Status
                                 </div>
                                 <div class="info-value" id="profileSyncStatus">Checking...</div>
+                            </div>
+
+                            <!-- LinkedIn Profile Integration -->
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="fab fa-linkedin"></i>
+                                    LinkedIn Name
+                                </div>
+                                <div class="info-value" id="linkedinFullName">Loading...</div>
+                            </div>
+                            
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="fas fa-briefcase"></i>
+                                    Current Role
+                                </div>
+                                <div class="info-value" id="linkedinHeadline">Loading...</div>
+                            </div>
+                            
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="fas fa-building"></i>
+                                    Company
+                                </div>
+                                <div class="info-value" id="linkedinCompany">Loading...</div>
+                            </div>
+                            
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    Location
+                                </div>
+                                <div class="info-value" id="linkedinLocation">Loading...</div>
+                            </div>
+                            
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="fas fa-link"></i>
+                                    LinkedIn URL
+                                </div>
+                                <div class="info-value">
+                                    <a href="#" id="linkedinUrl" target="_blank" class="linkedin-link">Loading...</a>
+                                </div>
+                            </div>
+                            
+                            <div class="info-item full-width">
+                                <button class="view-profile-btn disabled" id="viewProfileBtn" onclick="showFullProfile()">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span id="profileBtnText">Complete profile sync first</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1476,40 +1947,61 @@
                     </div>
                 </div>
 
-                <!-- Bottom Row: LinkedIn Profile -->
+                <!-- Bottom Row: Messages Management -->
                 <div class="dashboard-row">
-                    <!-- LinkedIn Profile Summary -->
-                    <div class="card">
+                    <!-- Messages Section -->
+                    <div class="card messages-card">
                         <div class="card-header">
                             <div class="card-icon">
-                                <i class="fab fa-linkedin"></i>
+                                <i class="fas fa-comments"></i>
                             </div>
-                            <h3 class="card-title">LinkedIn Profile Summary</h3>
-                        </div>
-                        
-                        <div class="profile-summary">
-                            <div class="profile-avatar" id="profileAvatar">
-                                <span id="profileInitials">--</span>
-                            </div>
-                            <div class="profile-details">
-                                <div class="profile-name" id="profileFullName">Loading...</div>
-                                <div class="profile-headline" id="profileHeadline">Loading...</div>
-                                <div class="profile-company" id="profileCompany">Loading...</div>
-                                <div class="profile-location" id="profileLocation">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    Loading...
-                                </div>
+                            <h3 class="card-title">Message Management</h3>
+                            <div class="messages-actions">
+                                <button class="refresh-messages-btn" onclick="refreshMessages()" title="Refresh Messages">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <span class="messages-count" id="messagesCount">Loading...</span>
                             </div>
                         </div>
                         
-                        <div class="profile-url">
-                            <a href="#" id="profileUrl" target="_blank">Loading...</a>
+                        <!-- Messages Table Container -->
+                        <div class="messages-container" id="messagesContainer">
+                            <div class="messages-loading" id="messagesLoading">
+                                <div class="spinner-small"></div>
+                                <span>Loading messages...</span>
+                            </div>
+                            
+                            <!-- Desktop Table View -->
+                            <div class="messages-table-wrapper" id="messagesTableWrapper">
+                                <table class="messages-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-message">Message</th>
+                                            <th class="col-target">Target Profile</th>
+                                            <th class="col-sent">Sent</th>
+                                            <th class="col-reply">Reply</th>
+                                            <th class="col-comment">Comments</th>
+                                            <th class="col-actions">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="messagesTableBody">
+                                        <!-- Messages will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Mobile Cards View -->
+                            <div class="messages-cards" id="messagesCards">
+                                <!-- Message cards will be populated here -->
+                            </div>
+                            
+                            <!-- Empty State -->
+                            <div class="messages-empty" id="messagesEmpty" style="display: none;">
+                                <i class="fas fa-envelope-open"></i>
+                                <h3>No messages yet</h3>
+                                <p>Your message history will appear here once you start sending messages.</p>
+                            </div>
                         </div>
-                        
-                        <button class="view-profile-btn disabled" id="viewProfileBtn" onclick="showFullProfile()">
-                            <i class="fas fa-sync-alt"></i>
-                            <span id="profileBtnText">Complete profile sync first</span>
-                        </button>
                     </div>
 
                     <!-- Analytics Placeholder -->
@@ -1523,7 +2015,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard – Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1554,8 +2046,70 @@
         let currentUserData = null;
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
+        let messagesData = [];
+        let pendingChanges = new Map(); // Track unsaved changes
 
-        // Simplified initialization - webhook handles registration
+        // Mock Messages Data - Replace with API call
+        const mockMessages = [
+            {
+                id: 1,
+                message: "Hi John, I noticed your impressive work in sustainable energy solutions at Tesla. I'd love to connect and discuss potential collaboration opportunities in the renewable sector.",
+                targetProfile: {
+                    firstName: "John",
+                    lastNameInitial: "D",
+                    role: "Senior Engineer",
+                    company: "Tesla"
+                },
+                sent: "pending",
+                gotReply: "pending", 
+                comments: "",
+                createdAt: "2024-03-15T10:30:00Z"
+            },
+            {
+                id: 2,
+                message: "Hello Sarah, Your expertise in AI and machine learning caught my attention. I'm working on a project that could benefit from your insights. Would you be interested in a brief call?",
+                targetProfile: {
+                    firstName: "Sarah",
+                    lastNameInitial: "M",
+                    role: "AI Research Lead",
+                    company: "Google"
+                },
+                sent: "yes",
+                gotReply: "no",
+                comments: "Sent via LinkedIn, no response yet after 5 days",
+                createdAt: "2024-03-14T14:20:00Z"
+            },
+            {
+                id: 3,
+                message: "Hey Mike, I saw your post about the latest developments in blockchain technology. As someone working in fintech, I'd appreciate your perspective on regulatory challenges.",
+                targetProfile: {
+                    firstName: "Mike",
+                    lastNameInitial: "R",
+                    role: "Blockchain Developer", 
+                    company: "Coinbase"
+                },
+                sent: "yes",
+                gotReply: "yes",
+                comments: "Great response! Scheduled follow-up meeting for next week.",
+                createdAt: "2024-03-13T09:15:00Z"
+            },
+            {
+                id: 4,
+                message: "Dear Jennifer, I came across your article on digital marketing trends. Your insights on social media engagement are particularly relevant to my current campaign. Would love to exchange ideas.",
+                targetProfile: {
+                    firstName: "Jennifer",
+                    lastNameInitial: "L",
+                    role: "Marketing Director",
+                    company: "HubSpot"
+                },
+                sent: "no",
+                gotReply: "pending",
+                comments: "Draft ready, waiting for approval from team lead",
+                createdAt: "2024-03-12T16:45:00Z"
+            }
+        ];
+
+        // Initialization
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[DASHBOARD] Page loaded - starting authentication...');
             checkAuthentication();
@@ -1567,15 +2121,12 @@
             const upgradeStatus = urlParams.get('upgrade');
             
             if (upgradeStatus === 'success') {
-                // Clean URL and show success notification
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showUpgradeSuccessNotification();
             } else if (upgradeStatus === 'cancelled') {
-                // Clean URL and show cancelled notification  
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showUpgradeCancelledNotification();
             } else if (upgradeStatus === 'error') {
-                // Clean URL and show error notification
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showUpgradeErrorNotification();
             }
@@ -1589,53 +2140,35 @@
             message.textContent = 'Payment successful! Your plan has been upgraded and credits are ready to use.';
             notification.style.display = 'block';
             
-            // Auto-hide after 10 seconds
-            setTimeout(() => {
-                closeNotification('successNotification');
-            }, 10000);
+            setTimeout(() => closeNotification('successNotification'), 10000);
         }
 
         function showUpgradeErrorNotification() {
             const notification = document.getElementById('errorNotification');
             notification.style.display = 'block';
-            
-            // Auto-hide after 8 seconds
-            setTimeout(() => {
-                closeNotification('errorNotification');
-            }, 8000);
+            setTimeout(() => closeNotification('errorNotification'), 8000);
         }
 
         function showUpgradeCancelledNotification() {
             const notification = document.getElementById('cancelNotification');
             notification.style.display = 'block';
-            
-            // Auto-hide after 6 seconds
-            setTimeout(() => {
-                closeNotification('cancelNotification');
-            }, 6000);
+            setTimeout(() => closeNotification('cancelNotification'), 6000);
         }
 
         function closeNotification(notificationId) {
-            const notification = document.getElementById(notificationId);
-            notification.style.display = 'none';
+            document.getElementById(notificationId).style.display = 'none';
         }
 
         function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('active');
+            document.getElementById('sidebar').classList.toggle('active');
         }
 
         function showSection(section) {
-            // Update active nav item
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
             event.target.closest('.nav-item').classList.add('active');
 
-            // Handle different sections
             switch(section) {
                 case 'dashboard':
-                    // Already on dashboard
                     break;
                 case 'linkedin-profile':
                     if (trafficLightStatus === 'green') {
@@ -1649,12 +2182,7 @@
             }
         }
 
-        // BILLING PORTAL FUNCTION - Opens Chargebee portal in new tab
-        function openBillingPortal() {
-            window.open('https://chopa.chargebeeportal.com', '_blank');
-        }
-
-        // Authentication check - ENHANCED with upgrade status check
+        // Authentication check
         async function checkAuthentication() {
             const token = getAuthToken();
             
@@ -1664,7 +2192,6 @@
                 return;
             }
 
-            // Check for upgrade status after getting token
             checkUpgradeStatus();
 
             try {
@@ -1680,18 +2207,15 @@
         }
 
         function getAuthToken() {
-            // Check URL params first (from OAuth callback)
             const urlParams = new URLSearchParams(window.location.search);
             const urlToken = urlParams.get('token');
             
             if (urlToken) {
                 localStorage.setItem('authToken', urlToken);
-                // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
                 return urlToken;
             }
             
-            // Check localStorage
             return localStorage.getItem('authToken');
         }
 
@@ -1724,7 +2248,6 @@
             }
         }
 
-        // Simplified populateDashboard - no fallback registration logic
         function populateDashboard(data) {
             const { user, profile, syncStatus } = data;
             
@@ -1744,7 +2267,7 @@
             const sidebarInitials = getInitials(user.displayName || user.email);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
-            // DETERMINE TRAFFIC LIGHT STATUS (Profile sync, not registration)
+            // DETERMINE TRAFFIC LIGHT STATUS
             const isRegistrationComplete = user.registrationCompleted;
             const isInitialScrapingDone = profile?.initialScrapingDone || false;
             const extractionStatus = profile?.extractionStatus || 'pending';
@@ -1757,7 +2280,6 @@
                 hasExperience: hasExperience
             });
 
-            // Determine traffic light state (profile sync status)
             if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
                 trafficLightStatus = 'green';
                 hideAllWarnings();
@@ -1776,7 +2298,7 @@
                 disableViewProfile();
             }
 
-            // Enhanced Account Information
+            // Enhanced Account Information with LinkedIn Integration
             document.getElementById('accountFullName').textContent = user.displayName || 'Not provided';
             document.getElementById('accountEmail').textContent = user.email;
             document.getElementById('accountSignupDate').textContent = formatDate(user.createdAt);
@@ -1800,21 +2322,16 @@
                     break;
             }
 
-            // ENHANCED: Subscription & Credits with Proper Plan Display
-            updateSubscriptionDisplay(user);
-
-            // LinkedIn Profile Summary
+            // LinkedIn Profile Integration
             if (profile) {
-                document.getElementById('profileFullName').textContent = profile.fullName || 'Profile name not synced yet';
-                document.getElementById('profileHeadline').textContent = profile.headline || 'Professional headline awaiting sync...';
+                document.getElementById('linkedinFullName').textContent = profile.fullName || 'Profile name not synced yet';
+                document.getElementById('linkedinHeadline').textContent = profile.headline || 'Professional headline awaiting sync...';
                 
                 const companyName = profile.currentCompanyName || profile.currentCompany || 'Company info pending sync...';
-                document.getElementById('profileCompany').textContent = companyName;
+                document.getElementById('linkedinCompany').textContent = companyName;
+                document.getElementById('linkedinLocation').textContent = profile.location || 'Location awaiting sync...';
                 
-                const locationElement = document.getElementById('profileLocation');
-                locationElement.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${profile.location || 'Location awaiting sync...'}`;
-                
-                const profileUrlElement = document.getElementById('profileUrl');
+                const profileUrlElement = document.getElementById('linkedinUrl');
                 if (profile.linkedinUrl) {
                     profileUrlElement.href = profile.linkedinUrl;
                     profileUrlElement.textContent = profile.linkedinUrl;
@@ -1822,28 +2339,414 @@
                     profileUrlElement.textContent = 'LinkedIn URL will appear after sync';
                     profileUrlElement.removeAttribute('href');
                 }
-
-                const initials = getInitials(profile.fullName || user.displayName || user.email);
-                document.getElementById('profileInitials').textContent = initials;
             } else {
-                document.getElementById('profileFullName').textContent = 'LinkedIn profile not connected yet';
-                document.getElementById('profileHeadline').textContent = 'Connect your profile to see your headline here';
-                document.getElementById('profileCompany').textContent = 'Your company info will appear after sync';
-                document.getElementById('profileLocation').innerHTML = '<i class="fas fa-map-marker-alt"></i> Location will sync automatically';
-                document.getElementById('profileUrl').textContent = 'LinkedIn URL will appear after connection';
-                
-                const initials = getInitials(user.displayName || user.email);
-                document.getElementById('profileInitials').textContent = initials;
+                document.getElementById('linkedinFullName').textContent = 'LinkedIn profile not connected yet';
+                document.getElementById('linkedinHeadline').textContent = 'Connect your profile to see your headline here';
+                document.getElementById('linkedinCompany').textContent = 'Your company info will appear after sync';
+                document.getElementById('linkedinLocation').textContent = 'Location will sync automatically';
+                document.getElementById('linkedinUrl').textContent = 'LinkedIn URL will appear after connection';
             }
+
+            // ENHANCED: Subscription & Credits with Proper Plan Display
+            updateSubscriptionDisplay(user);
+
+            // Load Messages
+            loadMessages();
 
             // Show dashboard content
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
         }
 
+        // MESSAGES MANAGEMENT FUNCTIONS
+        async function loadMessages() {
+            console.log('[MESSAGES] Loading messages...');
+            
+            try {
+                // Show loading state
+                document.getElementById('messagesLoading').style.display = 'flex';
+                document.getElementById('messagesTableWrapper').style.display = 'none';
+                document.getElementById('messagesCards').style.display = 'none';
+                document.getElementById('messagesEmpty').style.display = 'none';
+                
+                // TODO: Replace with actual API call
+                // const response = await fetch('https://api.msgly.ai/messages', {
+                //     headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+                // });
+                // const data = await response.json();
+                // messagesData = data.messages;
+                
+                // For now, use mock data
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+                messagesData = [...mockMessages];
+                
+                renderMessages();
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error loading messages:', error);
+                showMessagesError();
+            }
+        }
+
+        function renderMessages() {
+            const tableBody = document.getElementById('messagesTableBody');
+            const cardsContainer = document.getElementById('messagesCards');
+            const messagesCount = document.getElementById('messagesCount');
+            
+            // Update count
+            messagesCount.textContent = `${messagesData.length} messages`;
+            
+            if (messagesData.length === 0) {
+                // Show empty state
+                document.getElementById('messagesLoading').style.display = 'none';
+                document.getElementById('messagesEmpty').style.display = 'block';
+                return;
+            }
+            
+            // Clear existing content
+            tableBody.innerHTML = '';
+            cardsContainer.innerHTML = '';
+            
+            messagesData.forEach(message => {
+                // Render table row
+                const tableRow = createTableRow(message);
+                tableBody.appendChild(tableRow);
+                
+                // Render mobile card
+                const messageCard = createMessageCard(message);
+                cardsContainer.appendChild(messageCard);
+            });
+            
+            // Show content
+            document.getElementById('messagesLoading').style.display = 'none';
+            document.getElementById('messagesTableWrapper').style.display = 'block';
+            
+            // Mobile cards are shown via CSS media queries
+        }
+
+        function createTableRow(message) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="col-message">
+                    <div class="message-content">
+                        <div class="message-text ${message.message.length > 150 ? 'truncated' : ''}" id="message-${message.id}">
+                            ${message.message}
+                        </div>
+                        ${message.message.length > 150 ? 
+                            `<div class="message-expand" onclick="toggleMessageExpand(${message.id})">Read more...</div>` : ''
+                        }
+                    </div>
+                </td>
+                <td class="col-target">
+                    <div class="target-profile">
+                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-role">${message.targetProfile.role}</div>
+                        <div class="target-company">${message.targetProfile.company}</div>
+                    </div>
+                </td>
+                <td class="col-sent">
+                    <div class="status-toggle">
+                        <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
+                            <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
+                        </div>
+                        <div class="toggle-label">${getStatusLabel(message.sent)}</div>
+                    </div>
+                </td>
+                <td class="col-reply">
+                    <div class="status-toggle">
+                        <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
+                            <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
+                        </div>
+                        <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
+                    </div>
+                </td>
+                <td class="col-comment">
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add your notes..."
+                        onchange="updateComment(${message.id}, this.value)"
+                        onkeyup="markFieldModified(${message.id})"
+                    >${message.comments}</textarea>
+                </td>
+                <td class="col-actions">
+                    <div class="action-buttons">
+                        <button class="save-btn" id="save-${message.id}" onclick="saveMessage(${message.id})">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            return row;
+        }
+
+        function createMessageCard(message) {
+            const card = document.createElement('div');
+            card.className = 'message-card';
+            card.innerHTML = `
+                <div class="message-card-header">
+                    <div class="card-target-profile">
+                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-role">${message.targetProfile.role}</div>
+                        <div class="target-company">${message.targetProfile.company}</div>
+                    </div>
+                </div>
+                
+                <div class="card-message-content">
+                    <div class="card-message-text ${message.message.length > 100 ? 'truncated' : ''}" id="card-message-${message.id}">
+                        ${message.message}
+                    </div>
+                    ${message.message.length > 100 ? 
+                        `<div class="message-expand" onclick="toggleCardMessageExpand(${message.id})">Read more...</div>` : ''
+                    }
+                </div>
+                
+                <div class="card-status-row">
+                    <div class="card-status-item">
+                        <div class="card-status-label">Message Sent</div>
+                        <div class="status-toggle">
+                            <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
+                                <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(message.sent)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-status-item">
+                        <div class="card-status-label">Got Reply</div>
+                        <div class="status-toggle">
+                            <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
+                                <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-comment">
+                    <label>Comments:</label>
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add your notes..."
+                        onchange="updateComment(${message.id}, this.value)"
+                        onkeyup="markFieldModified(${message.id})"
+                    >${message.comments}</textarea>
+                </div>
+                
+                <div class="card-actions">
+                    <button class="save-btn" id="card-save-${message.id}" onclick="saveMessage(${message.id})">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            `;
+            return card;
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'yes': return '✓';
+                case 'no': return '✗';
+                default: return '?';
+            }
+        }
+
+        function getStatusLabel(status) {
+            switch(status) {
+                case 'yes': return 'Yes';
+                case 'no': return 'No';
+                default: return 'Pending';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message) return;
+            
+            // Cycle through: pending -> yes -> no -> pending
+            switch(message[field]) {
+                case 'pending':
+                    message[field] = 'yes';
+                    break;
+                case 'yes':
+                    message[field] = 'no';
+                    break;
+                case 'no':
+                    message[field] = 'pending';
+                    break;
+            }
+            
+            // Mark as modified
+            markMessageModified(messageId);
+            
+            // Update UI
+            updateToggleDisplay(messageId, field, message[field]);
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            // Update both table and card views
+            const selectors = [
+                `[onclick="toggleStatus(${messageId}, '${field}')"]`,
+            ];
+            
+            selectors.forEach(selector => {
+                const toggles = document.querySelectorAll(selector);
+                toggles.forEach(toggle => {
+                    toggle.className = `toggle-switch ${status} modified`;
+                    const slider = toggle.querySelector('.toggle-slider');
+                    const label = toggle.nextElementSibling;
+                    
+                    if (slider) slider.textContent = getStatusIcon(status);
+                    if (label) label.textContent = getStatusLabel(status);
+                });
+            });
+        }
+
+        function updateComment(messageId, value) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (message) {
+                message.comments = value;
+                markMessageModified(messageId);
+            }
+        }
+
+        function markFieldModified(messageId) {
+            markMessageModified(messageId);
+            
+            // Add visual indicator to comment field
+            const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
+            commentFields.forEach(field => field.classList.add('modified'));
+        }
+
+        function markMessageModified(messageId) {
+            if (!pendingChanges.has(messageId)) {
+                pendingChanges.set(messageId, true);
+            }
+            
+            // Update save button states
+            const saveButtons = document.querySelectorAll(`#save-${messageId}, #card-save-${messageId}`);
+            saveButtons.forEach(btn => btn.classList.add('modified'));
+        }
+
+        async function saveMessage(messageId) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message || !pendingChanges.has(messageId)) return;
+            
+            const saveButtons = document.querySelectorAll(`#save-${messageId}, #card-save-${messageId}`);
+            
+            try {
+                // Update button state
+                saveButtons.forEach(btn => {
+                    btn.classList.add('saving');
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                });
+                
+                // TODO: Replace with actual API call
+                // await fetch(`https://api.msgly.ai/messages/${messageId}`, {
+                //     method: 'PUT',
+                //     headers: { 
+                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Content-Type': 'application/json'
+                //     },
+                //     body: JSON.stringify(message)
+                // });
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                // Success state
+                saveButtons.forEach(btn => {
+                    btn.classList.remove('saving', 'modified');
+                    btn.classList.add('saved');
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                });
+                
+                // Remove from pending changes
+                pendingChanges.delete(messageId);
+                
+                // Remove modified indicators
+                const toggles = document.querySelectorAll(`[onclick*="${messageId}"]`);
+                toggles.forEach(toggle => toggle.classList.remove('modified'));
+                
+                const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
+                commentFields.forEach(field => field.classList.remove('modified'));
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    saveButtons.forEach(btn => {
+                        btn.classList.remove('saved');
+                        btn.innerHTML = '<i class="fas fa-save"></i>';
+                    });
+                }, 2000);
+                
+                console.log('[MESSAGES] Message saved successfully:', messageId);
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error saving message:', error);
+                
+                // Error state
+                saveButtons.forEach(btn => {
+                    btn.classList.remove('saving');
+                    btn.classList.add('error');
+                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                });
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    saveButtons.forEach(btn => {
+                        btn.classList.remove('error');
+                        btn.classList.add('modified');
+                        btn.innerHTML = '<i class="fas fa-save"></i>';
+                    });
+                }, 3000);
+            }
+        }
+
+        function toggleMessageExpand(messageId) {
+            const messageEl = document.getElementById(`message-${messageId}`);
+            const expandBtn = messageEl.nextElementSibling;
+            
+            if (messageEl.classList.contains('truncated')) {
+                messageEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                messageEl.classList.add('truncated');
+                expandBtn.textContent = 'Read more...';
+            }
+        }
+
+        function toggleCardMessageExpand(messageId) {
+            const messageEl = document.getElementById(`card-message-${messageId}`);
+            const expandBtn = messageEl.nextElementSibling;
+            
+            if (messageEl.classList.contains('truncated')) {
+                messageEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                messageEl.classList.add('truncated');
+                expandBtn.textContent = 'Read more...';
+            }
+        }
+
+        function refreshMessages() {
+            console.log('[MESSAGES] Refreshing messages...');
+            
+            // Show refresh animation
+            const refreshBtn = document.querySelector('.refresh-messages-btn i');
+            refreshBtn.classList.add('fa-spin');
+            
+            // Reload messages
+            loadMessages().finally(() => {
+                refreshBtn.classList.remove('fa-spin');
+            });
+        }
+
+        function showMessagesError() {
+            document.getElementById('messagesLoading').style.display = 'none';
+            console.error('[MESSAGES] Failed to load messages');
+        }
+
         // ENHANCED: subscription display with correct plan data mapping
         function updateSubscriptionDisplay(user) {
-            // PLAN NAME MAPPING - Match your server's planCode values exactly
+            // PLAN NAME MAPPING
             const planDisplayNames = {
                 'free': 'Free Plan',
                 'silver-monthly': 'Silver Monthly',
@@ -1892,19 +2795,15 @@
             const renewalInfoEl = document.getElementById('renewalInfo');
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
-                // Mixed credits (both types)
                 creditBreakdownEl.textContent = `${payasyougoCredits} PAYG + ${renewableCredits} Monthly`;
                 renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
-                // PAYG only
                 creditBreakdownEl.textContent = `${payasyougoCredits} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
             } else if (renewableCredits > 0) {
-                // Monthly only
                 creditBreakdownEl.textContent = `${renewableCredits} Monthly credits`;
                 renewalInfoEl.textContent = `Refreshes monthly`;
             } else {
-                // No credits or default
                 creditBreakdownEl.textContent = `${totalCredits} Credits`;
                 renewalInfoEl.textContent = `Usage-based credits`;
             }
@@ -1972,14 +2871,13 @@
             const progressFill = document.getElementById('analysisProgress');
             const progressText = document.getElementById('progressText');
             
-            // Clear any existing interval
             if (analysisProgressInterval) {
                 clearInterval(analysisProgressInterval);
             }
             
             analysisProgressInterval = setInterval(() => {
-                progress += Math.random() * 2; // Random progress increment
-                if (progress > 95) progress = 95; // Cap at 95%
+                progress += Math.random() * 2;
+                if (progress > 95) progress = 95;
                 
                 progressFill.style.width = `${progress}%`;
                 
@@ -1991,12 +2889,6 @@
                     progressText.textContent = 'Extracting skills & certifications...';
                 } else {
                     progressText.textContent = 'Finalizing analysis...';
-                }
-                
-                // Check if analysis actually completed (this would be real API call)
-                if (progress > 90) {
-                    // In real implementation, this would check API for completion
-                    // For demo purposes, we'll continue the animation
                 }
             }, 1000);
         }
@@ -2011,7 +2903,6 @@
             const fullProfileSection = document.getElementById('fullProfileSection');
             const fullProfileContent = document.getElementById('fullProfileContent');
             
-            // Build full profile content
             const profile = currentUserData.profile;
             
             let profileHTML = `
@@ -2050,7 +2941,6 @@
                 </div>
             `;
 
-            // Experience Section
             if (profile?.experience && Array.isArray(profile.experience) && profile.experience.length > 0) {
                 profileHTML += `
                     <div class="profile-section">
@@ -2074,7 +2964,6 @@
                 profileHTML += `</div>`;
             }
 
-            // Education Section
             if (profile?.education && Array.isArray(profile.education) && profile.education.length > 0) {
                 profileHTML += `
                     <div class="profile-section">
@@ -2098,7 +2987,6 @@
                 profileHTML += `</div>`;
             }
 
-            // Skills Section
             if (profile?.skills && Array.isArray(profile.skills) && profile.skills.length > 0) {
                 profileHTML += `
                     <div class="profile-section">
@@ -2124,57 +3012,8 @@
                 profileHTML += `</div></div>`;
             }
 
-            // Certifications Section
-            if (profile?.certifications && Array.isArray(profile.certifications) && profile.certifications.length > 0) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-certificate"></i>
-                            Certifications (${profile.certifications.length})
-                        </div>
-                `;
-                
-                profile.certifications.forEach((cert, index) => {
-                    profileHTML += `
-                        <div class="certification-item">
-                            <div class="item-title">${cert.name || cert.title || 'Certification not specified'}</div>
-                            <div class="item-company">${cert.issuer || cert.organization || 'Issuer not specified'}</div>
-                            <div class="item-duration">${cert.date || cert.issued || 'Date not specified'}</div>
-                        </div>
-                    `;
-                });
-                
-                profileHTML += `</div>`;
-            }
-
-            // Awards Section
-            if (profile?.awards && Array.isArray(profile.awards) && profile.awards.length > 0) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-trophy"></i>
-                            Awards & Honors (${profile.awards.length})
-                        </div>
-                `;
-                
-                profile.awards.forEach((award, index) => {
-                    profileHTML += `
-                        <div class="award-item">
-                            <div class="item-title">${award.name || award.title || 'Award not specified'}</div>
-                            <div class="item-company">${award.issuer || award.organization || 'Issuer not specified'}</div>
-                            <div class="item-duration">${award.date || award.year || 'Date not specified'}</div>
-                            ${award.description ? `<div class="item-description">${award.description}</div>` : ''}
-                        </div>
-                    `;
-                });
-                
-                profileHTML += `</div>`;
-            }
-
             fullProfileContent.innerHTML = profileHTML;
             fullProfileSection.style.display = 'block';
-            
-            // Scroll to full profile section
             fullProfileSection.scrollIntoView({ behavior: 'smooth' });
         }
 
@@ -2214,14 +3053,11 @@
             }
         }
 
-        // UPDATED: upgradeAccount now opens billing portal
         function upgradeAccount() {
-            window.open('https://chopa.chargebeeportal.com', '_blank');
+            alert('Upgrade functionality coming soon! Premium plans will be available shortly.');
         }
 
         function downloadChromeExtension() {
-            // Open Chrome Web Store link for the extension
-            // Replace with your actual Chrome extension URL
             const extensionUrl = 'https://chrome.google.com/webstore/detail/msgly-ai-extension/[your-extension-id]';
             window.open(extensionUrl, '_blank');
         }
