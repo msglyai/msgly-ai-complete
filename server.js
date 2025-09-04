@@ -24,6 +24,7 @@ CHANGELOG - server.js:
 17. WEBHOOK REGISTRATION FIX: Added automatic registration completion in webhooks
 18. NEW: Added /store-pending-registration endpoint for sign-up page
 19. CLEANUP: Removed excessive webhook debug logging
+20. PAYG WEBHOOK FIX: Fixed customer email extraction for PAYG purchases - MINIMAL CHANGE ONLY
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX
@@ -235,6 +236,363 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
             };
         }
     } catch (error) {
+        console.log(`[REG] ========================================`);
+        console.log(`[REG] COMPLETE REGISTRATION DEBUG - ERROR`);
+        console.log(`[REG] ========================================`);
+        console.error('[REG] ❌ CRITICAL ERROR in /complete-registration:', error);
+        console.error('[REG] Error name:', error.name);
+        console.error('[REG] Error message:', error.message);
+        console.error('[REG] Error stack:', error.stack);
+        
+        if (error.code) {
+            console.error('[REG] Database error code:', error.code);
+        }
+        if (error.detail) {
+            console.error('[REG] Database error detail:', error.detail);
+        }
+        if (error.hint) {
+            console.error('[REG] Database error hint:', error.hint);
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Registration completion failed',
+            debug: {
+                errorName: error.name,
+                errorMessage: error.message,
+                errorCode: error.code || 'No code',
+                errorDetail: error.detail || 'No detail',
+                userId: req.user.id,
+                timestamp: new Date().toISOString()
+            },
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// ==================== REMAINING API ENDPOINTS ====================
+
+// Get Available Packages
+app.get('/packages', (req, res) => {
+    const packages = {
+        payAsYouGo: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 7,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '7 free credits monthly',
+                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                available: true
+            }
+        ],
+        monthly: [
+            {
+                id: 'free',
+                name: 'Free',
+                credits: 7,
+                price: 0,
+                period: '/forever',
+                billing: 'monthly',
+                validity: '7 free credits monthly',
+                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
+                available: true
+            }
+        ]
+    };
+    
+    res.json({
+        success: true,
+        data: { packages }
+    });
+});
+
+// FIXED: Chargebee Connection Test Route
+app.get('/test-chargebee', async (req, res) => {
+    try {
+        console.log('[TEST] Testing Chargebee connection...');
+        
+        const result = await chargebeeService.testConnection();
+        
+        if (result.success) {
+            res.json({
+                success: true,
+                message: '✅ Chargebee connection successful!',
+                data: result.data || {
+                    siteName: 'Connected',
+                    isConfigured: chargebeeService.isConfigured
+                }
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: '❌ Chargebee connection failed',
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error('[TEST] Chargebee test error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test failed',
+            error: error.message
+        });
+    }
+});
+
+// NEW: Cleanup expired holds (run periodically)
+setInterval(async () => {
+    try {
+        await cleanupExpiredHolds();
+    } catch (error) {
+        console.error('[ERROR] Error during scheduled cleanup:', error);
+    }
+}, 30 * 60 * 1000); // Run every 30 minutes
+
+// NEW: Cleanup expired processing entries (run periodically)
+setInterval(() => {
+    const now = Date.now();
+    const expireTime = 5 * 60 * 1000; // 5 minutes
+    
+    for (const [key, timestamp] of activeProcessing.entries()) {
+        if (now - timestamp > expireTime) {
+            activeProcessing.delete(key);
+            console.log(`[RACE] Cleaned up stale processing entry: ${key}`);
+        }
+    }
+}, 60 * 1000); // Run every minute
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error('[ERROR] Unhandled Error:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+});
+
+// 404 handler
+app.use((req, res, next) => {
+    res.status(404).json({
+        success: false,
+        error: 'Route not found',
+        path: req.path,
+        method: req.method,
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX',
+        availableRoutes: [
+            'GET /',
+            'GET /sign-up',
+            'GET /login', 
+            'GET /dashboard',
+            'GET /upgrade (NEW: Upgrade page for existing users)',
+            'GET /health',
+            'POST /register',
+            'POST /login',
+            'GET /auth/google',
+            'GET /auth/google/callback (✅ WELCOME EMAIL for new users)',
+            'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
+            'POST /complete-registration (✅ ENHANCED DEBUG LOGGING + WELCOME EMAIL for free users)',
+            'POST /store-pending-registration (NEW: Store registration data before payment)',
+            'POST /update-profile',
+            'GET /profile',
+            'GET /profile-status',
+            'GET /traffic-light-status',
+            'POST /scrape-html (Enhanced routing: USER + TARGET)',
+            'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
+            'POST /generate-message (NEW: GPT-5 integration with 1 credit dual system)',
+            'POST /generate-connection (NEW: 1 credit with dual system)',
+            'POST /generate-intro (NEW: 1 credit with dual system)',
+            'GET /user/setup-status',
+            'GET /user/initial-scraping-status',
+            'GET /user/stats',
+            'PUT /user/settings',
+            'GET /packages',
+            'GET /user/plan (NEW: Real plan data - NO MOCK!)',
+            'GET /credits/balance (NEW: Dual credit management)',
+            'GET /credits/history (NEW: Transaction history)',
+            'GET /test-chargebee (NEW: Test Chargebee connection)',
+            'POST /chargebee-webhook (ENHANCED: Automatic registration completion + clean logging)',
+            'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
+        ]
+    });
+});
+
+// ==================== SERVER STARTUP ====================
+
+const startServer = async () => {
+    try {
+        validateEnvironment();
+        
+        const dbOk = await testDatabase();
+        if (!dbOk) {
+            console.error('[ERROR] Cannot start server without database');
+            process.exit(1);
+        }
+        
+        // NEW: Auto-create welcome_email_sent column if it doesn't exist
+        try {
+            console.log('[DB] Checking welcome_email_sent column...');
+            const columnCheck = await pool.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' 
+                AND column_name = 'welcome_email_sent'
+            `);
+
+            if (columnCheck.rows.length === 0) {
+                console.log('[DB] Creating welcome_email_sent column...');
+                await pool.query(`
+                    ALTER TABLE users 
+                    ADD COLUMN welcome_email_sent BOOLEAN DEFAULT FALSE
+                `);
+                console.log('[DB] ✅ welcome_email_sent column created successfully');
+            } else {
+                console.log('[DB] ✅ welcome_email_sent column already exists');
+            }
+        } catch (columnError) {
+            console.error('[DB] Warning: Could not create welcome_email_sent column:', columnError.message);
+            console.error('[DB] MailerSend will use in-memory guard instead');
+        }
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION ACTIVE!');
+            console.log(`[CHECK] Port: ${PORT}`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS`);
+            console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
+            console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
+            console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
+            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
+            console.log(`[SUCCESS] ✅ RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
+            console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
+            console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
+            console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
+            console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation`);
+            console.log(`[SUCCESS] ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion after payment`);
+            console.log(`[SUCCESS] ✅ PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
+            console.log(`[SUCCESS] ✅ CLEAN WEBHOOK LOGGING: Removed excessive debug output`);
+            console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
+            console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
+            console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
+            console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
+            console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
+            console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX:`);
+            console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
+            console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
+            console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
+            console.log(`   [RACE] BULLETPROOF PROTECTION: No duplicate AI processing or credit charges`);
+            console.log(`   [URL] URL MATCHING FIX: Handles both clean and protocol URLs in database`);
+            console.log(`   [GPT] GPT-5 MESSAGE GENERATION: Real AI-powered LinkedIn messages`);
+            console.log(`   [PAYMENT] CHARGEBEE INTEGRATION: Subscription and payment processing`);
+            console.log(`   [EMAIL] MAILERSEND INTEGRATION: Welcome emails for all users`);
+            console.log(`   [WEBHOOK] REGISTRATION COMPLETION: Automatic registration after payment in webhooks`);
+            console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored before payment, retrieved by webhooks`);
+            console.log(`   [CLEAN] CLEAN WEBHOOK LOGGING: Professional logging without excessive debug output`);
+            console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
+            console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
+            console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
+            console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation`);
+            console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation`);
+            console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
+            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion`);
+            console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
+            console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
+            console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
+            console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
+            console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
+            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion`);
+            console.log(`   [DB] Database: user_profiles table for USER profiles`);
+            console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
+            console.log(`   [PENDING] Database: pending_registrations table for pre-payment storage`);
+            console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
+            console.log(`   [LIGHT] Traffic Light system tracks User profile completion only`);
+            console.log(`[CREDIT] DUAL CREDIT SYSTEM:`);
+            console.log(`   [CYCLE] RENEWABLE CREDITS: Reset monthly to plan amount`);
+            console.log(`   [INFINITY] PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
+            console.log(`   [MONEY] SPENDING ORDER: Pay-as-you-go first, then renewable`);
+            console.log(`   [CALENDAR] BILLING CYCLE: Only renewable credits reset`);
+            console.log(`   [TARGET] Target Analysis: 0.25 credits (only for NEW profiles)`);
+            console.log(`   [BOOM] Already Analyzed: FREE with marketing message`);
+            console.log(`   [MESSAGE] Message Generation: 1.0 credits (GPT-5 powered)`);
+            console.log(`   [CONNECT] Connection Generation: 1.0 credits`);
+            console.log(`   [INTRO] Intro Generation: 1.0 credits`);
+            console.log(`   [LOCK] Credit holds prevent double-spending`);
+            console.log(`   [MONEY] Deduction AFTER successful operations`);
+            console.log(`   [DATA] Complete transaction audit trail`);
+            console.log(`   [LIGHTNING] Real-time credit balance updates`);
+            console.log(`   [CLEAN] Automatic cleanup of expired holds`);
+            console.log(`   [SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
+            console.log(`   [API] OpenAI GPT-5 integration with proper error handling`);
+            console.log(`   [PROMPT] LinkedIn-specific prompt engineering for different message types`);
+            console.log(`   [DATABASE] User + target profile loading from database`);
+            console.log(`   [LOG] Comprehensive logging: request ID, user ID, target ID, token usage`);
+            console.log(`   [STORE] Full message generation data stored in message_logs table`);
+            console.log(`   [TOKEN] Token usage tracking: input, output, total tokens + latency`);
+            console.log(`   [META] Target metadata extraction: first name, title, company`);
+            console.log(`   [ERROR] Robust error handling with user-friendly messages`);
+            console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
+            console.log(`   [SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
+            console.log(`   [CONNECTION] Chargebee service with connection testing`);
+            console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
+            console.log(`   [PLANS] Subscription plan management and synchronization`);
+            console.log(`   [CHECKOUT] Hosted checkout integration for seamless payments`);
+            console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management`);
+            console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
+            console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
+            console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
+            console.log(`   [MONTHLY] Monthly subscriptions: subscription_created webhook → renewable credits`);
+            console.log(`   [PAYG] One-time purchases: invoice_generated webhook (recurring: false) → PAYG credits`);
+            console.log(`   [REGISTRATION] WEBHOOK REGISTRATION COMPLETION: Automatic registration after successful payment`);
+            console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
+            console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
+            console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
+            console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
+            console.log(`   [OAUTH] New users: Welcome email after OAuth signup`);
+            console.log(`   [PAYG] PAYG users: Welcome email after one-time purchase`);
+            console.log(`   [GUARD] Database column welcome_email_sent prevents duplicates`);
+            console.log(`   [SAFE] Non-blocking: Email failures don't affect signup flow`);
+            console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
+            console.log(`   [RETRY] Automatic retry with jitter for 429/5xx errors`);
+            console.log(`   [DUAL] MailerSend API primary + SMTP fallback`);
+            console.log(`   [SUCCESS] ✅ WEBHOOK REGISTRATION COMPLETION FIX:`);
+            console.log(`   [AUTOMATIC] Registration completed automatically after successful payment`);
+            console.log(`   [STORAGE] LinkedIn URL stored in database before payment (not sessionStorage)`);
+            console.log(`   [RETRIEVAL] Webhook retrieves stored LinkedIn URL from pending_registrations table`);
+            console.log(`   [COMPLETION] Webhook calls completePendingRegistration() to finish registration`);
+            console.log(`   [RACE] No more race conditions with OAuth callbacks`);
+            console.log(`   [OAUTH] OAuth callback redirects to dashboard with registration already complete`);
+            console.log(`   [URL] LinkedIn URL never lost - persisted in database throughout payment flow`);
+            console.log(`   [ENDPOINT] /store-pending-registration: Called by sign-up page before Chargebee redirect`);
+            console.log(`   [CLEAN] Clean webhook logging: Essential information only, no debug spam`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AND AUTOMATIC WEBHOOK REGISTRATION COMPLETION!`);
+        });
+        
+    } catch (error) {
+        console.error('[ERROR] Startup failed:', error);
+        process.exit(1);
+    }
+};
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('[STOP] Gracefully shutting down...');
+    await pool.end();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('[STOP] Gracefully shutting down...');
+    await pool.end();
+    process.exit(0);
+});
+
+// Start the server
+startServer();
+
+module.exports = app;) {
         console.error('[ERROR] Error checking profile in database:', error);
         return {
             exists: false,
@@ -1597,7 +1955,7 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
-// ENHANCED: invoice_generated handler for BOTH subscription renewals AND one-time purchases + automatic registration
+// FIXED: invoice_generated handler for BOTH subscription renewals AND one-time purchases + automatic registration
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
@@ -1650,35 +2008,52 @@ async function handleInvoiceGenerated(invoice, subscription) {
             }
             
         } else if (invoice.recurring === false || !subscription) {
-            // CASE 2: One-time purchase (PAYG plans)
-            const customerEmail = invoice.customer_id;
+            // CASE 2: One-time purchase (PAYG plans) - FIXED EMAIL EXTRACTION
+            console.log('[WEBHOOK] Processing PAYG purchase...');
             
-            // Get customer details from Chargebee API if we only have customer_id
-            let customerData = null;
-            if (customerEmail && !customerEmail.includes('@')) {
-                // This is a customer_id, not email - we need to find the user differently
-                const userByCustomerId = await pool.query(`
-                    SELECT * FROM users 
+            // FIXED: Extract customer email for one-time purchases
+            let customerEmail = null;
+            
+            // Try multiple ways to get customer email
+            if (invoice.customer && invoice.customer.email) {
+                customerEmail = invoice.customer.email;
+                console.log('[WEBHOOK] Found customer email from customer object:', customerEmail);
+            } else if (invoice.billing_address && invoice.billing_address.email) {
+                customerEmail = invoice.billing_address.email;
+                console.log('[WEBHOOK] Found customer email from billing address:', customerEmail);
+            } else if (invoice.customer_id) {
+                // FIXED: If we only have customer_id, look up the user in our database
+                console.log('[WEBHOOK] Looking up user by chargebee_customer_id:', invoice.customer_id);
+                const userResult = await pool.query(`
+                    SELECT email FROM users 
                     WHERE chargebee_customer_id = $1
-                `, [customerEmail]);
+                `, [invoice.customer_id]);
                 
-                if (userByCustomerId.rows.length > 0) {
-                    customerData = { email: userByCustomerId.rows[0].email };
+                if (userResult.rows.length > 0) {
+                    customerEmail = userResult.rows[0].email;
+                    console.log('[WEBHOOK] Found customer email from database lookup:', customerEmail);
+                } else {
+                    console.log('[WEBHOOK] No user found with chargebee_customer_id:', invoice.customer_id);
                 }
-            } else if (customerEmail && customerEmail.includes('@')) {
-                // This is already an email
-                customerData = { email: customerEmail };
             }
             
-            if (!customerData) {
+            if (!customerEmail) {
                 console.error('[WEBHOOK] Cannot determine customer email for one-time purchase');
+                console.error('[WEBHOOK] Invoice data:', JSON.stringify({
+                    customer_id: invoice.customer_id,
+                    has_customer: !!invoice.customer,
+                    has_billing_address: !!invoice.billing_address,
+                    invoice_id: invoice.id
+                }));
                 return;
             }
             
-            // Find user by email
-            const user = await getUserByEmail(customerData.email);
+            console.log('[WEBHOOK] Looking for pending registration for email:', customerEmail);
+            
+            // FIXED: Convert email to userId before calling pending registration functions
+            const user = await getUserByEmail(customerEmail);
             if (!user) {
-                console.error('[WEBHOOK] User not found for one-time purchase:', customerData.email);
+                console.error('[WEBHOOK] User not found for one-time purchase:', customerEmail);
                 return;
             }
             
@@ -1713,16 +2088,28 @@ async function handleInvoiceGenerated(invoice, subscription) {
                     
                     console.log(`[WEBHOOK] PAYG credits added for user ${user.id}`);
                     
-                    // NEW: Check for pending registration and complete it automatically
+                    // FIXED: Check for pending registration and complete it automatically
+                    console.log('[WEBHOOK] Looking for pending registration for userId:', user.id);
+                    
                     const pendingReg = await getPendingRegistration(user.id);
                     if (pendingReg.success && pendingReg.data) {
                         console.log('[WEBHOOK] Found pending registration, completing automatically...');
+                        console.log('[WEBHOOK] Pending registration data:', JSON.stringify({
+                            linkedinUrl: pendingReg.data.linkedin_url,
+                            packageType: pendingReg.data.package_type,
+                            userId: user.id
+                        }));
                         
                         const completionResult = await completePendingRegistration(user.id, pendingReg.data.linkedin_url);
                         if (completionResult.success) {
                             console.log('[WEBHOOK] Registration completed automatically after PAYG payment');
                         } else {
                             console.error('[WEBHOOK] Failed to complete pending registration:', completionResult.error);
+                        }
+                    } else {
+                        console.log('[WEBHOOK] No pending registration found for user:', user.id);
+                        if (pendingReg.error) {
+                            console.log('[WEBHOOK] Pending registration error:', pendingReg.error);
                         }
                     }
                     
@@ -1757,6 +2144,9 @@ async function handleInvoiceGenerated(invoice, subscription) {
                     }
                     
                 }
+            } else {
+                console.error('[WEBHOOK] No valid plan found in invoice line items');
+                console.error('[WEBHOOK] Line items:', JSON.stringify(invoice.line_items, null, 2));
             }
         }
         
@@ -3092,361 +3482,4 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         res.json(successResponse);
         
-    } catch (error) {
-        console.log(`[REG] ========================================`);
-        console.log(`[REG] COMPLETE REGISTRATION DEBUG - ERROR`);
-        console.log(`[REG] ========================================`);
-        console.error('[REG] ❌ CRITICAL ERROR in /complete-registration:', error);
-        console.error('[REG] Error name:', error.name);
-        console.error('[REG] Error message:', error.message);
-        console.error('[REG] Error stack:', error.stack);
-        
-        if (error.code) {
-            console.error('[REG] Database error code:', error.code);
-        }
-        if (error.detail) {
-            console.error('[REG] Database error detail:', error.detail);
-        }
-        if (error.hint) {
-            console.error('[REG] Database error hint:', error.hint);
-        }
-        
-        res.status(500).json({
-            success: false,
-            error: 'Registration completion failed',
-            debug: {
-                errorName: error.name,
-                errorMessage: error.message,
-                errorCode: error.code || 'No code',
-                errorDetail: error.detail || 'No detail',
-                userId: req.user.id,
-                timestamp: new Date().toISOString()
-            },
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// ==================== REMAINING API ENDPOINTS ====================
-
-// Get Available Packages
-app.get('/packages', (req, res) => {
-    const packages = {
-        payAsYouGo: [
-            {
-                id: 'free',
-                name: 'Free',
-                credits: 7,
-                price: 0,
-                period: '/forever',
-                billing: 'monthly',
-                validity: '7 free credits monthly',
-                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
-                available: true
-            }
-        ],
-        monthly: [
-            {
-                id: 'free',
-                name: 'Free',
-                credits: 7,
-                price: 0,
-                period: '/forever',
-                billing: 'monthly',
-                validity: '7 free credits monthly',
-                features: ['7 Credits per month', 'Enhanced Chrome extension', 'DATABASE-FIRST TARGET + USER PROFILE mode', 'Advanced LinkedIn extraction', 'Engagement metrics', 'Beautiful dashboard', 'No credit card required'],
-                available: true
-            }
-        ]
-    };
-    
-    res.json({
-        success: true,
-        data: { packages }
-    });
-});
-
-// FIXED: Chargebee Connection Test Route
-app.get('/test-chargebee', async (req, res) => {
-    try {
-        console.log('[TEST] Testing Chargebee connection...');
-        
-        const result = await chargebeeService.testConnection();
-        
-        if (result.success) {
-            res.json({
-                success: true,
-                message: '✅ Chargebee connection successful!',
-                data: result.data || {
-                    siteName: 'Connected',
-                    isConfigured: chargebeeService.isConfigured
-                }
-            });
-        } else {
-            res.status(500).json({
-                success: false,
-                message: '❌ Chargebee connection failed',
-                error: result.error
-            });
-        }
-    } catch (error) {
-        console.error('[TEST] Chargebee test error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Test failed',
-            error: error.message
-        });
-    }
-});
-
-// NEW: Cleanup expired holds (run periodically)
-setInterval(async () => {
-    try {
-        await cleanupExpiredHolds();
-    } catch (error) {
-        console.error('[ERROR] Error during scheduled cleanup:', error);
-    }
-}, 30 * 60 * 1000); // Run every 30 minutes
-
-// NEW: Cleanup expired processing entries (run periodically)
-setInterval(() => {
-    const now = Date.now();
-    const expireTime = 5 * 60 * 1000; // 5 minutes
-    
-    for (const [key, timestamp] of activeProcessing.entries()) {
-        if (now - timestamp > expireTime) {
-            activeProcessing.delete(key);
-            console.log(`[RACE] Cleaned up stale processing entry: ${key}`);
-        }
-    }
-}, 60 * 1000); // Run every minute
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-    console.error('[ERROR] Unhandled Error:', error);
-    res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-});
-
-// 404 handler
-app.use((req, res, next) => {
-    res.status(404).json({
-        success: false,
-        error: 'Route not found',
-        path: req.path,
-        method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX',
-        availableRoutes: [
-            'GET /',
-            'GET /sign-up',
-            'GET /login', 
-            'GET /dashboard',
-            'GET /upgrade (NEW: Upgrade page for existing users)',
-            'GET /health',
-            'POST /register',
-            'POST /login',
-            'GET /auth/google',
-            'GET /auth/google/callback (✅ WELCOME EMAIL for new users)',
-            'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
-            'POST /complete-registration (✅ ENHANCED DEBUG LOGGING + WELCOME EMAIL for free users)',
-            'POST /store-pending-registration (NEW: Store registration data before payment)',
-            'POST /update-profile',
-            'GET /profile',
-            'GET /profile-status',
-            'GET /traffic-light-status',
-            'POST /scrape-html (Enhanced routing: USER + TARGET)',
-            'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
-            'POST /generate-message (NEW: GPT-5 integration with 1 credit dual system)',
-            'POST /generate-connection (NEW: 1 credit with dual system)',
-            'POST /generate-intro (NEW: 1 credit with dual system)',
-            'GET /user/setup-status',
-            'GET /user/initial-scraping-status',
-            'GET /user/stats',
-            'PUT /user/settings',
-            'GET /packages',
-            'GET /user/plan (NEW: Real plan data - NO MOCK!)',
-            'GET /credits/balance (NEW: Dual credit management)',
-            'GET /credits/history (NEW: Transaction history)',
-            'GET /test-chargebee (NEW: Test Chargebee connection)',
-            'POST /chargebee-webhook (ENHANCED: Automatic registration completion + clean logging)',
-            'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
-        ]
-    });
-});
-
-// ==================== SERVER STARTUP ====================
-
-const startServer = async () => {
-    try {
-        validateEnvironment();
-        
-        const dbOk = await testDatabase();
-        if (!dbOk) {
-            console.error('[ERROR] Cannot start server without database');
-            process.exit(1);
-        }
-        
-        // NEW: Auto-create welcome_email_sent column if it doesn't exist
-        try {
-            console.log('[DB] Checking welcome_email_sent column...');
-            const columnCheck = await pool.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'users' 
-                AND column_name = 'welcome_email_sent'
-            `);
-
-            if (columnCheck.rows.length === 0) {
-                console.log('[DB] Creating welcome_email_sent column...');
-                await pool.query(`
-                    ALTER TABLE users 
-                    ADD COLUMN welcome_email_sent BOOLEAN DEFAULT FALSE
-                `);
-                console.log('[DB] ✅ welcome_email_sent column created successfully');
-            } else {
-                console.log('[DB] ✅ welcome_email_sent column already exists');
-            }
-        } catch (columnError) {
-            console.error('[DB] Warning: Could not create welcome_email_sent column:', columnError.message);
-            console.error('[DB] MailerSend will use in-memory guard instead');
-        }
-        
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION ACTIVE!');
-            console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS`);
-            console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
-            console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
-            console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
-            console.log(`[SUCCESS] ✅ RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
-            console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
-            console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
-            console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
-            console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation`);
-            console.log(`[SUCCESS] ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion after payment`);
-            console.log(`[SUCCESS] ✅ PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
-            console.log(`[SUCCESS] ✅ CLEAN WEBHOOK LOGGING: Removed excessive debug output`);
-            console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
-            console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
-            console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
-            console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
-            console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
-            console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX:`);
-            console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
-            console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
-            console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
-            console.log(`   [RACE] BULLETPROOF PROTECTION: No duplicate AI processing or credit charges`);
-            console.log(`   [URL] URL MATCHING FIX: Handles both clean and protocol URLs in database`);
-            console.log(`   [GPT] GPT-5 MESSAGE GENERATION: Real AI-powered LinkedIn messages`);
-            console.log(`   [PAYMENT] CHARGEBEE INTEGRATION: Subscription and payment processing`);
-            console.log(`   [EMAIL] MAILERSEND INTEGRATION: Welcome emails for all users`);
-            console.log(`   [WEBHOOK] REGISTRATION COMPLETION: Automatic registration after payment in webhooks`);
-            console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored before payment, retrieved by webhooks`);
-            console.log(`   [CLEAN] CLEAN WEBHOOK LOGGING: Professional logging without excessive debug output`);
-            console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
-            console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
-            console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation with full logging`);
-            console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation`);
-            console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation`);
-            console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
-            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion`);
-            console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
-            console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
-            console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
-            console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
-            console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
-            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion`);
-            console.log(`   [DB] Database: user_profiles table for USER profiles`);
-            console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
-            console.log(`   [PENDING] Database: pending_registrations table for pre-payment storage`);
-            console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
-            console.log(`   [LIGHT] Traffic Light system tracks User profile completion only`);
-            console.log(`[CREDIT] DUAL CREDIT SYSTEM:`);
-            console.log(`   [CYCLE] RENEWABLE CREDITS: Reset monthly to plan amount`);
-            console.log(`   [INFINITY] PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
-            console.log(`   [MONEY] SPENDING ORDER: Pay-as-you-go first, then renewable`);
-            console.log(`   [CALENDAR] BILLING CYCLE: Only renewable credits reset`);
-            console.log(`   [TARGET] Target Analysis: 0.25 credits (only for NEW profiles)`);
-            console.log(`   [BOOM] Already Analyzed: FREE with marketing message`);
-            console.log(`   [MESSAGE] Message Generation: 1.0 credits (GPT-5 powered)`);
-            console.log(`   [CONNECT] Connection Generation: 1.0 credits`);
-            console.log(`   [INTRO] Intro Generation: 1.0 credits`);
-            console.log(`   [LOCK] Credit holds prevent double-spending`);
-            console.log(`   [MONEY] Deduction AFTER successful operations`);
-            console.log(`   [DATA] Complete transaction audit trail`);
-            console.log(`   [LIGHTNING] Real-time credit balance updates`);
-            console.log(`   [CLEAN] Automatic cleanup of expired holds`);
-            console.log(`   [SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
-            console.log(`   [API] OpenAI GPT-5 integration with proper error handling`);
-            console.log(`   [PROMPT] LinkedIn-specific prompt engineering for different message types`);
-            console.log(`   [DATABASE] User + target profile loading from database`);
-            console.log(`   [LOG] Comprehensive logging: request ID, user ID, target ID, token usage`);
-            console.log(`   [STORE] Full message generation data stored in message_logs table`);
-            console.log(`   [TOKEN] Token usage tracking: input, output, total tokens + latency`);
-            console.log(`   [META] Target metadata extraction: first name, title, company`);
-            console.log(`   [ERROR] Robust error handling with user-friendly messages`);
-            console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
-            console.log(`   [SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
-            console.log(`   [CONNECTION] Chargebee service with connection testing`);
-            console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
-            console.log(`   [PLANS] Subscription plan management and synchronization`);
-            console.log(`   [CHECKOUT] Hosted checkout integration for seamless payments`);
-            console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management`);
-            console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
-            console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
-            console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
-            console.log(`   [MONTHLY] Monthly subscriptions: subscription_created webhook → renewable credits`);
-            console.log(`   [PAYG] One-time purchases: invoice_generated webhook (recurring: false) → PAYG credits`);
-            console.log(`   [REGISTRATION] WEBHOOK REGISTRATION COMPLETION: Automatic registration after successful payment`);
-            console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
-            console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
-            console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
-            console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
-            console.log(`   [OAUTH] New users: Welcome email after OAuth signup`);
-            console.log(`   [PAYG] PAYG users: Welcome email after one-time purchase`);
-            console.log(`   [GUARD] Database column welcome_email_sent prevents duplicates`);
-            console.log(`   [SAFE] Non-blocking: Email failures don't affect signup flow`);
-            console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
-            console.log(`   [RETRY] Automatic retry with jitter for 429/5xx errors`);
-            console.log(`   [DUAL] MailerSend API primary + SMTP fallback`);
-            console.log(`   [SUCCESS] ✅ WEBHOOK REGISTRATION COMPLETION FIX:`);
-            console.log(`   [AUTOMATIC] Registration completed automatically after successful payment`);
-            console.log(`   [STORAGE] LinkedIn URL stored in database before payment (not sessionStorage)`);
-            console.log(`   [RETRIEVAL] Webhook retrieves stored LinkedIn URL from pending_registrations table`);
-            console.log(`   [COMPLETION] Webhook calls completePendingRegistration() to finish registration`);
-            console.log(`   [RACE] No more race conditions with OAuth callbacks`);
-            console.log(`   [OAUTH] OAuth callback redirects to dashboard with registration already complete`);
-            console.log(`   [URL] LinkedIn URL never lost - persisted in database throughout payment flow`);
-            console.log(`   [ENDPOINT] /store-pending-registration: Called by sign-up page before Chargebee redirect`);
-            console.log(`   [CLEAN] Clean webhook logging: Essential information only, no debug spam`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AND AUTOMATIC WEBHOOK REGISTRATION COMPLETION!`);
-        });
-        
-    } catch (error) {
-        console.error('[ERROR] Startup failed:', error);
-        process.exit(1);
-    }
-};
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('[STOP] Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-    console.log('[STOP] Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-// Start the server
-startServer();
-
-module.exports = app;
+    } catch (error
