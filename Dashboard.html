@@ -1243,7 +1243,7 @@
                     <i class="fas fa-user-circle"></i>
                     <span class="nav-item-text">Profile</span>
                 </a>
-                <a href="#" class="nav-item" onclick="showSection('billing')">
+                <a href="#" class="nav-item" onclick="openBillingPortal()">
                     <i class="fas fa-credit-card"></i>
                     <span class="nav-item-text">Billing</span>
                 </a>
@@ -1326,7 +1326,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1523,7 +1523,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard — Coming Soon</h3>
+                            <h3>Analytics Dashboard – Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1555,13 +1555,13 @@
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
 
-        // ✅ CLEANED: Simplified initialization - webhook handles registration
+        // Simplified initialization - webhook handles registration
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[DASHBOARD] Page loaded - starting authentication...');
             checkAuthentication();
         });
 
-        // ✅ CLEANED: Handle URL parameters for upgrade status only
+        // Handle URL parameters for upgrade status only
         function checkUpgradeStatus() {
             const urlParams = new URLSearchParams(window.location.search);
             const upgradeStatus = urlParams.get('upgrade');
@@ -1649,6 +1649,11 @@
             }
         }
 
+        // BILLING PORTAL FUNCTION - Opens Chargebee portal in new tab
+        function openBillingPortal() {
+            window.open('https://chopa.chargebeeportal.com', '_blank');
+        }
+
         // Authentication check - ENHANCED with upgrade status check
         async function checkAuthentication() {
             const token = getAuthToken();
@@ -1719,7 +1724,7 @@
             }
         }
 
-        // ✅ CLEANED: Simplified populateDashboard - no fallback registration logic
+        // Simplified populateDashboard - no fallback registration logic
         function populateDashboard(data) {
             const { user, profile, syncStatus } = data;
             
@@ -1922,7 +1927,7 @@
             document.getElementById('messagesSent').textContent = '0'; // TODO: Get from API
         }
 
-        // TRAFFIC LIGHT FUNCTIONS - UNCHANGED
+        // TRAFFIC LIGHT FUNCTIONS
         function hideAllWarnings() {
             document.getElementById('redWarning').style.display = 'none';
             document.getElementById('orangeWarning').style.display = 'none';
@@ -1996,7 +2001,7 @@
             }, 1000);
         }
 
-        // FULL PROFILE VIEW FUNCTIONS - UNCHANGED
+        // FULL PROFILE VIEW FUNCTIONS
         function showFullProfile() {
             if (trafficLightStatus !== 'green') {
                 alert('Please complete your profile sync first to view your full profile.');
@@ -2209,8 +2214,9 @@
             }
         }
 
+        // UPDATED: upgradeAccount now opens billing portal
         function upgradeAccount() {
-            alert('Upgrade functionality coming soon! Premium plans will be available shortly.');
+            window.open('https://chopa.chargebeeportal.com', '_blank');
         }
 
         function downloadChromeExtension() {
