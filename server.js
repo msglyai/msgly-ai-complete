@@ -24,7 +24,6 @@ CHANGELOG - server.js:
 17. WEBHOOK REGISTRATION FIX: Added automatic registration completion in webhooks
 18. NEW: Added /store-pending-registration endpoint for sign-up page
 19. CLEANUP: Removed excessive webhook debug logging
-20. PAYG EMAIL FIX: Fixed customer email extraction for PAYG purchases in webhooks
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX
@@ -1598,7 +1597,7 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
-// FIXED: Enhanced invoice_generated handler for BOTH subscription renewals AND one-time purchases + automatic registration
+// ENHANCED: invoice_generated handler for BOTH subscription renewals AND one-time purchases + automatic registration
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
@@ -1651,47 +1650,35 @@ async function handleInvoiceGenerated(invoice, subscription) {
             }
             
         } else if (invoice.recurring === false || !subscription) {
-            // CASE 2: One-time purchase (PAYG plans) - FIXED EMAIL EXTRACTION
-            console.log('[WEBHOOK] Processing PAYG purchase...');
+            // CASE 2: One-time purchase (PAYG plans)
+            const customerEmail = invoice.customer_id;
             
-            // FIXED: Enhanced customer email extraction for one-time purchases
-            let customerEmail = null;
-            const content = { customer: null, invoice: invoice };
-            
-            // Try multiple ways to get customer email
-            if (content.customer && content.customer.email) {
-                customerEmail = content.customer.email;
-                console.log('[WEBHOOK] Found customer email from customer object:', customerEmail);
-            } else if (content.invoice && content.invoice.billing_address && content.invoice.billing_address.email) {
-                customerEmail = content.invoice.billing_address.email;
-                console.log('[WEBHOOK] Found customer email from billing address:', customerEmail);
-            } else if (content.invoice && content.invoice.customer_id) {
-                // Try to find user by chargebee_customer_id
-                console.log('[WEBHOOK] Looking up user by chargebee_customer_id:', content.invoice.customer_id);
-                const userQuery = 'SELECT email FROM users WHERE chargebee_customer_id = $1';
-                const userResult = await pool.query(userQuery, [content.invoice.customer_id]);
+            // Get customer details from Chargebee API if we only have customer_id
+            let customerData = null;
+            if (customerEmail && !customerEmail.includes('@')) {
+                // This is a customer_id, not email - we need to find the user differently
+                const userByCustomerId = await pool.query(`
+                    SELECT * FROM users 
+                    WHERE chargebee_customer_id = $1
+                `, [customerEmail]);
                 
-                if (userResult.rows.length > 0) {
-                    customerEmail = userResult.rows[0].email;
-                    console.log('[WEBHOOK] Found customer email from database lookup:', customerEmail);
+                if (userByCustomerId.rows.length > 0) {
+                    customerData = { email: userByCustomerId.rows[0].email };
                 }
+            } else if (customerEmail && customerEmail.includes('@')) {
+                // This is already an email
+                customerData = { email: customerEmail };
             }
-
-            if (!customerEmail) {
+            
+            if (!customerData) {
                 console.error('[WEBHOOK] Cannot determine customer email for one-time purchase');
-                console.error('[WEBHOOK] Debug info:', {
-                    hasCustomer: !!content.customer,
-                    hasInvoice: !!content.invoice,
-                    customerId: content.invoice?.customer_id,
-                    billingAddress: content.invoice?.billing_address
-                });
                 return;
             }
             
             // Find user by email
-            const user = await getUserByEmail(customerEmail);
+            const user = await getUserByEmail(customerData.email);
             if (!user) {
-                console.error('[WEBHOOK] User not found for one-time purchase:', customerEmail);
+                console.error('[WEBHOOK] User not found for one-time purchase:', customerData.email);
                 return;
             }
             
@@ -1726,15 +1713,10 @@ async function handleInvoiceGenerated(invoice, subscription) {
                     
                     console.log(`[WEBHOOK] PAYG credits added for user ${user.id}`);
                     
-                    // Check for pending registration and complete it automatically
-                    console.log('[WEBHOOK] Looking for pending registration for user:', user.id);
+                    // NEW: Check for pending registration and complete it automatically
                     const pendingReg = await getPendingRegistration(user.id);
                     if (pendingReg.success && pendingReg.data) {
                         console.log('[WEBHOOK] Found pending registration, completing automatically...');
-                        console.log('[WEBHOOK] Pending registration data:', {
-                            linkedinUrl: pendingReg.data.linkedin_url,
-                            packageType: pendingReg.data.package_type
-                        });
                         
                         const completionResult = await completePendingRegistration(user.id, pendingReg.data.linkedin_url);
                         if (completionResult.success) {
@@ -1742,8 +1724,6 @@ async function handleInvoiceGenerated(invoice, subscription) {
                         } else {
                             console.error('[WEBHOOK] Failed to complete pending registration:', completionResult.error);
                         }
-                    } else {
-                        console.log('[WEBHOOK] No pending registration found for user:', user.id);
                     }
                     
                     // NEW: Send welcome email for PAYG users (NON-BLOCKING)
@@ -2617,7 +2597,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_PAYG_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION'
                 }
             }
         });
@@ -2695,7 +2675,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + PAYG FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION'
             };
         }
 
@@ -2793,7 +2773,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     responseStatus: profile.response_status
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_PAYG_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION'
             }
         });
     } catch (error) {
@@ -2845,7 +2825,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_PAYG_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2863,6 +2843,112 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         console.log(`[REG] COMPLETE REGISTRATION DEBUG - START`);
         console.log(`[REG] ========================================`);
         console.log(`[REG] Complete registration request from user ${req.user.id}`);
+        console.log('[REG] Request method:', req.method);
+        console.log('[REG] Request headers:', JSON.stringify({
+            'content-type': req.headers['content-type'],
+            'authorization': req.headers['authorization'] ? 'Bearer ***' : 'None',
+            'origin': req.headers.origin
+        }, null, 2));
+        console.log('[REG] Request body keys:', Object.keys(req.body));
+        console.log('[REG] Request body data:', JSON.stringify(req.body, null, 2));
+        console.log('[REG] User object from auth:', JSON.stringify({
+            id: req.user.id,
+            email: req.user.email,
+            displayName: req.user.display_name,
+            packageType: req.user.package_type,
+            registrationCompleted: req.user.registration_completed,
+            linkedinUrl: req.user.linkedin_url
+        }, null, 2));
+        
+        const { linkedinUrl, packageType, termsAccepted } = req.body;
+        
+        console.log('[REG] Extracted values from request body:');
+        console.log('  - linkedinUrl:', linkedinUrl);
+        console.log('  - packageType:', packageType);
+        console.log('  - termsAccepted:', termsAccepted);
+        console.log('  - linkedinUrl type:', typeof linkedinUrl);
+        console.log('  - packageType type:', typeof packageType);
+        console.log('  - termsAccepted type:', typeof termsAccepted);
+        console.log('  - linkedinUrl truthy:', !!linkedinUrl);
+        console.log('  - packageType truthy:', !!packageType);
+        console.log('  - termsAccepted truthy:', !!termsAccepted);
+        
+        // VALIDATION STEP 1: Check required fields
+        console.log('[REG] VALIDATION STEP 1: Checking required fields...');
+        if (!linkedinUrl) {
+            console.log('[REG] ❌ VALIDATION FAILED: linkedinUrl is missing');
+            return res.status(400).json({
+                success: false,
+                error: 'LinkedIn URL is required',
+                received: { linkedinUrl, packageType, termsAccepted }
+            });
+        }
+        
+        if (!packageType) {
+            console.log('[REG] ❌ VALIDATION FAILED: packageType is missing');
+            return res.status(400).json({
+                success: false,
+                error: 'Package type is required',
+                received: { linkedinUrl, packageType, termsAccepted }
+            });
+        }
+        
+        if (!termsAccepted) {
+            console.log('[REG] ❌ VALIDATION FAILED: termsAccepted is missing');
+            return res.status(400).json({
+                success: false,
+                error: 'Terms acceptance is required',
+                received: { linkedinUrl, packageType, termsAccepted }
+            });
+        }
+        
+        console.log('[REG] ✅ VALIDATION STEP 1: All required fields present');
+        
+        // VALIDATION STEP 2: Check LinkedIn URL format
+        console.log('[REG] VALIDATION STEP 2: Validating LinkedIn URL format...');
+        console.log('[REG] Raw LinkedIn URL:', linkedinUrl);
+        console.log('[REG] About to call isValidLinkedInUrl...');
+        
+        const isValidUrl = isValidLinkedInUrl(linkedinUrl);
+        console.log('[REG] isValidLinkedInUrl result:', isValidUrl);
+        
+        if (!isValidUrl) {
+            console.log('[REG] ❌ VALIDATION FAILED: Invalid LinkedIn URL format');
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid LinkedIn URL format',
+                received: { linkedinUrl, packageType, termsAccepted }
+            });
+        }
+        
+        console.log('[REG] ✅ VALIDATION STEP 2: LinkedIn URL format is valid');
+        
+        // VALIDATION STEP 3: Clean URL
+        console.log('[REG] VALIDATION STEP 3: Cleaning LinkedIn URL...');
+        console.log('[REG] About to call cleanLinkedInUrl...');
+        
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
+        console.log('[REG] Cleaned URL:', cleanUrl);
+        console.log('[REG] ✅ VALIDATION STEP 3: URL cleaned successfully');
+        
+        // DATABASE STEP 1: Check current user state
+        console.log('[REG] DATABASE STEP 1: Checking current user state...');
+        const currentUserQuery = `
+            SELECT 
+                id,
+                email,
+                linkedin_url,
+                package_type,
+                registration_completed,
+                terms_accepted,
+                plan_code,
+                renewable_credits,
+                payasyougo_credits,
+                subscription_status
+            FROM users 
+            WHERE id = $1
+        `;
+        
         console.log('[REG] About to execute user state query...');
         const currentUserResult = await pool.query(currentUserQuery, [req.user.id]);
         console.log('[REG] User state query executed successfully');
@@ -3152,7 +3238,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + PAYG EMAIL FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -3185,7 +3271,7 @@ app.use((req, res, next) => {
             'GET /credits/balance (NEW: Dual credit management)',
             'GET /credits/history (NEW: Transaction history)',
             'GET /test-chargebee (NEW: Test Chargebee connection)',
-            'POST /chargebee-webhook (ENHANCED: Automatic registration completion + clean logging + PAYG email fix)',
+            'POST /chargebee-webhook (ENHANCED: Automatic registration completion + clean logging)',
             'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
         ]
     });
@@ -3229,7 +3315,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + PAYG EMAIL FIX ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -3242,7 +3328,6 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
             console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation`);
             console.log(`[SUCCESS] ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion after payment`);
-            console.log(`[SUCCESS] ✅ PAYG EMAIL FIX: Fixed customer email extraction for PAYG purchases`);
             console.log(`[SUCCESS] ✅ PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
             console.log(`[SUCCESS] ✅ CLEAN WEBHOOK LOGGING: Removed excessive debug output`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
@@ -3251,7 +3336,7 @@ const startServer = async () => {
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
             console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
             console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + PAYG EMAIL FIX:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -3261,7 +3346,6 @@ const startServer = async () => {
             console.log(`   [PAYMENT] CHARGEBEE INTEGRATION: Subscription and payment processing`);
             console.log(`   [EMAIL] MAILERSEND INTEGRATION: Welcome emails for all users`);
             console.log(`   [WEBHOOK] REGISTRATION COMPLETION: Automatic registration after payment in webhooks`);
-            console.log(`   [PAYG] PAYG EMAIL FIX: Fixed customer email extraction for one-time purchases`);
             console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored before payment, retrieved by webhooks`);
             console.log(`   [CLEAN] CLEAN WEBHOOK LOGGING: Professional logging without excessive debug output`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
@@ -3270,13 +3354,13 @@ const startServer = async () => {
             console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation`);
             console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation`);
             console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
-            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion + PAYG email fix`);
+            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
             console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
             console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
-            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion + PAYG support`);
+            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion`);
             console.log(`   [DB] Database: user_profiles table for USER profiles`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [PENDING] Database: pending_registrations table for pre-payment storage`);
@@ -3319,30 +3403,28 @@ const startServer = async () => {
             console.log(`   [MONTHLY] Monthly subscriptions: subscription_created webhook → renewable credits`);
             console.log(`   [PAYG] One-time purchases: invoice_generated webhook (recurring: false) → PAYG credits`);
             console.log(`   [REGISTRATION] WEBHOOK REGISTRATION COMPLETION: Automatic registration after successful payment`);
-            console.log(`   [PAYG] PAYG EMAIL FIX: Enhanced customer email extraction for one-time purchases`);
             console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
             console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
             console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
             console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
             console.log(`   [OAUTH] New users: Welcome email after OAuth signup`);
-            console.log(`   [PAYG] PAYG users: Welcome email after one-time purchase + improved email extraction`);
+            console.log(`   [PAYG] PAYG users: Welcome email after one-time purchase`);
             console.log(`   [GUARD] Database column welcome_email_sent prevents duplicates`);
             console.log(`   [SAFE] Non-blocking: Email failures don't affect signup flow`);
             console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
             console.log(`   [RETRY] Automatic retry with jitter for 429/5xx errors`);
             console.log(`   [DUAL] MailerSend API primary + SMTP fallback`);
-            console.log(`   [SUCCESS] ✅ WEBHOOK REGISTRATION COMPLETION FIX + PAYG EMAIL FIX:`);
+            console.log(`   [SUCCESS] ✅ WEBHOOK REGISTRATION COMPLETION FIX:`);
             console.log(`   [AUTOMATIC] Registration completed automatically after successful payment`);
             console.log(`   [STORAGE] LinkedIn URL stored in database before payment (not sessionStorage)`);
             console.log(`   [RETRIEVAL] Webhook retrieves stored LinkedIn URL from pending_registrations table`);
             console.log(`   [COMPLETION] Webhook calls completePendingRegistration() to finish registration`);
-            console.log(`   [PAYG] PAYG EMAIL FIX: Enhanced customer email extraction for one-time purchases`);
             console.log(`   [RACE] No more race conditions with OAuth callbacks`);
             console.log(`   [OAUTH] OAuth callback redirects to dashboard with registration already complete`);
             console.log(`   [URL] LinkedIn URL never lost - persisted in database throughout payment flow`);
             console.log(`   [ENDPOINT] /store-pending-registration: Called by sign-up page before Chargebee redirect`);
             console.log(`   [CLEAN] Clean webhook logging: Essential information only, no debug spam`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG EMAIL FIX, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AND AUTOMATIC WEBHOOK REGISTRATION COMPLETION!`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AND AUTOMATIC WEBHOOK REGISTRATION COMPLETION!`);
         });
         
     } catch (error) {
@@ -3367,110 +3449,4 @@ process.on('SIGINT', async () => {
 // Start the server
 startServer();
 
-module.exports = app; Request method:', req.method);
-        console.log('[REG] Request headers:', JSON.stringify({
-            'content-type': req.headers['content-type'],
-            'authorization': req.headers['authorization'] ? 'Bearer ***' : 'None',
-            'origin': req.headers.origin
-        }, null, 2));
-        console.log('[REG] Request body keys:', Object.keys(req.body));
-        console.log('[REG] Request body data:', JSON.stringify(req.body, null, 2));
-        console.log('[REG] User object from auth:', JSON.stringify({
-            id: req.user.id,
-            email: req.user.email,
-            displayName: req.user.display_name,
-            packageType: req.user.package_type,
-            registrationCompleted: req.user.registration_completed,
-            linkedinUrl: req.user.linkedin_url
-        }, null, 2));
-        
-        const { linkedinUrl, packageType, termsAccepted } = req.body;
-        
-        console.log('[REG] Extracted values from request body:');
-        console.log('  - linkedinUrl:', linkedinUrl);
-        console.log('  - packageType:', packageType);
-        console.log('  - termsAccepted:', termsAccepted);
-        console.log('  - linkedinUrl type:', typeof linkedinUrl);
-        console.log('  - packageType type:', typeof packageType);
-        console.log('  - termsAccepted type:', typeof termsAccepted);
-        console.log('  - linkedinUrl truthy:', !!linkedinUrl);
-        console.log('  - packageType truthy:', !!packageType);
-        console.log('  - termsAccepted truthy:', !!termsAccepted);
-        
-        // VALIDATION STEP 1: Check required fields
-        console.log('[REG] VALIDATION STEP 1: Checking required fields...');
-        if (!linkedinUrl) {
-            console.log('[REG] ❌ VALIDATION FAILED: linkedinUrl is missing');
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required',
-                received: { linkedinUrl, packageType, termsAccepted }
-            });
-        }
-        
-        if (!packageType) {
-            console.log('[REG] ❌ VALIDATION FAILED: packageType is missing');
-            return res.status(400).json({
-                success: false,
-                error: 'Package type is required',
-                received: { linkedinUrl, packageType, termsAccepted }
-            });
-        }
-        
-        if (!termsAccepted) {
-            console.log('[REG] ❌ VALIDATION FAILED: termsAccepted is missing');
-            return res.status(400).json({
-                success: false,
-                error: 'Terms acceptance is required',
-                received: { linkedinUrl, packageType, termsAccepted }
-            });
-        }
-        
-        console.log('[REG] ✅ VALIDATION STEP 1: All required fields present');
-        
-        // VALIDATION STEP 2: Check LinkedIn URL format
-        console.log('[REG] VALIDATION STEP 2: Validating LinkedIn URL format...');
-        console.log('[REG] Raw LinkedIn URL:', linkedinUrl);
-        console.log('[REG] About to call isValidLinkedInUrl...');
-        
-        const isValidUrl = isValidLinkedInUrl(linkedinUrl);
-        console.log('[REG] isValidLinkedInUrl result:', isValidUrl);
-        
-        if (!isValidUrl) {
-            console.log('[REG] ❌ VALIDATION FAILED: Invalid LinkedIn URL format');
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid LinkedIn URL format',
-                received: { linkedinUrl, packageType, termsAccepted }
-            });
-        }
-        
-        console.log('[REG] ✅ VALIDATION STEP 2: LinkedIn URL format is valid');
-        
-        // VALIDATION STEP 3: Clean URL
-        console.log('[REG] VALIDATION STEP 3: Cleaning LinkedIn URL...');
-        console.log('[REG] About to call cleanLinkedInUrl...');
-        
-        const cleanUrl = cleanLinkedInUrl(linkedinUrl);
-        console.log('[REG] Cleaned URL:', cleanUrl);
-        console.log('[REG] ✅ VALIDATION STEP 3: URL cleaned successfully');
-        
-        // DATABASE STEP 1: Check current user state
-        console.log('[REG] DATABASE STEP 1: Checking current user state...');
-        const currentUserQuery = `
-            SELECT 
-                id,
-                email,
-                linkedin_url,
-                package_type,
-                registration_completed,
-                terms_accepted,
-                plan_code,
-                renewable_credits,
-                payasyougo_credits,
-                subscription_status
-            FROM users 
-            WHERE id = $1
-        `;
-        
-        console.log('[REG]
+module.exports = app;
