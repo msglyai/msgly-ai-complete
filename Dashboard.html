@@ -1516,7 +1516,7 @@
                 </a>
                 <a href="#" class="nav-item" onclick="showSection('linkedin-profile')">
                     <i class="fab fa-linkedin"></i>
-                    <span class="nav-item-text">Msgly Profile</span>
+                    <span class="nav-item-text">LinkedIn Profile</span>
                 </a>
             </div>
 
@@ -1609,7 +1609,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1795,7 +1795,7 @@
                             <div class="card-icon">
                                 <i class="fab fa-linkedin"></i>
                             </div>
-                            <h3 class="card-title">Msgly Profile Summary</h3>
+                            <h3 class="card-title">LinkedIn Profile Summary</h3>
                         </div>
                         
                         <div class="profile-summary">
@@ -1834,7 +1834,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard – Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1847,7 +1847,7 @@
                     <div class="full-profile-icon">
                         <i class="fas fa-user-circle"></i>
                     </div>
-                    <h2 class="full-profile-title">Complete Msgly Profile</h2>
+                    <h2 class="full-profile-title">Complete LinkedIn Profile</h2>
                     <button class="full-profile-close" onclick="hideFullProfile()">
                         <i class="fas fa-times"></i>
                     </button>
@@ -2228,15 +2228,15 @@
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
+                    profileSyncStatusEl.textContent = '✅ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2319,33 +2319,26 @@
                 planBadge.style.background = 'linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%)';
             }
 
-            // CRITICAL FIX: Use proper dual credit calculation
-            const renewableCredits = parseFloat(user.renewableCredits || 0);
-            const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
-            const totalCredits = renewableCredits + payasyougoCredits;
+            const totalCredits = user.credits || 0;
+            const renewableCredits = user.renewableCredits || 0;
+            const payasyougoCredits = user.payasyougoCredits || 0;
             
-            // Always show exactly 2 decimal places
-            document.getElementById('creditsRemaining').textContent = totalCredits.toFixed(2);
-            
-            // Debug logging to verify correct calculation
-            console.log('[CREDIT_FIX] Renewable:', renewableCredits.toFixed(2));
-            console.log('[CREDIT_FIX] PayAsYouGo:', payasyougoCredits.toFixed(2));
-            console.log('[CREDIT_FIX] Total:', totalCredits.toFixed(2));
+            document.getElementById('creditsRemaining').textContent = totalCredits;
             
             const creditBreakdownEl = document.getElementById('creditBreakdown');
             const renewalInfoEl = document.getElementById('renewalInfo');
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
-                creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
+                creditBreakdownEl.textContent = `${payasyougoCredits} PAYG + ${renewableCredits} Monthly`;
                 renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
-                creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
+                creditBreakdownEl.textContent = `${payasyougoCredits} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
             } else if (renewableCredits > 0) {
-                creditBreakdownEl.textContent = `${renewableCredits.toFixed(2)} Monthly credits`;
+                creditBreakdownEl.textContent = `${renewableCredits} Monthly credits`;
                 renewalInfoEl.textContent = `Refreshes monthly`;
             } else {
-                creditBreakdownEl.textContent = `${totalCredits.toFixed(2)} Credits`;
+                creditBreakdownEl.textContent = `${totalCredits} Credits`;
                 renewalInfoEl.textContent = `Usage-based credits`;
             }
 
