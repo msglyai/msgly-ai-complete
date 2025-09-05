@@ -301,7 +301,7 @@
             display: inline-block;
         }
 
-        /* Target Profile */
+        /* Target Profile - FIXED: Show first name only */
         .target-profile {
             display: flex;
             flex-direction: column;
@@ -808,7 +808,7 @@
         let currentSearchTerm = '';
         let pendingChanges = new Map();
 
-        // Enhanced Mock Messages Data
+        // Enhanced Mock Messages Data - FIXED: First name only
         const mockMessagesData = [
             {
                 id: 1,
@@ -924,7 +924,7 @@
             }
         ];
 
-        // Authentication check
+        // FIXED: Authentication check
         document.addEventListener('DOMContentLoaded', function() {
             if (!checkAuthentication()) {
                 return; // Redirect will happen in checkAuthentication
@@ -935,7 +935,7 @@
         function checkAuthentication() {
             const token = getAuthToken();
             if (!token) {
-                // Redirect to dashboard or login
+                // Redirect to dashboard with login prompt
                 window.location.href = '/dashboard';
                 return false;
             }
@@ -1047,7 +1047,7 @@
                 </td>
                 <td class="col-target">
                     <div class="target-profile">
-                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-name">${message.targetProfile.firstName}</div>
                         <div class="target-role">${message.targetProfile.role}</div>
                         <div class="target-company">${message.targetProfile.company}</div>
                     </div>
@@ -1093,7 +1093,7 @@
             card.innerHTML = `
                 <div class="message-card-header">
                     <div class="card-target-profile">
-                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-name">${message.targetProfile.firstName}</div>
                         <div class="target-role">${message.targetProfile.role}</div>
                         <div class="target-company">${message.targetProfile.company}</div>
                     </div>
