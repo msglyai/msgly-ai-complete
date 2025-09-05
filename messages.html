@@ -924,7 +924,7 @@
             }
         ];
 
-        // FIXED: Authentication check
+        // FIXED: Authentication check and data loading
         document.addEventListener('DOMContentLoaded', function() {
             if (!checkAuthentication()) {
                 return; // Redirect will happen in checkAuthentication
@@ -946,23 +946,39 @@
             return localStorage.getItem('authToken');
         }
 
+        // FIXED: Authentication-aware data loading
         async function loadMessagesData() {
             try {
                 // Show loading state
                 document.getElementById('loadingState').style.display = 'flex';
                 
-                // API INTEGRATION POINT: Replace with actual API call
+                // Check auth token
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/dashboard';
+                    return;
+                }
+                
+                // FUTURE: Replace with actual API call when backend is ready
                 // const response = await fetch('https://api.msgly.ai/messages', {
                 //     method: 'GET',
                 //     headers: {
-                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Authorization': `Bearer ${token}`,
                 //         'Content-Type': 'application/json'
                 //     }
                 // });
+                
+                // if (response.status === 401) {
+                //     // Token expired, redirect to login
+                //     localStorage.removeItem('authToken');
+                //     window.location.href = '/dashboard';
+                //     return;
+                // }
+                
                 // const data = await response.json();
                 // messagesData = data.success ? data.data : [];
 
-                // Simulate API delay
+                // Simulate API delay for now
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // For now, use mock data
@@ -971,6 +987,14 @@
                 
             } catch (error) {
                 console.error('[MESSAGES] Error loading messages:', error);
+                
+                // Check if it's an authentication error
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/dashboard';
+                    return;
+                }
+                
                 showEmptyState();
             }
         }
@@ -1230,6 +1254,7 @@
             saveButtons.forEach(btn => btn.classList.add('modified'));
         }
 
+        // FIXED: Authentication-aware save function
         async function saveMessage(messageId) {
             const message = messagesData.find(m => m.id === messageId);
             if (!message || !pendingChanges.has(messageId)) return;
@@ -1242,11 +1267,18 @@
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 });
                 
-                // API INTEGRATION POINT: Replace with actual API call
+                // Check authentication before making API call
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/dashboard';
+                    return;
+                }
+                
+                // FUTURE: Replace with actual API call when backend is ready
                 // await fetch(`https://api.msgly.ai/messages/${messageId}`, {
                 //     method: 'PUT',
                 //     headers: { 
-                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Authorization': `Bearer ${token}`,
                 //         'Content-Type': 'application/json'
                 //     },
                 //     body: JSON.stringify({
@@ -1256,6 +1288,7 @@
                 //     })
                 // });
                 
+                // Simulate API delay for now
                 await new Promise(resolve => setTimeout(resolve, 800));
                 
                 saveButtons.forEach(btn => {
@@ -1283,6 +1316,13 @@
                 
             } catch (error) {
                 console.error('[MESSAGES] Error saving message:', error);
+                
+                // Check if it's an authentication error
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/dashboard';
+                    return;
+                }
                 
                 saveButtons.forEach(btn => {
                     btn.classList.remove('saving');
