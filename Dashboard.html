@@ -1317,6 +1317,190 @@
             text-align: right;
         }
 
+        /* NEW: Personal Information Section Styles */
+        .personal-info-section {
+            background: var(--light-purple);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border: 2px solid rgba(128, 57, 223, 0.15);
+        }
+
+        .personal-info-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .personal-info-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-purple);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .personal-info-toggle {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .personal-info-toggle:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .personal-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .personal-info-item {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 1rem;
+            border-left: 4px solid var(--primary-purple);
+            transition: all 0.3s ease;
+        }
+
+        .personal-info-item:hover {
+            transform: translateX(2px);
+            box-shadow: var(--shadow);
+        }
+
+        .personal-info-label {
+            font-size: 0.8rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .personal-info-label i {
+            color: var(--primary-purple);
+            width: 14px;
+        }
+
+        .personal-info-value {
+            color: var(--black);
+            font-weight: 500;
+            line-height: 1.4;
+            min-height: 1.2rem;
+            word-wrap: break-word;
+        }
+
+        .personal-info-value.empty {
+            color: var(--gray);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .personal-info-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: var(--white);
+            color: var(--black);
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .personal-info-input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
+        }
+
+        .personal-info-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .personal-info-save {
+            background: var(--success-green);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .personal-info-save:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+
+        .personal-info-cancel {
+            background: var(--gray);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .personal-info-cancel:hover {
+            background: var(--dark-gray);
+            transform: translateY(-1px);
+        }
+
+        .about-section {
+            margin-bottom: 1rem;
+        }
+
+        .about-content {
+            color: var(--dark-gray);
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+
+        .about-content.truncated {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .about-toggle {
+            color: var(--primary-purple);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .about-toggle:hover {
+            text-decoration: underline;
+        }
+
         /* Loading State */
         .loading {
             display: flex;
@@ -1380,6 +1564,10 @@
 
             .recent-messages-grid {
                 grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            }
+
+            .personal-info-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -1469,6 +1657,16 @@
                 justify-content: center;
                 flex-wrap: wrap;
             }
+
+            .personal-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .personal-info-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
         }
     </style>
 </head>
@@ -1514,7 +1712,7 @@
                     <span class="nav-item-text">Analytics</span>
                     <span class="coming-soon-badge">Soon</span>
                 </a>
-                <a href="#" class="nav-item" onclick="showSection('linkedin-profile')">
+                <a href="#" class="nav-item" onclick="showSection('msgly-profile')">
                     <i class="fab fa-linkedin"></i>
                     <span class="nav-item-text">Msgly Profile</span>
                 </a>
@@ -1789,7 +1987,7 @@
 
                 <!-- Bottom Row: LinkedIn Profile and Analytics -->
                 <div class="dashboard-row">
-                    <!-- LinkedIn Profile Summary -->
+                    <!-- Msgly Profile Summary -->
                     <div class="card">
                         <div class="card-header">
                             <div class="card-icon">
@@ -1811,6 +2009,12 @@
                                     Loading...
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Enhanced About Section with "See more" functionality -->
+                        <div class="about-section" id="aboutSection" style="display: none;">
+                            <div class="about-content truncated" id="aboutContent"></div>
+                            <div class="about-toggle" id="aboutToggle" onclick="toggleAboutSection()">See more</div>
                         </div>
                         
                         <div class="profile-url">
@@ -1865,6 +2069,8 @@
         let currentUserData = null;
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
+        let personalInfoData = {};
+        let editingField = null;
 
         // MOCK RECENT MESSAGES DATA - Replace with API call
         const mockRecentMessages = [
@@ -2000,11 +2206,11 @@
                 case 'dashboard':
                     showDashboardSection();
                     break;
-                case 'linkedin-profile':
+                case 'msgly-profile':
                     if (trafficLightStatus === 'green') {
                         showFullProfile();
                     } else {
-                        alert('Complete your LinkedIn profile sync first to access this section.');
+                        alert('Complete your Msgly profile sync first to access this section.');
                     }
                     break;
                 default:
@@ -2160,6 +2366,7 @@
                 }
 
                 currentUserData = data.data;
+                await loadPersonalInfo(token); // Load personal info
                 populateDashboard(data.data);
                 
             } catch (error) {
@@ -2182,9 +2389,10 @@
             });
 
             // Update sidebar user info
-            document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
+            const displayName = extractFirstLastName(profile).firstName || user.displayName || user.email;
+            document.getElementById('sidebarUserName').textContent = displayName;
             document.getElementById('sidebarUserEmail').textContent = user.email;
-            const sidebarInitials = getInitials(user.displayName || user.email);
+            const sidebarInitials = getInitials(displayName);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
             // DETERMINE TRAFFIC LIGHT STATUS
@@ -2218,8 +2426,10 @@
                 disableViewProfile();
             }
 
-            // Enhanced Account Information
-            document.getElementById('accountFullName').textContent = user.displayName || 'Not provided';
+            // Enhanced Account Information with proper name extraction
+            const nameData = extractFirstLastName(profile);
+            const fullName = profile?.fullName || `${nameData.firstName} ${nameData.lastName}`.trim() || user.displayName || 'Not provided';
+            document.getElementById('accountFullName').textContent = fullName;
             document.getElementById('accountEmail').textContent = user.email;
             document.getElementById('accountSignupDate').textContent = formatDate(user.createdAt);
             document.getElementById('accountUserId').textContent = `#${user.id}`;
@@ -2228,27 +2438,28 @@
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
+                    profileSyncStatusEl.textContent = '✅ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
 
             updateSubscriptionDisplay(user);
 
-            // LinkedIn Profile Summary
+            // Msgly Profile Summary with enhanced name handling
             if (profile) {
-                document.getElementById('profileFullName').textContent = profile.fullName || 'Profile name not synced yet';
+                const profileName = profile.fullName || `${nameData.firstName} ${nameData.lastName}`.trim() || 'Profile name not synced yet';
+                document.getElementById('profileFullName').textContent = profileName;
                 document.getElementById('profileHeadline').textContent = profile.headline || 'Professional headline awaiting sync...';
                 
-                const companyName = profile.currentCompanyName || profile.currentCompany || 'Company info pending sync...';
+                const companyName = extractCurrentJobTitle(profile) || profile.currentCompanyName || profile.currentCompany || 'Company info pending sync...';
                 document.getElementById('profileCompany').textContent = companyName;
                 
                 const locationElement = document.getElementById('profileLocation');
@@ -2263,7 +2474,10 @@
                     profileUrlElement.removeAttribute('href');
                 }
 
-                const initials = getInitials(profile.fullName || user.displayName || user.email);
+                // Enhanced About section with truncation
+                updateAboutSection(profile);
+
+                const initials = getInitials(profileName);
                 document.getElementById('profileInitials').textContent = initials;
             } else {
                 document.getElementById('profileFullName').textContent = 'LinkedIn profile not connected yet';
@@ -2282,6 +2496,95 @@
             // Show dashboard content
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
+        }
+
+        // NEW: Enhanced name extraction functions
+        function extractFirstLastName(profile) {
+            if (!profile) return { firstName: '', lastName: '' };
+            
+            // Try explicit fields first
+            if (profile.firstName && profile.lastName) {
+                return {
+                    firstName: profile.firstName,
+                    lastName: profile.lastName
+                };
+            }
+            
+            // Extract from fullName if available
+            if (profile.fullName) {
+                const parts = profile.fullName.trim().split(' ');
+                return {
+                    firstName: parts[0] || '',
+                    lastName: parts.slice(1).join(' ') || ''
+                };
+            }
+            
+            // Try to extract from JSONB fields if they exist
+            try {
+                if (profile.basicInfo && typeof profile.basicInfo === 'object') {
+                    if (profile.basicInfo.firstName && profile.basicInfo.lastName) {
+                        return {
+                            firstName: profile.basicInfo.firstName,
+                            lastName: profile.basicInfo.lastName
+                        };
+                    }
+                }
+            } catch (error) {
+                console.log('[NAME_EXTRACTION] JSONB parsing failed, using fallback');
+            }
+            
+            return { firstName: '', lastName: '' };
+        }
+
+        function extractCurrentJobTitle(profile) {
+            if (!profile) return null;
+            
+            // Try currentRole first
+            if (profile.currentRole) return profile.currentRole;
+            
+            // Try to extract from experience array
+            if (profile.experience && Array.isArray(profile.experience) && profile.experience.length > 0) {
+                const currentJob = profile.experience.find(exp => exp.current === true) || profile.experience[0];
+                if (currentJob && currentJob.title) {
+                    return currentJob.company ? `${currentJob.title} at ${currentJob.company}` : currentJob.title;
+                }
+            }
+            
+            return null;
+        }
+
+        function updateAboutSection(profile) {
+            const aboutSection = document.getElementById('aboutSection');
+            const aboutContent = document.getElementById('aboutContent');
+            
+            if (profile.about && profile.about.trim()) {
+                aboutSection.style.display = 'block';
+                aboutContent.textContent = profile.about;
+                
+                // Auto-truncate if longer than 150 characters
+                if (profile.about.length > 150) {
+                    aboutContent.classList.add('truncated');
+                    document.getElementById('aboutToggle').style.display = 'inline-block';
+                } else {
+                    aboutContent.classList.remove('truncated');
+                    document.getElementById('aboutToggle').style.display = 'none';
+                }
+            } else {
+                aboutSection.style.display = 'none';
+            }
+        }
+
+        function toggleAboutSection() {
+            const aboutContent = document.getElementById('aboutContent');
+            const aboutToggle = document.getElementById('aboutToggle');
+            
+            if (aboutContent.classList.contains('truncated')) {
+                aboutContent.classList.remove('truncated');
+                aboutToggle.textContent = 'See less';
+            } else {
+                aboutContent.classList.add('truncated');
+                aboutToggle.textContent = 'See more';
+            }
         }
 
         function updateSubscriptionDisplay(user) {
@@ -2431,6 +2734,180 @@
             }, 1000);
         }
 
+        // NEW: Personal Information Functions
+        async function loadPersonalInfo(token) {
+            try {
+                const response = await fetch('https://api.msgly.ai/profile/personal-info', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        personalInfoData = data.data || {};
+                    }
+                }
+            } catch (error) {
+                console.log('[PERSONAL_INFO] Load failed, using empty data:', error);
+                personalInfoData = {};
+            }
+        }
+
+        async function savePersonalInfo(field, value) {
+            const token = getAuthToken();
+            if (!token) return false;
+
+            try {
+                const updatedData = { ...personalInfoData, [field]: value };
+                
+                const response = await fetch('https://api.msgly.ai/profile/personal-info', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        personalInfoData[field] = value;
+                        return true;
+                    }
+                }
+                return false;
+            } catch (error) {
+                console.error('[PERSONAL_INFO] Save failed:', error);
+                return false;
+            }
+        }
+
+        function renderPersonalInfoSection() {
+            const personalFields = [
+                { key: 'hobbies', label: 'Hobbies', icon: 'fas fa-gamepad' },
+                { key: 'interests', label: 'Interests', icon: 'fas fa-heart' },
+                { key: 'values', label: 'Values', icon: 'fas fa-compass' },
+                { key: 'careerGoals', label: 'Career Goals', icon: 'fas fa-target' },
+                { key: 'learningObjectives', label: 'Learning Objectives', icon: 'fas fa-graduation-cap' },
+                { key: 'creativePursuits', label: 'Creative Pursuits', icon: 'fas fa-palette' },
+                { key: 'personalNote', label: 'Personal Note', icon: 'fas fa-sticky-note' }
+            ];
+
+            const personalInfoHTML = `
+                <div class="personal-info-section">
+                    <div class="personal-info-header">
+                        <div class="personal-info-title">
+                            <i class="fas fa-user-heart"></i>
+                            Personal Information
+                        </div>
+                        <button class="personal-info-toggle" onclick="togglePersonalInfoEdit()">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                    </div>
+                    <div class="personal-info-grid">
+                        ${personalFields.map(field => `
+                            <div class="personal-info-item" id="personalInfo_${field.key}">
+                                <div class="personal-info-label">
+                                    <i class="${field.icon}"></i>
+                                    ${field.label}
+                                </div>
+                                <div class="personal-info-value ${!personalInfoData[field.key] ? 'empty' : ''}" id="personalValue_${field.key}">
+                                    ${personalInfoData[field.key] || 'Click edit to add your ' + field.label.toLowerCase()}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            return personalInfoHTML;
+        }
+
+        function togglePersonalInfoEdit() {
+            if (editingField) {
+                cancelPersonalInfoEdit();
+                return;
+            }
+
+            const editButtons = document.querySelectorAll('.personal-info-item');
+            editButtons.forEach(item => {
+                item.style.cursor = 'pointer';
+                item.onclick = function() {
+                    const fieldKey = this.id.replace('personalInfo_', '');
+                    startPersonalInfoEdit(fieldKey);
+                };
+            });
+
+            const toggleBtn = document.querySelector('.personal-info-toggle');
+            toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+        }
+
+        function startPersonalInfoEdit(fieldKey) {
+            if (editingField && editingField !== fieldKey) {
+                cancelPersonalInfoEdit();
+            }
+
+            editingField = fieldKey;
+            const valueElement = document.getElementById(`personalValue_${fieldKey}`);
+            const currentValue = personalInfoData[fieldKey] || '';
+
+            valueElement.innerHTML = `
+                <textarea class="personal-info-input" id="personalInput_${fieldKey}">${currentValue}</textarea>
+                <div class="personal-info-actions">
+                    <button class="personal-info-save" onclick="savePersonalInfoField('${fieldKey}')">
+                        <i class="fas fa-check"></i> Save
+                    </button>
+                    <button class="personal-info-cancel" onclick="cancelPersonalInfoEdit()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            `;
+
+            document.getElementById(`personalInput_${fieldKey}`).focus();
+        }
+
+        async function savePersonalInfoField(fieldKey) {
+            const input = document.getElementById(`personalInput_${fieldKey}`);
+            const value = input.value.trim();
+
+            const success = await savePersonalInfo(fieldKey, value);
+            
+            if (success) {
+                const valueElement = document.getElementById(`personalValue_${fieldKey}`);
+                valueElement.className = 'personal-info-value' + (!value ? ' empty' : '');
+                valueElement.textContent = value || `Click edit to add your ${fieldKey.toLowerCase()}`;
+                
+                editingField = null;
+                cancelPersonalInfoEdit();
+            } else {
+                alert('Failed to save personal information. Please try again.');
+            }
+        }
+
+        function cancelPersonalInfoEdit() {
+            if (editingField) {
+                const valueElement = document.getElementById(`personalValue_${editingField}`);
+                const currentValue = personalInfoData[editingField] || '';
+                valueElement.className = 'personal-info-value' + (!currentValue ? ' empty' : '');
+                valueElement.textContent = currentValue || `Click edit to add your ${editingField.toLowerCase()}`;
+                editingField = null;
+            }
+
+            const editButtons = document.querySelectorAll('.personal-info-item');
+            editButtons.forEach(item => {
+                item.style.cursor = 'default';
+                item.onclick = null;
+            });
+
+            const toggleBtn = document.querySelector('.personal-info-toggle');
+            toggleBtn.innerHTML = '<i class="fas fa-edit"></i> Edit';
+        }
+
         // FULL PROFILE VIEW FUNCTIONS
         function showFullProfile() {
             if (trafficLightStatus !== 'green') {
@@ -2442,6 +2919,10 @@
             const fullProfileContent = document.getElementById('fullProfileContent');
             
             const profile = currentUserData.profile;
+            const nameData = extractFirstLastName(profile);
+            
+            // Remove duplicate and unnecessary fields
+            const cleanedProfileData = cleanProfileData(profile);
             
             let profileHTML = `
                 <div class="profile-section">
@@ -2451,37 +2932,133 @@
                     </div>
                     <div class="profile-grid">
                         <div class="profile-item">
-                            <div class="profile-item-label">Full Name</div>
-                            <div class="profile-item-value">${profile?.fullName || 'Not available'}</div>
+                            <div class="profile-item-label">First Name</div>
+                            <div class="profile-item-value">${nameData.firstName || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Last Name</div>
+                            <div class="profile-item-value">${nameData.lastName || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
                             <div class="profile-item-label">Headline</div>
                             <div class="profile-item-value">${profile?.headline || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
-                            <div class="profile-item-label">Current Role</div>
-                            <div class="profile-item-value">${profile?.currentRole || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Location</div>
-                            <div class="profile-item-value">${profile?.location || 'Not available'}</div>
+                            <div class="profile-item-label">Current Job Title</div>
+                            <div class="profile-item-value">${extractCurrentJobTitle(profile) || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
                             <div class="profile-item-label">Current Company</div>
                             <div class="profile-item-value">${profile?.currentCompanyName || profile?.currentCompany || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
-                            <div class="profile-item-label">Connections</div>
-                            <div class="profile-item-value">${profile?.connectionsCount || profile?.connections || 'Not available'}</div>
+                            <div class="profile-item-label">Location</div>
+                            <div class="profile-item-value">${profile?.location || 'Not available'}</div>
+                        </div>
+                        <div class="profile-item">
+                            <div class="profile-item-label">Followers Count</div>
+                            <div class="profile-item-value">${profile?.followersCount || 'Not available'}</div>
                         </div>
                     </div>
                 </div>
+
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <i class="fas fa-briefcase"></i>
+                        Professional Experience
+                    </div>
+                    <div class="profile-grid">
+                        ${renderExperienceData(profile?.experience)}
+                    </div>
+                </div>
+
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <i class="fas fa-graduation-cap"></i>
+                        Education
+                    </div>
+                    <div class="profile-grid">
+                        ${renderEducationData(profile?.education)}
+                    </div>
+                </div>
+
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <i class="fas fa-certificate"></i>
+                        Certifications
+                    </div>
+                    <div class="profile-grid">
+                        ${renderCertificationsData(profile?.certifications)}
+                    </div>
+                </div>
+
+                ${renderPersonalInfoSection()}
             `;
 
             fullProfileContent.innerHTML = profileHTML;
             fullProfileSection.style.display = 'block';
             
             fullProfileSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cleanProfileData(profile) {
+            // This function removes duplicate and unnecessary fields as specified
+            const fieldsToRemove = ['currentPosition', 'connectionsCount', 'publicIdentifier', 'technicalInformation'];
+            const cleanedProfile = { ...profile };
+            
+            fieldsToRemove.forEach(field => {
+                delete cleanedProfile[field];
+            });
+            
+            return cleanedProfile;
+        }
+
+        function renderExperienceData(experience) {
+            if (!experience || !Array.isArray(experience) || experience.length === 0) {
+                return '<div class="profile-item"><div class="profile-item-value">No experience data available</div></div>';
+            }
+
+            return experience.map((exp, index) => `
+                <div class="profile-item">
+                    <div class="profile-item-label">Experience ${index + 1}</div>
+                    <div class="profile-item-value">
+                        ${exp.title || 'Unknown Title'} at ${exp.company || 'Unknown Company'}
+                        ${exp.duration ? ` (${exp.duration})` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderEducationData(education) {
+            if (!education || !Array.isArray(education) || education.length === 0) {
+                return '<div class="profile-item"><div class="profile-item-value">No education data available</div></div>';
+            }
+
+            return education.map((edu, index) => `
+                <div class="profile-item">
+                    <div class="profile-item-label">Education ${index + 1}</div>
+                    <div class="profile-item-value">
+                        ${edu.degree || 'Degree'} at ${edu.school || 'Unknown Institution'}
+                        ${edu.year ? ` (${edu.year})` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderCertificationsData(certifications) {
+            if (!certifications || !Array.isArray(certifications) || certifications.length === 0) {
+                return '<div class="profile-item"><div class="profile-item-value">No certifications available</div></div>';
+            }
+
+            return certifications.map((cert, index) => `
+                <div class="profile-item">
+                    <div class="profile-item-label">Certification ${index + 1}</div>
+                    <div class="profile-item-value">
+                        ${cert.name || 'Unknown Certification'}
+                        ${cert.issuer ? ` by ${cert.issuer}` : ''}
+                    </div>
+                </div>
+            `).join('');
         }
 
         function hideFullProfile() {
