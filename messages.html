@@ -935,8 +935,8 @@
         function checkAuthentication() {
             const token = getAuthToken();
             if (!token) {
-                // Redirect to dashboard with login prompt
-                window.location.href = '/dashboard';
+                // FIXED: Redirect to login instead of dashboard
+                window.location.href = '/login';
                 return false;
             }
             return true;
@@ -955,7 +955,8 @@
                 // Check auth token
                 const token = getAuthToken();
                 if (!token) {
-                    window.location.href = '/dashboard';
+                    // FIXED: Redirect to login instead of dashboard
+                    window.location.href = '/login';
                     return;
                 }
                 
@@ -971,7 +972,8 @@
                 // if (response.status === 401) {
                 //     // Token expired, redirect to login
                 //     localStorage.removeItem('authToken');
-                //     window.location.href = '/dashboard';
+                //     // FIXED: Redirect to login instead of dashboard
+                //     window.location.href = '/login';
                 //     return;
                 // }
                 
@@ -991,7 +993,8 @@
                 // Check if it's an authentication error
                 if (error.message && error.message.includes('401')) {
                     localStorage.removeItem('authToken');
-                    window.location.href = '/dashboard';
+                    // FIXED: Redirect to login instead of dashboard
+                    window.location.href = '/login';
                     return;
                 }
                 
@@ -1270,7 +1273,8 @@
                 // Check authentication before making API call
                 const token = getAuthToken();
                 if (!token) {
-                    window.location.href = '/dashboard';
+                    // FIXED: Redirect to login instead of dashboard
+                    window.location.href = '/login';
                     return;
                 }
                 
@@ -1320,7 +1324,8 @@
                 // Check if it's an authentication error
                 if (error.message && error.message.includes('401')) {
                     localStorage.removeItem('authToken');
-                    window.location.href = '/dashboard';
+                    // FIXED: Redirect to login instead of dashboard
+                    window.location.href = '/login';
                     return;
                 }
                 
