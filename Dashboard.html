@@ -626,6 +626,120 @@
             gap: 1rem;
         }
 
+        .recent-message-item {
+            background: var(--light-gray);
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            border-left: 4px solid var(--primary-purple);
+            display: flex;
+            gap: 0.8rem;
+        }
+
+        .recent-message-item:hover {
+            background: var(--light-purple);
+            transform: translateX(2px);
+            box-shadow: var(--shadow);
+        }
+
+        .recent-msg-avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 0.9rem;
+            font-weight: 700;
+            box-shadow: var(--glow-shadow);
+            flex-shrink: 0;
+        }
+
+        .recent-msg-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .recent-msg-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+            gap: 0.5rem;
+        }
+
+        .recent-msg-name {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--black);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .recent-msg-date {
+            font-size: 0.75rem;
+            color: var(--gray);
+            white-space: nowrap;
+        }
+
+        .recent-msg-role {
+            font-size: 0.8rem;
+            color: var(--primary-purple);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .recent-msg-preview {
+            font-size: 0.8rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .recent-msg-status {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .status-sent {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            color: var(--white);
+        }
+
+        .status-replied {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #E11D48 100%);
+            color: var(--white);
+        }
+
+        .status-pending {
+            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
+            color: var(--white);
+        }
+
         .empty-messages {
             text-align: center;
             padding: 2rem;
@@ -1000,6 +1114,85 @@
             line-height: 1.4;
         }
 
+        /* MESSAGES SECTION STYLES */
+        .messages-section {
+            display: none;
+        }
+
+        .messages-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .messages-stats {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            min-width: 120px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .messages-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 0.7rem 1.2rem;
+            border: 2px solid var(--light-gray);
+            background: var(--white);
+            color: var(--gray);
+            border-radius: 25px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        .messages-grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
         /* FULL PROFILE VIEW SECTION */
         .full-profile-section {
             display: none;
@@ -1124,41 +1317,6 @@
             text-align: right;
         }
 
-        .json-array-display {
-            max-height: 200px;
-            overflow-y: auto;
-            background: var(--light-gray);
-            padding: 0.5rem;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 0.75rem;
-        }
-
-        .experience-item, .education-item, .skill-item {
-            background: var(--white);
-            margin-bottom: 0.5rem;
-            padding: 0.75rem;
-            border-radius: 8px;
-            border-left: 3px solid var(--primary-purple);
-        }
-
-        .experience-title, .education-title {
-            font-weight: 600;
-            color: var(--black);
-            margin-bottom: 0.25rem;
-        }
-
-        .experience-company, .education-school {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .experience-duration, .education-duration {
-            color: var(--gray);
-            font-size: 0.75rem;
-        }
-
         /* Loading State */
         .loading {
             display: flex;
@@ -1214,6 +1372,10 @@
             
             .dashboard-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .messages-stats {
+                justify-content: center;
             }
 
             .recent-messages-grid {
@@ -1287,6 +1449,26 @@
             .profile-grid {
                 grid-template-columns: 1fr;
             }
+
+            .recent-message-item {
+                flex-direction: column;
+                text-align: center;
+                gap: 0.5rem;
+            }
+
+            .recent-msg-avatar {
+                align-self: center;
+            }
+
+            .recent-msg-header {
+                flex-direction: column;
+                gap: 0.2rem;
+            }
+
+            .recent-msg-status {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
         }
     </style>
 </head>
@@ -1323,7 +1505,7 @@
                     <i class="fas fa-tachometer-alt"></i>
                     <span class="nav-item-text">Dashboard</span>
                 </a>
-                <a href="https://api.msgly.ai/Messages" class="nav-item" target="_blank">
+                <a href="/messages" class="nav-item">
                     <i class="fas fa-envelope"></i>
                     <span class="nav-item-text">Messages</span>
                 </a>
@@ -1334,7 +1516,7 @@
                 </a>
                 <a href="#" class="nav-item" onclick="showSection('linkedin-profile')">
                     <i class="fab fa-linkedin"></i>
-                    <span class="nav-item-text">LinkedIn Profile</span>
+                    <span class="nav-item-text">Msgly Profile</span>
                 </a>
             </div>
 
@@ -1344,7 +1526,7 @@
                     <i class="fas fa-user-circle"></i>
                     <span class="nav-item-text">Profile</span>
                 </a>
-                <a href="https://chopa.chargebeeportal.com" class="nav-item" target="_blank">
+                <a href="#" class="nav-item" onclick="showSection('billing')">
                     <i class="fas fa-credit-card"></i>
                     <span class="nav-item-text">Billing</span>
                 </a>
@@ -1427,7 +1609,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1577,7 +1759,7 @@
                     </div>
                 </div>
 
-                <!-- Recent Messages Section -->
+                <!-- NEW: Recent Messages Section -->
                 <div class="recent-messages-section">
                     <div class="recent-messages-card">
                         <div class="recent-messages-header">
@@ -1587,17 +1769,17 @@
                                 </div>
                                 <h3 class="recent-messages-title">Recent Messages</h3>
                             </div>
-                            <a href="https://api.msgly.ai/Messages" class="view-all-btn" target="_blank">
+                            <a href="/messages" class="view-all-btn">
                                 <i class="fas fa-arrow-right"></i>
                                 View All Messages
                             </a>
                         </div>
                         
                         <div class="recent-messages-grid" id="recentMessagesGrid">
-                            <!-- Real messages will be populated by JavaScript -->
+                            <!-- Recent messages will be populated by JavaScript -->
                         </div>
 
-                        <div class="empty-messages" id="emptyRecentMessages">
+                        <div class="empty-messages" id="emptyRecentMessages" style="display: none;">
                             <i class="fas fa-envelope-open"></i>
                             <h3>No Messages Yet</h3>
                             <p>Your recent LinkedIn messages will appear here once you start using the extension.</p>
@@ -1613,7 +1795,7 @@
                             <div class="card-icon">
                                 <i class="fab fa-linkedin"></i>
                             </div>
-                            <h3 class="card-title">LinkedIn Profile Summary</h3>
+                            <h3 class="card-title">Msgly Profile Summary</h3>
                         </div>
                         
                         <div class="profile-summary">
@@ -1652,7 +1834,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard — Coming Soon</h3>
+                            <h3>Analytics Dashboard – Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1665,7 +1847,7 @@
                     <div class="full-profile-icon">
                         <i class="fas fa-user-circle"></i>
                     </div>
-                    <h2 class="full-profile-title">Complete LinkedIn Profile</h2>
+                    <h2 class="full-profile-title">Complete Msgly Profile</h2>
                     <button class="full-profile-close" onclick="hideFullProfile()">
                         <i class="fas fa-times"></i>
                     </button>
@@ -1683,6 +1865,66 @@
         let currentUserData = null;
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
+
+        // MOCK RECENT MESSAGES DATA - Replace with API call
+        const mockRecentMessages = [
+            {
+                id: 'msg_001',
+                targetProfile: {
+                    firstName: 'Sarah',
+                    lastName: 'Johnson',
+                    initials: 'SJ',
+                    role: 'Senior Product Manager',
+                    company: 'Tech Innovations Inc.'
+                },
+                message: 'Hi Sarah, I noticed your impressive work on product strategy at Tech Innovations. Your recent post about user-centered design really resonated with me...',
+                sentDate: '2024-01-15T10:30:00Z',
+                messageSent: true,
+                gotReply: false
+            },
+            {
+                id: 'msg_002',
+                targetProfile: {
+                    firstName: 'Michael',
+                    lastName: 'Chen',
+                    initials: 'MC',
+                    role: 'VP of Engineering',
+                    company: 'StartupXYZ'
+                },
+                message: 'Hello Michael, I came across your LinkedIn profile and was impressed by your engineering leadership at StartupXYZ...',
+                sentDate: '2024-01-14T14:15:00Z',
+                messageSent: true,
+                gotReply: true
+            },
+            {
+                id: 'msg_003',
+                targetProfile: {
+                    firstName: 'Emily',
+                    lastName: 'Rodriguez',
+                    initials: 'ER',
+                    role: 'Marketing Director',
+                    company: 'GrowthCorp'
+                },
+                message: 'Hi Emily, your marketing campaigns at GrowthCorp have been phenomenal! I particularly admired your recent B2B content strategy...',
+                sentDate: '2024-01-13T09:45:00Z',
+                messageSent: true,
+                gotReply: false
+            },
+            {
+                id: 'msg_004',
+                targetProfile: {
+                    firstName: 'David',
+                    lastName: 'Kumar',
+                    initials: 'DK',
+                    role: 'Data Science Lead',
+                    company: 'AI Solutions Ltd'
+                },
+                message: 'Hello David, I\'ve been following your work in machine learning at AI Solutions. Your insights on model interpretability are fascinating...',
+                sentDate: '2024-01-12T16:20:00Z',
+                messageSent: false,
+                gotReply: null
+            }
+        ];
 
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
@@ -1778,63 +2020,54 @@
             document.querySelector('.page-subtitle').textContent = 'Welcome to your AI-powered LinkedIn messaging center';
         }
 
-        // Load recent messages from API (REAL DATA ONLY)
-        async function loadRecentMessages() {
+        // NEW: Recent Messages Functions
+        function loadRecentMessages() {
             const recentMessagesGrid = document.getElementById('recentMessagesGrid');
             const emptyRecentMessages = document.getElementById('emptyRecentMessages');
             
-            try {
-                // Get real messages from API
-                const response = await fetch('/api/recent-messages', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${getAuthToken()}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.success && data.messages && data.messages.length > 0) {
-                        emptyRecentMessages.style.display = 'none';
-                        recentMessagesGrid.style.display = 'grid';
-                        recentMessagesGrid.innerHTML = data.messages.map(message => createRecentMessageCard(message)).join('');
-                        return;
-                    }
-                }
-            } catch (error) {
-                console.error('[MESSAGES] Error loading recent messages:', error);
+            // For now, use mock data
+            const recentMessages = mockRecentMessages.slice(0, 4); // Show only 4 recent messages
+            
+            if (recentMessages.length === 0) {
+                recentMessagesGrid.style.display = 'none';
+                emptyRecentMessages.style.display = 'block';
+                return;
             }
             
-            // Show empty state if no messages or error
-            recentMessagesGrid.style.display = 'none';
-            emptyRecentMessages.style.display = 'block';
+            emptyRecentMessages.style.display = 'none';
+            recentMessagesGrid.style.display = 'grid';
+            
+            recentMessagesGrid.innerHTML = recentMessages.map(message => createRecentMessageCard(message)).join('');
         }
 
         function createRecentMessageCard(message) {
-            const displayName = message.targetProfile?.firstName || 'LinkedIn User';
+            const { targetProfile, message: messageText, sentDate, messageSent, gotReply } = message;
             
+            // FIXED: Display first name only (not "John D." but just "John")
+            const displayName = targetProfile.firstName;
+            
+            // Determine status
             let statusBadges = [];
-            if (message.messageSent === true) {
+            if (messageSent === true) {
                 statusBadges.push('<span class="status-badge status-sent"><i class="fas fa-check"></i> Sent</span>');
             }
-            if (message.gotReply === true) {
+            if (gotReply === true) {
                 statusBadges.push('<span class="status-badge status-replied"><i class="fas fa-reply"></i> Replied</span>');
             }
-            if (message.messageSent === true && message.gotReply !== true) {
+            if (messageSent === true && gotReply !== true) {
                 statusBadges.push('<span class="status-badge status-pending"><i class="fas fa-clock"></i> Pending</span>');
             }
             
             return `
                 <div class="recent-message-item">
-                    <div class="recent-msg-avatar">${message.targetProfile?.initials || 'LU'}</div>
+                    <div class="recent-msg-avatar">${targetProfile.initials}</div>
                     <div class="recent-msg-content">
                         <div class="recent-msg-header">
                             <div class="recent-msg-name">${displayName}</div>
-                            <div class="recent-msg-date">${formatRecentMessageDate(message.sentDate)}</div>
+                            <div class="recent-msg-date">${formatRecentMessageDate(sentDate)}</div>
                         </div>
-                        <div class="recent-msg-role">${message.targetProfile?.role || 'Professional'}</div>
-                        <div class="recent-msg-preview">${message.message}</div>
+                        <div class="recent-msg-role">${targetProfile.role}</div>
+                        <div class="recent-msg-preview">${messageText}</div>
                         <div class="recent-msg-status">
                             ${statusBadges.join('')}
                         </div>
@@ -1908,7 +2141,7 @@
 
         async function loadDashboardData(token) {
             try {
-                const response = await fetch('/profile', {
+                const response = await fetch('https://api.msgly.ai/profile', {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -1995,15 +2228,15 @@
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = '✅ Fully Synced';
+                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = '🔄 Processing...';
+                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = '🔴 Sync Required';
+                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2043,7 +2276,7 @@
                 document.getElementById('profileInitials').textContent = initials;
             }
 
-            // Load real recent messages
+            // NEW: Load recent messages
             loadRecentMessages();
 
             // Show dashboard content
@@ -2086,13 +2319,18 @@
                 planBadge.style.background = 'linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%)';
             }
 
-            // FIXED: Use proper decimal formatting for credits
-            const totalCredits = parseFloat(user.credits || 0);
+            // CRITICAL FIX: Use proper dual credit calculation
             const renewableCredits = parseFloat(user.renewableCredits || 0);
             const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
+            const totalCredits = renewableCredits + payasyougoCredits;
             
-            // Display credits with exactly 2 decimal places
+            // Always show exactly 2 decimal places
             document.getElementById('creditsRemaining').textContent = totalCredits.toFixed(2);
+            
+            // Debug logging to verify correct calculation
+            console.log('[CREDIT_FIX] Renewable:', renewableCredits.toFixed(2));
+            console.log('[CREDIT_FIX] PayAsYouGo:', payasyougoCredits.toFixed(2));
+            console.log('[CREDIT_FIX] Total:', totalCredits.toFixed(2));
             
             const creditBreakdownEl = document.getElementById('creditBreakdown');
             const renewalInfoEl = document.getElementById('renewalInfo');
@@ -2193,7 +2431,7 @@
             }, 1000);
         }
 
-        // FULL PROFILE VIEW FUNCTIONS - ENHANCED TO SHOW ALL DATA
+        // FULL PROFILE VIEW FUNCTIONS
         function showFullProfile() {
             if (trafficLightStatus !== 'green') {
                 alert('Please complete your profile sync first to view your full profile.');
@@ -2205,16 +2443,7 @@
             
             const profile = currentUserData.profile;
             
-            if (!profile) {
-                fullProfileContent.innerHTML = '<div class="profile-section"><p>No profile data available.</p></div>';
-                fullProfileSection.style.display = 'block';
-                return;
-            }
-
-            let profileHTML = '';
-
-            // Basic Information Section
-            profileHTML += `
+            let profileHTML = `
                 <div class="profile-section">
                     <div class="profile-section-title">
                         <i class="fas fa-user"></i>
@@ -2223,257 +2452,27 @@
                     <div class="profile-grid">
                         <div class="profile-item">
                             <div class="profile-item-label">Full Name</div>
-                            <div class="profile-item-value">${profile.fullName || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">First Name</div>
-                            <div class="profile-item-value">${profile.firstName || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Last Name</div>
-                            <div class="profile-item-value">${profile.lastName || 'Not available'}</div>
+                            <div class="profile-item-value">${profile?.fullName || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
                             <div class="profile-item-label">Headline</div>
-                            <div class="profile-item-value">${profile.headline || 'Not available'}</div>
+                            <div class="profile-item-value">${profile?.headline || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
-                            <div class="profile-item-label">About</div>
-                            <div class="profile-item-value">${profile.about || 'Not available'}</div>
+                            <div class="profile-item-label">Current Role</div>
+                            <div class="profile-item-value">${profile?.currentRole || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
                             <div class="profile-item-label">Location</div>
-                            <div class="profile-item-value">${profile.location || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Industry</div>
-                            <div class="profile-item-value">${profile.industry || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">LinkedIn URL</div>
-                            <div class="profile-item-value">${profile.linkedinUrl || 'Not available'}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Professional Information Section
-            profileHTML += `
-                <div class="profile-section">
-                    <div class="profile-section-title">
-                        <i class="fas fa-briefcase"></i>
-                        Professional Information
-                    </div>
-                    <div class="profile-grid">
-                        <div class="profile-item">
-                            <div class="profile-item-label">Current Job Title</div>
-                            <div class="profile-item-value">${profile.currentJobTitle || 'Not available'}</div>
+                            <div class="profile-item-value">${profile?.location || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
                             <div class="profile-item-label">Current Company</div>
-                            <div class="profile-item-value">${profile.currentCompany || profile.currentCompanyName || 'Not available'}</div>
+                            <div class="profile-item-value">${profile?.currentCompanyName || profile?.currentCompany || 'Not available'}</div>
                         </div>
                         <div class="profile-item">
-                            <div class="profile-item-label">Current Position</div>
-                            <div class="profile-item-value">${profile.currentPosition || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Connections Count</div>
-                            <div class="profile-item-value">${profile.connectionsCount || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Followers Count</div>
-                            <div class="profile-item-value">${profile.followersCount || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Public Identifier</div>
-                            <div class="profile-item-value">${profile.publicIdentifier || 'Not available'}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Experience Section
-            if (profile.experience && Array.isArray(profile.experience) && profile.experience.length > 0) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-chart-line"></i>
-                            Professional Experience (${profile.experience.length} positions)
-                        </div>
-                        <div class="json-array-display">
-                `;
-                
-                profile.experience.forEach((exp, index) => {
-                    profileHTML += `
-                        <div class="experience-item">
-                            <div class="experience-title">${exp.title || 'Position'}</div>
-                            <div class="experience-company">${exp.company || 'Company'}</div>
-                            <div class="experience-duration">${exp.startDate || ''} - ${exp.endDate || 'Present'}</div>
-                            ${exp.description ? `<div style="margin-top: 0.5rem; font-size: 0.75rem;">${exp.description}</div>` : ''}
-                        </div>
-                    `;
-                });
-                
-                profileHTML += `
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Education Section
-            if (profile.education && Array.isArray(profile.education) && profile.education.length > 0) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-graduation-cap"></i>
-                            Education (${profile.education.length} entries)
-                        </div>
-                        <div class="json-array-display">
-                `;
-                
-                profile.education.forEach((edu, index) => {
-                    profileHTML += `
-                        <div class="education-item">
-                            <div class="education-title">${edu.degree || edu.field || 'Degree'}</div>
-                            <div class="education-school">${edu.school || edu.institution || 'Institution'}</div>
-                            <div class="education-duration">${edu.startDate || ''} - ${edu.endDate || ''}</div>
-                        </div>
-                    `;
-                });
-                
-                profileHTML += `
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Skills Section
-            if (profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-cogs"></i>
-                            Skills (${profile.skills.length} skills)
-                        </div>
-                        <div class="json-array-display">
-                `;
-                
-                profile.skills.forEach((skill, index) => {
-                    const skillName = typeof skill === 'string' ? skill : (skill.name || skill.skill || 'Skill');
-                    profileHTML += `<div class="skill-item">${skillName}</div>`;
-                });
-                
-                profileHTML += `
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Certifications Section
-            if (profile.certifications && Array.isArray(profile.certifications) && profile.certifications.length > 0) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-certificate"></i>
-                            Certifications (${profile.certifications.length} certifications)
-                        </div>
-                        <div class="json-array-display">
-                `;
-                
-                profile.certifications.forEach((cert, index) => {
-                    const certName = typeof cert === 'string' ? cert : (cert.name || cert.title || 'Certificate');
-                    const certIssuer = typeof cert === 'object' ? (cert.issuer || cert.organization || '') : '';
-                    profileHTML += `
-                        <div class="experience-item">
-                            <div class="experience-title">${certName}</div>
-                            ${certIssuer ? `<div class="experience-company">${certIssuer}</div>` : ''}
-                        </div>
-                    `;
-                });
-                
-                profileHTML += `
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Activity & Engagement Section
-            if (profile.activity || profile.engagementData) {
-                profileHTML += `
-                    <div class="profile-section">
-                        <div class="profile-section-title">
-                            <i class="fas fa-chart-bar"></i>
-                            Activity & Engagement
-                        </div>
-                        <div class="profile-grid">
-                `;
-
-                if (profile.totalLikes !== undefined) {
-                    profileHTML += `
-                        <div class="profile-item">
-                            <div class="profile-item-label">Total Likes</div>
-                            <div class="profile-item-value">${profile.totalLikes}</div>
-                        </div>
-                    `;
-                }
-                
-                if (profile.totalComments !== undefined) {
-                    profileHTML += `
-                        <div class="profile-item">
-                            <div class="profile-item-label">Total Comments</div>
-                            <div class="profile-item-value">${profile.totalComments}</div>
-                        </div>
-                    `;
-                }
-                
-                if (profile.totalShares !== undefined) {
-                    profileHTML += `
-                        <div class="profile-item">
-                            <div class="profile-item-label">Total Shares</div>
-                            <div class="profile-item-value">${profile.totalShares}</div>
-                        </div>
-                    `;
-                }
-                
-                if (profile.averageLikes !== undefined) {
-                    profileHTML += `
-                        <div class="profile-item">
-                            <div class="profile-item-label">Average Likes</div>
-                            <div class="profile-item-value">${profile.averageLikes}</div>
-                        </div>
-                    `;
-                }
-
-                profileHTML += `
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Technical Information Section
-            profileHTML += `
-                <div class="profile-section">
-                    <div class="profile-section-title">
-                        <i class="fas fa-info-circle"></i>
-                        Technical Information
-                    </div>
-                    <div class="profile-grid">
-                        <div class="profile-item">
-                            <div class="profile-item-label">Data Source</div>
-                            <div class="profile-item-value">${profile.dataSource || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Extraction Status</div>
-                            <div class="profile-item-value">${profile.extractionStatus || 'Not available'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Profile Analyzed</div>
-                            <div class="profile-item-value">${profile.profileAnalyzed ? 'Yes' : 'No'}</div>
-                        </div>
-                        <div class="profile-item">
-                            <div class="profile-item-label">Last Updated</div>
-                            <div class="profile-item-value">${formatDate(profile.updatedAt) || 'Not available'}</div>
+                            <div class="profile-item-label">Connections</div>
+                            <div class="profile-item-value">${profile?.connectionsCount || profile?.connections || 'Not available'}</div>
                         </div>
                     </div>
                 </div>
@@ -2522,7 +2521,7 @@
         }
 
         function upgradeAccount() {
-            window.open('https://api.msgly.ai/upgrade', '_blank');
+            alert('Upgrade functionality coming soon! Premium plans will be available shortly.');
         }
 
         function downloadChromeExtension() {
