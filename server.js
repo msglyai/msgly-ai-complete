@@ -29,9 +29,10 @@ CHANGELOG - server.js:
 22. AUTHENTICATION FIX: Removed authenticateToken middleware from /messages route (CLIENT-SIDE AUTH)
 23. NEW: Added /msgly-profile route to serve msgly-profile.html
 24. NEW: Added personal info endpoints GET/PUT /profile/personal-info
+25. NEW: Added manual editing endpoints for basic-info, about, experience, education, skills, certifications
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -48,6 +49,7 @@ CHANGELOG - server.js:
 // ✅ AUTHENTICATION FIX: Removed server-side auth middleware, using client-side auth instead
 // ✅ MSGLY PROFILE: Added route to serve msgly-profile.html
 // ✅ PERSONAL INFO: Added endpoints for personal information CRUD operations
+// ✅ MANUAL EDITING: Added endpoints for manual user profile editing
 
 const express = require('express');
 const cors = require('cors');
@@ -1272,6 +1274,124 @@ app.put('/profile/personal-info', authenticateToken, async (req, res) => {
     }
 });
 
+// ==================== NEW: MANUAL EDITING ENDPOINTS ====================
+
+// 1. Basic Information Updates
+app.put('/profile/basic-info', authenticateToken, async (req, res) => {
+    try {
+        const { firstName, lastName, fullName, headline, currentJobTitle, currentCompany, location } = req.body;
+        
+        await pool.query(`
+            UPDATE user_profiles 
+            SET 
+                first_name = $1,
+                last_name = $2, 
+                full_name = $3,
+                headline = $4,
+                current_job_title = $5,
+                current_company = $6,
+                location = $7,
+                updated_at = NOW()
+            WHERE user_id = $8
+        `, [firstName, lastName, fullName, headline, currentJobTitle, currentCompany, location, req.user.id]);
+        
+        res.json({ success: true, message: 'Basic information updated successfully' });
+    } catch (error) {
+        console.error('[ERROR] Update basic info failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to update basic information' });
+    }
+});
+
+// 2. About Section Updates  
+app.put('/profile/about', authenticateToken, async (req, res) => {
+    try {
+        const { about } = req.body;
+        
+        await pool.query(`
+            UPDATE user_profiles 
+            SET about = $1, updated_at = NOW() 
+            WHERE user_id = $2
+        `, [about, req.user.id]);
+        
+        res.json({ success: true, message: 'About section updated successfully' });
+    } catch (error) {
+        console.error('[ERROR] Update about failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to update about section' });
+    }
+});
+
+// 3. Experience Updates
+app.put('/profile/experience', authenticateToken, async (req, res) => {
+    try {
+        const { experience } = req.body;
+        
+        await pool.query(`
+            UPDATE user_profiles 
+            SET experience = $1, updated_at = NOW() 
+            WHERE user_id = $2
+        `, [JSON.stringify(experience), req.user.id]);
+        
+        res.json({ success: true, message: 'Experience updated successfully' });
+    } catch (error) {
+        console.error('[ERROR] Update experience failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to update experience' });
+    }
+});
+
+// 4. Education Updates
+app.put('/profile/education', authenticateToken, async (req, res) => {
+    try {
+        const { education } = req.body;
+        
+        await pool.query(`
+            UPDATE user_profiles 
+            SET education = $1, updated_at = NOW() 
+            WHERE user_id = $2
+        `, [JSON.stringify(education), req.user.id]);
+        
+        res.json({ success: true, message: 'Education updated successfully' });
+    } catch (error) {
+        console.error('[ERROR] Update education failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to update education' });
+    }
+});
+
+// 5. Skills Updates  
+app.put('/profile/skills', authenticateToken, async (req, res) => {
+    try {
+        const { skills } = req.body;
+        
+        await pool.query(`
+            UPDATE user_profiles 
+            SET skills = $1, updated_at = NOW() 
+            WHERE user_id = $2
+        `, [JSON.stringify(skills), req.user.id]);
+        
+        res.json({ success: true, message: 'Skills updated successfully' });
+    } catch (error) {
+        console.error('[ERROR] Update skills failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to update skills' });
+    }
+});
+
+// 6. Certifications Updates
+app.put('/profile/certifications', authenticateToken, async (req, res) => {
+    try {
+        const { certifications } = req.body;
+        
+        await pool.query(`
+            UPDATE user_profiles 
+            SET certifications = $1, updated_at = NOW() 
+            WHERE user_id = $2
+        `, [JSON.stringify(certifications), req.user.id]);
+        
+        res.json({ success: true, message: 'Certifications updated successfully' });
+    } catch (error) {
+        console.error('[ERROR] Update certifications failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to update certifications' });
+    }
+});
+
 // ==================== NEW: PENDING REGISTRATION ENDPOINT (FOR SIGN-UP PAGE) ====================
 
 app.post('/store-pending-registration', authenticateToken, async (req, res) => {
@@ -1565,7 +1685,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         );
         
         console.log('[SUCCESS] Chrome extension authentication successful');
-        console.log(`💤 User ID: ${user.id}`);
+        console.log(`👤 User ID: ${user.id}`);
         console.log(`🆔 Extension ID: ${extensionId}`);
         console.log(`🆕 Is new user: ${isNewUser}`);
         console.log(`🎯 Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
@@ -1924,7 +2044,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING'
                 }
             }
         });
@@ -2002,7 +2122,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING'
             };
         }
 
@@ -2102,7 +2222,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING'
             }
         });
     } catch (error) {
@@ -2154,7 +2274,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2567,7 +2687,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2591,6 +2711,12 @@ app.use((req, res, next) => {
             'GET /traffic-light-status',
             'GET /profile/personal-info (NEW: Get personal information)',
             'PUT /profile/personal-info (NEW: Update personal information)',
+            'PUT /profile/basic-info (NEW: Update basic information)',
+            'PUT /profile/about (NEW: Update about section)',
+            'PUT /profile/experience (NEW: Update experience)',
+            'PUT /profile/education (NEW: Update education)',
+            'PUT /profile/skills (NEW: Update skills)',
+            'PUT /profile/certifications (NEW: Update certifications)',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
             'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
             'POST /generate-message (REFACTORED: Now in routes/messagesRoutes.js)',
@@ -2674,9 +2800,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -2694,18 +2820,20 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ AUTHENTICATION FIX: Removed server-side auth middleware, using client-side auth instead`);
             console.log(`[SUCCESS] ✅ MSGLY PROFILE: Standalone profile page with full editing capabilities`);
             console.log(`[SUCCESS] ✅ PERSONAL INFO: Complete personal information CRUD system`);
+            console.log(`[SUCCESS] ✅ MANUAL EDITING: Manual profile editing endpoints for all sections`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
             console.log(`[MESSAGES] ✅ MESSAGES PAGE: https://api.msgly.ai/messages (CLIENT-SIDE AUTHENTICATION)`);
-            console.log(`[PROFILE] ✅ MSGLY PROFILE PAGE: https://api.msgly.ai/msgly-profile.html (NEW STANDALONE PAGE)`);
-            console.log(`[PERSONAL] ✅ PERSONAL INFO API: GET/PUT /profile/personal-info (NEW ENDPOINTS)`);
+            console.log(`[PROFILE] ✅ MSGLY PROFILE PAGE: https://api.msgly.ai/msgly-profile.html (STANDALONE PAGE)`);
+            console.log(`[PERSONAL] ✅ PERSONAL INFO API: GET/PUT /profile/personal-info (PERSONAL INFORMATION)`);
+            console.log(`[MANUAL] ✅ MANUAL EDITING API: PUT /profile/{basic-info,about,experience,education,skills,certifications} (MANUAL EDITING)`);
             console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
             console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
             console.log(`[REFACTOR] ✅ MODULAR MESSAGES: Handlers moved to controllers/routes files`);
             console.log(`[AUTH] ✅ AUTHENTICATION FIX: Messages page uses client-side authentication (redirects to /login)`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -2722,6 +2850,7 @@ const startServer = async () => {
             console.log(`   [AUTH] AUTHENTICATION FIX: Client-side authentication with redirect to /login`);
             console.log(`   [PROFILE] MSGLY PROFILE: Standalone profile page with complete editing system`);
             console.log(`   [PERSONAL] PERSONAL INFO: JSONB-based personal information with inline editing`);
+            console.log(`   [MANUAL] MANUAL EDITING: Complete manual editing system for all profile sections`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation (NOW IN routes/messagesRoutes.js)`);
@@ -2733,8 +2862,14 @@ const startServer = async () => {
             console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
             console.log(`   [MESSAGES] /messages: Messages page with CLIENT-SIDE authentication (FIXED)`);
-            console.log(`   [PROFILE] /msgly-profile.html: Standalone Msgly Profile page with full editing (NEW)`);
-            console.log(`   [PERSONAL] /profile/personal-info: Personal information CRUD endpoints (NEW)`);
+            console.log(`   [PROFILE] /msgly-profile.html: Standalone Msgly Profile page with full editing (STANDALONE)`);
+            console.log(`   [PERSONAL] /profile/personal-info: Personal information CRUD endpoints (PERSONAL INFO)`);
+            console.log(`   [MANUAL] /profile/basic-info: Manual basic information editing (MANUAL EDITING)`);
+            console.log(`   [MANUAL] /profile/about: Manual about section editing (MANUAL EDITING)`);
+            console.log(`   [MANUAL] /profile/experience: Manual experience editing (MANUAL EDITING)`);
+            console.log(`   [MANUAL] /profile/education: Manual education editing (MANUAL EDITING)`);
+            console.log(`   [MANUAL] /profile/skills: Manual skills editing (MANUAL EDITING)`);
+            console.log(`   [MANUAL] /profile/certifications: Manual certifications editing (MANUAL EDITING)`);
             console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
             console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
             console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion`);
@@ -2831,7 +2966,19 @@ const startServer = async () => {
             console.log(`   [AUTOSAVE] Auto-save functionality with success feedback`);
             console.log(`   [VALIDATION] Input validation and sanitization`);
             console.log(`   [RESPONSIVE] Mobile-responsive design with beautiful gradients`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, AND PERSONAL INFORMATION CRUD COMPLETE!`);
+            console.log(`   [SUCCESS] ✅ MANUAL EDITING ENDPOINTS:`);
+            console.log(`   [BASIC] PUT /profile/basic-info: firstName, lastName, fullName, headline, currentJobTitle, currentCompany, location`);
+            console.log(`   [ABOUT] PUT /profile/about: About section text updates`);
+            console.log(`   [EXPERIENCE] PUT /profile/experience: Complete experience array updates`);
+            console.log(`   [EDUCATION] PUT /profile/education: Complete education array updates`);
+            console.log(`   [SKILLS] PUT /profile/skills: Complete skills array updates`);
+            console.log(`   [CERTIFICATIONS] PUT /profile/certifications: Complete certifications array updates`);
+            console.log(`   [ATOMIC] Atomic updates - only update what changed`);
+            console.log(`   [VALIDATION] Data validation and error handling per section`);
+            console.log(`   [SECURITY] authenticateToken middleware protects all endpoints`);
+            console.log(`   [DATABASE] Proper database field mapping to user_profiles table`);
+            console.log(`   [FRONTEND] Frontend save/cancel functionality will work properly`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, PERSONAL INFORMATION CRUD, AND MANUAL EDITING ENDPOINTS COMPLETE!`);
         });
         
     } catch (error) {
