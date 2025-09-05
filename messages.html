@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - Msgly AI</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-purple: #8039DF;
+            --dark-purple: #3E0075;
+            --glow-purple: #9F4EFF;
+            --neon-purple: #7B2CBF;
+            --electric-purple: #6A1B9A;
+            --light-purple: #F5EDFF;
+            --accent-pink: #FF2370;
+            --success-green: #10B981;
+            --warning-orange: #F59E0B;
+            --error-red: #EF4444;
+            --black: #111827;
+            --charcoal: #1F2937;
+            --dark-gray: #374151;
+            --gray: #6B7280;
+            --light-gray: #F9FAFB;
+            --white: #FFFFFF;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
+            --glow-shadow: 0 0 30px rgba(128, 57, 223, 0.25);
+            --intense-glow: 0 0 45px rgba(128, 57, 223, 0.35);
+            --neon-glow: 0 0 60px rgba(128, 57, 223, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--light-gray);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .page-subtitle {
+            color: var(--gray);
+            font-size: 1rem;
+            margin-top: 0.4rem;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.8rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .back-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+            box-shadow: var(--intense-glow);
+        }
+
+        .messages-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 3rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 25px;
+            font-size: 0.9rem;
+            background: var(--white);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 15px rgba(128, 57, 223, 0.15);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray);
+            font-size: 1.1rem;
+        }
+
+        .messages-stats {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0.8rem 1.2rem;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            min-width: 100px;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .messages-filters {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 0.6rem 1rem;
+            border: 2px solid var(--light-gray);
+            background: var(--white);
+            color: var(--gray);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        /* MESSAGES TABLE - Enhanced Design */
+        .messages-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(128, 57, 223, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .messages-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+        }
+
+        .messages-table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--light-gray);
+            background: var(--white);
+        }
+
+        .messages-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .messages-table th {
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
+            color: var(--dark-gray);
+            font-weight: 700;
+            padding: 1rem 0.75rem;
+            text-align: left;
+            border-bottom: 2px solid var(--primary-purple);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .messages-table td {
+            padding: 1rem 0.75rem;
+            border-bottom: 1px solid var(--light-gray);
+            vertical-align: top;
+        }
+
+        .messages-table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .messages-table tbody tr:hover {
+            background: rgba(128, 57, 223, 0.02);
+        }
+
+        /* Column Widths */
+        .col-message { width: 35%; }
+        .col-target { width: 20%; }
+        .col-sent { width: 12%; }
+        .col-reply { width: 12%; }
+        .col-comment { width: 16%; }
+        .col-actions { width: 5%; }
+
+        /* Message Content */
+        .message-content {
+            max-width: 400px;
+        }
+
+        .message-text {
+            line-height: 1.4;
+            color: var(--dark-gray);
+        }
+
+        .message-text.truncated {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .message-expand {
+            color: var(--primary-purple);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .message-expand:hover {
+            color: var(--dark-purple);
+            text-decoration: underline;
+        }
+
+        .message-id {
+            font-size: 0.7rem;
+            color: var(--gray);
+            font-weight: 600;
+            background: var(--light-gray);
+            padding: 0.2rem 0.5rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            display: inline-block;
+        }
+
+        /* Target Profile */
+        .target-profile {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .target-name {
+            font-weight: 700;
+            color: var(--black);
+            font-size: 0.9rem;
+        }
+
+        .target-role {
+            color: var(--dark-gray);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .target-company {
+            color: var(--gray);
+            font-size: 0.75rem;
+        }
+
+        /* STATUS TOGGLES - Modern iOS-style Design */
+        .status-toggle {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 28px;
+            background: var(--light-gray);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .toggle-switch.pending {
+            background: var(--light-gray);
+        }
+
+        .toggle-switch.yes {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            border-color: var(--success-green);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .toggle-switch.no {
+            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
+            border-color: var(--error-red);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+        }
+
+        .toggle-switch.modified {
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: var(--white);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-switch.pending .toggle-slider {
+            background: var(--gray);
+            color: var(--white);
+        }
+
+        .toggle-switch.yes .toggle-slider {
+            transform: translateX(32px);
+            background: var(--white);
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no .toggle-slider {
+            background: var(--white);
+            color: var(--error-red);
+        }
+
+        .toggle-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .toggle-switch.pending + .toggle-label {
+            color: var(--gray);
+        }
+
+        .toggle-switch.yes + .toggle-label {
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no + .toggle-label {
+            color: var(--error-red);
+        }
+
+        /* Comments Field */
+        .comment-field {
+            width: 100%;
+            min-height: 60px;
+            max-height: 120px;
+            padding: 0.8rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        .comment-field:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
+        }
+
+        .comment-field.modified {
+            border-color: var(--warning-orange);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 80px;
+            align-items: center;
+        }
+
+        .save-btn {
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            opacity: 0.6;
+            transform: scale(0.9);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .save-btn.modified {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+        }
+
+        .save-btn:hover.modified {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px) scale(1);
+        }
+
+        .save-btn.saving {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .save-btn.saved {
+            background: var(--success-green);
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+        }
+
+        .refresh-btn:hover {
+            background: var(--light-purple);
+            color: var(--primary-purple);
+        }
+
+        /* Loading & Empty States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 300px;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary-purple);
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.6rem;
+            color: var(--dark-gray);
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* MOBILE CARDS VIEW */
+        .messages-cards {
+            display: none;
+        }
+
+        .message-card {
+            background: var(--white);
+            border: 1px solid var(--light-gray);
+            border-radius: 12px;
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .message-card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-1px);
+        }
+
+        .message-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+
+        .card-target-profile {
+            flex: 1;
+        }
+
+        .card-message-content {
+            margin-bottom: 1.2rem;
+        }
+
+        .card-message-text {
+            background: var(--light-gray);
+            padding: 0.8rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: var(--dark-gray);
+        }
+
+        .card-status-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .card-status-item {
+            text-align: center;
+        }
+
+        .card-status-label {
+            font-size: 0.7rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-comment {
+            margin-bottom: 1rem;
+        }
+
+        .card-comment label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--dark-gray);
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 1024px) {
+            .messages-table-wrapper {
+                overflow-x: auto;
+            }
+
+            .messages-table {
+                min-width: 900px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .messages-controls {
+                flex-direction: column;
+            }
+
+            .search-box {
+                min-width: auto;
+            }
+
+            .messages-stats {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .stat-item {
+                min-width: 80px;
+                padding: 0.6rem;
+            }
+
+            /* Switch to card view on mobile */
+            .messages-table-wrapper {
+                display: none;
+            }
+
+            .messages-cards {
+                display: block;
+            }
+
+            .toggle-switch {
+                width: 50px;
+                height: 24px;
+            }
+
+            .toggle-slider {
+                width: 18px;
+                height: 18px;
+                font-size: 0.6rem;
+            }
+
+            .toggle-switch.yes .toggle-slider {
+                transform: translateX(26px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Messages</h1>
+                <p class="page-subtitle">Manage your LinkedIn outreach campaigns and track responses</p>
+            </div>
+            <a href="/dashboard" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                Back to Dashboard
+            </a>
+        </div>
+
+        <div class="messages-controls">
+            <div class="search-box">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search messages, names, companies..." 
+                       id="searchInput" oninput="searchMessages(this.value)">
+            </div>
+            <div class="messages-stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalMessages">8</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="repliedMessages">2</div>
+                    <div class="stat-label">Replied</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="responseRate">50%</div>
+                    <div class="stat-label">Rate</div>
+                </div>
+            </div>
+            <button class="refresh-btn" onclick="refreshMessages()" title="Refresh Messages">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <div class="messages-filters">
+            <button class="filter-btn active" onclick="filterMessages('all')">
+                <i class="fas fa-list"></i>
+                All
+            </button>
+            <button class="filter-btn" onclick="filterMessages('sent')">
+                <i class="fas fa-paper-plane"></i>
+                Sent
+            </button>
+            <button class="filter-btn" onclick="filterMessages('replied')">
+                <i class="fas fa-reply"></i>
+                Replied
+            </button>
+            <button class="filter-btn" onclick="filterMessages('pending')">
+                <i class="fas fa-clock"></i>
+                Pending
+            </button>
+        </div>
+
+        <div class="messages-card">
+            <!-- Loading State -->
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <p>Loading messages...</p>
+            </div>
+
+            <!-- Desktop Table View -->
+            <div class="messages-table-wrapper" id="messagesTableWrapper" style="display: none;">
+                <table class="messages-table">
+                    <thead>
+                        <tr>
+                            <th class="col-message">Message</th>
+                            <th class="col-target">Target Profile</th>
+                            <th class="col-sent">Sent</th>
+                            <th class="col-reply">Reply</th>
+                            <th class="col-comment">Comments</th>
+                            <th class="col-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="messagesTableBody">
+                        <!-- Messages will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Cards View -->
+            <div class="messages-cards" id="messagesCards">
+                <!-- Message cards will be populated here -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <i class="fas fa-envelope-open"></i>
+                <h3>No Messages Found</h3>
+                <p>Try adjusting your search or filter criteria to find the messages you're looking for.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let messagesData = [];
+        let filteredMessages = [];
+        let currentFilter = 'all';
+        let currentSearchTerm = '';
+        let pendingChanges = new Map();
+
+        // Enhanced Mock Messages Data
+        const mockMessagesData = [
+            {
+                id: 1,
+                message: "Hi John, I noticed your impressive work in sustainable energy solutions at Tesla. Your expertise in battery technology and renewable energy integration is exactly what our clean energy startup needs. I'd love to connect and discuss potential collaboration opportunities in the renewable sector.",
+                targetProfile: {
+                    firstName: "John",
+                    lastNameInitial: "D",
+                    role: "Senior Energy Engineer",
+                    company: "Tesla Inc."
+                },
+                sent: "yes",
+                gotReply: "yes",
+                comments: "Very positive response! Scheduled call for next Tuesday.",
+                createdAt: "2024-03-15T10:30:00Z"
+            },
+            {
+                id: 2,
+                message: "Hello Sarah, Your expertise in AI and machine learning caught my attention, particularly your work on neural networks at Google. I'm currently working on a healthcare AI project that could benefit from your insights. Would you be interested in a brief consultation call?",
+                targetProfile: {
+                    firstName: "Sarah",
+                    lastNameInitial: "M",
+                    role: "AI Research Lead",
+                    company: "Google DeepMind"
+                },
+                sent: "yes",
+                gotReply: "no",
+                comments: "Sent via LinkedIn InMail, no response after 5 days. Will try follow-up.",
+                createdAt: "2024-03-14T14:20:00Z"
+            },
+            {
+                id: 3,
+                message: "Hey Mike, I saw your post about the latest developments in blockchain technology and DeFi protocols. As someone working in fintech regulatory compliance, I'd appreciate your perspective on upcoming regulatory challenges and how we can prepare for them.",
+                targetProfile: {
+                    firstName: "Mike",
+                    lastNameInitial: "R",
+                    role: "Senior Blockchain Developer",
+                    company: "Coinbase Global"
+                },
+                sent: "yes",
+                gotReply: "yes",
+                comments: "Great response! Shared valuable regulatory insights. Connected successfully.",
+                createdAt: "2024-03-13T09:15:00Z"
+            },
+            {
+                id: 4,
+                message: "Dear Jennifer, I came across your article on digital marketing trends and customer acquisition strategies. Your insights on social media engagement and conversion optimization are particularly relevant to my current B2B campaign. Would love to exchange ideas and discuss potential collaboration.",
+                targetProfile: {
+                    firstName: "Jennifer",
+                    lastNameInitial: "L",
+                    role: "Marketing Director",
+                    company: "HubSpot Inc."
+                },
+                sent: "pending",
+                gotReply: "pending",
+                comments: "Draft ready, waiting for team lead approval before sending.",
+                createdAt: "2024-03-12T16:45:00Z"
+            },
+            {
+                id: 5,
+                message: "Hi David, Your profile shows extensive experience in cloud architecture and DevOps at AWS. I'm leading a digital transformation project and need guidance on serverless architecture implementation. Could we schedule a brief technical discussion?",
+                targetProfile: {
+                    firstName: "David",
+                    lastNameInitial: "W",
+                    role: "Cloud Solutions Architect",
+                    company: "Amazon Web Services"
+                },
+                sent: "yes",
+                gotReply: "no",
+                comments: "Message delivered but no response yet. Profile shows active but may be busy.",
+                createdAt: "2024-03-11T08:30:00Z"
+            },
+            {
+                id: 6,
+                message: "Hello Lisa, I noticed your impressive track record in product management at Microsoft, especially your work on user experience optimization. I'd value your input on a SaaS product launch strategy I'm developing. Are you open to a quick brainstorming session?",
+                targetProfile: {
+                    firstName: "Lisa",
+                    lastNameInitial: "T",
+                    role: "Senior Product Manager",
+                    company: "Microsoft Corporation"
+                },
+                sent: "no",
+                gotReply: "pending",
+                comments: "Message drafted but not sent yet. Waiting for product demo to be ready.",
+                createdAt: "2024-03-10T13:20:00Z"
+            },
+            {
+                id: 7,
+                message: "Hi Robert, Your expertise in supply chain optimization and logistics management is impressive. I saw your recent presentation on warehouse automation. Would you be interested in discussing how these concepts might apply to e-commerce fulfillment?",
+                targetProfile: {
+                    firstName: "Robert",
+                    lastNameInitial: "K",
+                    role: "Operations Director",
+                    company: "FedEx Corporation"
+                },
+                sent: "yes",
+                gotReply: "pending",
+                comments: "Sent 2 days ago, usually responds within 3-5 business days based on LinkedIn activity.",
+                createdAt: "2024-03-09T11:45:00Z"
+            },
+            {
+                id: 8,
+                message: "Dear Amanda, I'm impressed by your work in sustainable fashion and circular economy initiatives at Patagonia. I'm developing an eco-friendly textile startup and would greatly appreciate your insights on sustainable manufacturing practices and consumer engagement strategies.",
+                targetProfile: {
+                    firstName: "Amanda",
+                    lastNameInitial: "S",
+                    role: "Sustainability Manager",
+                    company: "Patagonia Inc."
+                },
+                sent: "pending",
+                gotReply: "pending",
+                comments: "Message ready to send, waiting for company sustainability report to reference.",
+                createdAt: "2024-03-08T15:10:00Z"
+            }
+        ];
+
+        // Authentication check
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!checkAuthentication()) {
+                return; // Redirect will happen in checkAuthentication
+            }
+            loadMessagesData();
+        });
+
+        function checkAuthentication() {
+            const token = getAuthToken();
+            if (!token) {
+                // Redirect to dashboard or login
+                window.location.href = '/dashboard';
+                return false;
+            }
+            return true;
+        }
+
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+
+        async function loadMessagesData() {
+            try {
+                // Show loading state
+                document.getElementById('loadingState').style.display = 'flex';
+                
+                // API INTEGRATION POINT: Replace with actual API call
+                // const response = await fetch('https://api.msgly.ai/messages', {
+                //     method: 'GET',
+                //     headers: {
+                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Content-Type': 'application/json'
+                //     }
+                // });
+                // const data = await response.json();
+                // messagesData = data.success ? data.data : [];
+
+                // Simulate API delay
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // For now, use mock data
+                messagesData = [...mockMessagesData];
+                applyFilters();
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error loading messages:', error);
+                showEmptyState();
+            }
+        }
+
+        function applyFilters() {
+            // Apply status filter
+            let filtered = filterMessagesByStatus(messagesData);
+            
+            // Apply search filter
+            if (currentSearchTerm) {
+                filtered = filtered.filter(message => 
+                    message.message.toLowerCase().includes(currentSearchTerm.toLowerCase()) ||
+                    message.targetProfile.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase()) ||
+                    message.targetProfile.role.toLowerCase().includes(currentSearchTerm.toLowerCase()) ||
+                    message.targetProfile.company.toLowerCase().includes(currentSearchTerm.toLowerCase()) ||
+                    (message.comments && message.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
+                );
+            }
+            
+            filteredMessages = filtered;
+            renderMessages();
+            updateMessagesStats();
+        }
+
+        function searchMessages(searchTerm) {
+            currentSearchTerm = searchTerm.trim();
+            applyFilters();
+        }
+
+        function renderMessages() {
+            const tableBody = document.getElementById('messagesTableBody');
+            const cardsContainer = document.getElementById('messagesCards');
+            
+            if (filteredMessages.length === 0) {
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('messagesTableWrapper').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+            
+            // Clear existing content
+            tableBody.innerHTML = '';
+            cardsContainer.innerHTML = '';
+            
+            filteredMessages.forEach(message => {
+                // Render table row
+                const tableRow = createTableRow(message);
+                tableBody.appendChild(tableRow);
+                
+                // Render mobile card
+                const messageCard = createMessageCard(message);
+                cardsContainer.appendChild(messageCard);
+            });
+            
+            // Show content
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('messagesTableWrapper').style.display = 'block';
+            document.getElementById('emptyState').style.display = 'none';
+        }
+
+        function createTableRow(message) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="col-message">
+                    <div class="message-content">
+                        <div class="message-id">MSG_${String(message.id).padStart(3, '0')}</div>
+                        <div class="message-text ${message.message.length > 150 ? 'truncated' : ''}" id="message-${message.id}">
+                            ${message.message}
+                        </div>
+                        ${message.message.length > 150 ? 
+                            `<div class="message-expand" onclick="toggleMessageExpand(${message.id})">Read more...</div>` : ''
+                        }
+                    </div>
+                </td>
+                <td class="col-target">
+                    <div class="target-profile">
+                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-role">${message.targetProfile.role}</div>
+                        <div class="target-company">${message.targetProfile.company}</div>
+                    </div>
+                </td>
+                <td class="col-sent">
+                    <div class="status-toggle">
+                        <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
+                            <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
+                        </div>
+                        <div class="toggle-label">${getStatusLabel(message.sent)}</div>
+                    </div>
+                </td>
+                <td class="col-reply">
+                    <div class="status-toggle">
+                        <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
+                            <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
+                        </div>
+                        <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
+                    </div>
+                </td>
+                <td class="col-comment">
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add notes..."
+                        onchange="updateComment(${message.id}, this.value)"
+                        onkeyup="markFieldModified(${message.id})"
+                    >${message.comments}</textarea>
+                </td>
+                <td class="col-actions">
+                    <div class="action-buttons">
+                        <button class="save-btn" id="save-${message.id}" onclick="saveMessage(${message.id})">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            return row;
+        }
+
+        function createMessageCard(message) {
+            const card = document.createElement('div');
+            card.className = 'message-card';
+            card.innerHTML = `
+                <div class="message-card-header">
+                    <div class="card-target-profile">
+                        <div class="target-name">${message.targetProfile.firstName} ${message.targetProfile.lastNameInitial}.</div>
+                        <div class="target-role">${message.targetProfile.role}</div>
+                        <div class="target-company">${message.targetProfile.company}</div>
+                    </div>
+                    <div class="message-id">MSG_${String(message.id).padStart(3, '0')}</div>
+                </div>
+                
+                <div class="card-message-content">
+                    <div class="card-message-text ${message.message.length > 120 ? 'truncated' : ''}" id="card-message-${message.id}">
+                        ${message.message}
+                    </div>
+                    ${message.message.length > 120 ? 
+                        `<div class="message-expand" onclick="toggleCardMessageExpand(${message.id})">Read more...</div>` : ''
+                    }
+                </div>
+                
+                <div class="card-status-row">
+                    <div class="card-status-item">
+                        <div class="card-status-label">Message Sent</div>
+                        <div class="status-toggle">
+                            <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
+                                <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(message.sent)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-status-item">
+                        <div class="card-status-label">Got Reply</div>
+                        <div class="status-toggle">
+                            <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
+                                <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-comment">
+                    <label>Comments:</label>
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add notes..."
+                        onchange="updateComment(${message.id}, this.value)"
+                        onkeyup="markFieldModified(${message.id})"
+                    >${message.comments}</textarea>
+                </div>
+                
+                <div class="card-actions">
+                    <button class="save-btn" id="card-save-${message.id}" onclick="saveMessage(${message.id})">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            `;
+            return card;
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'yes': return '✓';
+                case 'no': return '✗';
+                default: return '?';
+            }
+        }
+
+        function getStatusLabel(status) {
+            switch(status) {
+                case 'yes': return 'Yes';
+                case 'no': return 'No';
+                default: return 'Pending';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message) return;
+            
+            // Cycle through: pending -> yes -> no -> pending
+            switch(message[field]) {
+                case 'pending':
+                    message[field] = 'yes';
+                    break;
+                case 'yes':
+                    message[field] = 'no';
+                    break;
+                case 'no':
+                    message[field] = 'pending';
+                    break;
+            }
+            
+            markMessageModified(messageId);
+            updateToggleDisplay(messageId, field, message[field]);
+            updateMessagesStats();
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            const selectors = [
+                `[onclick="toggleStatus(${messageId}, '${field}')"]`,
+            ];
+            
+            selectors.forEach(selector => {
+                const toggles = document.querySelectorAll(selector);
+                toggles.forEach(toggle => {
+                    toggle.className = `toggle-switch ${status} modified`;
+                    const slider = toggle.querySelector('.toggle-slider');
+                    const label = toggle.nextElementSibling;
+                    
+                    if (slider) slider.textContent = getStatusIcon(status);
+                    if (label) label.textContent = getStatusLabel(status);
+                });
+            });
+        }
+
+        function updateComment(messageId, value) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (message) {
+                message.comments = value;
+                markMessageModified(messageId);
+            }
+        }
+
+        function markFieldModified(messageId) {
+            markMessageModified(messageId);
+            
+            const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
+            commentFields.forEach(field => field.classList.add('modified'));
+        }
+
+        function markMessageModified(messageId) {
+            if (!pendingChanges.has(messageId)) {
+                pendingChanges.set(messageId, true);
+            }
+            
+            const saveButtons = document.querySelectorAll(`#save-${messageId}, #card-save-${messageId}`);
+            saveButtons.forEach(btn => btn.classList.add('modified'));
+        }
+
+        async function saveMessage(messageId) {
+            const message = messagesData.find(m => m.id === messageId);
+            if (!message || !pendingChanges.has(messageId)) return;
+            
+            const saveButtons = document.querySelectorAll(`#save-${messageId}, #card-save-${messageId}`);
+            
+            try {
+                saveButtons.forEach(btn => {
+                    btn.classList.add('saving');
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                });
+                
+                // API INTEGRATION POINT: Replace with actual API call
+                // await fetch(`https://api.msgly.ai/messages/${messageId}`, {
+                //     method: 'PUT',
+                //     headers: { 
+                //         'Authorization': `Bearer ${getAuthToken()}`,
+                //         'Content-Type': 'application/json'
+                //     },
+                //     body: JSON.stringify({
+                //         sent: message.sent,
+                //         gotReply: message.gotReply,
+                //         comments: message.comments
+                //     })
+                // });
+                
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                saveButtons.forEach(btn => {
+                    btn.classList.remove('saving', 'modified');
+                    btn.classList.add('saved');
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                });
+                
+                pendingChanges.delete(messageId);
+                
+                const toggles = document.querySelectorAll(`[onclick*="${messageId}"]`);
+                toggles.forEach(toggle => toggle.classList.remove('modified'));
+                
+                const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
+                commentFields.forEach(field => field.classList.remove('modified'));
+                
+                setTimeout(() => {
+                    saveButtons.forEach(btn => {
+                        btn.classList.remove('saved');
+                        btn.innerHTML = '<i class="fas fa-save"></i>';
+                    });
+                }, 2000);
+                
+                console.log('[MESSAGES] Message saved successfully:', messageId);
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error saving message:', error);
+                
+                saveButtons.forEach(btn => {
+                    btn.classList.remove('saving');
+                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                });
+                
+                setTimeout(() => {
+                    saveButtons.forEach(btn => {
+                        btn.classList.add('modified');
+                        btn.innerHTML = '<i class="fas fa-save"></i>';
+                    });
+                }, 3000);
+            }
+        }
+
+        function toggleMessageExpand(messageId) {
+            const messageEl = document.getElementById(`message-${messageId}`);
+            const expandBtn = messageEl.nextElementSibling;
+            
+            if (messageEl.classList.contains('truncated')) {
+                messageEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                messageEl.classList.add('truncated');
+                expandBtn.textContent = 'Read more...';
+            }
+        }
+
+        function toggleCardMessageExpand(messageId) {
+            const messageEl = document.getElementById(`card-message-${messageId}`);
+            const expandBtn = messageEl.nextElementSibling;
+            
+            if (messageEl.classList.contains('truncated')) {
+                messageEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                messageEl.classList.add('truncated');
+                expandBtn.textContent = 'Read more...';
+            }
+        }
+
+        function filterMessages(status) {
+            currentFilter = status;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            applyFilters();
+        }
+
+        function filterMessagesByStatus(messages) {
+            switch (currentFilter) {
+                case 'sent':
+                    return messages.filter(msg => msg.sent === 'yes');
+                case 'replied':
+                    return messages.filter(msg => msg.gotReply === 'yes');
+                case 'pending':
+                    return messages.filter(msg => msg.sent === 'yes' && msg.gotReply !== 'yes');
+                case 'all':
+                default:
+                    return messages;
+            }
+        }
+
+        function updateMessagesStats() {
+            const totalMessages = filteredMessages.length;
+            const sentMessages = filteredMessages.filter(msg => msg.sent === 'yes').length;
+            const repliedMessages = filteredMessages.filter(msg => msg.gotReply === 'yes').length;
+            const responseRate = sentMessages > 0 ? Math.round((repliedMessages / sentMessages) * 100) : 0;
+            
+            document.getElementById('totalMessages').textContent = totalMessages;
+            document.getElementById('repliedMessages').textContent = repliedMessages;
+            document.getElementById('responseRate').textContent = `${responseRate}%`;
+        }
+
+        function refreshMessages() {
+            console.log('[MESSAGES] Refreshing messages...');
+            
+            const refreshBtn = document.querySelector('.refresh-btn i');
+            refreshBtn.classList.add('fa-spin');
+            
+            loadMessagesData().finally(() => {
+                refreshBtn.classList.remove('fa-spin');
+            });
+        }
+
+        function showEmptyState() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('messagesTableWrapper').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
