@@ -30,9 +30,10 @@ CHANGELOG - server.js:
 23. NEW: Added /msgly-profile route to serve msgly-profile.html
 24. NEW: Added personal info endpoints GET/PUT /profile/personal-info
 25. NEW: Added manual editing endpoints for basic-info, about, experience, education, skills, certifications
+26. MESSAGES API FIX: Added GET /messages/history and PUT /messages/:id endpoints for real data
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES API
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -50,6 +51,7 @@ CHANGELOG - server.js:
 // ✅ MSGLY PROFILE: Added route to serve msgly-profile.html
 // ✅ PERSONAL INFO: Added endpoints for personal information CRUD operations
 // ✅ MANUAL EDITING: Added endpoints for manual user profile editing
+// ✅ MESSAGES API: Added real data endpoints for messages page
 
 const express = require('express');
 const cors = require('cors');
@@ -1112,7 +1114,7 @@ const corsOptions = {
         
         return callback(null, true);
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
@@ -1225,6 +1227,162 @@ app.use('/', userRoutes);
 
 // REFACTOR: Mount messages routes
 app.use('/', require('./routes/messagesRoutes'));
+
+// ==================== NEW: MESSAGES API ENDPOINTS ====================
+
+// Get messages history for authenticated user
+app.get('/messages/history', authenticateToken, async (req, res) => {
+    try {
+        console.log(`[MESSAGES] Loading message history for user ${req.user.id}`);
+        
+        const result = await pool.query(`
+            SELECT 
+                id,
+                generated_message as message,
+                target_first_name,
+                target_title,
+                target_company,
+                sent_status,
+                reply_status,
+                comments,
+                created_at,
+                model_name,
+                input_tokens,
+                output_tokens,
+                total_tokens
+            FROM message_logs 
+            WHERE user_id = $1 
+            ORDER BY created_at DESC
+            LIMIT 100
+        `, [req.user.id]);
+        
+        const messages = result.rows.map(row => ({
+            id: row.id,
+            message: row.message || '',
+            targetProfile: {
+                firstName: row.target_first_name || 'Unknown',
+                lastNameInitial: '', // Don't store last names for privacy
+                role: row.target_title || 'Professional',
+                company: row.target_company || 'Company'
+            },
+            sent: row.sent_status || 'pending',
+            gotReply: row.reply_status || 'pending',
+            comments: row.comments || '',
+            createdAt: row.created_at,
+            tokenUsage: {
+                inputTokens: row.input_tokens,
+                outputTokens: row.output_tokens,
+                totalTokens: row.total_tokens
+            },
+            modelName: row.model_name
+        }));
+        
+        console.log(`[MESSAGES] Found ${messages.length} messages for user ${req.user.id}`);
+        
+        res.json({
+            success: true,
+            data: messages
+        });
+        
+    } catch (error) {
+        console.error('[ERROR] Load messages history failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load messages history'
+        });
+    }
+});
+
+// Update message status and comments
+app.put('/messages/:id', authenticateToken, async (req, res) => {
+    try {
+        const messageId = parseInt(req.params.id);
+        const { sent_status, reply_status, comments } = req.body;
+        
+        console.log(`[MESSAGES] Updating message ${messageId} for user ${req.user.id}`);
+        console.log(`[MESSAGES] Updates:`, { sent_status, reply_status, comments: comments ? 'provided' : 'empty' });
+        
+        // Verify message belongs to user
+        const ownerCheck = await pool.query(`
+            SELECT id FROM message_logs 
+            WHERE id = $1 AND user_id = $2
+        `, [messageId, req.user.id]);
+        
+        if (ownerCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Message not found or access denied'
+            });
+        }
+        
+        // Build dynamic update query
+        const updates = [];
+        const values = [];
+        let paramIndex = 1;
+        
+        if (sent_status !== undefined) {
+            updates.push(`sent_status = $${paramIndex}`);
+            values.push(sent_status);
+            paramIndex++;
+            
+            // Set sent_date when status changes to 'yes'
+            if (sent_status === 'yes') {
+                updates.push(`sent_date = CURRENT_TIMESTAMP`);
+            }
+        }
+        
+        if (reply_status !== undefined) {
+            updates.push(`reply_status = $${paramIndex}`);
+            values.push(reply_status);
+            paramIndex++;
+            
+            // Set reply_date when status changes to 'yes'
+            if (reply_status === 'yes') {
+                updates.push(`reply_date = CURRENT_TIMESTAMP`);
+            }
+        }
+        
+        if (comments !== undefined) {
+            updates.push(`comments = $${paramIndex}`);
+            values.push(comments);
+            paramIndex++;
+        }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'No valid fields provided for update'
+            });
+        }
+        
+        // Add message ID and user ID to end of values array
+        values.push(messageId, req.user.id);
+        
+        const query = `
+            UPDATE message_logs 
+            SET ${updates.join(', ')}
+            WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
+            RETURNING sent_status, reply_status, comments, sent_date, reply_date
+        `;
+        
+        const result = await pool.query(query, values);
+        
+        console.log(`[MESSAGES] Message ${messageId} updated successfully`);
+        
+        res.json({
+            success: true,
+            message: 'Message updated successfully',
+            data: result.rows[0]
+        });
+        
+    } catch (error) {
+        console.error('[ERROR] Update message failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update message'
+        });
+    }
+});
 
 // ==================== NEW: PERSONAL INFORMATION ENDPOINTS ====================
 
@@ -1555,7 +1713,7 @@ app.post('/create-checkout', authenticateToken, async (req, res) => {
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔍 Chrome Extension OAuth request received');
+    console.log('🔐 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -2000,7 +2158,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + Messages API.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -2044,7 +2202,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_MESSAGES_API'
                 }
             }
         });
@@ -2122,7 +2280,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES API'
             };
         }
 
@@ -2222,7 +2380,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_MESSAGES_API'
             }
         });
     } catch (error) {
@@ -2274,7 +2432,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_MESSAGES_API',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2687,7 +2845,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES API',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2722,6 +2880,8 @@ app.use((req, res, next) => {
             'POST /generate-message (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-connection (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-intro (REFACTORED: Now in routes/messagesRoutes.js)',
+            'GET /messages/history (NEW: Get real message data for messages page)',
+            'PUT /messages/:id (NEW: Update message status and comments)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -2800,9 +2960,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES API ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + MESSAGES API`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -2821,6 +2981,7 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ MSGLY PROFILE: Standalone profile page with full editing capabilities`);
             console.log(`[SUCCESS] ✅ PERSONAL INFO: Complete personal information CRUD system`);
             console.log(`[SUCCESS] ✅ MANUAL EDITING: Manual profile editing endpoints for all sections`);
+            console.log(`[SUCCESS] ✅ MESSAGES API: Real data endpoints for messages page campaign tracking`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
@@ -2829,11 +2990,13 @@ const startServer = async () => {
             console.log(`[PROFILE] ✅ MSGLY PROFILE PAGE: https://api.msgly.ai/msgly-profile.html (STANDALONE PAGE)`);
             console.log(`[PERSONAL] ✅ PERSONAL INFO API: GET/PUT /profile/personal-info (PERSONAL INFORMATION)`);
             console.log(`[MANUAL] ✅ MANUAL EDITING API: PUT /profile/{basic-info,about,experience,education,skills,certifications} (MANUAL EDITING)`);
+            console.log(`[MESSAGES] ✅ MESSAGES API: GET /messages/history, PUT /messages/:id (REAL DATA)`);
             console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
             console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
             console.log(`[REFACTOR] ✅ MODULAR MESSAGES: Handlers moved to controllers/routes files`);
             console.log(`[AUTH] ✅ AUTHENTICATION FIX: Messages page uses client-side authentication (redirects to /login)`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING:`);
+            console.log(`[API] ✅ MESSAGES API FIX: Real database connection for campaign tracking`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES API:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -2850,157 +3013,4 @@ const startServer = async () => {
             console.log(`   [AUTH] AUTHENTICATION FIX: Client-side authentication with redirect to /login`);
             console.log(`   [PROFILE] MSGLY PROFILE: Standalone profile page with complete editing system`);
             console.log(`   [PERSONAL] PERSONAL INFO: JSONB-based personal information with inline editing`);
-            console.log(`   [MANUAL] MANUAL EDITING: Complete manual editing system for all profile sections`);
-            console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
-            console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
-            console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation (NOW IN routes/messagesRoutes.js)`);
-            console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation (NOW IN routes/messagesRoutes.js)`);
-            console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation (NOW IN routes/messagesRoutes.js)`);
-            console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
-            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion`);
-            console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
-            console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
-            console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
-            console.log(`   [MESSAGES] /messages: Messages page with CLIENT-SIDE authentication (FIXED)`);
-            console.log(`   [PROFILE] /msgly-profile.html: Standalone Msgly Profile page with full editing (STANDALONE)`);
-            console.log(`   [PERSONAL] /profile/personal-info: Personal information CRUD endpoints (PERSONAL INFO)`);
-            console.log(`   [MANUAL] /profile/basic-info: Manual basic information editing (MANUAL EDITING)`);
-            console.log(`   [MANUAL] /profile/about: Manual about section editing (MANUAL EDITING)`);
-            console.log(`   [MANUAL] /profile/experience: Manual experience editing (MANUAL EDITING)`);
-            console.log(`   [MANUAL] /profile/education: Manual education editing (MANUAL EDITING)`);
-            console.log(`   [MANUAL] /profile/skills: Manual skills editing (MANUAL EDITING)`);
-            console.log(`   [MANUAL] /profile/certifications: Manual certifications editing (MANUAL EDITING)`);
-            console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
-            console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
-            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion`);
-            console.log(`   [DB] Database: user_profiles table for USER profiles + personal_info JSONB column`);
-            console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
-            console.log(`   [PENDING] Database: pending_registrations table for pre-payment storage`);
-            console.log(`   [LOG] Database: message_logs table for AI generation tracking`);
-            console.log(`   [LIGHT] Traffic Light system tracks User profile completion only`);
-            console.log(`[CREDIT] DUAL CREDIT SYSTEM:`);
-            console.log(`   [CYCLE] RENEWABLE CREDITS: Reset monthly to plan amount`);
-            console.log(`   [INFINITY] PAY-AS-YOU-GO CREDITS: Never expire, spent first`);
-            console.log(`   [MONEY] SPENDING ORDER: Pay-as-you-go first, then renewable`);
-            console.log(`   [CALENDAR] BILLING CYCLE: Only renewable credits reset`);
-            console.log(`   [TARGET] Target Analysis: 0.25 credits (only for NEW profiles)`);
-            console.log(`   [BOOM] Already Analyzed: FREE with marketing message`);
-            console.log(`   [MESSAGE] Message Generation: 1.0 credits (GPT-5 powered)`);
-            console.log(`   [CONNECT] Connection Generation: 1.0 credits`);
-            console.log(`   [INTRO] Intro Generation: 1.0 credits`);
-            console.log(`   [LOCK] Credit holds prevent double-spending`);
-            console.log(`   [MONEY] Deduction AFTER successful operations`);
-            console.log(`   [DATA] Complete transaction audit trail`);
-            console.log(`   [LIGHTNING] Real-time credit balance updates`);
-            console.log(`   [CLEAN] Automatic cleanup of expired holds`);
-            console.log(`   [SUCCESS] ✅ GPT-5 MESSAGE GENERATION:`);
-            console.log(`   [API] OpenAI GPT-5 integration with proper error handling`);
-            console.log(`   [PROMPT] LinkedIn-specific prompt engineering for different message types`);
-            console.log(`   [DATABASE] User + target profile loading from database`);
-            console.log(`   [LOG] Comprehensive logging: request ID, user ID, target ID, token usage`);
-            console.log(`   [STORE] Full message generation data stored in message_logs table`);
-            console.log(`   [TOKEN] Token usage tracking: input, output, total tokens + latency`);
-            console.log(`   [META] Target metadata extraction: first name, title, company`);
-            console.log(`   [ERROR] Robust error handling with user-friendly messages`);
-            console.log(`   [FALLBACK] Model fallback if GPT-5 unavailable`);
-            console.log(`   [SUCCESS] ✅ CHARGEBEE PAYMENT INTEGRATION:`);
-            console.log(`   [CONNECTION] Chargebee service with connection testing`);
-            console.log(`   [TEST] /test-chargebee endpoint for configuration validation`);
-            console.log(`   [PLANS] Subscription plan management and synchronization`);
-            console.log(`   [CHECKOUT] Hosted checkout integration for seamless payments`);
-            console.log(`   [WEBHOOKS] Event handling for subscription lifecycle management`);
-            console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
-            console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
-            console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
-            console.log(`   [MONTHLY] Monthly subscriptions: subscription_created webhook → renewable credits`);
-            console.log(`   [PAYG] One-time purchases: invoice_generated webhook (recurring: false) → PAYG credits`);
-            console.log(`   [REGISTRATION] WEBHOOK REGISTRATION COMPLETION: Automatic registration after successful payment`);
-            console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
-            console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
-            console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
-            console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
-            console.log(`   [OAUTH] New users: Welcome email after OAuth signup`);
-            console.log(`   [PAYG] PAYG users: Welcome email after one-time purchase`);
-            console.log(`   [GUARD] Database column welcome_email_sent prevents duplicates`);
-            console.log(`   [SAFE] Non-blocking: Email failures don't affect signup flow`);
-            console.log(`   [TEMPLATE] Beautiful HTML template with Chrome extension focus`);
-            console.log(`   [RETRY] Automatic retry with jitter for 429/5xx errors`);
-            console.log(`   [DUAL] MailerSend API primary + SMTP fallback`);
-            console.log(`   [SUCCESS] ✅ WEBHOOK REGISTRATION COMPLETION FIX:`);
-            console.log(`   [AUTOMATIC] Registration completed automatically after successful payment`);
-            console.log(`   [STORAGE] LinkedIn URL stored in database before payment (not sessionStorage)`);
-            console.log(`   [RETRIEVAL] Webhook retrieves stored LinkedIn URL from pending_registrations table`);
-            console.log(`   [COMPLETION] Webhook calls completePendingRegistration() to finish registration`);
-            console.log(`   [RACE] No more race conditions with OAuth callbacks`);
-            console.log(`   [OAUTH] OAuth callback redirects to dashboard with registration already complete`);
-            console.log(`   [URL] LinkedIn URL never lost - persisted in database throughout payment flow`);
-            console.log(`   [ENDPOINT] /store-pending-registration: Called by sign-up page before Chargebee redirect`);
-            console.log(`   [CLEAN] Clean webhook logging: Essential information only, no debug spam`);
-            console.log(`   [SUCCESS] ✅ MODULAR REFACTOR - STAGE A COMPLETE:`);
-            console.log(`   [CONTROLLER] controllers/messagesController.js: handleGenerateMessage, handleGenerateConnection, handleGenerateIntro`);
-            console.log(`   [ROUTES] routes/messagesRoutes.js: POST endpoints with authenticateToken middleware`);
-            console.log(`   [SERVER] server.js: Minimal changes - mount routes, remove old handlers (~740 lines moved)`);
-            console.log(`   [BEHAVIOR] 100% identical behavior - same endpoints, same middleware, same responses`);
-            console.log(`   [ROLLBACK] Easy rollback: copy original handlers back to server.js if needed`);
-            console.log(`   [PRODUCTION] Production-ready: All dependencies preserved, zero breaking changes`);
-            console.log(`   [SUCCESS] ✅ MESSAGES ROUTE FIX:`);
-            console.log(`   [ROUTE] GET /messages: Serves messages.html successfully`);
-            console.log(`   [AUTH] CLIENT-SIDE authentication: JavaScript validates token and redirects`);
-            console.log(`   [REDIRECT] Unauthenticated users redirected to /login (FIXED)`);
-            console.log(`   [NAVIGATION] Dashboard navigation links work properly`);
-            console.log(`   [SECURITY] API calls still require valid tokens - data remains protected`);
-            console.log(`   [MINIMAL] Minimal change: Removed authenticateToken middleware from /messages route`);
-            console.log(`   [SUCCESS] ✅ AUTHENTICATION FIX:`);
-            console.log(`   [CLIENT] Client-side authentication in JavaScript handles token validation`);
-            console.log(`   [REDIRECT] Proper redirect to /login for unauthenticated users`);
-            console.log(`   [IMMEDIATE] Authentication check runs immediately on page load`);
-            console.log(`   [API] API endpoints still protected with authenticateToken middleware`);
-            console.log(`   [UX] Better user experience - no JSON error messages in browser`);
-            console.log(`   [SUCCESS] ✅ MSGLY PROFILE + PERSONAL INFO:`);
-            console.log(`   [STANDALONE] Complete standalone profile page at /msgly-profile.html`);
-            console.log(`   [EDITING] Universal edit functionality on ALL profile fields`);
-            console.log(`   [PERSONAL] Personal information section with inline editing`);
-            console.log(`   [TRUNCATE] "See more/See less" functionality for long content`);
-            console.log(`   [JSONB] JSONB-based storage using existing database structure`);
-            console.log(`   [FIELDS] 7 personal fields: Hobbies, Interests, Values, Career Goals, Learning, Creative, Notes`);
-            console.log(`   [AUTOSAVE] Auto-save functionality with success feedback`);
-            console.log(`   [VALIDATION] Input validation and sanitization`);
-            console.log(`   [RESPONSIVE] Mobile-responsive design with beautiful gradients`);
-            console.log(`   [SUCCESS] ✅ MANUAL EDITING ENDPOINTS:`);
-            console.log(`   [BASIC] PUT /profile/basic-info: firstName, lastName, fullName, headline, currentJobTitle, currentCompany, location`);
-            console.log(`   [ABOUT] PUT /profile/about: About section text updates`);
-            console.log(`   [EXPERIENCE] PUT /profile/experience: Complete experience array updates`);
-            console.log(`   [EDUCATION] PUT /profile/education: Complete education array updates`);
-            console.log(`   [SKILLS] PUT /profile/skills: Complete skills array updates`);
-            console.log(`   [CERTIFICATIONS] PUT /profile/certifications: Complete certifications array updates`);
-            console.log(`   [ATOMIC] Atomic updates - only update what changed`);
-            console.log(`   [VALIDATION] Data validation and error handling per section`);
-            console.log(`   [SECURITY] authenticateToken middleware protects all endpoints`);
-            console.log(`   [DATABASE] Proper database field mapping to user_profiles table`);
-            console.log(`   [FRONTEND] Frontend save/cancel functionality will work properly`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, PERSONAL INFORMATION CRUD, AND MANUAL EDITING ENDPOINTS COMPLETE!`);
-        });
-        
-    } catch (error) {
-        console.error('[ERROR] Startup failed:', error);
-        process.exit(1);
-    }
-};
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('[STOP] Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-    console.log('[STOP] Gracefully shutting down...');
-    await pool.end();
-    process.exit(0);
-});
-
-// Start the server
-startServer();
-
-module.exports = app;
+            console.log(`   [MANUAL] MANUAL EDITING: Complete manual
