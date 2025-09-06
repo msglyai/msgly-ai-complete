@@ -188,6 +188,17 @@ async function handleGenerateMessage(req, res) {
         const safeTitle = (gptResult.metadata.target_title || '').substring(0, 45);
         const safeCompany = (gptResult.metadata.target_company || '').substring(0, 45);
         
+        // DIAGNOSTIC: Log all string field lengths to identify VARCHAR(50) problem
+        console.log('[DEBUG] Field lengths before INSERT:');
+        console.log('  target_profile_url:', targetProfileUrl?.length || 0);
+        console.log('  generated_message:', generatedMessage?.length || 0); 
+        console.log('  context_text:', outreachContext?.length || 0);
+        console.log('  target_first_name:', safeFirstName?.length || 0);
+        console.log('  target_title:', safeTitle?.length || 0);
+        console.log('  target_company:', safeCompany?.length || 0);
+        console.log('  model_name:', gptResult.metadata.model_name?.length || 0);
+        console.log('  prompt_version:', gptResult.metadata.prompt_version?.length || 0);
+        
         const messageLogResult = await pool.query(`
             INSERT INTO message_logs (
                 user_id,
