@@ -432,6 +432,7 @@
         .page-actions {
             display: flex;
             gap: 1rem;
+            flex-wrap: wrap;
         }
 
         .action-btn {
@@ -483,6 +484,34 @@
         .action-btn.secondary:hover {
             background: var(--light-purple);
             transform: translateY(-3px) scale(1.05);
+        }
+
+        /* Disabled button styling for coming soon features */
+        .action-btn.disabled {
+            background: var(--gray);
+            color: rgba(255, 255, 255, 0.7);
+            cursor: not-allowed;
+            opacity: 0.6;
+            position: relative;
+        }
+
+        .action-btn.disabled:hover {
+            background: var(--gray);
+            transform: none;
+            box-shadow: var(--shadow);
+        }
+
+        .action-btn.disabled::before {
+            display: none;
+        }
+
+        .action-btn .coming-soon-badge {
+            background: rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.6rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 8px;
+            margin-left: 0.3rem;
         }
 
         /* Profile Content Grid */
@@ -1040,6 +1069,8 @@
 
             .page-actions {
                 justify-content: center;
+                flex-direction: column;
+                width: 100%;
             }
 
             .card-actions {
@@ -1107,6 +1138,16 @@
             }
 
             .add-btn, .edit-mode-toggle {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .page-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .action-btn {
                 width: 100%;
                 justify-content: center;
             }
@@ -1233,7 +1274,7 @@
 
             <!-- Profile Content -->
             <div id="profileContent" style="display: none;">
-                <!-- Page Header - REMOVED EXTRA BILLING BUTTON -->
+                <!-- Page Header -->
                 <div class="page-header">
                     <div class="page-header-content">
                         <div class="page-header-icon">
@@ -1248,9 +1289,15 @@
                                 <i class="fas fa-sync-alt"></i>
                                 Refresh Data
                             </button>
-                            <button class="action-btn" onclick="exportProfile()">
+                            <button class="action-btn disabled" onclick="importProfile()">
+                                <i class="fas fa-upload"></i>
+                                Import Profile
+                                <span class="coming-soon-badge">Soon</span>
+                            </button>
+                            <button class="action-btn disabled" onclick="exportProfile()">
                                 <i class="fas fa-download"></i>
                                 Export Profile
+                                <span class="coming-soon-badge">Soon</span>
                             </button>
                         </div>
                     </div>
@@ -2281,6 +2328,11 @@
 
         function refreshProfile() {
             location.reload();
+        }
+
+        // Updated functions for Import/Export with Coming Soon alerts
+        function importProfile() {
+            showComingSoon('Import Profile');
         }
 
         function exportProfile() {
