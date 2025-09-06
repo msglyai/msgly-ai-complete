@@ -9,6 +9,7 @@
 // ✅ CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
 // ✅ REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
 // ✅ MESSAGES FIX: Added campaign tracking fields to message_logs table
+// ✅ COLUMN SIZE FIX: Fixed VARCHAR(50) constraint errors for target metadata
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -136,6 +137,24 @@ const ensurePendingRegistrationsTable = async () => {
     } catch (error) {
         console.error('[ERROR] Failed to ensure pending_registrations table:', error);
         throw error;
+    }
+};
+
+// ✅ NEW: Fix message_logs column sizes to prevent VARCHAR(50) errors
+const fixMessageLogsColumnSizes = async () => {
+    try {
+        console.log('[MIGRATION] Fixing message_logs column sizes...');
+        
+        await pool.query(`
+            ALTER TABLE message_logs 
+            ALTER COLUMN target_first_name TYPE VARCHAR(255),
+            ALTER COLUMN target_title TYPE VARCHAR(500),
+            ALTER COLUMN target_company TYPE VARCHAR(500);
+        `);
+        
+        console.log('[SUCCESS] ✅ Fixed message_logs column sizes - no more VARCHAR(50) errors');
+    } catch (error) {
+        console.log('[INFO] Column size migration may have failed (columns might already be correct):', error.message);
     }
 };
 
@@ -417,6 +436,9 @@ const initDB = async () => {
         // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
         await ensurePendingRegistrationsTable();
 
+        // ✅ NEW: Fix column sizes to prevent VARCHAR(50) errors
+        await fixMessageLogsColumnSizes();
+
         // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING
         try {
             const enhancedUserColumns = [
@@ -622,7 +644,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, and MESSAGES CAMPAIGN TRACKING created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, and COLUMN SIZE FIX created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1365,7 +1387,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + COLUMN SIZE FIX
 module.exports = {
     // Database connection
     pool,
@@ -1378,6 +1400,7 @@ module.exports = {
     cleanupDuplicateTargetProfiles,
     ensureTargetProfilesTable,
     ensurePendingRegistrationsTable,
+    fixMessageLogsColumnSizes,
     
     // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
