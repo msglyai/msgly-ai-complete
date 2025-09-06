@@ -1178,30 +1178,10 @@
                 }
                 
                 const data = await response.json();
-                console.log('[MESSAGES] Raw API response sample:', data.data?.[0]);
                 
                 if (data.success) {
-                    // FIXED: Transform data structure to match frontend expectations
-                    messagesData = (data.data || []).map(msg => ({
-                        id: msg.id,
-                        message: msg.message,
-                        sent: msg.sent_status || 'pending',
-                        gotReply: msg.reply_status || 'pending',
-                        comments: msg.comments || '',
-                        // Transform snake_case DB columns to nested object structure
-                        targetProfile: {
-                            firstName: msg.target_first_name || 'Unknown',
-                            role: msg.target_title || 'Professional',
-                            company: msg.target_company || 'Company'
-                        },
-                        // Keep backward compatibility
-                        target: {
-                            firstName: msg.target_first_name || 'Unknown'
-                        }
-                    }));
-                    
+                    messagesData = data.data || [];
                     console.log(`[MESSAGES] Loaded ${messagesData.length} real messages from database`);
-                    console.log('[MESSAGES] Transformed data sample:', messagesData[0]);
                 } else {
                     throw new Error(data.error || 'Failed to load messages');
                 }
@@ -1231,10 +1211,9 @@
             if (currentSearchTerm) {
                 filtered = filtered.filter(message => 
                     (message.message && message.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.target_first_name && message.target_first_name.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.targetProfile?.firstName && message.targetProfile.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.targetProfile?.role && message.targetProfile.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.targetProfile?.company && message.targetProfile.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                    (message.target.firstName && message.target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                    (message.targetProfile.role && message.targetProfile.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                    (message.targetProfile.company && message.targetProfile.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.comments && message.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
                 );
             }
@@ -1296,9 +1275,9 @@
                 </td>
                 <td class="col-target">
                     <div class="target-profile">
-                        <div class="target-name">${message.targetProfile.firstName}</div>
-                        <div class="target-role">${message.targetProfile.role}</div>
-                        <div class="target-company">${message.targetProfile.company}</div>
+                        <div class="target-name">${message.targetProfile.firstName || 'Unknown'}</div>
+                        <div class="target-role">${message.targetProfile.role || 'Professional'}</div>
+                        <div class="target-company">${message.targetProfile.company || 'Company'}</div>
                     </div>
                 </td>
                 <td class="col-sent">
@@ -1323,7 +1302,7 @@
                         placeholder="Add notes..."
                         onchange="updateComment(${message.id}, this.value)"
                         onkeyup="markFieldModified(${message.id})"
-                    >${message.comments}</textarea>
+                    >${message.comments || ''}</textarea>
                 </td>
                 <td class="col-actions">
                     <div class="action-buttons">
@@ -1342,9 +1321,9 @@
             card.innerHTML = `
                 <div class="message-card-header">
                     <div class="card-target-profile">
-                        <div class="target-name">${message.targetProfile.firstName}</div>
-                        <div class="target-role">${message.targetProfile.role}</div>
-                        <div class="target-company">${message.targetProfile.company}</div>
+                        <div class="target-name">${message.targetProfile.firstName || 'Unknown'}</div>
+                        <div class="target-role">${message.targetProfile.role || 'Professional'}</div>
+                        <div class="target-company">${message.targetProfile.company || 'Company'}</div>
                     </div>
                     <div class="message-id">MSG_${String(message.id).padStart(3, '0')}</div>
                 </div>
@@ -1387,7 +1366,7 @@
                         placeholder="Add notes..."
                         onchange="updateComment(${message.id}, this.value)"
                         onkeyup="markFieldModified(${message.id})"
-                    >${message.comments}</textarea>
+                    >${message.comments || ''}</textarea>
                 </div>
                 
                 <div class="card-actions">
