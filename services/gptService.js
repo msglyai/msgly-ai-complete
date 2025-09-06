@@ -653,7 +653,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
         }
     }
 
-    // ENHANCED: Extract target profile metadata for database storage
+    // ENHANCED: Extract target profile metadata for database storage - FIXED: Added truncation for VARCHAR(50) limits
     extractTargetMetadata(profileData) {
         if (!profileData || !profileData.data_json) {
             return {
@@ -675,10 +675,15 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             const dataSection = profile.data || profile;
             const profileInfo = dataSection.profile || profile.profile || dataSection;
             
+            // FIXED: Truncate to 50 chars to match database constraints
+            const firstName = profileInfo.firstName || profileInfo.fullName?.split(' ')[0] || profileInfo.name?.split(' ')[0] || null;
+            const title = profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.headline || null;
+            const company = profileInfo.currentCompany || profileInfo.current_company || null;
+            
             return {
-                target_first_name: profileInfo.firstName || profileInfo.fullName?.split(' ')[0] || profileInfo.name?.split(' ')[0] || null,
-                target_title: profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.headline || null,
-                target_company: profileInfo.currentCompany || profileInfo.current_company || null
+                target_first_name: firstName ? firstName.substring(0, 50) : null,
+                target_title: title ? title.substring(0, 50) : null,
+                target_company: company ? company.substring(0, 50) : null
             };
             
         } catch (error) {
