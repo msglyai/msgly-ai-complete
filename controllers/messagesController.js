@@ -10,7 +10,7 @@ const {
 } = require('../credits');
 const gptService = require('../services/gptService');
 
-// FIXED: Enhanced Message Generation with GPT-5 and comprehensive logging
+// FIXED: Enhanced Message Generation with GPT-5 and comprehensive logging + VARCHAR(50) fix
 async function handleGenerateMessage(req, res) {
     let holdId = null;
     
@@ -183,6 +183,11 @@ async function handleGenerateMessage(req, res) {
         // STEP 4: Store comprehensive data in message_logs table
         console.log('[DATABASE] Storing message generation data...');
         
+        // FIXED: Truncate metadata to prevent VARCHAR(50) errors
+        const safeFirstName = (gptResult.metadata.target_first_name || '').substring(0, 45);
+        const safeTitle = (gptResult.metadata.target_title || '').substring(0, 45);
+        const safeCompany = (gptResult.metadata.target_company || '').substring(0, 45);
+        
         const messageLogResult = await pool.query(`
             INSERT INTO message_logs (
                 user_id,
@@ -207,9 +212,9 @@ async function handleGenerateMessage(req, res) {
             targetProfileUrl,
             generatedMessage,
             outreachContext,
-            gptResult.metadata.target_first_name,
-            gptResult.metadata.target_title,
-            gptResult.metadata.target_company,
+            safeFirstName,
+            safeTitle,
+            safeCompany,
             gptResult.metadata.model_name,
             gptResult.metadata.prompt_version,
             gptResult.tokenUsage.input_tokens,
@@ -276,7 +281,7 @@ async function handleGenerateMessage(req, res) {
     }
 }
 
-// COMPLETED: Connection Request Generation with dual credit system
+// COMPLETED: Connection Request Generation with dual credit system + VARCHAR(50) fix
 async function handleGenerateConnection(req, res) {
     let holdId = null;
     
@@ -414,6 +419,11 @@ async function handleGenerateConnection(req, res) {
         // STEP 4: Store in message_logs table
         console.log('[DATABASE] Storing connection generation data...');
         
+        // FIXED: Truncate metadata to prevent VARCHAR(50) errors
+        const safeFirstName = (gptResult.metadata.target_first_name || '').substring(0, 45);
+        const safeTitle = (gptResult.metadata.target_title || '').substring(0, 45);
+        const safeCompany = (gptResult.metadata.target_company || '').substring(0, 45);
+        
         const messageLogResult = await pool.query(`
             INSERT INTO message_logs (
                 user_id,
@@ -440,9 +450,9 @@ async function handleGenerateConnection(req, res) {
             generatedConnection,
             outreachContext,
             'connection_request',
-            gptResult.metadata.target_first_name,
-            gptResult.metadata.target_title,
-            gptResult.metadata.target_company,
+            safeFirstName,
+            safeTitle,
+            safeCompany,
             gptResult.metadata.model_name,
             gptResult.metadata.prompt_version,
             gptResult.tokenUsage.input_tokens,
@@ -509,7 +519,7 @@ async function handleGenerateConnection(req, res) {
     }
 }
 
-// NEW: Intro Request Generation with dual credit system
+// NEW: Intro Request Generation with dual credit system + VARCHAR(50) fix
 async function handleGenerateIntro(req, res) {
     let holdId = null;
     
@@ -655,6 +665,11 @@ async function handleGenerateIntro(req, res) {
         // STEP 4: Store in message_logs table (concatenated format)
         console.log('[DATABASE] Storing intro generation data...');
         
+        // FIXED: Truncate metadata to prevent VARCHAR(50) errors
+        const safeFirstName = (gptResult.metadata.target_first_name || '').substring(0, 45);
+        const safeTitle = (gptResult.metadata.target_title || '').substring(0, 45);
+        const safeCompany = (gptResult.metadata.target_company || '').substring(0, 45);
+        
         const messageLogResult = await pool.query(`
             INSERT INTO message_logs (
                 user_id,
@@ -681,9 +696,9 @@ async function handleGenerateIntro(req, res) {
             combinedMessage,
             outreachContext,
             'intro_request',
-            gptResult.metadata.target_first_name,
-            gptResult.metadata.target_title,
-            gptResult.metadata.target_company,
+            safeFirstName,
+            safeTitle,
+            safeCompany,
             gptResult.metadata.model_name,
             gptResult.metadata.prompt_version,
             gptResult.tokenUsage.input_tokens,
