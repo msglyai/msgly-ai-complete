@@ -651,6 +651,22 @@ const initDB = async () => {
     }
 };
 
+// ✅ NEW: Force fix column sizes every startup to ensure proper VARCHAR limits
+const forceFixColumns = async () => {
+    try {
+        console.log('[FORCE FIX] Updating message_logs column sizes...');
+        await pool.query(`
+            ALTER TABLE message_logs 
+            ALTER COLUMN target_first_name TYPE VARCHAR(255),
+            ALTER COLUMN target_title TYPE VARCHAR(500),
+            ALTER COLUMN target_company TYPE VARCHAR(500);
+        `);
+        console.log('[SUCCESS] ✅ Column sizes updated to 255/500 characters');
+    } catch (error) {
+        console.log('[INFO] Column update skipped (might already be correct):', error.message);
+    }
+};
+
 // ==================== DUAL CREDIT MANAGEMENT FUNCTIONS ====================
 
 // NEW: Get user plan with real data - FIXED
