@@ -1211,7 +1211,7 @@
             if (currentSearchTerm) {
                 filtered = filtered.filter(message => 
                     (message.message && message.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.targetProfile.firstName && message.targetProfile.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                    (message.target.firstName && message.target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.targetProfile.role && message.targetProfile.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.targetProfile.company && message.targetProfile.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.comments && message.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
