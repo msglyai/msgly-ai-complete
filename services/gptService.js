@@ -24,6 +24,8 @@ CHANGELOG - services/gptService.js:
 8. ADDED CALL-TO-ACTION REQUIREMENT: All message types now require CTA at the end
 9. MODIFIED: All data formatting functions now send COMPLETE DATA without any truncation
 10. UPDATED INBOX MESSAGE PROMPT: Replaced with new human-like, natural language version
+11. FIXED CHARACTER ENCODING: Cleaned up all corrupted characters in prompts
+12. FIXED DATABASE TRUNCATION: Changed to 40-char limit for extra safety
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging - FULL DATA VERSION
@@ -109,28 +111,28 @@ class GPTService {
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT â€" the business or conversational goal.
+1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT — the business or conversational goal.
 
 Task:
 - Generate ONE highly personalized LinkedIn connection request message.
 
 Message rules:
-â€¢ Absolute maximum: 150 characters (count before finalizing).
-â€¢ Must always start with: "Hi [TARGET_FIRSTNAME],"
-â€¢ Focus primarily on the TARGET PROFILE â€" highlight what is valuable or relevant for them.
-â€¢ At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
-â€¢ Integrate CONTEXT naturally â€" frame it as potential mutual value, not a literal repeat.
-â€¢ Written as a connection request (invitation to connect).
-â€¢ MUST end with a brief call-to-action (e.g., "Let's connect!", "Would love to connect", "Connect?").
-â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
-â€¢ Do not phrase the connection request as a question (except for the CTA).
-â€¢ If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
-â€¢ If inputs are poor â€" still greet politely and write a general invite â‰¤150 chars with CTA.
-â€¢ Avoid exaggerated adjectives.
-â€¢ No emojis, hashtags, line breaks, or special symbols.
-â€¢ Output only the final message text â€" no explanations, no labels, no JSON.`;
+• Absolute maximum: 150 characters (count before finalizing).
+• Must always start with: "Hi [TARGET_FIRSTNAME],"
+• Focus primarily on the TARGET PROFILE — highlight what is valuable or relevant for them.
+• At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
+• Integrate CONTEXT naturally — frame it as potential mutual value, not a literal repeat.
+• Written as a connection request (invitation to connect).
+• MUST end with a brief call-to-action (e.g., "Let's connect!", "Would love to connect", "Connect?").
+• Keep it friendly, professional, approachable — avoid email or sales tone.
+• Do not phrase the connection request as a question (except for the CTA).
+• If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
+• If inputs are poor — still greet politely and write a general invite ≤150 chars with CTA.
+• Avoid exaggerated adjectives.
+• No emojis, hashtags, line breaks, or special symbols.
+• Output only the final message text — no explanations, no labels, no JSON.`;
                 break;
                 
             case 'intro_request':
@@ -139,34 +141,34 @@ Message rules:
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT â€" the business or conversational goal.
-4. MUTUAL CONNECTION â€" the LinkedIn profile of the shared connection who could make the intro.
+1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT — the business or conversational goal.
+4. MUTUAL CONNECTION — the LinkedIn profile of the shared connection who could make the intro.
 
 Task:
 - Generate ONE LinkedIn intro request consisting of two short parts:
-  Part A: The message you would send to the mutual connection asking for an introduction. â‰¤150 characters.
-  Part B: The short message the mutual connection could forward to the target. â‰¤220 characters.
+  Part A: The message you would send to the mutual connection asking for an introduction. ≤150 characters.
+  Part B: The short message the mutual connection could forward to the target. ≤220 characters.
 - Combined total must never exceed 370 characters.
 
 Message rules:
-â€¢ Both parts must always start with: "Hi [FIRSTNAME],"
-â€¢ Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
-â€¢ Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
-â€¢ Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
-â€¢ Integrate CONTEXT naturally; do not restate it literally.
-â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
-â€¢ No offers, links, or additional calls-to-action beyond the required ones.
-â€¢ Do not phrase Part A or Part B as a question (except for the CTAs).
-â€¢ Avoid generic phrases; avoid relying only on job titles or company names.
-â€¢ Avoid exaggerated adjectives.
-â€¢ No emojis, hashtags, line breaks, or special symbols.
-â€¢ If insufficient data â€" still produce polite, general LinkedIn-style messages within limits with required CTAs.
-â€¢ Output format:
+• Both parts must always start with: "Hi [FIRSTNAME],"
+• Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
+• Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
+• Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
+• Integrate CONTEXT naturally; do not restate it literally.
+• Keep it friendly, professional, approachable — avoid email or sales tone.
+• No offers, links, or additional calls-to-action beyond the required ones.
+• Do not phrase Part A or Part B as a question (except for the CTAs).
+• Avoid generic phrases; avoid relying only on job titles or company names.
+• Avoid exaggerated adjectives.
+• No emojis, hashtags, line breaks, or special symbols.
+• If insufficient data — still produce polite, general LinkedIn-style messages within limits with required CTAs.
+• Output format:
   Part A: [intro request to mutual connection]
   Part B: [forwardable message to target]
-â€¢ Output only the two message texts â€" no explanations, no labels, no JSON.`;
+• Output only the two message texts — no explanations, no labels, no JSON.`;
                 break;
                 
             default: // 'inbox_message'
@@ -653,8 +655,10 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
         }
     }
 
-    // ENHANCED: Extract target profile metadata for database storage - FIXED: Added truncation for VARCHAR(50) limits
+    // ENHANCED: Extract target profile metadata for database storage - FIXED: 40-char limit for safety
     extractTargetMetadata(profileData) {
+        console.log('[TRUNCATION FIX] Running extractTargetMetadata with 40-char safety limit');
+        
         if (!profileData || !profileData.data_json) {
             return {
                 target_first_name: null,
@@ -675,16 +679,24 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             const dataSection = profile.data || profile;
             const profileInfo = dataSection.profile || profile.profile || dataSection;
             
-            // FIXED: Truncate to 50 chars to match database constraints
+            // FIXED: Truncate to 40 chars for extra safety (well below 50-char limit)
             const firstName = profileInfo.firstName || profileInfo.fullName?.split(' ')[0] || profileInfo.name?.split(' ')[0] || null;
             const title = profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.headline || null;
             const company = profileInfo.currentCompany || profileInfo.current_company || null;
             
-            return {
-                target_first_name: firstName ? firstName.substring(0, 50) : null,
-                target_title: title ? title.substring(0, 50) : null,
-                target_company: company ? company.substring(0, 50) : null
+            const result = {
+                target_first_name: firstName ? firstName.substring(0, 40) : null,
+                target_title: title ? title.substring(0, 40) : null,
+                target_company: company ? company.substring(0, 40) : null
             };
+            
+            console.log('[TRUNCATION FIX] Metadata extracted:', {
+                firstName: firstName ? `${firstName} -> ${result.target_first_name}` : 'null',
+                title: title ? `${title.substring(0, 60)}... -> ${result.target_title}` : 'null',
+                company: company ? `${company.substring(0, 60)}... -> ${result.target_company}` : 'null'
+            });
+            
+            return result;
             
         } catch (error) {
             console.error('[ERROR] Error extracting target metadata:', error);
