@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -8,6 +8,7 @@
 // ✅ FIXED: Added message_type column for connection/intro message differentiation
 // ✅ CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
 // ✅ REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
+// ✅ MESSAGES FIX: Added campaign tracking fields to message_logs table
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -142,7 +143,7 @@ const ensurePendingRegistrationsTable = async () => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -353,7 +354,7 @@ const initDB = async () => {
             );
         `);
 
-        // ENHANCED MESSAGE_LOGS TABLE - ✅ GPT-5 INTEGRATION: Added comprehensive logging columns
+        // ENHANCED MESSAGE_LOGS TABLE - ✅ GPT-5 INTEGRATION: Added comprehensive logging columns + CAMPAIGN TRACKING
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -379,6 +380,13 @@ const initDB = async () => {
                 total_tokens INTEGER,
                 latency_ms INTEGER,
                 data_json JSONB,
+                
+                -- ✅ NEW: Campaign tracking fields for Messages page
+                sent_status VARCHAR(20) DEFAULT 'pending',
+                reply_status VARCHAR(20) DEFAULT 'pending',
+                comments TEXT,
+                sent_date TIMESTAMP,
+                reply_date TIMESTAMP,
                 
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -409,7 +417,7 @@ const initDB = async () => {
         // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
         await ensurePendingRegistrationsTable();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -502,7 +510,7 @@ const initDB = async () => {
                 }
             }
 
-            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX
+            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX + CAMPAIGN TRACKING
             const gpt5MessageColumns = [
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_profile_url TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS context_text TEXT',
@@ -518,10 +526,17 @@ const initDB = async () => {
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS data_json JSONB',
                 
                 // ✅ CRITICAL FIX: Add missing message_type column for connection/intro message differentiation
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS message_type VARCHAR(50) DEFAULT \'message\''
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS message_type VARCHAR(50) DEFAULT \'message\'',
+                
+                // ✅ NEW: Campaign tracking fields for Messages page
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sent_status VARCHAR(20) DEFAULT \'pending\'',
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS reply_status VARCHAR(20) DEFAULT \'pending\'',
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS comments TEXT',
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sent_date TIMESTAMP',
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS reply_date TIMESTAMP'
             ];
 
-            console.log('-- ✅ NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX');
+            console.log('-- ✅ NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX + CAMPAIGN TRACKING');
             
             for (const columnQuery of gpt5MessageColumns) {
                 try {
@@ -529,6 +544,16 @@ const initDB = async () => {
                     // Log successful addition of message_type column
                     if (columnQuery.includes('message_type')) {
                         console.log('✅ FIXED: Added message_type column to message_logs table');
+                    }
+                    // Log successful addition of campaign tracking columns
+                    if (columnQuery.includes('sent_status')) {
+                        console.log('✅ MESSAGES FIX: Added sent_status column for campaign tracking');
+                    }
+                    if (columnQuery.includes('reply_status')) {
+                        console.log('✅ MESSAGES FIX: Added reply_status column for campaign tracking');
+                    }
+                    if (columnQuery.includes('comments')) {
+                        console.log('✅ MESSAGES FIX: Added comments column for campaign tracking');
                     }
                 } catch (err) {
                     console.log(`GPT-5 column might already exist: ${err.message}`);
@@ -540,7 +565,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes + CHARGEBEE INDEXES
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -572,14 +597,16 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
                 
-                -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE
+                -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE + CAMPAIGN TRACKING
                 CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_model_name ON message_logs(model_name);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_target_profile_url ON message_logs(target_profile_url);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_message_type ON message_logs(message_type);
+                CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
+                CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -595,7 +622,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, and PENDING REGISTRATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, and MESSAGES CAMPAIGN TRACKING created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1338,7 +1365,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING
 module.exports = {
     // Database connection
     pool,
