@@ -2655,7 +2655,7 @@ app.get('/messages/history', authenticateToken, async (req, res) => {
         const result = await pool.query(`
             SELECT 
                 ml.id,
-                ml.target_name as "targetProfile.firstName",
+                ml.target_first_name as "targetProfile.firstName",
                 ml.target_title as "targetProfile.role", 
                 ml.target_company as "targetProfile.company",
                 ml.generated_message as message,
