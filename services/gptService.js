@@ -26,6 +26,7 @@ CHANGELOG - services/gptService.js:
 10. UPDATED INBOX MESSAGE PROMPT: Replaced with new human-like, natural language version
 11. FIXED CHARACTER ENCODING: Cleaned up all corrupted characters in prompts
 12. FIXED DATABASE TRUNCATION: Changed to 40-char limit for extra safety
+13. UPDATED CONNECTION REQUEST PROMPT: New personalized prompt with sender name requirement
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging - FULL DATA VERSION
@@ -107,32 +108,34 @@ class GPTService {
         switch (messageType) {
             case 'connection_request':
                 systemPrompt = `[MODE: CONNECTION_REQUEST]
-
-You are an AI LinkedIn Outreach Assistant.
-
-Inputs:
-1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT — the business or conversational goal.
-
-Task:
-- Generate ONE highly personalized LinkedIn connection request message.
-
-Message rules:
-• Absolute maximum: 150 characters (count before finalizing).
-• Must always start with: "Hi [TARGET_FIRSTNAME],"
-• Focus primarily on the TARGET PROFILE — highlight what is valuable or relevant for them.
-• At least 2 details must be referenced (one from USER PROFILE, one from TARGET PROFILE).
-• Integrate CONTEXT naturally — frame it as potential mutual value, not a literal repeat.
-• Written as a connection request (invitation to connect).
-• MUST end with a brief call-to-action (e.g., "Let's connect!", "Would love to connect", "Connect?").
-• Keep it friendly, professional, approachable — avoid email or sales tone.
-• Do not phrase the connection request as a question (except for the CTA).
-• If target is senior-level (CEO, VP, Founder), keep extra concise/respectful.
-• If inputs are poor — still greet politely and write a general invite ≤150 chars with CTA.
-• Avoid exaggerated adjectives.
-• No emojis, hashtags, line breaks, or special symbols.
-• Output only the final message text — no explanations, no labels, no JSON.`;
+I send you:
+My LinkedIn profile (USER PROFILE)
+My Target's LinkedIn profile (TARGET PROFILE)
+The CONTEXT (business or conversational goal)
+Please build the most personalized LinkedIn connection request note.
+**Rules:**
+* Absolute maximum: **150 characters**.
+* Always start with: **"Hi [TARGET_FIRSTNAME],"**
+* Always end with sender's first name (e.g., "… Thanks, Ziv").
+* Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
+* You may use more than one detail from each profile if relevant and it improves personalization.
+* You may use details from the TARGET PROFILE "About" section **only if they are unique, personal, or add value**; skip generic/vague phrases.
+* Must end with a **clear CTA relevant to CONTEXT** (even short, like "Would love to connect").
+* Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
+* Keep tone **friendly, approachable, natural** (not salesy).
+* Language must be **English only, simple, natural, and human-like** (not formal, academic, or marketing-style).
+**Restrictions:**
+* Do **NOT** use emojis.
+* Do **NOT** use hashtags.
+* Do **NOT** use quotation marks unless quoting an exact profile title.
+* Do **NOT** use unusual punctuation (e.g., "!!!", "??", "--", "~~").
+* Do **NOT** use bullet points or lists.
+* Do **NOT** use line breaks — message must be one single line.
+* Do **NOT** generate multiple options — only one single message.
+* Do **NOT** exceed the character limit.
+* Do **NOT** output explanations, reasoning, or meta-text — only the message itself.
+* Do **NOT** use generic AI-sounding phrases.
+* Do **NOT** invent details — only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
                 break;
                 
             case 'intro_request':
@@ -858,7 +861,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                     primary_model: this.model,
                     fallback_triggered: fallbackTriggered,
                     primary_error: primaryError,
-                    prompt_version: messageType === 'connection_request' ? 'connection_request_v2_cta_full_data' : messageType === 'intro_request' ? 'intro_request_v2_cta_full_data' : 'inbox_message_target_centric_v4_natural_human_full_data',
+                    prompt_version: messageType === 'connection_request' ? 'connection_request_v3_sender_name_full_data' : 'inbox_message_target_centric_v4_natural_human_full_data',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
