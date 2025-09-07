@@ -31,9 +31,11 @@ CHANGELOG - server.js:
 24. NEW: Added personal info endpoints GET/PUT /profile/personal-info
 25. NEW: Added manual editing endpoints for basic-info, about, experience, education, skills, certifications
 26. MESSAGES FIX: Added GET /messages/history endpoint for Messages page (43 lines added)
+27. PAYG FIX: Fixed customer resolution in handleInvoiceGenerated for PAYG purchases
+28. PAYG FIX: Added handlePaymentSucceeded as fallback webhook handler
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -51,6 +53,7 @@ CHANGELOG - server.js:
 // ✅ MSGLY PROFILE: Added route to serve msgly-profile.html
 // ✅ PERSONAL INFO: Added endpoints for personal information CRUD operations
 // ✅ MANUAL EDITING: Added endpoints for manual user profile editing
+// ✅ PAYG CUSTOMER FIX: Fixed customer resolution for PAYG webhook processing
 
 const express = require('express');
 const cors = require('cors');
@@ -866,10 +869,13 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
-// ENHANCED: invoice_generated handler for BOTH subscription renewals AND one-time purchases + automatic registration
+// PAYG FIX: Enhanced invoice_generated handler with proper customer resolution
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
+        console.log('[WEBHOOK] Invoice status:', invoice.status);
+        console.log('[WEBHOOK] Invoice customer_id:', invoice.customer_id);
+        console.log('[WEBHOOK] Invoice recurring:', invoice.recurring);
         
         // Check if this is a paid invoice
         if (invoice.status !== 'paid') {
@@ -919,39 +925,61 @@ async function handleInvoiceGenerated(invoice, subscription) {
             }
             
         } else if (invoice.recurring === false || !subscription) {
-            // CASE 2: One-time purchase (PAYG plans)
-            const customerEmail = invoice.customer_id;
+            // CASE 2: One-time purchase (PAYG plans) - FIXED VERSION
+            console.log('[WEBHOOK] Processing PAYG one-time purchase');
+            console.log('[WEBHOOK] Looking for customer with ID:', invoice.customer_id);
             
-            // Get customer details from Chargebee API if we only have customer_id
-            let customerData = null;
-            if (customerEmail && !customerEmail.includes('@')) {
-                // This is a customer_id, not email - we need to find the user differently
+            // PAYG FIX: Proper customer resolution for PAYG purchases
+            let user = null;
+            
+            // Method 1: Try to find user by chargebee_customer_id first
+            if (invoice.customer_id) {
                 const userByCustomerId = await pool.query(`
                     SELECT * FROM users 
                     WHERE chargebee_customer_id = $1
-                `, [customerEmail]);
+                `, [invoice.customer_id]);
                 
                 if (userByCustomerId.rows.length > 0) {
-                    customerData = { email: userByCustomerId.rows[0].email };
+                    user = userByCustomerId.rows[0];
+                    console.log(`[WEBHOOK] Found user by customer_id: ${user.email}`);
                 }
-            } else if (customerEmail && customerEmail.includes('@')) {
-                // This is already an email
-                customerData = { email: customerEmail };
             }
             
-            if (!customerData) {
-                console.error('[WEBHOOK] Cannot determine customer email for one-time purchase');
-                return;
+            // Method 2: If not found, get customer details from Chargebee API
+            if (!user && invoice.customer_id) {
+                try {
+                    console.log('[WEBHOOK] Fetching customer details from Chargebee API...');
+                    const chargebee = require('chargebee');
+                    
+                    const customerResponse = await chargebee.customer.retrieve(invoice.customer_id).request();
+                    const customer = customerResponse.customer;
+                    
+                    console.log('[WEBHOOK] Customer email from API:', customer.email);
+                    
+                    if (customer.email) {
+                        user = await getUserByEmail(customer.email);
+                        if (user) {
+                            console.log(`[WEBHOOK] Found user by email lookup: ${user.email}`);
+                            
+                            // Update user with Chargebee customer ID for future lookups
+                            await pool.query(`
+                                UPDATE users 
+                                SET chargebee_customer_id = $1 
+                                WHERE id = $2
+                            `, [invoice.customer_id, user.id]);
+                        }
+                    }
+                } catch (apiError) {
+                    console.error('[WEBHOOK] Failed to fetch customer from Chargebee API:', apiError.message);
+                }
             }
             
-            // Find user by email
-            const user = await getUserByEmail(customerData.email);
             if (!user) {
-                console.error('[WEBHOOK] User not found for one-time purchase:', customerData.email);
+                console.error('[WEBHOOK] Cannot find user for PAYG purchase:', invoice.customer_id);
                 return;
             }
             
-            console.log(`[WEBHOOK] One-time purchase for user ${user.id}`);
+            console.log(`[WEBHOOK] Processing PAYG purchase for user ${user.id} (${user.email})`);
             
             // Extract plan from invoice.line_items (NOT subscription.subscription_items)
             const planLineItem = invoice.line_items?.find(item => 
@@ -965,22 +993,32 @@ async function handleInvoiceGenerated(invoice, subscription) {
             if (planId) {
                 const planMapping = CHARGEBEE_PLAN_MAPPING[planId];
                 if (planMapping && planMapping.billingModel === 'one_time') {
+                    console.log(`[WEBHOOK] Adding ${planMapping.payasyougoCredits} PAYG credits to user ${user.id}`);
+                    
                     // Add pay-as-you-go credits (don't reset, add to existing)
-                    await pool.query(`
+                    const updateResult = await pool.query(`
                         UPDATE users 
                         SET 
                             plan_code = $1,
                             payasyougo_credits = COALESCE(payasyougo_credits, 0) + $2,
                             subscription_status = 'active',
+                            chargebee_customer_id = $3,
                             updated_at = NOW()
-                        WHERE id = $3
+                        WHERE id = $4
+                        RETURNING payasyougo_credits, renewable_credits
                     `, [
                         planMapping.planCode,
                         planMapping.payasyougoCredits,
+                        invoice.customer_id,
                         user.id
                     ]);
                     
-                    console.log(`[WEBHOOK] PAYG credits added for user ${user.id}`);
+                    if (updateResult.rows.length > 0) {
+                        const updatedCredits = updateResult.rows[0];
+                        console.log(`[WEBHOOK] PAYG credits added for user ${user.id}`);
+                        console.log(`[WEBHOOK] New PAYG credits: ${updatedCredits.payasyougo_credits}`);
+                        console.log(`[WEBHOOK] Renewable credits: ${updatedCredits.renewable_credits}`);
+                    }
                     
                     // NEW: Check for pending registration and complete it automatically
                     const pendingReg = await getPendingRegistration(user.id);
@@ -1031,6 +1069,71 @@ async function handleInvoiceGenerated(invoice, subscription) {
         
     } catch (error) {
         console.error('[WEBHOOK] Error handling invoice_generated:', error);
+    }
+}
+
+// PAYG FIX: New payment_succeeded handler as backup
+async function handlePaymentSucceeded(payment, invoice) {
+    try {
+        console.log('[WEBHOOK] Processing payment_succeeded');
+        console.log('[WEBHOOK] Payment customer_id:', payment.customer_id);
+        console.log('[WEBHOOK] Invoice ID:', invoice?.id);
+        
+        // For PAYG purchases, sometimes payment_succeeded has better customer info
+        if (payment.customer_id && invoice && invoice.recurring === false) {
+            console.log('[WEBHOOK] Payment succeeded for PAYG purchase, ensuring user update...');
+            
+            // Find user by customer ID
+            const user = await pool.query(`
+                SELECT id, email, payasyougo_credits, plan_code FROM users 
+                WHERE chargebee_customer_id = $1
+            `, [payment.customer_id]);
+            
+            if (user.rows.length > 0) {
+                const userData = user.rows[0];
+                console.log(`[WEBHOOK] Payment success confirmed for user ${userData.id}`);
+                console.log(`[WEBHOOK] Current PAYG credits: ${userData.payasyougo_credits}`);
+                
+                // If credits are still 0, something went wrong with invoice_generated
+                if (userData.payasyougo_credits === 0 || userData.payasyougo_credits === "0") {
+                    console.log('[WEBHOOK] PAYG credits are 0, attempting recovery...');
+                    
+                    // Try to process this payment as a backup
+                    if (invoice.line_items) {
+                        const planLineItem = invoice.line_items.find(item => 
+                            item.entity_type === 'item_price' && 
+                            CHARGEBEE_PLAN_MAPPING[item.item_price_id]
+                        );
+                        
+                        if (planLineItem) {
+                            const planMapping = CHARGEBEE_PLAN_MAPPING[planLineItem.item_price_id];
+                            if (planMapping && planMapping.billingModel === 'one_time') {
+                                console.log('[WEBHOOK] Recovery: Adding PAYG credits via payment_succeeded');
+                                
+                                await pool.query(`
+                                    UPDATE users 
+                                    SET 
+                                        plan_code = $1,
+                                        payasyougo_credits = COALESCE(payasyougo_credits, 0) + $2,
+                                        subscription_status = 'active',
+                                        updated_at = NOW()
+                                    WHERE id = $3
+                                `, [
+                                    planMapping.planCode,
+                                    planMapping.payasyougoCredits,
+                                    userData.id
+                                ]);
+                                
+                                console.log('[WEBHOOK] Recovery successful: PAYG credits added');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('[WEBHOOK] Error handling payment_succeeded:', error);
     }
 }
 
@@ -1450,7 +1553,7 @@ app.post('/store-pending-registration', authenticateToken, async (req, res) => {
 
 // ==================== NEW: CHARGEBEE WEBHOOK AND CHECKOUT ROUTES ====================
 
-// CLEANED: Chargebee Webhook Handler - Removed excessive debug logging
+// PAYG FIX: Enhanced Chargebee Webhook Handler with payment_succeeded support
 app.post('/chargebee-webhook', express.json(), async (req, res) => {
     try {
         console.log('[WEBHOOK] Chargebee webhook received');
@@ -1471,7 +1574,8 @@ app.post('/chargebee-webhook', express.json(), async (req, res) => {
                 await handleInvoiceGenerated(event.content.invoice, event.content.subscription);
                 break;
             case 'payment_succeeded':
-                console.log(`[WEBHOOK] Payment succeeded`);
+                // PAYG FIX: Handle payment_succeeded events as backup
+                await handlePaymentSucceeded(event.content.payment, event.content.invoice);
                 break;
             default:
                 console.log(`[WEBHOOK] Unhandled event type: ${eventType}`);
@@ -1556,7 +1660,7 @@ app.post('/create-checkout', authenticateToken, async (req, res) => {
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('🔍 Chrome Extension OAuth request received');
+    console.log('🔐 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -2001,7 +2105,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -2045,7 +2149,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX'
                 }
             }
         });
@@ -2123,7 +2227,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX'
             };
         }
 
@@ -2223,7 +2327,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX'
             }
         });
     } catch (error) {
@@ -2275,7 +2379,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2734,7 +2838,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2779,7 +2883,7 @@ app.use((req, res, next) => {
             'GET /credits/balance (NEW: Dual credit management)',
             'GET /credits/history (NEW: Transaction history)',
             'GET /test-chargebee (NEW: Test Chargebee connection)',
-            'POST /chargebee-webhook (ENHANCED: Automatic registration completion + clean logging)',
+            'POST /chargebee-webhook (PAYG FIX: Enhanced customer resolution + payment_succeeded fallback)',
             'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
         ]
     });
@@ -2848,7 +2952,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + PAYG CUSTOMER FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2870,7 +2974,8 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ PERSONAL INFO: Complete personal information CRUD system`);
             console.log(`[SUCCESS] ✅ MANUAL EDITING: Manual profile editing endpoints for all sections`);
             console.log(`[SUCCESS] ✅ MESSAGES HISTORY ENDPOINT: GET /messages/history for Messages page functionality`);
-            console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook`);
+            console.log(`[SUCCESS] ✅ PAYG CUSTOMER FIX: Fixed customer resolution in webhook processing for PAYG purchases`);
+            console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook (ENHANCED WITH PAYG FIX)`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
             console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
@@ -2881,9 +2986,11 @@ const startServer = async () => {
             console.log(`[MANUAL] ✅ MANUAL EDITING API: PUT /profile/{basic-info,about,experience,education,skills,certifications} (MANUAL EDITING)`);
             console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
             console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
-            console.log(`[REFACTOR] ✅ MODULAR MESSAGES: Handlers moved to controllers/routes files`);
+            console.log(`[REFACTOR] ✅ MODULAR MESSAGES: Handlers moved to dedicated controller/routes files`);
             console.log(`[AUTH] ✅ AUTHENTICATION FIX: Messages page uses client-side authentication (redirects to /login)`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT:`);
+            console.log(`[PAYG] ✅ PAYG CUSTOMER FIX: Enhanced handleInvoiceGenerated with proper customer resolution`);
+            console.log(`[PAYG] ✅ PAYG FALLBACK: Added handlePaymentSucceeded as backup webhook handler`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + PAYG CUSTOMER FIX:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -2902,13 +3009,15 @@ const startServer = async () => {
             console.log(`   [PERSONAL] PERSONAL INFO: JSONB-based personal information with inline editing`);
             console.log(`   [MANUAL] MANUAL EDITING: Complete manual editing system for all profile sections`);
             console.log(`   [MESSAGES] MESSAGES HISTORY: GET /messages/history endpoint for Messages page (43 lines added)`);
+            console.log(`   [PAYG] PAYG CUSTOMER FIX: Fixed customer resolution in handleInvoiceGenerated for PAYG purchases`);
+            console.log(`   [PAYG] PAYG FALLBACK: Added handlePaymentSucceeded as backup processing for failed invoice_generated`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation (NOW IN routes/messagesRoutes.js)`);
             console.log(`   [CONNECT] /generate-connection: GPT-5 powered connection request generation (NOW IN routes/messagesRoutes.js)`);
             console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation (NOW IN routes/messagesRoutes.js)`);
             console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
-            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion`);
+            console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion + PAYG FIX`);
             console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
             console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
@@ -2924,7 +3033,7 @@ const startServer = async () => {
             console.log(`   [MANUAL] /profile/certifications: Manual certifications editing (MANUAL EDITING)`);
             console.log(`   [EMAIL] /complete-registration: Welcome email for free users + ENHANCED DEBUG LOGGING`);
             console.log(`   [OAUTH] /auth/google/callback: Welcome email for OAuth new users`);
-            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion`);
+            console.log(`   [SUBSCRIPTION] /chargebee-webhook: Welcome email for paid users + registration completion + PAYG FIX`);
             console.log(`   [DB] Database: user_profiles table for USER profiles + personal_info JSONB column`);
             console.log(`   [FILE] Database: target_profiles table for TARGET profiles`);
             console.log(`   [PENDING] Database: pending_registrations table for pre-payment storage`);
@@ -2968,6 +3077,8 @@ const startServer = async () => {
             console.log(`   [PAYG] One-time purchases: invoice_generated webhook (recurring: false) → PAYG credits`);
             console.log(`   [REGISTRATION] WEBHOOK REGISTRATION COMPLETION: Automatic registration after successful payment`);
             console.log(`   [PENDING] PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
+            console.log(`   [PAYG] PAYG CUSTOMER FIX: Enhanced customer resolution with Chargebee API calls`);
+            console.log(`   [PAYG] PAYG FALLBACK: payment_succeeded webhook as backup processing`);
             console.log(`   [SUCCESS] ✅ MAILERSEND WELCOME EMAIL SYSTEM:`);
             console.log(`   [FREE] Free users: Welcome email after /complete-registration`);
             console.log(`   [PAID] Paid users: Welcome email after Chargebee payment success`);
@@ -3039,7 +3150,15 @@ const startServer = async () => {
             console.log(`   [SECURITY] User-specific data access with proper validation`);
             console.log(`   [ERROR] Comprehensive error handling and user feedback`);
             console.log(`   [MAPPING] Proper data mapping between database and frontend format`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, PERSONAL INFORMATION CRUD, MANUAL EDITING ENDPOINTS, AND MESSAGES HISTORY API COMPLETE!`);
+            console.log(`   [SUCCESS] ✅ PAYG CUSTOMER RESOLUTION FIX:`);
+            console.log(`   [CUSTOMER] Enhanced handleInvoiceGenerated with proper customer lookup`);
+            console.log(`   [API] Chargebee API calls to resolve customer_id to email`);
+            console.log(`   [FALLBACK] handlePaymentSucceeded as backup webhook processor`);
+            console.log(`   [DATABASE] Automatic chargebee_customer_id population for future lookups`);
+            console.log(`   [RECOVERY] Recovery mechanism if initial webhook processing fails`);
+            console.log(`   [LOGGING] Enhanced logging for PAYG purchase debugging`);
+            console.log(`   [ROBUST] Robust error handling throughout PAYG webhook chain`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, PERSONAL INFORMATION CRUD, MANUAL EDITING ENDPOINTS, MESSAGES HISTORY API, AND PAYG CUSTOMER RESOLUTION FIX COMPLETE!`);
         });
         
     } catch (error) {
