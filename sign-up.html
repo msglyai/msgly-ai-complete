@@ -1035,15 +1035,13 @@
                             <div class="plan-credits" id="silverCredits">30 Credits</div>
                         </div>
                         
-                        <div class="package-card featured disabled">
-                            <span class="coming-soon-badge">Coming Soon</span>
+                        <div class="package-card featured" onclick="selectPackage('gold')">
                             <div class="plan-name">Gold</div>
                             <div class="plan-price" id="goldPrice">$39<span id="goldPeriod">/one-time</span></div>
                             <div class="plan-credits" id="goldCredits">100 Credits</div>
                         </div>
                         
-                        <div class="package-card disabled">
-                            <span class="coming-soon-badge">Coming Soon</span>
+                        <div class="package-card" onclick="selectPackage('platinum')">
                             <div class="plan-name">Platinum</div>
                             <div class="plan-price" id="platinumPrice">$78<span id="platinumPeriod">/one-time</span></div>
                             <div class="plan-credits" id="platinumCredits">250 Credits</div>
@@ -1338,11 +1336,11 @@
             window.location.href = `https://api.msgly.ai/auth/google?package=${selectedPackage}`;
         }
 
-        // UPDATED: Handle package selection - Allow Silver selection
+        // UPDATED: Handle package selection - Allow Gold and Platinum selection
         function selectPackage(packageType) {
-            // Remove restriction for Silver plan
-            if (packageType !== 'free' && packageType !== 'silver') {
-                alert('This premium package is coming soon! Try Silver or start with our free plan.');
+            // CHANGE: Allow Gold and Platinum selection
+            if (packageType !== 'free' && packageType !== 'silver' && packageType !== 'gold' && packageType !== 'platinum') {
+                alert('This premium package is coming soon! Try our available plans.');
                 return;
             }
             
@@ -1410,7 +1408,7 @@
             }, 1500); // 1.5 seconds per step
         }
 
-        // ✅ UPDATED: Complete registration with database storage instead of sessionStorage
+        // ✅ UPDATED: Complete registration with enhanced plan ID handling
         async function completeRegistration() {
             const termsAgreed = document.getElementById('termsAgreement').checked;
             const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
@@ -1436,20 +1434,22 @@
                 return;
             }
             
-            // Handle Silver plan checkout flow
-            if (selectedPackage === 'silver') {
+            // Handle paid plan checkout flow
+            if (selectedPackage === 'silver' || selectedPackage === 'gold' || selectedPackage === 'platinum') {
                 try {
-                    // FIXED: Determine the correct plan ID based on pricing mode to match Chargebee
+                    // Determine the correct plan ID based on pricing mode and package
                     let planId;
-                    if (currentPricingMode === 'monthly') {
-                        planId = 'Silver-Monthly'; // FIXED: Changed from 'Silver' to 'Silver-Monthly'
-                    } else {
-                        planId = 'Silver-PAYG-USD'; // FIXED: Changed from 'Silver-PAYG' to 'Silver-PAYG-USD'
+                    if (selectedPackage === 'silver') {
+                        planId = currentPricingMode === 'monthly' ? 'Silver-Monthly' : 'Silver-PAYG-USD';
+                    } else if (selectedPackage === 'gold') {
+                        planId = 'Gold-Monthly';  // Monthly only for now
+                    } else if (selectedPackage === 'platinum') {
+                        planId = 'Platinum-Monthly';  // Monthly only for now
                     }
                     
-                    console.log(`Creating checkout for Silver plan: ${planId} (${currentPricingMode})`);
+                    console.log(`Creating checkout for ${selectedPackage} plan: ${planId} (${currentPricingMode})`);
                     
-                    // ✅ NEW: Store registration data in DATABASE before payment
+                    // ✅ Store registration data in DATABASE before payment
                     console.log('[PENDING_REG] Storing registration data in database...');
                     const storePendingResponse = await fetch('https://api.msgly.ai/store-pending-registration', {
                         method: 'POST',
