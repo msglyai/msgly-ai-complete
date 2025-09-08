@@ -5,6 +5,7 @@
 // FINAL FIX: Updated to match actual Chargebee Item Price IDs
 // PAYG FIX: Fixed one-time purchase checkout to use invoice_items instead of subscription_items
 // CRITICAL FIX: Use correct API methods - checkout_one_time_for_items for PAYG
+// NEW: Added Gold-Monthly and Platinum-Monthly plans
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -26,30 +27,32 @@ try {
 
 // STEP 8A: Plan mapping between Chargebee and database
 // FINAL FIX: Updated to match actual Chargebee Item Price IDs
+// NEW: Added Gold-Monthly and Platinum-Monthly plans
 const CHARGEBEE_PLAN_MAPPING = {
-    'Silver-Monthly': {  // FINAL FIX: Back to 'Silver-Monthly' to match actual Chargebee Item Price ID
+    'Silver-Monthly': {
         planCode: 'silver-monthly',
         renewableCredits: 30,
         billingModel: 'monthly',
         displayName: 'Silver Monthly'
     },
-    'Silver-PAYG-USD': {  // FINAL FIX: Changed to 'Silver-PAYG-USD' to match actual Chargebee Item Price ID
+    'Silver-PAYG-USD': {
         planCode: 'silver-payasyougo', 
         payasyougoCredits: 30,
         billingModel: 'one_time',
         displayName: 'Silver Pay-as-you-go'
     },
-    // Future plans can be added here
+    // NEW: Gold Monthly plan
     'Gold-Monthly': {
         planCode: 'gold-monthly',
         renewableCredits: 100,
         billingModel: 'monthly',
         displayName: 'Gold Monthly'
     },
+    // NEW: Platinum Monthly plan
     'Platinum-Monthly': {
         planCode: 'platinum-monthly',
         renewableCredits: 250,
-        billingModel: 'monthly', 
+        billingModel: 'monthly',
         displayName: 'Platinum Monthly'
     }
 };
@@ -58,7 +61,7 @@ class ChargebeeService {
     constructor() {
         this.isConfigured = false;
         this.planMapping = CHARGEBEE_PLAN_MAPPING;
-        console.log('[CHARGEBEE] Service initialized with Silver plan support');
+        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support');
     }
 
     // EXISTING METHOD: Test connection using Product Catalog 2.0 API (preserved)
