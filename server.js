@@ -34,9 +34,10 @@ CHANGELOG - server.js:
 27. PAYG FIX: Fixed customer resolution in handleInvoiceGenerated for PAYG purchases
 28. PAYG FIX: Added handlePaymentSucceeded as fallback webhook handler
 29. 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection to handle both plan_item_price and charge_item_price entity types with proper entity_id field usage
+30. GOLD & PLATINUM: Added Gold-Monthly and Platinum-Monthly to CHARGEBEE_PLAN_MAPPING
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -56,6 +57,7 @@ CHANGELOG - server.js:
 // ✅ MANUAL EDITING: Added endpoints for manual user profile editing
 // ✅ PAYG CUSTOMER FIX: Fixed customer resolution for PAYG webhook processing
 // 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection for both plan_item_price and charge_item_price
+// ✅ GOLD & PLATINUM: Added support for Gold and Platinum monthly plans
 
 const express = require('express');
 const cors = require('cors');
@@ -161,7 +163,7 @@ const staticRoutes = require('./routes/static');
 const activeProcessing = new Map();
 
 // NEW: CHARGEBEE PLAN MAPPING - Maps Chargebee plan IDs to database plan codes
-// FIXED: Updated 'Silver-PAYG' to 'Silver-PAYG-USD' to match actual Chargebee Item Price IDs
+// UPDATED: Added Gold-Monthly and Platinum-Monthly plans
 const CHARGEBEE_PLAN_MAPPING = {
     'Silver-Monthly': {
         planCode: 'silver-monthly',
@@ -172,8 +174,18 @@ const CHARGEBEE_PLAN_MAPPING = {
         planCode: 'silver-payasyougo', 
         payasyougoCredits: 30,
         billingModel: 'one_time'
+    },
+    // NEW: Gold and Platinum plans
+    'Gold-Monthly': {
+        planCode: 'gold-monthly',
+        renewableCredits: 100,
+        billingModel: 'monthly'
+    },
+    'Platinum-Monthly': {
+        planCode: 'platinum-monthly',
+        renewableCredits: 250,
+        billingModel: 'monthly'
     }
-    // Gold and Platinum will be added later
 };
 
 // NEW: Robust token number cleaner
@@ -1681,7 +1693,7 @@ app.post('/create-checkout', authenticateToken, async (req, res) => {
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    console.log('📧 Chrome Extension OAuth request received');
+    console.log('🔧 Chrome Extension OAuth request received');
     console.log('📊 Request headers:', req.headers);
     console.log('📊 Request body (sanitized):', {
         clientType: req.body.clientType,
@@ -1699,7 +1711,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
             console.log('🎯 AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
             console.log('🔗 LinkedIn URL:', linkedinUrl);
         } else {
-            console.log('📧 REGULAR AUTH: No LinkedIn URL, will return redirect instruction');
+            console.log('🔧 REGULAR AUTH: No LinkedIn URL, will return redirect instruction');
         }
         
         if (!googleAccessToken) {
@@ -1774,7 +1786,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                 
             } else {
                 // ✅ FIXED: No LinkedIn URL - return SUCCESS with redirect instruction
-                console.log('📧 REGULAR AUTH: No LinkedIn URL, returning redirect instruction');
+                console.log('🔧 REGULAR AUTH: No LinkedIn URL, returning redirect instruction');
                 return res.json({
                     success: true,
                     requiresRedirect: true,
@@ -2126,7 +2138,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -2170,7 +2182,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM'
                 }
             }
         });
@@ -2248,7 +2260,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS'
             };
         }
 
@@ -2348,7 +2360,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM'
             }
         });
     } catch (error) {
@@ -2400,7 +2412,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2859,7 +2871,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2905,7 +2917,7 @@ app.use((req, res, next) => {
             'GET /credits/history (NEW: Transaction history)',
             'GET /test-chargebee (NEW: Test Chargebee connection)',
             'POST /chargebee-webhook (🔧 PAYG CRITICAL FIX: Enhanced plan detection for both plan_item_price and charge_item_price)',
-            'POST /create-checkout (NEW: Create Silver plan checkout sessions)'
+            'POST /create-checkout (NEW: Create checkout sessions for Silver, Gold, and Platinum plans)'
         ]
     });
 });
@@ -2973,7 +2985,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX ACTIVE!');
+            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2985,7 +2997,10 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
             console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
             console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation`);
-            console.log(`[SUCCESS] ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion after payment`);
+            console.log(`[SUCCESS] ✅ WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error`);
+            console.log(`[SUCCESS] ✅ PAYG FIX: Fixed one-time purchase webhook handling`);
+            console.log(`[SUCCESS] ✅ REGISTRATION DEBUG: Enhanced logging to identify registration failures`);
+            console.log(`[SUCCESS] ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion in webhooks after payment`);
             console.log(`[SUCCESS] ✅ PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
             console.log(`[SUCCESS] ✅ CLEAN WEBHOOK LOGGING: Removed excessive debug output`);
             console.log(`[SUCCESS] ✅ MODULAR REFACTOR: Messages handlers moved to dedicated files`);
@@ -2996,6 +3011,7 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ MANUAL EDITING: Manual profile editing endpoints for all sections`);
             console.log(`[SUCCESS] ✅ MESSAGES HISTORY ENDPOINT: GET /messages/history for Messages page functionality`);
             console.log(`[SUCCESS] 🔧 PAYG CRITICAL FIX: Enhanced planLineItem detection for both plan_item_price and charge_item_price entity types`);
+            console.log(`[SUCCESS] ✅ GOLD & PLATINUM PLANS: Added Gold-Monthly (100 credits) and Platinum-Monthly (250 credits) plan support`);
             console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook (🔧 ENHANCED WITH PAYG CRITICAL FIX)`);
             console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout`);
             console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
@@ -3011,7 +3027,9 @@ const startServer = async () => {
             console.log(`[AUTH] ✅ AUTHENTICATION FIX: Messages page uses client-side authentication (redirects to /login)`);
             console.log(`[PAYG] 🔧 PAYG CRITICAL FIX: Enhanced handleInvoiceGenerated with proper plan detection for both plan_item_price and charge_item_price`);
             console.log(`[PAYG] 🔧 PAYG FALLBACK: Added handlePaymentSucceeded as backup webhook handler with enhanced plan detection`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX:`);
+            console.log(`[GOLD] ✅ GOLD MONTHLY PLAN: Gold-Monthly plan ID, 100 renewable credits, $32/month`);
+            console.log(`[PLATINUM] ✅ PLATINUM MONTHLY PLAN: Platinum-Monthly plan ID, 250 renewable credits, $63.87/month`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS:`);
             console.log(`   [BLUE] USER PROFILE: Automatic analysis on own LinkedIn profile (user_profiles table)`);
             console.log(`   [TARGET] TARGET PROFILE: Manual analysis via "Analyze" button click (target_profiles table)`);
             console.log(`   [BOOM] SMART DEDUPLICATION: Already analyzed profiles show marketing message`);
@@ -3032,6 +3050,8 @@ const startServer = async () => {
             console.log(`   [MESSAGES] MESSAGES HISTORY: GET /messages/history endpoint for Messages page (43 lines added)`);
             console.log(`   [PAYG] 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection to handle both plan_item_price and charge_item_price entity types`);
             console.log(`   [PAYG] 🔧 PAYG RECOVERY: Enhanced handlePaymentSucceeded with proper plan detection for recovery scenarios`);
+            console.log(`   [GOLD] ✅ GOLD MONTHLY: Gold-Monthly plan ID with 100 renewable credits monthly`);
+            console.log(`   [PLATINUM] ✅ PLATINUM MONTHLY: Platinum-Monthly plan ID with 250 renewable credits monthly`);
             console.log(`   [CHECK] /scrape-html: Intelligent routing based on isUserProfile parameter`);
             console.log(`   [TARGET] /target-profile/analyze-json: DATABASE-first TARGET PROFILE endpoint with all fixes`);
             console.log(`   [MESSAGE] /generate-message: GPT-5 powered message generation (NOW IN routes/messagesRoutes.js)`);
@@ -3039,7 +3059,7 @@ const startServer = async () => {
             console.log(`   [INTRO] /generate-intro: GPT-5 powered intro request generation (NOW IN routes/messagesRoutes.js)`);
             console.log(`   [TEST] /test-chargebee: Test Chargebee connection and configuration`);
             console.log(`   [WEBHOOK] /chargebee-webhook: Handle payment notifications + automatic registration completion + 🔧 PAYG CRITICAL FIX`);
-            console.log(`   [CHECKOUT] /create-checkout: Create Silver plan checkout sessions`);
+            console.log(`   [CHECKOUT] /create-checkout: Create Silver, Gold, and Platinum plan checkout sessions`);
             console.log(`   [PENDING] /store-pending-registration: Store LinkedIn URL before payment`);
             console.log(`   [UPGRADE] /upgrade: Upgrade page for existing users`);
             console.log(`   [MESSAGES] /messages: Messages page with CLIENT-SIDE authentication (FIXED)`);
@@ -3094,6 +3114,8 @@ const startServer = async () => {
             console.log(`   [BILLING] Automatic credit allocation and renewal processing`);
             console.log(`   [SILVER] Silver Monthly plan: $13.90/month, 30 renewable credits`);
             console.log(`   [SILVER] Silver PAYG: $17.00 one-time, 30 pay-as-you-go credits`);
+            console.log(`   [GOLD] ✅ Gold Monthly plan: $32.00/month, 100 renewable credits`);
+            console.log(`   [PLATINUM] ✅ Platinum Monthly plan: $63.87/month, 250 renewable credits`);
             console.log(`   [MONTHLY] Monthly subscriptions: subscription_created webhook → renewable credits`);
             console.log(`   [PAYG] One-time purchases: invoice_generated webhook (recurring: false) → PAYG credits`);
             console.log(`   [REGISTRATION] WEBHOOK REGISTRATION COMPLETION: Automatic registration after successful payment`);
@@ -3179,7 +3201,16 @@ const startServer = async () => {
             console.log(`   [LOGGING] Enhanced logging for PAYG purchase debugging`);
             console.log(`   [ROBUST] Robust error handling throughout PAYG webhook chain`);
             console.log(`   [MAPPING] Proper plan mapping for 'Silver-PAYG-USD' entity_id`);
-            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, PERSONAL INFORMATION CRUD, MANUAL EDITING ENDPOINTS, MESSAGES HISTORY API, AND 🔧 PAYG CRITICAL FIX COMPLETE!`);
+            console.log(`   [SUCCESS] ✅ GOLD & PLATINUM PLANS:`);
+            console.log(`   [GOLD] Gold-Monthly plan ID: 100 renewable credits, monthly billing, $32.00/month`);
+            console.log(`   [PLATINUM] Platinum-Monthly plan ID: 250 renewable credits, monthly billing, $63.87/month`);
+            console.log(`   [MAPPING] CHARGEBEE_PLAN_MAPPING updated with new plan configurations`);
+            console.log(`   [WEBHOOK] Webhook handlers support Gold and Platinum subscription processing`);
+            console.log(`   [CHECKOUT] Create checkout endpoint supports Gold and Platinum plan selection`);
+            console.log(`   [CREDITS] Credit allocation: Gold=100, Platinum=250 renewable credits monthly`);
+            console.log(`   [BILLING] Monthly billing model for both Gold and Platinum plans`);
+            console.log(`   [REGISTRATION] Automatic registration completion works for all plan tiers`);
+            console.log(`[SUCCESS] PRODUCTION-READY DATABASE-FIRST DUAL CREDIT SYSTEM WITH GPT-5 INTEGRATION, CHARGEBEE PAYMENTS, MAILERSEND WELCOME EMAILS, COMPLETE WEBHOOK FIXES, PAYG SUPPORT, REGISTRATION DEBUG LOGGING, AUTOMATIC WEBHOOK REGISTRATION COMPLETION, CLEAN MODULAR REFACTOR, MESSAGES ROUTE FIX, AUTHENTICATION FIX, MSGLY PROFILE SYSTEM, PERSONAL INFORMATION CRUD, MANUAL EDITING ENDPOINTS, MESSAGES HISTORY API, 🔧 PAYG CRITICAL FIX, AND ✅ GOLD & PLATINUM PLANS COMPLETE!`);
         });
         
     } catch (error) {
