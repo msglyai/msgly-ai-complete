@@ -1006,11 +1006,11 @@
                     <p style="font-size: 14px; color: var(--gray); margin-bottom: 20px;">Start with our 7-day free trial on monthly plans</p>
                     
                     <div class="pricing-toggle">
-                        <button class="toggle-option active" onclick="togglePricing('payAsYouGo')">
+                        <button class="toggle-option" onclick="togglePricing('payAsYouGo')">
                             Pay-As-You-Go
                             <div class="pricing-badge">One-time</div>
                         </button>
-                        <button class="toggle-option" onclick="togglePricing('monthly')">
+                        <button class="toggle-option active" onclick="togglePricing('monthly')">
                             Monthly
                             <div class="pricing-badge">7-Day Free Trial</div>
                         </button>
@@ -1031,19 +1031,19 @@
                         
                         <div class="package-card" onclick="selectPackage('silver')">
                             <div class="plan-name">Silver</div>
-                            <div class="plan-price" id="silverPrice">$17<span id="silverPeriod">/one-time</span></div>
+                            <div class="plan-price" id="silverPrice">$13.90<span id="silverPeriod">/month</span></div>
                             <div class="plan-credits" id="silverCredits">30 Credits</div>
                         </div>
                         
                         <div class="package-card featured" onclick="selectPackage('gold')">
                             <div class="plan-name">Gold</div>
-                            <div class="plan-price" id="goldPrice">$39<span id="goldPeriod">/one-time</span></div>
+                            <div class="plan-price" id="goldPrice">$32<span id="goldPeriod">/month</span></div>
                             <div class="plan-credits" id="goldCredits">100 Credits</div>
                         </div>
                         
                         <div class="package-card" onclick="selectPackage('platinum')">
                             <div class="plan-name">Platinum</div>
-                            <div class="plan-price" id="platinumPrice">$78<span id="platinumPeriod">/one-time</span></div>
+                            <div class="plan-price" id="platinumPrice">$63.87<span id="platinumPeriod">/month</span></div>
                             <div class="plan-credits" id="platinumCredits">250 Credits</div>
                         </div>
                     </div>
@@ -1218,7 +1218,7 @@
 
     <script>
         let selectedPackage = 'free';
-        let currentPricingMode = 'payAsYouGo';
+        let currentPricingMode = 'monthly'; // CHANGED: Default to monthly instead of payAsYouGo
         let userToken = null;
 
         // Pricing data
@@ -1235,7 +1235,7 @@
             }
         };
 
-        // ✓ FIXED: SMART ROUTING with registration_completed check
+        // Load page with monthly as default
         window.addEventListener('load', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
@@ -1244,7 +1244,7 @@
                 userToken = token;
                 console.log('✓ Received token from OAuth:', token);
                 
-                // ✓ FIXED: Check if user registration is already complete
+                // Check if user registration is already complete
                 try {
                     const response = await fetch('https://api.msgly.ai/profile', {
                         method: 'GET',
@@ -1260,40 +1260,33 @@
                         const syncStatus = data.data.syncStatus;
 
                         console.log('✓ User profile fetched for registration check');
-                        console.log('   - Registration completed:', user.registrationCompleted);  // ✓ FIXED: Changed from profileCompleted
+                        console.log('   - Registration completed:', user.registrationCompleted);
                         console.log('   - LinkedIn URL:', !!user.linkedinUrl);
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
 
-                        // ✓ FIXED: Check registration_completed status
-                        const isRegistrationComplete = user.registrationCompleted &&  // ✓ FIXED: Changed from profileCompleted
+                        const isRegistrationComplete = user.registrationCompleted &&
                                                      user.linkedinUrl &&
                                                      !syncStatus.isIncomplete;
 
                         if (isRegistrationComplete) {
                             console.log('✓ User registration is complete - redirecting to dashboard');
                             
-                            // Store token for dashboard access
                             localStorage.setItem('authToken', token);
                             
-                            // Show redirecting state
                             document.getElementById('registrationForm').style.display = 'none';
                             document.getElementById('redirectingState').style.display = 'block';
                             
-                            // Redirect after 2 seconds
                             setTimeout(() => {
                                 window.location.href = '/dashboard';
                             }, 2000);
                             
-                            return; // Stop here - don't show registration form
+                            return;
                         } else {
                             console.log('🔧 User registration is incomplete - showing sign-up form');
-                            console.log('   - Needs LinkedIn URL or profile sync');
-                            // Continue with normal sign-up flow
                         }
                     }
                 } catch (error) {
                     console.error('Error checking user status:', error);
-                    // Continue with normal sign-up flow if API call fails
                 }
                 
                 // Move to step 2 for incomplete users
@@ -1304,12 +1297,11 @@
                 document.getElementById('step1Content').style.display = 'none';
                 document.getElementById('step2Content').style.display = 'block';
                 
-                // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
         });
 
-        // Toggle pricing
+        // UPDATED: Toggle pricing with PAYG restrictions for Gold/Platinum
         function togglePricing(type) {
             currentPricingMode = type;
             document.querySelectorAll('.toggle-option').forEach(btn => {
@@ -1319,14 +1311,39 @@
 
             const data = pricing[type];
             
+            // Update Silver pricing (always works for both modes)
             document.getElementById('silverPrice').innerHTML = `${data.silver.price}<span id="silverPeriod">${data.silver.period}</span>`;
             document.getElementById('silverCredits').textContent = data.silver.credits;
             
-            document.getElementById('goldPrice').innerHTML = `${data.gold.price}<span id="goldPeriod">${data.gold.period}</span>`;
-            document.getElementById('goldCredits').textContent = data.gold.credits;
+            // Update Gold pricing and availability
+            const goldCard = document.querySelector('.package-card[onclick*="gold"]');
+            const platinumCard = document.querySelector('.package-card[onclick*="platinum"]');
             
-            document.getElementById('platinumPrice').innerHTML = `${data.platinum.price}<span id="platinumPeriod">${data.platinum.period}</span>`;
-            document.getElementById('platinumCredits').textContent = data.platinum.credits;
+            if (type === 'payAsYouGo') {
+                // PAYG mode: Disable Gold and Platinum
+                goldCard.classList.add('disabled');
+                platinumCard.classList.add('disabled');
+                goldCard.style.opacity = '0.5';
+                platinumCard.style.opacity = '0.5';
+                
+                // Show PAYG pricing but disabled
+                document.getElementById('goldPrice').innerHTML = `${data.gold.price}<span id="goldPeriod">${data.gold.period}</span>`;
+                document.getElementById('goldCredits').textContent = data.gold.credits;
+                document.getElementById('platinumPrice').innerHTML = `${data.platinum.price}<span id="platinumPeriod">${data.platinum.period}</span>`;
+                document.getElementById('platinumCredits').textContent = data.platinum.credits;
+                
+            } else {
+                // Monthly mode: Enable all plans
+                goldCard.classList.remove('disabled');
+                platinumCard.classList.remove('disabled');
+                goldCard.style.opacity = '1';
+                platinumCard.style.opacity = '1';
+                
+                document.getElementById('goldPrice').innerHTML = `${data.gold.price}<span id="goldPeriod">${data.gold.period}</span>`;
+                document.getElementById('goldCredits').textContent = data.gold.credits;
+                document.getElementById('platinumPrice').innerHTML = `${data.platinum.price}<span id="platinumPeriod">${data.platinum.period}</span>`;
+                document.getElementById('platinumCredits').textContent = data.platinum.credits;
+            }
         }
 
         // Handle Google Sign In
@@ -1336,9 +1353,14 @@
             window.location.href = `https://api.msgly.ai/auth/google?package=${selectedPackage}`;
         }
 
-        // UPDATED: Handle package selection - Allow Gold and Platinum selection
+        // UPDATED: Handle package selection with PAYG restrictions
         function selectPackage(packageType) {
-            // CHANGE: Allow Gold and Platinum selection
+            // Prevent Gold/Platinum selection in PAYG mode
+            if (currentPricingMode === 'payAsYouGo' && (packageType === 'gold' || packageType === 'platinum')) {
+                alert('Gold and Platinum plans are only available with Monthly subscriptions. Please switch to Monthly to select these plans.');
+                return;
+            }
+            
             if (packageType !== 'free' && packageType !== 'silver' && packageType !== 'gold' && packageType !== 'platinum') {
                 alert('This premium package is coming soon! Try our available plans.');
                 return;
@@ -1405,10 +1427,10 @@
                 } else {
                     clearInterval(interval);
                 }
-            }, 1500); // 1.5 seconds per step
+            }, 1500);
         }
 
-        // ✅ UPDATED: Complete registration with enhanced plan ID handling
+        // FIXED: Complete registration with proper plan ID handling
         async function completeRegistration() {
             const termsAgreed = document.getElementById('termsAgreement').checked;
             const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
@@ -1437,19 +1459,19 @@
             // Handle paid plan checkout flow
             if (selectedPackage === 'silver' || selectedPackage === 'gold' || selectedPackage === 'platinum') {
                 try {
-                    // Determine the correct plan ID based on pricing mode and package
+                    // FIXED: Determine the correct plan ID based on pricing mode and package
                     let planId;
                     if (selectedPackage === 'silver') {
                         planId = currentPricingMode === 'monthly' ? 'Silver-Monthly' : 'Silver-PAYG-USD';
                     } else if (selectedPackage === 'gold') {
-                        planId = 'Gold-Monthly';  // Monthly only for now
+                        planId = 'Gold-Monthly';  // Gold only works in monthly mode
                     } else if (selectedPackage === 'platinum') {
-                        planId = 'Platinum-Monthly';  // Monthly only for now
+                        planId = 'Platinum-Monthly';  // Platinum only works in monthly mode
                     }
                     
                     console.log(`Creating checkout for ${selectedPackage} plan: ${planId} (${currentPricingMode})`);
                     
-                    // ✅ Store registration data in DATABASE before payment
+                    // Store registration data in DATABASE before payment
                     console.log('[PENDING_REG] Storing registration data in database...');
                     const storePendingResponse = await fetch('https://api.msgly.ai/store-pending-registration', {
                         method: 'POST',
@@ -1504,19 +1526,15 @@
             }
             
             // Handle free plan registration (existing flow)
-            // Show loading state
             document.getElementById('registrationForm').style.display = 'none';
             document.getElementById('loadingState').style.display = 'block';
             
-            // Update steps
             document.getElementById('step2').classList.remove('active');
             document.getElementById('step2').classList.add('completed');
             
-            // Start progress animation
             animateExtractionProgress();
             
             try {
-                // ✓ FIXED: Send to /complete-registration endpoint which sets registration_completed = true
                 const response = await fetch('https://api.msgly.ai/complete-registration', {
                     method: 'POST',
                     headers: {
@@ -1538,14 +1556,11 @@
                 
                 console.log('✓ Registration completed successfully - registration_completed set to true');
                 
-                // Store token in localStorage for dashboard access
                 localStorage.setItem('authToken', userToken);
                 console.log('✓ Token stored in localStorage:', userToken);
                 
-                // Wait for loading animation to complete (6 seconds total)
                 await new Promise(resolve => setTimeout(resolve, 6000));
                 
-                // Show thank you message
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('successState').style.display = 'block';
                 
@@ -1554,11 +1569,9 @@
             } catch (error) {
                 console.error('Registration error:', error);
                 
-                // Show error and go back to form
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('registrationForm').style.display = 'block';
                 
-                // Reset steps
                 document.getElementById('step2').classList.add('active');
                 document.getElementById('step2').classList.remove('completed');
                 
@@ -1573,7 +1586,6 @@
 
         // Go to dashboard with token already stored
         function goToDashboard() {
-            // Token should already be stored in localStorage from completeRegistration()
             const storedToken = localStorage.getItem('authToken');
             
             if (!storedToken) {
