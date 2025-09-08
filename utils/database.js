@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -10,6 +10,7 @@
 // ✅ REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
 // ✅ MESSAGES FIX: Added campaign tracking fields to message_logs table
 // ✅ PROMPT VERSION FIX: Increased prompt_version column size from VARCHAR(50) to VARCHAR(255)
+// ✅ CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -158,7 +159,7 @@ const fixPromptVersionColumn = async () => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -435,7 +436,7 @@ const initDB = async () => {
         // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
         await fixPromptVersionColumn();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -458,10 +459,15 @@ const initDB = async () => {
                 
                 // ✅ CHARGEBEE FIX: Add missing Chargebee columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100) UNIQUE',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)'
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)',
+                
+                // ✅ CANCELLATION FIX: Add cancellation tracking columns
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_scheduled_at TIMESTAMP',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_effective_date TIMESTAMP',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
@@ -472,6 +478,16 @@ const initDB = async () => {
                     }
                     if (columnQuery.includes('chargebee_customer_id')) {
                         console.log('✅ CHARGEBEE FIX: Added chargebee_customer_id column');
+                    }
+                    // Log cancellation column additions
+                    if (columnQuery.includes('cancellation_scheduled_at')) {
+                        console.log('✅ CANCELLATION FIX: Added cancellation_scheduled_at column');
+                    }
+                    if (columnQuery.includes('cancellation_effective_date')) {
+                        console.log('✅ CANCELLATION FIX: Added cancellation_effective_date column');
+                    }
+                    if (columnQuery.includes('previous_plan_code')) {
+                        console.log('✅ CANCELLATION FIX: Added previous_plan_code column');
                     }
                 } catch (err) {
                     console.log(`Column might already exist: ${err.message}`);
@@ -583,7 +599,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -601,6 +617,10 @@ const initDB = async () => {
                 -- ✅ CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_subscription_id ON users(chargebee_subscription_id);
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_customer_id ON users(chargebee_customer_id);
+                
+                -- ✅ CANCELLATION FIX: Add cancellation indexes for fast processing
+                CREATE INDEX IF NOT EXISTS idx_users_cancellation_effective_date ON users(cancellation_effective_date);
+                CREATE INDEX IF NOT EXISTS idx_users_cancellation_scheduled_at ON users(cancellation_scheduled_at);
                 
                 -- Plans indexes
                 CREATE INDEX IF NOT EXISTS idx_plans_plan_code ON plans(plan_code);
@@ -624,7 +644,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -640,7 +660,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -663,6 +683,9 @@ const getUserPlan = async (userId) => {
                 u.subscription_status,
                 u.chargebee_subscription_id,
                 u.chargebee_customer_id,
+                u.cancellation_scheduled_at,
+                u.cancellation_effective_date,
+                u.previous_plan_code,
                 p.plan_name,
                 p.billing_model,
                 p.price_cents,
@@ -719,6 +742,11 @@ const getUserPlan = async (userId) => {
                 // ✅ CHARGEBEE FIX: Include Chargebee IDs for debugging
                 chargebeeSubscriptionId: user.chargebee_subscription_id,
                 chargebeeCustomerId: user.chargebee_customer_id,
+                
+                // ✅ CANCELLATION FIX: Include cancellation tracking
+                cancellationScheduledAt: user.cancellation_scheduled_at,
+                cancellationEffectiveDate: user.cancellation_effective_date,
+                previousPlanCode: user.previous_plan_code,
                 
                 // UI display data
                 creditsDisplay: `${totalCredits}/${Number(user.plan_renewable_credits) || 7} Credits`,
@@ -924,6 +952,67 @@ const resetRenewableCredits = async (userId) => {
         };
     } catch (error) {
         console.error('Error resetting renewable credits:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// ✅ CANCELLATION FIX: New function to downgrade user to free plan
+const downgradeUserToFree = async (userId) => {
+    try {
+        const client = await pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Get current user data
+            const userResult = await client.query(`
+                SELECT plan_code, renewable_credits, payasyougo_credits 
+                FROM users WHERE id = $1
+            `, [userId]);
+            
+            if (userResult.rows.length === 0) {
+                throw new Error('User not found');
+            }
+            
+            const user = userResult.rows[0];
+            
+            // Downgrade to free plan
+            const result = await client.query(`
+                UPDATE users 
+                SET 
+                    plan_code = 'free',
+                    renewable_credits = 7,
+                    credits_remaining = 7 + COALESCE(payasyougo_credits, 0),
+                    subscription_status = 'cancelled',
+                    chargebee_subscription_id = NULL,
+                    next_billing_date = NULL,
+                    cancellation_scheduled_at = NULL,
+                    cancellation_effective_date = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1
+                RETURNING *
+            `, [userId]);
+            
+            await client.query('COMMIT');
+            
+            console.log(`[CANCELLATION] User ${userId} downgraded to free plan`);
+            
+            return {
+                success: true,
+                data: result.rows[0]
+            };
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error downgrading user to free:', error);
         return {
             success: false,
             error: error.message
@@ -1383,7 +1472,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING
 module.exports = {
     // Database connection
     pool,
@@ -1414,6 +1503,9 @@ module.exports = {
     updateUserCredits,
     spendUserCredits,
     resetRenewableCredits,
+    
+    // ✅ CANCELLATION FIX: New cancellation management function
+    downgradeUserToFree,
     
     // ✅ NEW: Pending Registration Management
     storePendingRegistration,
