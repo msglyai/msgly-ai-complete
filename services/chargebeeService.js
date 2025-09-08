@@ -6,6 +6,7 @@
 // PAYG FIX: Fixed one-time purchase checkout to use invoice_items instead of subscription_items
 // CRITICAL FIX: Use correct API methods - checkout_one_time_for_items for PAYG
 // NEW: Added Gold-Monthly and Platinum-Monthly plans
+// CANCELLATION FIX: Added subscription cancellation handling
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -61,7 +62,7 @@ class ChargebeeService {
     constructor() {
         this.isConfigured = false;
         this.planMapping = CHARGEBEE_PLAN_MAPPING;
-        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support');
+        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support + cancellation handling');
     }
 
     // EXISTING METHOD: Test connection using Product Catalog 2.0 API (preserved)
@@ -322,6 +323,68 @@ class ChargebeeService {
             return {
                 success: false,
                 error: error.message
+            };
+        }
+    }
+
+    // NEW METHOD: Handle cancellation events (for webhook processing)
+    async handleCancellationEvent(eventType, subscription, customer) {
+        try {
+            console.log(`[CHARGEBEE] Processing cancellation event: ${eventType}`);
+            console.log(`[CHARGEBEE] Subscription ID: ${subscription.id}`);
+            console.log(`[CHARGEBEE] Customer email: ${customer?.email}`);
+            
+            // Extract cancellation-specific data
+            const cancellationData = {
+                subscriptionId: subscription.id,
+                customerId: subscription.customer_id,
+                status: subscription.status,
+                cancelledAt: subscription.cancelled_at,
+                currentTermEnd: subscription.current_term_end,
+                cancelReason: subscription.cancel_reason || 'Not specified',
+                cancelReasonCode: subscription.cancel_reason_code || null
+            };
+
+            console.log(`[CHARGEBEE] Cancellation data:`, {
+                subscriptionId: cancellationData.subscriptionId,
+                status: cancellationData.status,
+                cancelledAt: cancellationData.cancelledAt ? new Date(cancellationData.cancelledAt * 1000).toISOString() : null,
+                currentTermEnd: cancellationData.currentTermEnd ? new Date(cancellationData.currentTermEnd * 1000).toISOString() : null,
+                cancelReason: cancellationData.cancelReason
+            });
+
+            return {
+                success: true,
+                eventType,
+                subscription: {
+                    id: subscription.id,
+                    customerId: subscription.customer_id,
+                    status: subscription.status,
+                    cancelledAt: subscription.cancelled_at,
+                    currentTermEnd: subscription.current_term_end,
+                    cancelReason: subscription.cancel_reason,
+                    cancelReasonCode: subscription.cancel_reason_code
+                },
+                customer: {
+                    id: customer?.id,
+                    email: customer?.email,
+                    firstName: customer?.first_name
+                },
+                cancellationInfo: {
+                    isScheduled: eventType === 'subscription_cancellation_scheduled',
+                    isImmediate: eventType === 'subscription_cancelled',
+                    effectiveDate: subscription.current_term_end ? new Date(subscription.current_term_end * 1000) : null,
+                    cancelledDate: subscription.cancelled_at ? new Date(subscription.cancelled_at * 1000) : null,
+                    reason: subscription.cancel_reason || 'User requested cancellation'
+                }
+            };
+
+        } catch (error) {
+            console.error(`[CHARGEBEE] ❌ Error processing cancellation event (${eventType}):`, error);
+            return {
+                success: false,
+                error: error.message,
+                eventType
             };
         }
     }
