@@ -604,19 +604,19 @@
             
             <div class="features-list">
                 <div class="feature-item">
-                    <div class="feature-icon">✨</div>
+                    <div class="feature-icon">âœ¨</div>
                     <span>Enhanced AI analysis for better personalization</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">⚡</div>
+                    <div class="feature-icon">âš¡</div>
                     <span>More monthly credits for increased outreach</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">🎯</div>
+                    <div class="feature-icon">ðŸŽ¯</div>
                     <span>Advanced targeting and message optimization</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">📈</div>
+                    <div class="feature-icon">ðŸ"ˆ</div>
                     <span>Detailed analytics and performance insights</span>
                 </div>
             </div>
@@ -647,11 +647,11 @@
 
                 <!-- Pricing Toggle -->
                 <div class="pricing-toggle">
-                    <button class="toggle-option active" onclick="togglePricing('payAsYouGo')">
+                    <button class="toggle-option" onclick="togglePricing('payAsYouGo')">
                         Pay-As-You-Go
                         <div class="pricing-badge">One-time</div>
                     </button>
-                    <button class="toggle-option" onclick="togglePricing('monthly')">
+                    <button class="toggle-option active" onclick="togglePricing('monthly')">
                         Monthly
                         <div class="pricing-badge">Recurring</div>
                     </button>
@@ -667,21 +667,19 @@
                     
                     <div class="package-card featured" onclick="selectPackage('silver')">
                         <div class="plan-name">Silver</div>
-                        <div class="plan-price" id="silverPrice">$17<span id="silverPeriod">/one-time</span></div>
+                        <div class="plan-price" id="silverPrice">$13.90<span id="silverPeriod">/month</span></div>
                         <div class="plan-credits" id="silverCredits">30 Credits</div>
                     </div>
                     
-                    <div class="package-card disabled">
-                        <span class="coming-soon-badge">Coming Soon</span>
+                    <div class="package-card featured" id="goldCard" onclick="selectPackage('gold')">
                         <div class="plan-name">Gold</div>
-                        <div class="plan-price" id="goldPrice">$39<span id="goldPeriod">/one-time</span></div>
+                        <div class="plan-price" id="goldPrice">$32<span id="goldPeriod">/month</span></div>
                         <div class="plan-credits" id="goldCredits">100 Credits</div>
                     </div>
                     
-                    <div class="package-card disabled">
-                        <span class="coming-soon-badge">Coming Soon</span>
+                    <div class="package-card" id="platinumCard" onclick="selectPackage('platinum')">
                         <div class="plan-name">Platinum</div>
-                        <div class="plan-price" id="platinumPrice">$78<span id="platinumPeriod">/one-time</span></div>
+                        <div class="plan-price" id="platinumPrice">$63.87<span id="platinumPeriod">/month</span></div>
                         <div class="plan-credits" id="platinumCredits">250 Credits</div>
                     </div>
                 </div>
@@ -699,7 +697,7 @@
 
             <!-- Success State -->
             <div class="success-message" id="successState">
-                <div class="success-icon">✓</div>
+                <div class="success-icon">âœ"</div>
                 <h3 class="success-title">Upgrade Successful!</h3>
                 <p class="success-subtitle">Your plan has been upgraded successfully.</p>
                 
@@ -713,7 +711,7 @@
 
     <script>
         let selectedPackage = null;
-        let currentPricingMode = 'payAsYouGo';
+        let currentPricingMode = 'monthly'; // CHANGED: Default to monthly
         let userToken = null;
         let currentUser = null;
 
@@ -735,6 +733,7 @@
         window.addEventListener('load', async () => {
             await checkAuthentication();
             await loadCurrentPlan();
+            updatePricingDisplay(); // Set initial monthly display
         });
 
         // Check if user is authenticated
@@ -812,7 +811,12 @@
             });
             event.target.classList.add('active');
 
-            const data = pricing[type];
+            updatePricingDisplay();
+        }
+
+        // Update pricing display and card availability
+        function updatePricingDisplay() {
+            const data = pricing[currentPricingMode];
             
             document.getElementById('silverPrice').innerHTML = `${data.silver.price}<span id="silverPeriod">${data.silver.period}</span>`;
             document.getElementById('silverCredits').textContent = data.silver.credits;
@@ -822,19 +826,54 @@
             
             document.getElementById('platinumPrice').innerHTML = `${data.platinum.price}<span id="platinumPeriod">${data.platinum.period}</span>`;
             document.getElementById('platinumCredits').textContent = data.platinum.credits;
+
+            // Handle Gold and Platinum availability based on pricing mode
+            const goldCard = document.getElementById('goldCard');
+            const platinumCard = document.getElementById('platinumCard');
+
+            if (currentPricingMode === 'payAsYouGo') {
+                // Disable Gold and Platinum for PAYG
+                goldCard.classList.add('disabled');
+                platinumCard.classList.add('disabled');
+                
+                // Add coming soon badges if not already present
+                if (!goldCard.querySelector('.coming-soon-badge')) {
+                    const goldBadge = document.createElement('span');
+                    goldBadge.className = 'coming-soon-badge';
+                    goldBadge.textContent = 'Coming Soon';
+                    goldCard.appendChild(goldBadge);
+                }
+                
+                if (!platinumCard.querySelector('.coming-soon-badge')) {
+                    const platinumBadge = document.createElement('span');
+                    platinumBadge.className = 'coming-soon-badge';
+                    platinumBadge.textContent = 'Coming Soon';
+                    platinumCard.appendChild(platinumBadge);
+                }
+            } else {
+                // Enable Gold and Platinum for Monthly
+                goldCard.classList.remove('disabled');
+                platinumCard.classList.remove('disabled');
+                
+                // Remove coming soon badges
+                const goldBadge = goldCard.querySelector('.coming-soon-badge');
+                const platinumBadge = platinumCard.querySelector('.coming-soon-badge');
+                if (goldBadge) goldBadge.remove();
+                if (platinumBadge) platinumBadge.remove();
+            }
         }
 
         // Handle package selection
         function selectPackage(packageType) {
-            // Only allow Silver for now
-            if (packageType !== 'silver' && packageType !== 'free') {
-                alert('This premium package is coming soon! Try Silver or continue with your free plan.');
+            // Don't allow selection of disabled plans
+            if (event.currentTarget.classList.contains('disabled')) {
+                alert('This premium package is coming soon! Try our available plans.');
                 return;
             }
             
             // Don't allow downgrade to free
             if (packageType === 'free') {
-                alert('You already have access to the free plan. Choose Silver to upgrade!');
+                alert('You already have access to the free plan. Choose a paid plan to upgrade!');
                 return;
             }
             
@@ -868,15 +907,17 @@
             document.getElementById('loadingState').style.display = 'block';
 
             try {
-                // Determine the correct plan ID based on pricing mode
+                // Determine the correct plan ID based on selected package and pricing mode
                 let planId;
-                if (currentPricingMode === 'monthly') {
-                    planId = 'Silver-Monthly'; // Monthly Silver plan
-                } else {
-                    planId = 'Silver-PAYG-USD'; // Pay-as-you-go Silver plan
+                if (selectedPackage === 'silver') {
+                    planId = currentPricingMode === 'monthly' ? 'Silver-Monthly' : 'Silver-PAYG-USD';
+                } else if (selectedPackage === 'gold') {
+                    planId = 'Gold-Monthly';  // Only monthly for now
+                } else if (selectedPackage === 'platinum') {
+                    planId = 'Platinum-Monthly';  // Only monthly for now
                 }
                 
-                console.log(`Creating upgrade checkout for: ${planId} (${currentPricingMode})`);
+                console.log(`Creating upgrade checkout for: ${planId} (${selectedPackage})`);
                 
                 // Create Chargebee checkout session for upgrade
                 const checkoutResponse = await fetch('https://api.msgly.ai/create-checkout', {
