@@ -7,6 +7,7 @@
 // CRITICAL FIX: Use correct API methods - checkout_one_time_for_items for PAYG
 // NEW: Added Gold-Monthly and Platinum-Monthly plans
 // CANCELLATION FIX: Added subscription cancellation handling
+// PAYG EXPANSION: Added Gold-PAYG-USD and Platinum-PAYG-USD plans
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -29,6 +30,7 @@ try {
 // STEP 8A: Plan mapping between Chargebee and database
 // FINAL FIX: Updated to match actual Chargebee Item Price IDs
 // NEW: Added Gold-Monthly and Platinum-Monthly plans
+// PAYG EXPANSION: Added Gold-PAYG-USD and Platinum-PAYG-USD plans
 const CHARGEBEE_PLAN_MAPPING = {
     'Silver-Monthly': {
         planCode: 'silver-monthly',
@@ -55,6 +57,20 @@ const CHARGEBEE_PLAN_MAPPING = {
         renewableCredits: 250,
         billingModel: 'monthly',
         displayName: 'Platinum Monthly'
+    },
+    // PAYG EXPANSION: Gold PAYG plan
+    'Gold-PAYG-USD': {
+        planCode: 'gold-payasyougo',
+        payasyougoCredits: 100,
+        billingModel: 'one_time',
+        displayName: 'Gold Pay-as-you-go'
+    },
+    // PAYG EXPANSION: Platinum PAYG plan
+    'Platinum-PAYG-USD': {
+        planCode: 'platinum-payasyougo', 
+        payasyougoCredits: 250,
+        billingModel: 'one_time',
+        displayName: 'Platinum Pay-as-you-go'
     }
 };
 
@@ -62,7 +78,7 @@ class ChargebeeService {
     constructor() {
         this.isConfigured = false;
         this.planMapping = CHARGEBEE_PLAN_MAPPING;
-        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support + cancellation handling');
+        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support (Monthly + PAYG) + cancellation handling');
     }
 
     // EXISTING METHOD: Test connection using Product Catalog 2.0 API (preserved)
