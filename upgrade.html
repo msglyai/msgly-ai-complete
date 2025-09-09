@@ -604,19 +604,19 @@
             
             <div class="features-list">
                 <div class="feature-item">
-                    <div class="feature-icon">âœ¨</div>
+                    <div class="feature-icon">✨</div>
                     <span>Enhanced AI analysis for better personalization</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">âš¡</div>
+                    <div class="feature-icon">⚡</div>
                     <span>More monthly credits for increased outreach</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">ðŸŽ¯</div>
+                    <div class="feature-icon">🎯</div>
                     <span>Advanced targeting and message optimization</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">ðŸ"ˆ</div>
+                    <div class="feature-icon">📊</div>
                     <span>Detailed analytics and performance insights</span>
                 </div>
             </div>
@@ -715,12 +715,12 @@
         let userToken = null;
         let currentUser = null;
 
-        // Pricing data
+        // PAYG EXPANSION: Updated pricing data with Gold and Platinum PAYG prices
         const pricing = {
             payAsYouGo: {
                 silver: { price: '$17', period: '/one-time', credits: '30 Credits' },
-                gold: { price: '$39', period: '/one-time', credits: '100 Credits' },
-                platinum: { price: '$78', period: '/one-time', credits: '250 Credits' }
+                gold: { price: '$39', period: '/one-time', credits: '100 Credits' },      // PAYG EXPANSION: Added Gold PAYG
+                platinum: { price: '$78', period: '/one-time', credits: '250 Credits' }   // PAYG EXPANSION: Added Platinum PAYG
             },
             monthly: {
                 silver: { price: '$13.90', period: '/month', credits: '30 Credits' },
@@ -803,7 +803,7 @@
             }
         }
 
-        // Toggle pricing
+        // PAYG EXPANSION: Updated togglePricing - Removed Gold/Platinum restrictions
         function togglePricing(type) {
             currentPricingMode = type;
             document.querySelectorAll('.toggle-option').forEach(btn => {
@@ -814,63 +814,24 @@
             updatePricingDisplay();
         }
 
-        // Update pricing display and card availability
+        // PAYG EXPANSION: Updated updatePricingDisplay - Removed card disabling logic
         function updatePricingDisplay() {
             const data = pricing[currentPricingMode];
             
+            // Update all plan pricing
             document.getElementById('silverPrice').innerHTML = `${data.silver.price}<span id="silverPeriod">${data.silver.period}</span>`;
             document.getElementById('silverCredits').textContent = data.silver.credits;
             
+            // PAYG EXPANSION: Gold and Platinum now work in both modes
             document.getElementById('goldPrice').innerHTML = `${data.gold.price}<span id="goldPeriod">${data.gold.period}</span>`;
             document.getElementById('goldCredits').textContent = data.gold.credits;
             
             document.getElementById('platinumPrice').innerHTML = `${data.platinum.price}<span id="platinumPeriod">${data.platinum.period}</span>`;
             document.getElementById('platinumCredits').textContent = data.platinum.credits;
-
-            // Handle Gold and Platinum availability based on pricing mode
-            const goldCard = document.getElementById('goldCard');
-            const platinumCard = document.getElementById('platinumCard');
-
-            if (currentPricingMode === 'payAsYouGo') {
-                // Disable Gold and Platinum for PAYG
-                goldCard.classList.add('disabled');
-                platinumCard.classList.add('disabled');
-                
-                // Add coming soon badges if not already present
-                if (!goldCard.querySelector('.coming-soon-badge')) {
-                    const goldBadge = document.createElement('span');
-                    goldBadge.className = 'coming-soon-badge';
-                    goldBadge.textContent = 'Coming Soon';
-                    goldCard.appendChild(goldBadge);
-                }
-                
-                if (!platinumCard.querySelector('.coming-soon-badge')) {
-                    const platinumBadge = document.createElement('span');
-                    platinumBadge.className = 'coming-soon-badge';
-                    platinumBadge.textContent = 'Coming Soon';
-                    platinumCard.appendChild(platinumBadge);
-                }
-            } else {
-                // Enable Gold and Platinum for Monthly
-                goldCard.classList.remove('disabled');
-                platinumCard.classList.remove('disabled');
-                
-                // Remove coming soon badges
-                const goldBadge = goldCard.querySelector('.coming-soon-badge');
-                const platinumBadge = platinumCard.querySelector('.coming-soon-badge');
-                if (goldBadge) goldBadge.remove();
-                if (platinumBadge) platinumBadge.remove();
-            }
         }
 
         // Handle package selection
         function selectPackage(packageType) {
-            // Don't allow selection of disabled plans
-            if (event.currentTarget.classList.contains('disabled')) {
-                alert('This premium package is coming soon! Try our available plans.');
-                return;
-            }
-            
             // Don't allow downgrade to free
             if (packageType === 'free') {
                 alert('You already have access to the free plan. Choose a paid plan to upgrade!');
@@ -889,7 +850,7 @@
             upgradeBtn.innerHTML = `<span>Upgrade to ${packageType.charAt(0).toUpperCase() + packageType.slice(1)}</span>`;
         }
 
-        // Process upgrade
+        // PAYG EXPANSION: Updated processUpgrade with Gold/Platinum PAYG support
         async function processUpgrade() {
             if (!selectedPackage) {
                 alert('Please select a plan to upgrade to.');
@@ -907,14 +868,14 @@
             document.getElementById('loadingState').style.display = 'block';
 
             try {
-                // Determine the correct plan ID based on selected package and pricing mode
+                // PAYG EXPANSION: Updated plan ID logic to support Gold/Platinum PAYG
                 let planId;
                 if (selectedPackage === 'silver') {
                     planId = currentPricingMode === 'monthly' ? 'Silver-Monthly' : 'Silver-PAYG-USD';
                 } else if (selectedPackage === 'gold') {
-                    planId = 'Gold-Monthly';  // Only monthly for now
+                    planId = currentPricingMode === 'monthly' ? 'Gold-Monthly' : 'Gold-PAYG-USD';    // PAYG EXPANSION: Added Gold PAYG
                 } else if (selectedPackage === 'platinum') {
-                    planId = 'Platinum-Monthly';  // Only monthly for now
+                    planId = currentPricingMode === 'monthly' ? 'Platinum-Monthly' : 'Platinum-PAYG-USD';  // PAYG EXPANSION: Added Platinum PAYG
                 }
                 
                 console.log(`Creating upgrade checkout for: ${planId} (${selectedPackage})`);
