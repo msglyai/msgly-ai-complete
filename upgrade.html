@@ -791,13 +791,36 @@
             if (!currentUser) return;
 
             try {
-                // Display current plan info (placeholder - replace with actual API call)
-                const currentPlan = currentUser.currentPlan || 'Free';
-                const currentCredits = currentUser.currentCredits || 7;
-                const billingType = currentUser.billingType || 'Forever';
+                // ✅ FIX: Show user's actual plan - PAYG doesn't change plan display
+                const planDisplayNames = {
+                    'free': 'Free',
+                    'silver-monthly': 'Silver Monthly',
+                    'gold-monthly': 'Gold Monthly',
+                    'platinum-monthly': 'Platinum Monthly',
+                    // PAYG plan codes mean user is on Free plan with extra credits
+                    'silver-payasyougo': 'Free',
+                    'gold-payasyougo': 'Free',
+                    'platinum-payasyougo': 'Free'
+                };
+
+                const planCode = currentUser.planCode || 'free';
+                const currentPlan = planDisplayNames[planCode] || 'Free';
+                
+                // Calculate total credits (renewable + PAYG)
+                const renewableCredits = currentUser.renewableCredits || 0;
+                const payasyougoCredits = currentUser.payasyougoCredits || 0;
+                const totalCredits = renewableCredits + payasyougoCredits;
+                
+                // Determine billing type
+                let billingType = 'Forever';
+                if (planCode.includes('-monthly')) {
+                    billingType = 'Monthly';
+                } else if (payasyougoCredits > 0) {
+                    billingType = 'Forever + Credits';
+                }
 
                 document.getElementById('currentPlanName').textContent = currentPlan;
-                document.getElementById('currentCredits').textContent = `${currentCredits} credits`;
+                document.getElementById('currentCredits').textContent = `${totalCredits} credits`;
                 document.getElementById('currentBilling').textContent = billingType;
 
                 // ✅ NEW: Mark current plan card
