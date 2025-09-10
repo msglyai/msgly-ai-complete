@@ -665,7 +665,7 @@
                         <div class="plan-credits">7 free Credits forever</div>
                     </div>
                     
-                    <div class="package-card" onclick="selectPackage('silver')">
+                    <div class="package-card" id="silverCard" onclick="selectPackage('silver')">
                         <div class="plan-name">Silver</div>
                         <div class="plan-price" id="silverPrice">$13.90<span id="silverPeriod">/month</span></div>
                         <div class="plan-credits" id="silverCredits">30 Credits</div>
@@ -711,9 +711,22 @@
 
     <script>
         let selectedPackage = null;
-        let currentPricingMode = 'monthly'; // CHANGED: Default to monthly
+        let currentPricingMode = 'monthly';
         let userToken = null;
         let currentUser = null;
+        let currentPlanLevel = 0; // ✅ NEW: Track current plan level
+
+        // ✅ NEW: Define plan hierarchy levels
+        const PLAN_LEVELS = {
+            'free': 0,
+            'silver-monthly': 1,
+            'gold-monthly': 2,
+            'platinum-monthly': 3,
+            // PAYG plans don't count as "levels" since they're just credit purchases
+            'silver-payasyougo': 0,
+            'gold-payasyougo': 0,
+            'platinum-payasyougo': 0
+        };
 
         // PAYG EXPANSION: Updated pricing data with Gold and Platinum PAYG prices
         const pricing = {
@@ -734,6 +747,7 @@
             await checkAuthentication();
             await loadCurrentPlan();
             updatePricingDisplay(); // Set initial monthly display
+            updatePlanAvailability(); // ✅ NEW: Update available plans based on current plan
         });
 
         // Check if user is authenticated
@@ -761,7 +775,9 @@
 
                 const data = await response.json();
                 currentUser = data.data.user;
+                currentPlanLevel = PLAN_LEVELS[currentUser.planCode] || 0; // ✅ NEW: Set plan level
                 console.log('User authenticated:', currentUser.email);
+                console.log('[UPGRADE] Current plan level:', currentPlanLevel, 'for plan:', currentUser.planCode); // ✅ NEW
 
             } catch (error) {
                 console.error('Authentication check failed:', error);
@@ -784,15 +800,8 @@
                 document.getElementById('currentCredits').textContent = `${currentCredits} credits`;
                 document.getElementById('currentBilling').textContent = billingType;
 
-                // Mark current plan card
-                if (currentPlan.toLowerCase() === 'free') {
-                    const freeCard = document.getElementById('freeCard');
-                    freeCard.classList.add('current');
-                    const badge = document.createElement('span');
-                    badge.className = 'current-plan-badge';
-                    badge.textContent = 'Current Plan';
-                    freeCard.appendChild(badge);
-                }
+                // ✅ NEW: Mark current plan card
+                markCurrentPlanCard(currentUser.planCode);
 
             } catch (error) {
                 console.error('Failed to load current plan:', error);
@@ -800,6 +809,30 @@
                 document.getElementById('currentPlanName').textContent = 'Free';
                 document.getElementById('currentCredits').textContent = '7 credits';
                 document.getElementById('currentBilling').textContent = 'Forever';
+            }
+        }
+
+        // ✅ NEW: Mark current plan card with badge
+        function markCurrentPlanCard(planCode) {
+            // Remove any existing current plan badges
+            document.querySelectorAll('.current-plan-badge').forEach(badge => badge.remove());
+            document.querySelectorAll('.package-card').forEach(card => card.classList.remove('current'));
+
+            let cardId = null;
+            if (planCode === 'free') cardId = 'freeCard';
+            else if (planCode && planCode.startsWith('silver')) cardId = 'silverCard';
+            else if (planCode && planCode.startsWith('gold')) cardId = 'goldCard';
+            else if (planCode && planCode.startsWith('platinum')) cardId = 'platinumCard';
+
+            if (cardId) {
+                const card = document.getElementById(cardId);
+                if (card) {
+                    card.classList.add('current');
+                    const badge = document.createElement('span');
+                    badge.className = 'current-plan-badge';
+                    badge.textContent = 'Current Plan';
+                    card.appendChild(badge);
+                }
             }
         }
 
@@ -812,6 +845,7 @@
             event.target.classList.add('active');
 
             updatePricingDisplay();
+            updatePlanAvailability(); // ✅ NEW: Update plan availability when pricing mode changes
         }
 
         // PAYG EXPANSION: Updated updatePricingDisplay - Removed card disabling logic
@@ -830,11 +864,56 @@
             document.getElementById('platinumCredits').textContent = data.platinum.credits;
         }
 
-        // Handle package selection
+        // ✅ NEW: Update plan availability based on current plan level and pricing mode
+        function updatePlanAvailability() {
+            const cards = {
+                free: document.getElementById('freeCard'),
+                silver: document.getElementById('silverCard'),
+                gold: document.getElementById('goldCard'),
+                platinum: document.getElementById('platinumCard')
+            };
+
+            // Reset all cards
+            Object.values(cards).forEach(card => {
+                if (card) {
+                    card.classList.remove('disabled');
+                    card.style.pointerEvents = 'auto';
+                }
+            });
+
+            if (currentPricingMode === 'monthly') {
+                // ✅ MONTHLY MODE: Apply upgrade hierarchy logic
+                
+                // Disable plans equal to or lower than current plan level
+                if (currentPlanLevel >= PLAN_LEVELS['free']) {
+                    cards.free.classList.add('disabled');
+                    cards.free.style.pointerEvents = 'none';
+                }
+                if (currentPlanLevel >= PLAN_LEVELS['silver-monthly']) {
+                    cards.silver.classList.add('disabled');
+                    cards.silver.style.pointerEvents = 'none';
+                }
+                if (currentPlanLevel >= PLAN_LEVELS['gold-monthly']) {
+                    cards.gold.classList.add('disabled');
+                    cards.gold.style.pointerEvents = 'none';
+                }
+                if (currentPlanLevel >= PLAN_LEVELS['platinum-monthly']) {
+                    cards.platinum.classList.add('disabled');
+                    cards.platinum.style.pointerEvents = 'none';
+                }
+            }
+            // ✅ PAYG MODE: All plans available (just credit purchases)
+            // No restrictions for PAYG since they're just credit top-ups
+        }
+
+        // ✅ UPDATED: Handle package selection with upgrade logic
         function selectPackage(packageType) {
-            // Don't allow downgrade to free
-            if (packageType === 'free') {
-                alert('You already have access to the free plan. Choose a paid plan to upgrade!');
+            // Check if card is disabled
+            const card = document.getElementById(packageType + 'Card');
+            if (card && card.classList.contains('disabled')) {
+                if (currentPricingMode === 'monthly') {
+                    alert('You can only upgrade to higher tier plans. Select a plan above your current level.');
+                }
                 return;
             }
             
@@ -847,7 +926,11 @@
 
             // Update button text
             const upgradeBtn = document.getElementById('upgradeBtn');
-            upgradeBtn.innerHTML = `<span>Upgrade to ${packageType.charAt(0).toUpperCase() + packageType.slice(1)}</span>`;
+            if (currentPricingMode === 'payAsYouGo') {
+                upgradeBtn.innerHTML = `<span>Buy ${packageType.charAt(0).toUpperCase() + packageType.slice(1)} Credits</span>`;
+            } else {
+                upgradeBtn.innerHTML = `<span>Upgrade to ${packageType.charAt(0).toUpperCase() + packageType.slice(1)}</span>`;
+            }
         }
 
         // PAYG EXPANSION: Updated processUpgrade with Gold/Platinum PAYG support
