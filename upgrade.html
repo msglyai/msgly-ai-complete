@@ -911,7 +911,7 @@
             });
 
             if (currentPricingMode === 'monthly') {
-                // ✅ MONTHLY MODE: Apply upgrade hierarchy logic
+                // ✅ MONTHLY MODE: Apply upgrade hierarchy logic + show current plan badge
                 
                 // Disable plans equal to or lower than current plan level
                 if (currentPlanLevel >= PLAN_LEVELS['free']) {
@@ -930,9 +930,15 @@
                     cards.platinum.classList.add('disabled');
                     cards.platinum.style.pointerEvents = 'none';
                 }
+                
+                // Show current plan badge in monthly mode
+                markCurrentPlanCard(currentUser.planCode);
+            } else {
+                // ✅ PAYG MODE: No restrictions + NO current plan badges (PAYG is credit purchasing)
+                // Remove all current plan badges in PAYG mode
+                document.querySelectorAll('.current-plan-badge').forEach(badge => badge.remove());
+                document.querySelectorAll('.package-card').forEach(card => card.classList.remove('current'));
             }
-            // ✅ PAYG MODE: All plans available (just credit purchases)
-            // No restrictions for PAYG since they're just credit top-ups
         }
 
         // ✅ UPDATED: Handle package selection with upgrade logic
