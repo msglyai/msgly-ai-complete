@@ -952,19 +952,19 @@
             
             <div class="features-list">
                 <div class="feature-item">
-                    <div class="feature-icon">✔</div>
+                    <div class="feature-icon">✓</div>
                     <span>AI analyzes profiles for perfect personalization</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">✔</div>
+                    <div class="feature-icon">✓</div>
                     <span>10x higher response rates than generic messages</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">✔</div>
+                    <div class="feature-icon">✓</div>
                     <span>Works directly in LinkedIn with Chrome extension</span>
                 </div>
                 <div class="feature-item">
-                    <div class="feature-icon">✔</div>
+                    <div class="feature-icon">✓</div>
                     <span>Start free with 10 messages per month</span>
                 </div>
             </div>
@@ -1190,7 +1190,7 @@
                 <div style="display: flex; gap: 12px; margin-top: 20px;">
                     <button class="continue-btn" style="flex: 1; margin: 0;" onclick="addToChromeExtension()">
                         <i class="fab fa-chrome" style="margin-right: 8px;"></i>
-                        Add to Chrome
+                        Get Chrome Extension
                     </button>
                     
                     <button class="continue-btn" style="flex: 1; margin: 0; background: linear-gradient(135deg, var(--accent-pink) 0%, var(--primary-purple) 100%);" onclick="goToDashboard()">
@@ -1242,7 +1242,7 @@
             
             if (token) {
                 userToken = token;
-                console.log('✓ Received token from OAuth:', token);
+                console.log('✅ Received token from OAuth:', token);
                 
                 // Check if user registration is already complete
                 try {
@@ -1259,7 +1259,7 @@
                         const user = data.data.user;
                         const syncStatus = data.data.syncStatus;
 
-                        console.log('✓ User profile fetched for registration check');
+                        console.log('✅ User profile fetched for registration check');
                         console.log('   - Registration completed:', user.registrationCompleted);
                         console.log('   - LinkedIn URL:', !!user.linkedinUrl);
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
@@ -1269,7 +1269,7 @@
                                                      !syncStatus.isIncomplete;
 
                         if (isRegistrationComplete) {
-                            console.log('✓ User registration is complete - redirecting to dashboard');
+                            console.log('✅ User registration is complete - redirecting to dashboard');
                             
                             localStorage.setItem('authToken', token);
                             
@@ -1524,17 +1524,17 @@
                     throw new Error(result.error || 'Failed to complete registration');
                 }
                 
-                console.log('✓ Registration completed successfully - registration_completed set to true');
+                console.log('✅ Registration completed successfully - registration_completed set to true');
                 
                 localStorage.setItem('authToken', userToken);
-                console.log('✓ Token stored in localStorage:', userToken);
+                console.log('✅ Token stored in localStorage:', userToken);
                 
                 await new Promise(resolve => setTimeout(resolve, 6000));
                 
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('successState').style.display = 'block';
                 
-                console.log('✓ Registration completed successfully! registration_completed = true set in database');
+                console.log('✅ Registration completed successfully! registration_completed = true set in database');
                 
             } catch (error) {
                 console.error('Registration error:', error);
@@ -1551,7 +1551,7 @@
 
         // Add to Chrome Extension
         function addToChromeExtension() {
-            alert('🚀 Chrome Extension will be available soon!\n\nFor now, you can:\n✓ Access dashboard\n✓ Get ready for LinkedIn integration\n✓ Start your free plan');
+            window.open('https://chromewebstore.google.com/detail/msglyai-linkedin-message/gbnbbcbiimefgolddbfgplhedbijkgod', '_blank');
         }
 
         // Go to dashboard with token already stored
@@ -1559,12 +1559,12 @@
             const storedToken = localStorage.getItem('authToken');
             
             if (!storedToken) {
-                console.error('⚠ No token found in localStorage');
+                console.error('⚠️ No token found in localStorage');
                 alert('Authentication issue. Please try completing registration again.');
                 return;
             }
             
-            console.log('✓ Redirecting to dashboard with stored token - registration_completed = true');
+            console.log('✅ Redirecting to dashboard with stored token - registration_completed = true');
             window.location.href = '/dashboard';
         }
     </script>
