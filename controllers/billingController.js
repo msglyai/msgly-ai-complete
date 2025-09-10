@@ -147,7 +147,7 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
-// ✅ CANCELLATION FIX: New webhook handler for subscription_cancellation_scheduled
+// âœ… CANCELLATION FIX: New webhook handler for subscription_cancellation_scheduled
 async function handleSubscriptionCancellationScheduled(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_cancellation_scheduled');
@@ -180,7 +180,7 @@ async function handleSubscriptionCancellationScheduled(subscription, customer) {
     }
 }
 
-// ✅ CANCELLATION FIX: New webhook handler for subscription_cancelled
+// âœ… CANCELLATION FIX: New webhook handler for subscription_cancelled
 async function handleSubscriptionCancelled(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_cancelled');
@@ -206,7 +206,7 @@ async function handleSubscriptionCancelled(subscription, customer) {
     }
 }
 
-// 🔧 PAYG CRITICAL FIX: Enhanced invoice_generated handler with proper plan detection for both plan_item_price and charge_item_price
+// ðŸ"§ PAYG CRITICAL FIX: Enhanced invoice_generated handler with proper plan detection for both plan_item_price and charge_item_price
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
@@ -318,7 +318,7 @@ async function handleInvoiceGenerated(invoice, subscription) {
             
             console.log(`[WEBHOOK] Processing PAYG purchase for user ${user.id} (${user.email})`);
             
-            // 🔧 PAYG CRITICAL FIX: Enhanced plan detection for both plan_item_price and charge_item_price
+            // ðŸ"§ PAYG CRITICAL FIX: Enhanced plan detection for both plan_item_price and charge_item_price
             const planLineItem = invoice.line_items?.find(item => {
                 // Handle both regular plans and PAYG charges
                 const isValidEntityType = (
@@ -338,19 +338,16 @@ async function handleInvoiceGenerated(invoice, subscription) {
                 if (planMapping && planMapping.billingModel === 'one_time') {
                     console.log(`[WEBHOOK] Adding ${planMapping.payasyougoCredits} PAYG credits to user ${user.id}`);
                     
-                    // Add pay-as-you-go credits (don't reset, add to existing)
+                    // ✅ PAYG FIX: Add credits only, never change plan_code
                     const updateResult = await pool.query(`
                         UPDATE users 
                         SET 
-                            plan_code = $1,
-                            payasyougo_credits = COALESCE(payasyougo_credits, 0) + $2,
-                            subscription_status = 'active',
-                            chargebee_customer_id = $3,
+                            payasyougo_credits = COALESCE(payasyougo_credits, 0) + $1,
+                            chargebee_customer_id = $2,
                             updated_at = NOW()
-                        WHERE id = $4
+                        WHERE id = $3
                         RETURNING payasyougo_credits, renewable_credits
                     `, [
-                        planMapping.planCode,
                         planMapping.payasyougoCredits,
                         invoice.customer_id,
                         user.id
@@ -450,7 +447,7 @@ async function handlePaymentSucceeded(payment, invoice) {
                 if (userData.payasyougo_credits === 0 || userData.payasyougo_credits === "0") {
                     console.log('[WEBHOOK] PAYG credits are 0, attempting recovery...');
                     
-                    // 🔧 PAYG CRITICAL FIX: Use enhanced plan detection in recovery as well
+                    // ðŸ"§ PAYG CRITICAL FIX: Use enhanced plan detection in recovery as well
                     if (invoice.line_items) {
                         const planLineItem = invoice.line_items.find(item => {
                             const isValidEntityType = (
@@ -466,16 +463,14 @@ async function handlePaymentSucceeded(payment, invoice) {
                             if (planMapping && planMapping.billingModel === 'one_time') {
                                 console.log('[WEBHOOK] Recovery: Adding PAYG credits via payment_succeeded');
                                 
+                                // ✅ PAYG FIX: Add credits only, never change plan_code (recovery)
                                 await pool.query(`
                                     UPDATE users 
                                     SET 
-                                        plan_code = $1,
-                                        payasyougo_credits = COALESCE(payasyougo_credits, 0) + $2,
-                                        subscription_status = 'active',
+                                        payasyougo_credits = COALESCE(payasyougo_credits, 0) + $1,
                                         updated_at = NOW()
-                                    WHERE id = $3
+                                    WHERE id = $2
                                 `, [
-                                    planMapping.planCode,
                                     planMapping.payasyougoCredits,
                                     userData.id
                                 ]);
