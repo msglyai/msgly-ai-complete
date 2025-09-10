@@ -38,10 +38,10 @@ CHANGELOG - server.js:
 31. CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade to free plan
 32. MINIMAL PAYG ADDITION: Added Gold-PAYG-USD and Platinum-PAYG-USD to CHARGEBEE_PLAN_MAPPING
 33. BILLING REFACTOR: Moved all billing logic to dedicated modules (config/billing.js, controllers/billingController.js, routes/billingRoutes.js)
-34. LOGGING CLEANUP: Environment-based debug logging - only shows in development
+34. PROFESSIONAL LOGGER: Replaced all wrapped console.log with professional logger utility
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + CLEAN PRODUCTION LOGGING
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -65,7 +65,7 @@ CHANGELOG - server.js:
 // ✅ CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade
 // ✅ GOLD & PLATINUM PAYG: Added Gold-PAYG-USD and Platinum-PAYG-USD support
 // ✅ BILLING REFACTOR: Clean separation of billing logic into dedicated modules
-// ✅ CLEAN LOGGING: Environment-based debug logging for professional production deployment
+// ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment
 
 const express = require('express');
 const cors = require('cors');
@@ -78,6 +78,9 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
+
+// NEW: Import professional logger utility
+const logger = require('./utils/logger');
 
 // FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
@@ -229,9 +232,7 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
         
         if (result.rows.length > 0) {
             const profile = result.rows[0];
-            if (process.env.NODE_ENV !== 'production') {
-                console.log(`[SUCCESS] Profile already exists in database: ID ${profile.id}`);
-            }
+            logger.success(`Profile already exists in database: ID ${profile.id}`);
             return {
                 exists: true,
                 data: {
@@ -247,16 +248,14 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
                 }
             };
         } else {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log(`[NEW] Profile is new in database: ${cleanUrl}`);
-            }
+            logger.debug(`Profile is new in database: ${cleanUrl}`);
             return {
                 exists: false,
                 data: null
             };
         }
     } catch (error) {
-        console.error('[ERROR] Error checking profile in database:', error);
+        logger.error('Error checking profile in database:', error);
         return {
             exists: false,
             data: null
@@ -266,12 +265,11 @@ async function checkIfProfileExistsInDB(linkedinUrl) {
 
 // Save profile analysis to database
 async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {}) {
-    if (process.env.NODE_ENV !== 'production') {
-        console.log('[FIRE] saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
-        console.log('[CHECK] saveProfileToDB function entry - detailed parameters:');
-        console.log('   linkedinUrl:', linkedinUrl);
-        console.log('   userId:', userId);
-    }
+    logger.debug('saveProfileToDB FUNCTION CALLED - START OF FUNCTION');
+    logger.trace('saveProfileToDB function entry - detailed parameters:', {
+        linkedinUrl,
+        userId
+    });
     
     try {
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
@@ -281,27 +279,24 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
         const cleanedOutput = cleanTokenNumber(tokenData.outputTokens);
         const cleanedTotal = cleanTokenNumber(tokenData.totalTokens);
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CHECK] Final values going to database:', {
-                inputTokens: cleanedInput,
-                outputTokens: cleanedOutput,
-                totalTokens: cleanedTotal
-            });
-            
-            console.log('[TARGET] ABOUT TO EXECUTE TARGET PROFILE INSERT');
-            console.log('[TARGET] SQL VALUES GOING TO DATABASE:');
-            console.log('   userId:', userId, typeof userId);
-            console.log('   cleanUrl:', cleanUrl, typeof cleanUrl);
-            console.log('   cleanedInput:', cleanedInput, typeof cleanedInput);
-            console.log('   cleanedOutput:', cleanedOutput, typeof cleanedOutput);
-            console.log('   cleanedTotal:', cleanedTotal, typeof cleanedTotal);
-        }
+        logger.debug('Final values going to database:', {
+            inputTokens: cleanedInput,
+            outputTokens: cleanedOutput,
+            totalTokens: cleanedTotal
+        });
+        
+        logger.custom('TARGET', 'ABOUT TO EXECUTE TARGET PROFILE INSERT');
+        logger.trace('SQL VALUES GOING TO DATABASE:', {
+            userId: { value: userId, type: typeof userId },
+            cleanUrl: { value: cleanUrl, type: typeof cleanUrl },
+            cleanedInput: { value: cleanedInput, type: typeof cleanedInput },
+            cleanedOutput: { value: cleanedOutput, type: typeof cleanedOutput },
+            cleanedTotal: { value: cleanedTotal, type: typeof cleanedTotal }
+        });
 
         let result;
         try {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[CHECK] About to execute PostgreSQL INSERT query...');
-            }
+            logger.debug('About to execute PostgreSQL INSERT query...');
             result = await pool.query(`
                 INSERT INTO target_profiles (
                     user_id,
@@ -322,32 +317,27 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
                 cleanedTotal
             ]);
             
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[TARGET] TARGET PROFILE INSERT SUCCESS!');
-            }
+            logger.custom('TARGET', 'TARGET PROFILE INSERT SUCCESS!');
             
         } catch (dbError) {
-            console.error('[ERROR] TARGET PROFILE INSERT FAILED!');
-            console.error('[ERROR] DATABASE ERROR:', dbError.message);
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[TARGET] ERROR DETAIL:', dbError.detail);
-                console.log('[TARGET] SQL STATE:', dbError.code);
-                console.log('[TARGET] PROBLEMATIC VALUES - DETAILED:');
-                console.log('   param1 (userId):', { value: userId, type: typeof userId, isNull: userId === null });
-                console.log('   param2 (cleanUrl):', { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length });
-                console.log('   param3 (rawJsonData):', { type: typeof rawJsonData, jsonLength: JSON.stringify(rawJsonData).length });
-                console.log('   param4 (cleanedInput):', { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens });
-                console.log('   param5 (cleanedOutput):', { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens });
-                console.log('   param6 (cleanedTotal):', { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens });
-            }
+            logger.error('TARGET PROFILE INSERT FAILED!');
+            logger.error('DATABASE ERROR:', dbError.message);
+            logger.debug('ERROR DETAIL:', dbError.detail);
+            logger.debug('SQL STATE:', dbError.code);
+            logger.trace('PROBLEMATIC VALUES - DETAILED:', {
+                param1: { value: userId, type: typeof userId, isNull: userId === null },
+                param2: { value: cleanUrl, type: typeof cleanUrl, length: cleanUrl?.length },
+                param3: { type: typeof rawJsonData, jsonLength: JSON.stringify(rawJsonData).length },
+                param4: { value: cleanedInput, type: typeof cleanedInput, isNull: cleanedInput === null, original: tokenData.inputTokens },
+                param5: { value: cleanedOutput, type: typeof cleanedOutput, isNull: cleanedOutput === null, original: tokenData.outputTokens },
+                param6: { value: cleanedTotal, type: typeof cleanedTotal, isNull: cleanedTotal === null, original: tokenData.totalTokens }
+            });
             throw dbError;
         }
         
         const savedProfile = result.rows[0];
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[SAVE] Profile saved to database: ID ${savedProfile.id}`);
-        }
+        logger.success(`Profile saved to database: ID ${savedProfile.id}`);
         return {
             success: true,
             id: savedProfile.id,
@@ -361,27 +351,23 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
             }
         };
     } catch (error) {
-        console.error('[ERROR] Error saving profile to database:', error);
+        logger.error('Error saving profile to database:', error);
         throw error;
     }
 }
 
 // ✅ FIXED: DATABASE-First TARGET PROFILE handler with dual credit system (NO DOUBLE SPENDING)
 async function handleTargetProfileJSON(req, res) {
-    if (process.env.NODE_ENV !== 'production') {
-        console.log('[FIRE] handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
-        console.log('[TARGET] === DATABASE-FIRST TARGET PROFILE PROCESSING ===');
-        console.log('[CHECK] Request body keys:', Object.keys(req.body || {}));
-        console.log('[CHECK] User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
-    }
+    logger.debug('handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
+    logger.custom('TARGET', '=== DATABASE-FIRST TARGET PROFILE PROCESSING ===');
+    logger.debug('Request body keys:', Object.keys(req.body || {}));
+    logger.debug('User object:', req.user ? { id: req.user.id, email: req.user.email } : 'NO USER');
     
     let holdId = null;
     
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[USER] User ID: ${req.user.id}`);
-            console.log(`[LINK] URL: ${req.body.profileUrl}`);
-        }
+        logger.info(`User ID: ${req.user.id}`);
+        logger.info(`URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -397,16 +383,12 @@ async function handleTargetProfileJSON(req, res) {
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
         // STEP 1: Check if profile already exists in database
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CHECK] Checking if profile already exists in database...');
-        }
+        logger.debug('Checking if profile already exists in database...');
         const existsCheck = await checkIfProfileExistsInDB(cleanProfileUrl);
         
         if (existsCheck.exists) {
             // ALREADY ANALYZED: Return marketing message, no credits charged
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[BOOM] Profile already analyzed - showing marketing message');
-            }
+            logger.custom('BOOM', 'Profile already analyzed - showing marketing message');
             
             return res.json({
                 success: true,
@@ -432,9 +414,7 @@ async function handleTargetProfileJSON(req, res) {
         // STEP 1.5: RACE CONDITION FIX - Check if currently being processed
         const requestKey = `${userId}_${cleanProfileUrl}`;
         if (activeProcessing.has(requestKey)) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[RACE] Profile currently being processed by another request');
-            }
+            logger.custom('RACE', 'Profile currently being processed by another request');
             return res.status(200).json({
                 success: true,
                 alreadyAnalyzed: true,
@@ -456,14 +436,10 @@ async function handleTargetProfileJSON(req, res) {
 
         // Mark as processing
         activeProcessing.set(requestKey, Date.now());
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[RACE] Marked profile as processing: ${requestKey}`);
-        }
+        logger.custom('RACE', `Marked profile as processing: ${requestKey}`);
 
         // STEP 2: NEW PROFILE - Create credit hold and analyze
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CREDIT] Creating credit hold for new profile analysis...');
-        }
+        logger.custom('CREDIT', 'Creating credit hold for new profile analysis...');
         const holdResult = await createCreditHold(userId, 'target_analysis', {
             profileUrl: cleanProfileUrl,
             timestamp: new Date().toISOString()
@@ -488,10 +464,8 @@ async function handleTargetProfileJSON(req, res) {
         }
 
         holdId = holdResult.holdId;
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
-            console.log('[AI] Processing HTML with Gemini for NEW TARGET profile...');
-        }
+        logger.success(`Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+        logger.info('Processing HTML with Gemini for NEW TARGET profile...');
         
         // Process HTML with Gemini
         const geminiResult = await sendToGemini({
@@ -501,7 +475,7 @@ async function handleTargetProfileJSON(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('[ERROR] Gemini processing failed for TARGET profile:', geminiResult.userMessage);
+            logger.error('Gemini processing failed for TARGET profile:', geminiResult.userMessage);
             
             // Release hold on failure
             await releaseCreditHold(userId, holdId, 'gemini_processing_failed');
@@ -513,14 +487,13 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[SUCCESS] Gemini processing successful for TARGET profile');
-            console.log('[SAVE] Saving analysis to database...');
-            console.log('[CHECK] About to call saveProfileToDB with:');
-            console.log('   cleanProfileUrl length:', cleanProfileUrl.length);
-            console.log('   geminiResult.rawResponse available:', !!geminiResult.rawResponse);
-            console.log('   userId:', userId);
-        }
+        logger.success('Gemini processing successful for TARGET profile');
+        logger.info('Saving analysis to database...');
+        logger.debug('About to call saveProfileToDB with:', {
+            cleanProfileUrlLength: cleanProfileUrl.length,
+            geminiResultRawResponseAvailable: !!geminiResult.rawResponse,
+            userId
+        });
         
         // COPY USER PROFILE PATTERN: Process the data first
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -544,9 +517,7 @@ async function handleTargetProfileJSON(req, res) {
         }
         
         // ✅ FIXED: STEP 4 - Complete operation (SINGLE credit deduction)
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CREDIT] Completing operation with credit deduction...');
-        }
+        logger.custom('CREDIT', 'Completing operation with credit deduction...');
         const completionResult = await completeOperation(userId, holdId, {
             profileUrl: cleanProfileUrl,
             databaseId: saveResult.id,
@@ -556,18 +527,16 @@ async function handleTargetProfileJSON(req, res) {
         });
 
         if (!completionResult.success) {
-            console.error('[ERROR] Failed to complete operation:', completionResult.error);
+            logger.error('Failed to complete operation:', completionResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process credits after successful analysis'
             });
         }
 
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[SUCCESS] TARGET profile saved to database successfully');
-            console.log(`[DATA] Analysis saved: Database ID ${saveResult.id}`);
-            console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
-        }
+        logger.success('TARGET profile saved to database successfully');
+        logger.info(`Analysis saved: Database ID ${saveResult.id}`);
+        logger.custom('MONEY', `Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
         
         // Extract basic profile info for response
         const profileData = { name: 'LinkedIn User', headline: '', currentCompany: '' };
@@ -599,7 +568,7 @@ async function handleTargetProfileJSON(req, res) {
         });
         
     } catch (error) {
-        console.error('[ERROR] DATABASE-First TARGET profile processing error:', error);
+        logger.error('DATABASE-First TARGET profile processing error:', error);
         
         // Release hold on any error
         if (holdId) {
@@ -617,9 +586,7 @@ async function handleTargetProfileJSON(req, res) {
             const cleanProfileUrl = cleanLinkedInUrl(req.body.profileUrl);
             const requestKey = `${req.user.id}_${cleanProfileUrl}`;
             activeProcessing.delete(requestKey);
-            if (process.env.NODE_ENV !== 'production') {
-                console.log(`[RACE] Cleaned up processing map: ${requestKey}`);
-            }
+            logger.custom('RACE', `Cleaned up processing map: ${requestKey}`);
         }
     }
 }
@@ -627,11 +594,9 @@ async function handleTargetProfileJSON(req, res) {
 // USER PROFILE HANDLER: Enhanced with token tracking (UNCHANGED)
 async function handleUserProfile(req, res) {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[BLUE] === USER PROFILE PROCESSING ===');
-            console.log(`[USER] User ID: ${req.user.id}`);
-            console.log(`[LINK] URL: ${req.body.profileUrl}`);
-        }
+        logger.custom('BLUE', '=== USER PROFILE PROCESSING ===');
+        logger.info(`User ID: ${req.user.id}`);
+        logger.info(`URL: ${req.body.profileUrl}`);
         
         const { html, profileUrl } = req.body;
         const userId = req.user.id;
@@ -646,9 +611,7 @@ async function handleUserProfile(req, res) {
         // Clean and validate LinkedIn URL
         const cleanProfileUrl = cleanLinkedInUrl(profileUrl);
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[AI] Processing HTML with Gemini for USER profile...');
-        }
+        logger.info('Processing HTML with Gemini for USER profile...');
         
         // Process HTML with Gemini
         const geminiResult = await sendToGemini({
@@ -658,7 +621,7 @@ async function handleUserProfile(req, res) {
         });
         
         if (!geminiResult.success) {
-            console.error('[ERROR] Gemini processing failed for USER profile:', geminiResult.error);
+            logger.error('Gemini processing failed for USER profile:', geminiResult.error);
             return res.status(500).json({
                 success: false,
                 error: 'Failed to process profile data with Gemini',
@@ -666,9 +629,7 @@ async function handleUserProfile(req, res) {
             });
         }
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[SUCCESS] Gemini processing successful for USER profile');
-        }
+        logger.success('Gemini processing successful for USER profile');
         
         // Process Gemini data for USER profile
         const processedProfile = processGeminiData(geminiResult, cleanProfileUrl);
@@ -745,10 +706,8 @@ async function handleUserProfile(req, res) {
             ['completed', userId]
         );
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[SUCCESS] USER profile saved to user_profiles table successfully');
-            console.log(`[DATA] Token usage: ${geminiResult.tokenData?.inputTokens || 'N/A'} input, ${geminiResult.tokenData?.outputTokens || 'N/A'} output, ${geminiResult.tokenData?.totalTokens || 'N/A'} total`);
-        }
+        logger.success('USER profile saved to user_profiles table successfully');
+        logger.info(`Token usage: ${geminiResult.tokenData?.inputTokens || 'N/A'} input, ${geminiResult.tokenData?.outputTokens || 'N/A'} output, ${geminiResult.tokenData?.totalTokens || 'N/A'} total`);
         
         res.json({
             success: true,
@@ -770,7 +729,7 @@ async function handleUserProfile(req, res) {
         });
         
     } catch (error) {
-        console.error('[ERROR] USER profile processing error:', error);
+        logger.error('USER profile processing error:', error);
         
         res.status(500).json({
             success: false,
@@ -806,9 +765,7 @@ const authenticateDual = async (req, res, next) => {
                 return next();
             }
         } catch (jwtError) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('JWT auth failed, trying session:', jwtError.message);
-            }
+            logger.debug('JWT auth failed, trying session:', jwtError.message);
         }
     }
     
@@ -932,16 +889,14 @@ async (accessToken, refreshToken, profile, done) => {
         
         return done(null, user);
     } catch (error) {
-        console.error('Google OAuth error:', error);
+        logger.error('Google OAuth error:', error);
         return done(error, null);
     }
 }));
 
 // Logging middleware
 app.use((req, res, next) => {
-    if (process.env.NODE_ENV !== 'production') {
-        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-    }
+    logger.debug(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
@@ -996,7 +951,7 @@ app.get('/profile/personal-info', authenticateToken, async (req, res) => {
             data: personalInfo
         });
     } catch (error) {
-        console.error('[ERROR] Load personal info failed:', error);
+        logger.error('Load personal info failed:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to load personal information'
@@ -1020,7 +975,7 @@ app.put('/profile/personal-info', authenticateToken, async (req, res) => {
             message: 'Personal information updated successfully'
         });
     } catch (error) {
-        console.error('[ERROR] Save personal info failed:', error);
+        logger.error('Save personal info failed:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to save personal information'
@@ -1051,7 +1006,7 @@ app.put('/profile/basic-info', authenticateToken, async (req, res) => {
         
         res.json({ success: true, message: 'Basic information updated successfully' });
     } catch (error) {
-        console.error('[ERROR] Update basic info failed:', error);
+        logger.error('Update basic info failed:', error);
         res.status(500).json({ success: false, error: 'Failed to update basic information' });
     }
 });
@@ -1069,7 +1024,7 @@ app.put('/profile/about', authenticateToken, async (req, res) => {
         
         res.json({ success: true, message: 'About section updated successfully' });
     } catch (error) {
-        console.error('[ERROR] Update about failed:', error);
+        logger.error('Update about failed:', error);
         res.status(500).json({ success: false, error: 'Failed to update about section' });
     }
 });
@@ -1087,7 +1042,7 @@ app.put('/profile/experience', authenticateToken, async (req, res) => {
         
         res.json({ success: true, message: 'Experience updated successfully' });
     } catch (error) {
-        console.error('[ERROR] Update experience failed:', error);
+        logger.error('Update experience failed:', error);
         res.status(500).json({ success: false, error: 'Failed to update experience' });
     }
 });
@@ -1105,7 +1060,7 @@ app.put('/profile/education', authenticateToken, async (req, res) => {
         
         res.json({ success: true, message: 'Education updated successfully' });
     } catch (error) {
-        console.error('[ERROR] Update education failed:', error);
+        logger.error('Update education failed:', error);
         res.status(500).json({ success: false, error: 'Failed to update education' });
     }
 });
@@ -1123,7 +1078,7 @@ app.put('/profile/skills', authenticateToken, async (req, res) => {
         
         res.json({ success: true, message: 'Skills updated successfully' });
     } catch (error) {
-        console.error('[ERROR] Update skills failed:', error);
+        logger.error('Update skills failed:', error);
         res.status(500).json({ success: false, error: 'Failed to update skills' });
     }
 });
@@ -1141,7 +1096,7 @@ app.put('/profile/certifications', authenticateToken, async (req, res) => {
         
         res.json({ success: true, message: 'Certifications updated successfully' });
     } catch (error) {
-        console.error('[ERROR] Update certifications failed:', error);
+        logger.error('Update certifications failed:', error);
         res.status(500).json({ success: false, error: 'Failed to update certifications' });
     }
 });
@@ -1150,9 +1105,7 @@ app.put('/profile/certifications', authenticateToken, async (req, res) => {
 
 app.post('/store-pending-registration', authenticateToken, async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[PENDING] Storing pending registration data');
-        }
+        logger.debug('Storing pending registration data');
         
         const { linkedinUrl, packageType, termsAccepted } = req.body;
         const userId = req.user.id;
@@ -1177,9 +1130,7 @@ app.post('/store-pending-registration', authenticateToken, async (req, res) => {
         const result = await storePendingRegistration(userId, linkedinUrl, packageType, termsAccepted);
         
         if (result.success) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log(`[PENDING] Registration data stored for user ${userId}`);
-            }
+            logger.success(`Registration data stored for user ${userId}`);
             res.json({ 
                 success: true, 
                 message: 'Registration data stored successfully',
@@ -1190,14 +1141,14 @@ app.post('/store-pending-registration', authenticateToken, async (req, res) => {
                 }
             });
         } else {
-            console.error('[PENDING] Failed to store registration data:', result.error);
+            logger.error('Failed to store registration data:', result.error);
             res.status(500).json({ 
                 success: false, 
                 error: result.error 
             });
         }
     } catch (error) {
-        console.error('[ERROR] Error storing pending registration:', error);
+        logger.error('Error storing pending registration:', error);
         res.status(500).json({ 
             success: false, 
             error: 'Failed to store registration data' 
@@ -1208,29 +1159,25 @@ app.post('/store-pending-registration', authenticateToken, async (req, res) => {
 // ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
-    if (process.env.NODE_ENV !== 'production') {
-        console.log('🔧 Chrome Extension OAuth request received');
-        console.log('📊 Request headers:', req.headers);
-        console.log('📊 Request body (sanitized):', {
-            clientType: req.body.clientType,
-            extensionId: req.body.extensionId,
-            hasToken: !!req.body.googleAccessToken,
-            tokenLength: req.body.googleAccessToken?.length,
-            hasLinkedInUrl: !!req.body.linkedinUrl // ✅ AUTO-REGISTRATION: Log LinkedIn URL presence
-        });
-    }
+    logger.debug('Chrome Extension OAuth request received');
+    logger.debug('Request headers:', req.headers);
+    logger.debug('Request body (sanitized):', {
+        clientType: req.body.clientType,
+        extensionId: req.body.extensionId,
+        hasToken: !!req.body.googleAccessToken,
+        tokenLength: req.body.googleAccessToken?.length,
+        hasLinkedInUrl: !!req.body.linkedinUrl // ✅ AUTO-REGISTRATION: Log LinkedIn URL presence
+    });
     
     try {
         const { googleAccessToken, clientType, extensionId, linkedinUrl } = req.body; // ✅ AUTO-REGISTRATION: Extract LinkedIn URL
         
         // ✅ AUTO-REGISTRATION: Log auto-registration detection
-        if (process.env.NODE_ENV !== 'production') {
-            if (linkedinUrl) {
-                console.log('🎯 AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
-                console.log('🔗 LinkedIn URL:', linkedinUrl);
-            } else {
-                console.log('🔧 REGULAR AUTH: No LinkedIn URL, will return redirect instruction');
-            }
+        if (linkedinUrl) {
+            logger.info('AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
+            logger.debug('LinkedIn URL:', linkedinUrl);
+        } else {
+            logger.debug('REGULAR AUTH: No LinkedIn URL, will return redirect instruction');
         }
         
         if (!googleAccessToken) {
@@ -1259,9 +1206,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         // Verify Google token and get user info
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CHECK] Verifying Google token...');
-        }
+        logger.debug('Verifying Google token...');
         const googleResponse = await axios.get(
             `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${googleAccessToken}`
         );
@@ -1274,13 +1219,11 @@ app.post('/auth/chrome-extension', async (req, res) => {
         }
         
         const googleUser = googleResponse.data;
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[SUCCESS] Google user verified:', {
-                email: googleUser.email,
-                name: googleUser.name,
-                verified: googleUser.verified_email
-            });
-        }
+        logger.success('Google user verified:', {
+            email: googleUser.email,
+            name: googleUser.name,
+            verified: googleUser.verified_email
+        });
         
         // ✅ FIXED: Find existing user or handle auto-registration/redirect
         let user = await getUserByEmail(googleUser.email);
@@ -1289,10 +1232,8 @@ app.post('/auth/chrome-extension', async (req, res) => {
         if (!user) {
             // ✅ FIXED: Check if LinkedIn URL provided for auto-registration
             if (linkedinUrl) {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('🎯 AUTO-REGISTRATION: Creating new user with LinkedIn URL');
-                    console.log('🔗 AUTO-REGISTRATION: LinkedIn URL:', linkedinUrl);
-                }
+                logger.info('AUTO-REGISTRATION: Creating new user with LinkedIn URL');
+                logger.debug('AUTO-REGISTRATION: LinkedIn URL:', linkedinUrl);
                 
                 // Create user with auto-registration
                 user = await createGoogleUser(
@@ -1306,16 +1247,12 @@ app.post('/auth/chrome-extension', async (req, res) => {
                 );
                 isNewUser = true;
                 
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('✅ AUTO-REGISTRATION: User auto-registered successfully');
-                    console.log('🎯 AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
-                }
+                logger.success('AUTO-REGISTRATION: User auto-registered successfully');
+                logger.debug('AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
                 
             } else {
                 // ✅ FIXED: No LinkedIn URL - return SUCCESS with redirect instruction
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('🔧 REGULAR AUTH: No LinkedIn URL, returning redirect instruction');
-                }
+                logger.debug('REGULAR AUTH: No LinkedIn URL, returning redirect instruction');
                 return res.json({
                     success: true,
                     requiresRedirect: true,
@@ -1336,18 +1273,12 @@ app.post('/auth/chrome-extension', async (req, res) => {
             }
         } else if (!user.google_id) {
             // Link Google account to existing user
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[LINK] Linking Google account to existing user...');
-            }
+            logger.debug('Linking Google account to existing user...');
             await linkGoogleAccount(user.id, googleUser.id);
             user = await getUserById(user.id);
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('✅ Google account linked successfully');
-            }
+            logger.success('Google account linked successfully');
         } else {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('✅ Existing user with Google account found');
-            }
+            logger.success('Existing user with Google account found');
         }
         
         // Generate JWT token
@@ -1357,13 +1288,11 @@ app.post('/auth/chrome-extension', async (req, res) => {
             { expiresIn: '30d' }
         );
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[SUCCESS] Chrome extension authentication successful');
-            console.log(`👤 User ID: ${user.id}`);
-            console.log(`🆔 Extension ID: ${extensionId}`);
-            console.log(`🆕 Is new user: ${isNewUser}`);
-            console.log(`🎯 Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
-        }
+        logger.success('Chrome extension authentication successful');
+        logger.info(`User ID: ${user.id}`);
+        logger.info(`Extension ID: ${extensionId}`);
+        logger.info(`Is new user: ${isNewUser}`);
+        logger.info(`Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
         
         res.json({
             success: true,
@@ -1393,7 +1322,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('[ERROR] Chrome extension auth error:', error);
+        logger.error('Chrome extension auth error:', error);
         
         if (error.response && error.response.status === 401) {
             return res.status(401).json({
@@ -1415,28 +1344,22 @@ app.post('/auth/chrome-extension', async (req, res) => {
 // Enhanced /scrape-html route with intelligent routing
 app.post('/scrape-html', authenticateToken, (req, res) => {
     // REQUIRED LOGGING: Route entry
-    if (process.env.NODE_ENV !== 'production') {
-        console.log('[CHECK] route=/scrape-html');
-        console.log(`[CHECK] isUserProfile=${req.body.isUserProfile}`);
-    }
+    logger.debug('route=/scrape-html');
+    logger.debug(`isUserProfile=${req.body.isUserProfile}`);
     
     // Enhanced: Route based on isUserProfile parameter
     if (req.body.isUserProfile === true) {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CHECK] selectedHandler=USER');
-            console.log('[BLUE] USER handler start');
-            console.log(`[CHECK] userId=${req.user.id}`);
-            console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
-        }
+        logger.debug('selectedHandler=USER');
+        logger.custom('BLUE', 'USER handler start');
+        logger.debug(`userId=${req.user.id}`);
+        logger.debug(`truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         return handleUserProfile(req, res);
     } else {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[CHECK] selectedHandler=TARGET_DATABASE');
-            console.log('[TARGET] TARGET DATABASE handler start');
-            console.log(`[CHECK] userId=${req.user.id}`);
-            console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
-        }
+        logger.debug('selectedHandler=TARGET_DATABASE');
+        logger.custom('TARGET', 'TARGET DATABASE handler start');
+        logger.debug(`userId=${req.user.id}`);
+        logger.debug(`truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
         
         return handleTargetProfileJSON(req, res);
     }
@@ -1444,12 +1367,10 @@ app.post('/scrape-html', authenticateToken, (req, res) => {
 
 // NEW: DATABASE-First TARGET PROFILE endpoint
 app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
-    if (process.env.NODE_ENV !== 'production') {
-        console.log('[TARGET] route=/target-profile/analyze-json');
-        console.log('[TARGET] DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
-        console.log(`[CHECK] userId=${req.user.id}`);
-        console.log(`[CHECK] truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
-    }
+    logger.custom('TARGET', 'route=/target-profile/analyze-json');
+    logger.custom('TARGET', 'DATABASE-FIRST TARGET PROFILE ANALYSIS handler start');
+    logger.debug(`userId=${req.user.id}`);
+    logger.debug(`truncated linkedinUrl=${req.body.profileUrl?.substring(0, 50)}...`);
     
     return handleTargetProfileJSON(req, res);
 });
@@ -1457,9 +1378,7 @@ app.post('/target-profile/analyze-json', authenticateToken, (req, res) => {
 // NEW: User Plan Endpoint - Returns real plan data (NO MORE MOCK DATA!)
 app.get('/user/plan', authenticateToken, async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[CREDIT] Getting real plan data for user ${req.user.id}`);
-        }
+        logger.custom('CREDIT', `Getting real plan data for user ${req.user.id}`);
         
         const planResult = await getUserPlan(req.user.id);
         
@@ -1470,16 +1389,14 @@ app.get('/user/plan', authenticateToken, async (req, res) => {
             });
         }
 
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[SUCCESS] Real plan data retrieved: ${planResult.data.planName}, Total: ${planResult.data.totalCredits}`);
-        }
+        logger.success(`Real plan data retrieved: ${planResult.data.planName}, Total: ${planResult.data.totalCredits}`);
 
         res.json({
             success: true,
             data: planResult.data
         });
     } catch (error) {
-        console.error('[ERROR] Error getting user plan:', error);
+        logger.error('Error getting user plan:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get user plan'
@@ -1510,7 +1427,7 @@ app.get('/credits/balance', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[ERROR] Error getting credit balance:', error);
+        logger.error('Error getting credit balance:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get credit balance'
@@ -1538,7 +1455,7 @@ app.get('/credits/history', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[ERROR] Error getting transaction history:', error);
+        logger.error('Error getting transaction history:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get transaction history'
@@ -1578,20 +1495,16 @@ app.get('/auth/google/callback',
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
             
-            if (process.env.NODE_ENV !== 'production') {
-                console.log(`[CHECK] OAuth callback - User: ${req.user.email}`);
-                console.log(`   - Is new user: ${req.user.isNewUser || false}`);
-                console.log(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
-                console.log(`   - Registration completed: ${req.user.registration_completed || false}`);
-                console.log(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
-                console.log(`   - Needs onboarding: ${needsOnboarding}`);
-            }
+            logger.debug(`OAuth callback - User: ${req.user.email}`);
+            logger.debug(`   - Is new user: ${req.user.isNewUser || false}`);
+            logger.debug(`   - Has LinkedIn URL: ${!!req.user.linkedin_url}`);
+            logger.debug(`   - Registration completed: ${req.user.registration_completed || false}`);
+            logger.debug(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
+            logger.debug(`   - Needs onboarding: ${needsOnboarding}`);
             
             // NEW: Send welcome email for new users (NON-BLOCKING)
             if (req.user.isNewUser) {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log(`[MAILER] NEW USER DETECTED - Sending welcome email to ${req.user.email}`);
-                }
+                logger.info(`NEW USER DETECTED - Sending welcome email to ${req.user.email}`);
                 try {
                     // Check if welcome email already sent
                     const emailCheck = await pool.query(
@@ -1600,9 +1513,7 @@ app.get('/auth/google/callback',
                     );
                     
                     if (emailCheck.rows.length > 0 && !emailCheck.rows[0].welcome_email_sent) {
-                        if (process.env.NODE_ENV !== 'production') {
-                            console.log(`[MAILER] Sending welcome email for OAuth new user: ${req.user.email}`);
-                        }
+                        logger.debug(`Sending welcome email for OAuth new user: ${req.user.email}`);
                         
                         const emailResult = await sendWelcomeEmail({
                             toEmail: req.user.email,
@@ -1617,37 +1528,29 @@ app.get('/auth/google/callback',
                                 [req.user.id]
                             );
                             
-                            if (process.env.NODE_ENV !== 'production') {
-                                console.log(`[MAILER] OAuth welcome email sent successfully: ${emailResult.messageId}`);
-                            }
+                            logger.success(`OAuth welcome email sent successfully: ${emailResult.messageId}`);
                         } else {
-                            console.error(`[MAILER] OAuth welcome email failed: ${emailResult.error}`);
+                            logger.error(`OAuth welcome email failed: ${emailResult.error}`);
                         }
                     } else {
-                        if (process.env.NODE_ENV !== 'production') {
-                            console.log(`[MAILER] Welcome email already sent for user ${req.user.id}`);
-                        }
+                        logger.debug(`Welcome email already sent for user ${req.user.id}`);
                     }
                 } catch (emailError) {
-                    console.error('[MAILER] Non-blocking OAuth email error:', emailError);
+                    logger.error('Non-blocking OAuth email error:', emailError);
                     // Don't fail the OAuth flow - email is not critical
                 }
             }
             
             if (needsOnboarding) {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log(`[ARROW] Redirecting to sign-up for onboarding`);
-                }
+                logger.debug(`Redirecting to sign-up for onboarding`);
                 res.redirect(`/sign-up?token=${token}`);
             } else {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log(`[ARROW] Redirecting to dashboard`);
-                }
+                logger.debug(`Redirecting to dashboard`);
                 res.redirect(`/dashboard?token=${token}`);
             }
             
         } catch (error) {
-            console.error('OAuth callback error:', error);
+            logger.error('OAuth callback error:', error);
             res.redirect(`/login?error=callback_error`);
         }
     }
@@ -1660,9 +1563,7 @@ app.get('/auth/failed', (req, res) => {
 // ENHANCED TRAFFIC LIGHT STATUS ENDPOINT - USER PROFILE ONLY
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[LIGHT] Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
-        }
+        logger.custom('LIGHT', `Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1703,7 +1604,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Clean Production Logging.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1719,13 +1620,11 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             actionRequired = 'COMPLETE_REGISTRATION';
         }
 
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[LIGHT] User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
-            console.log(`   - Registration Complete: ${isRegistrationComplete}`);
-            console.log(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
-            console.log(`   - Extraction Status: ${extractionStatus}`);
-            console.log(`   - Has Experience: ${hasExperience}`);
-        }
+        logger.custom('LIGHT', `User ${req.user.id} Traffic Light Status: ${trafficLightStatus}`);
+        logger.debug(`   - Registration Complete: ${isRegistrationComplete}`);
+        logger.debug(`   - Initial Scraping Done: ${isInitialScrapingDone}`);
+        logger.debug(`   - Extraction Status: ${extractionStatus}`);
+        logger.debug(`   - Has Experience: ${hasExperience}`);
 
         res.json({
             success: true,
@@ -1749,13 +1648,13 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_CLEAN_LOGGING'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER'
                 }
             }
         });
 
     } catch (error) {
-        console.error('[ERROR] Traffic light status error:', error);
+        logger.error('Traffic light status error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to check traffic light status'
@@ -1766,9 +1665,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 // ENHANCED: Get User Profile with dual credit info
 app.get('/profile', authenticateDual, async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[CHECK] Profile request from user ${req.user.id} using ${req.authMethod} auth`);
-        }
+        logger.debug(`Profile request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const profileResult = await pool.query(`
             SELECT 
@@ -1829,7 +1726,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + CLEAN LOGGING'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER'
             };
         }
 
@@ -1929,11 +1826,11 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_CLEAN_LOGGING'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER'
             }
         });
     } catch (error) {
-        console.error('[ERROR] Enhanced profile fetch error:', error);
+        logger.error('Enhanced profile fetch error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch profile'
@@ -1944,9 +1841,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
 // FIXED: Check profile extraction status - USER PROFILE ONLY (UNCHANGED)
 app.get('/profile-status', authenticateDual, async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[CHECK] Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
-        }
+        logger.debug(`Profile status request from user ${req.user.id} using ${req.authMethod} auth`);
 
         const userQuery = `
             SELECT 
@@ -1983,12 +1878,12 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_CLEAN_LOGGING',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
     } catch (error) {
-        console.error('Status check error:', error);
+        logger.error('Status check error:', error);
         res.status(500).json({ error: 'Status check failed' });
     }
 });
@@ -1997,51 +1892,44 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
 
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(`[REG] ========================================`);
-            console.log(`[REG] COMPLETE REGISTRATION DEBUG - START`);
-            console.log(`[REG] ========================================`);
-            console.log(`[REG] Complete registration request from user ${req.user.id}`);
-            console.log('[REG] Request method:', req.method);
-            console.log('[REG] Request headers:', JSON.stringify({
-                'content-type': req.headers['content-type'],
-                'authorization': req.headers['authorization'] ? 'Bearer ***' : 'None',
-                'origin': req.headers.origin
-            }, null, 2));
-            console.log('[REG] Request body keys:', Object.keys(req.body));
-            console.log('[REG] Request body data:', JSON.stringify(req.body, null, 2));
-            console.log('[REG] User object from auth:', JSON.stringify({
-                id: req.user.id,
-                email: req.user.email,
-                displayName: req.user.display_name,
-                packageType: req.user.package_type,
-                registrationCompleted: req.user.registration_completed,
-                linkedinUrl: req.user.linkedin_url
-            }, null, 2));
-        }
+        logger.custom('REG', '========================================');
+        logger.custom('REG', 'COMPLETE REGISTRATION DEBUG - START');
+        logger.custom('REG', '========================================');
+        logger.custom('REG', `Complete registration request from user ${req.user.id}`);
+        logger.debug('Request method:', req.method);
+        logger.debug('Request headers:', JSON.stringify({
+            'content-type': req.headers['content-type'],
+            'authorization': req.headers['authorization'] ? 'Bearer ***' : 'None',
+            'origin': req.headers.origin
+        }, null, 2));
+        logger.debug('Request body keys:', Object.keys(req.body));
+        logger.debug('Request body data:', JSON.stringify(req.body, null, 2));
+        logger.debug('User object from auth:', JSON.stringify({
+            id: req.user.id,
+            email: req.user.email,
+            displayName: req.user.display_name,
+            packageType: req.user.package_type,
+            registrationCompleted: req.user.registration_completed,
+            linkedinUrl: req.user.linkedin_url
+        }, null, 2));
         
         const { linkedinUrl, packageType, termsAccepted } = req.body;
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] Extracted values from request body:');
-            console.log('  - linkedinUrl:', linkedinUrl);
-            console.log('  - packageType:', packageType);
-            console.log('  - termsAccepted:', termsAccepted);
-            console.log('  - linkedinUrl type:', typeof linkedinUrl);
-            console.log('  - packageType type:', typeof packageType);
-            console.log('  - termsAccepted type:', typeof termsAccepted);
-            console.log('  - linkedinUrl truthy:', !!linkedinUrl);
-            console.log('  - packageType truthy:', !!packageType);
-            console.log('  - termsAccepted truthy:', !!termsAccepted);
-            
-            console.log('[REG] VALIDATION STEP 1: Checking required fields...');
-        }
+        logger.debug('Extracted values from request body:', {
+            linkedinUrl, packageType, termsAccepted,
+            linkedinUrlType: typeof linkedinUrl,
+            packageTypeType: typeof packageType,
+            termsAcceptedType: typeof termsAccepted,
+            linkedinUrlTruthy: !!linkedinUrl,
+            packageTypeTruthy: !!packageType,
+            termsAcceptedTruthy: !!termsAccepted
+        });
+        
+        logger.custom('REG', 'VALIDATION STEP 1: Checking required fields...');
         
         // VALIDATION STEP 1: Check required fields
         if (!linkedinUrl) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[REG] ❌ VALIDATION FAILED: linkedinUrl is missing');
-            }
+            logger.error('VALIDATION FAILED: linkedinUrl is missing');
             return res.status(400).json({
                 success: false,
                 error: 'LinkedIn URL is required',
@@ -2050,9 +1938,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         }
         
         if (!packageType) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[REG] ❌ VALIDATION FAILED: packageType is missing');
-            }
+            logger.error('VALIDATION FAILED: packageType is missing');
             return res.status(400).json({
                 success: false,
                 error: 'Package type is required',
@@ -2061,9 +1947,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         }
         
         if (!termsAccepted) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[REG] ❌ VALIDATION FAILED: termsAccepted is missing');
-            }
+            logger.error('VALIDATION FAILED: termsAccepted is missing');
             return res.status(400).json({
                 success: false,
                 error: 'Terms acceptance is required',
@@ -2071,23 +1955,17 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             });
         }
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] ✅ VALIDATION STEP 1: All required fields present');
-            console.log('[REG] VALIDATION STEP 2: Validating LinkedIn URL format...');
-            console.log('[REG] Raw LinkedIn URL:', linkedinUrl);
-            console.log('[REG] About to call isValidLinkedInUrl...');
-        }
+        logger.success('VALIDATION STEP 1: All required fields present');
+        logger.custom('REG', 'VALIDATION STEP 2: Validating LinkedIn URL format...');
+        logger.debug('Raw LinkedIn URL:', linkedinUrl);
+        logger.debug('About to call isValidLinkedInUrl...');
         
         // VALIDATION STEP 2: Check LinkedIn URL format
         const isValidUrl = isValidLinkedInUrl(linkedinUrl);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] isValidLinkedInUrl result:', isValidUrl);
-        }
+        logger.debug('isValidLinkedInUrl result:', isValidUrl);
         
         if (!isValidUrl) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[REG] ❌ VALIDATION FAILED: Invalid LinkedIn URL format');
-            }
+            logger.error('VALIDATION FAILED: Invalid LinkedIn URL format');
             return res.status(400).json({
                 success: false,
                 error: 'Invalid LinkedIn URL format',
@@ -2095,19 +1973,15 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             });
         }
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] ✅ VALIDATION STEP 2: LinkedIn URL format is valid');
-            console.log('[REG] VALIDATION STEP 3: Cleaning LinkedIn URL...');
-            console.log('[REG] About to call cleanLinkedInUrl...');
-        }
+        logger.success('VALIDATION STEP 2: LinkedIn URL format is valid');
+        logger.custom('REG', 'VALIDATION STEP 3: Cleaning LinkedIn URL...');
+        logger.debug('About to call cleanLinkedInUrl...');
         
         // VALIDATION STEP 3: Clean URL
         const cleanUrl = cleanLinkedInUrl(linkedinUrl);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] Cleaned URL:', cleanUrl);
-            console.log('[REG] ✅ VALIDATION STEP 3: URL cleaned successfully');
-            console.log('[REG] DATABASE STEP 1: Checking current user state...');
-        }
+        logger.debug('Cleaned URL:', cleanUrl);
+        logger.success('VALIDATION STEP 3: URL cleaned successfully');
+        logger.custom('REG', 'DATABASE STEP 1: Checking current user state...');
         
         // DATABASE STEP 1: Check current user state
         const currentUserQuery = `
@@ -2126,16 +2000,12 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             WHERE id = $1
         `;
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] About to execute user state query...');
-        }
+        logger.debug('About to execute user state query...');
         const currentUserResult = await pool.query(currentUserQuery, [req.user.id]);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] User state query executed successfully');
-            console.log('[REG] Current user state:', JSON.stringify(currentUserResult.rows[0], null, 2));
-            
-            console.log('[REG] DATABASE STEP 2: Updating user registration...');
-        }
+        logger.debug('User state query executed successfully');
+        logger.debug('Current user state:', JSON.stringify(currentUserResult.rows[0], null, 2));
+        
+        logger.custom('REG', 'DATABASE STEP 2: Updating user registration...');
         
         // DATABASE STEP 2: Update user registration
         const updateQuery = `
@@ -2159,21 +2029,18 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                 updated_at
         `;
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] About to execute UPDATE query with parameters:');
-            console.log('  - param1 (linkedin_url):', cleanUrl);
-            console.log('  - param2 (package_type):', packageType);
-            console.log('  - param3 (terms_accepted):', termsAccepted);
-            console.log('  - param4 (user_id):', req.user.id);
-        }
+        logger.debug('About to execute UPDATE query with parameters:', {
+            param1: cleanUrl,
+            param2: packageType,
+            param3: termsAccepted,
+            param4: req.user.id
+        });
         
         const updateResult = await pool.query(updateQuery, [cleanUrl, packageType, termsAccepted, req.user.id]);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] UPDATE query executed successfully');
-            console.log('[REG] Update result:', JSON.stringify(updateResult.rows[0], null, 2));
-            
-            console.log('[REG] DATABASE STEP 3: Verifying update was successful...');
-        }
+        logger.debug('UPDATE query executed successfully');
+        logger.debug('Update result:', JSON.stringify(updateResult.rows[0], null, 2));
+        
+        logger.custom('REG', 'DATABASE STEP 3: Verifying update was successful...');
         
         // DATABASE STEP 3: Verify update was successful
         const verifyQuery = `
@@ -2190,27 +2057,21 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             WHERE id = $1
         `;
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] About to execute verification query...');
-        }
+        logger.debug('About to execute verification query...');
         const verifyResult = await pool.query(verifyQuery, [req.user.id]);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] Verification query executed successfully');
-            console.log('[REG] Verified user state after update:', JSON.stringify(verifyResult.rows[0], null, 2));
-        }
+        logger.debug('Verification query executed successfully');
+        logger.debug('Verified user state after update:', JSON.stringify(verifyResult.rows[0], null, 2));
         
         const updatedUser = verifyResult.rows[0];
         
         // VALIDATION STEP 4: Confirm registration_completed = true
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] VALIDATION STEP 4: Confirming registration completion...');
-            console.log('[REG] registration_completed value:', updatedUser.registration_completed);
-            console.log('[REG] registration_completed type:', typeof updatedUser.registration_completed);
-        }
+        logger.custom('REG', 'VALIDATION STEP 4: Confirming registration completion...');
+        logger.debug('registration_completed value:', updatedUser.registration_completed);
+        logger.debug('registration_completed type:', typeof updatedUser.registration_completed);
         
         if (!updatedUser.registration_completed) {
-            console.error('[REG] ❌ CRITICAL ERROR: registration_completed is still false after update!');
-            console.error('[REG] This indicates a database constraint or trigger preventing the update');
+            logger.error('CRITICAL ERROR: registration_completed is still false after update!');
+            logger.error('This indicates a database constraint or trigger preventing the update');
             return res.status(500).json({
                 success: false,
                 error: 'Database update failed - registration_completed not set to true',
@@ -2223,18 +2084,14 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             });
         }
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] ✅ VALIDATION STEP 4: registration_completed successfully set to true');
-            console.log('[REG] EMAIL STEP: Checking if welcome email should be sent...');
-            console.log('[REG] Package type for email check:', packageType);
-        }
+        logger.success('VALIDATION STEP 4: registration_completed successfully set to true');
+        logger.custom('REG', 'EMAIL STEP: Checking if welcome email should be sent...');
+        logger.debug('Package type for email check:', packageType);
         
         // EMAIL STEP: Send welcome email for free users (NON-BLOCKING)
         if (packageType === 'free') {
             try {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log(`[MAILER] [REG] Sending welcome email for free user: ${req.user.email}`);
-                }
+                logger.info(`[REG] Sending welcome email for free user: ${req.user.email}`);
                 
                 const emailResult = await sendWelcomeEmail({
                     toEmail: req.user.email,
@@ -2249,26 +2106,20 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                         [req.user.id]
                     );
                     
-                    if (process.env.NODE_ENV !== 'production') {
-                        console.log(`[MAILER] [REG] Welcome email sent successfully: ${emailResult.messageId}`);
-                    }
+                    logger.success(`[REG] Welcome email sent successfully: ${emailResult.messageId}`);
                 } else {
-                    console.error(`[MAILER] [REG] Welcome email failed: ${emailResult.error}`);
+                    logger.error(`[REG] Welcome email failed: ${emailResult.error}`);
                 }
             } catch (emailError) {
-                console.error('[MAILER] [REG] Non-blocking email error:', emailError);
+                logger.error('[REG] Non-blocking email error:', emailError);
                 // Don't fail the registration - email is not critical
             }
         } else {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[REG] EMAIL STEP: Skipping welcome email for paid users (will be sent via webhook)');
-            }
+            logger.debug('EMAIL STEP: Skipping welcome email for paid users (will be sent via webhook)');
         }
         
         // SUCCESS RESPONSE
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] SUCCESS RESPONSE: Preparing successful response...');
-        }
+        logger.debug('SUCCESS RESPONSE: Preparing successful response...');
         const successResponse = {
             success: true,
             message: 'Registration completed successfully',
@@ -2282,38 +2133,34 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             }
         };
         
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[REG] About to send success response:', JSON.stringify(successResponse, null, 2));
-            console.log(`[REG] ========================================`);
-            console.log(`[REG] COMPLETE REGISTRATION DEBUG - SUCCESS`);
-            console.log(`[REG] ========================================`);
-            console.log(`[SUCCESS] Registration completed for user ${req.user.id}`);
-            console.log(`  - LinkedIn URL: ${cleanUrl}`);
-            console.log(`  - Package: ${packageType}`);
-            console.log(`  - Registration completed: true`);
-        }
+        logger.debug('About to send success response:', JSON.stringify(successResponse, null, 2));
+        logger.custom('REG', '========================================');
+        logger.custom('REG', 'COMPLETE REGISTRATION DEBUG - SUCCESS');
+        logger.custom('REG', '========================================');
+        logger.success(`Registration completed for user ${req.user.id}`);
+        logger.info(`  - LinkedIn URL: ${cleanUrl}`);
+        logger.info(`  - Package: ${packageType}`);
+        logger.info(`  - Registration completed: true`);
         
         res.json(successResponse);
         
     } catch (error) {
-        console.error(`[REG] ========================================`);
-        console.error(`[REG] COMPLETE REGISTRATION DEBUG - ERROR`);
-        console.error(`[REG] ========================================`);
-        console.error('[REG] ❌ CRITICAL ERROR in /complete-registration:', error);
-        console.error('[REG] Error name:', error.name);
-        console.error('[REG] Error message:', error.message);
-        if (process.env.NODE_ENV !== 'production') {
-            console.error('[REG] Error stack:', error.stack);
-            
-            if (error.code) {
-                console.error('[REG] Database error code:', error.code);
-            }
-            if (error.detail) {
-                console.error('[REG] Database error detail:', error.detail);
-            }
-            if (error.hint) {
-                console.error('[REG] Database error hint:', error.hint);
-            }
+        logger.custom('REG', '========================================');
+        logger.custom('REG', 'COMPLETE REGISTRATION DEBUG - ERROR');
+        logger.custom('REG', '========================================');
+        logger.error('CRITICAL ERROR in /complete-registration:', error);
+        logger.error('Error name:', error.name);
+        logger.error('Error message:', error.message);
+        logger.debug('Error stack:', error.stack);
+        
+        if (error.code) {
+            logger.error('Database error code:', error.code);
+        }
+        if (error.detail) {
+            logger.error('Database error detail:', error.detail);
+        }
+        if (error.hint) {
+            logger.error('Database error hint:', error.hint);
         }
         
         res.status(500).json({
@@ -2374,9 +2221,7 @@ app.get('/packages', (req, res) => {
 // FIXED: Chargebee Connection Test Route
 app.get('/test-chargebee', async (req, res) => {
     try {
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[TEST] Testing Chargebee connection...');
-        }
+        logger.debug('Testing Chargebee connection...');
         
         const result = await chargebeeService.testConnection();
         
@@ -2397,7 +2242,7 @@ app.get('/test-chargebee', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('[TEST] Chargebee test error:', error);
+        logger.error('Chargebee test error:', error);
         res.status(500).json({
             success: false,
             message: 'Test failed',
@@ -2444,7 +2289,7 @@ app.get('/messages/history', authenticateToken, async (req, res) => {
             data: messages
         });
     } catch (error) {
-        console.error('[ERROR] Messages history error:', error);
+        logger.error('Messages history error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to load messages'
@@ -2457,7 +2302,7 @@ setInterval(async () => {
     try {
         await cleanupExpiredHolds();
     } catch (error) {
-        console.error('[ERROR] Error during scheduled cleanup:', error);
+        logger.error('Error during scheduled cleanup:', error);
     }
 }, 30 * 60 * 1000); // Run every 30 minutes
 
@@ -2469,16 +2314,14 @@ setInterval(() => {
     for (const [key, timestamp] of activeProcessing.entries()) {
         if (now - timestamp > expireTime) {
             activeProcessing.delete(key);
-            if (process.env.NODE_ENV !== 'production') {
-                console.log(`[RACE] Cleaned up stale processing entry: ${key}`);
-            }
+            logger.custom('RACE', `Cleaned up stale processing entry: ${key}`);
         }
     }
 }, 60 * 1000); // Run every minute
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-    console.error('[ERROR] Unhandled Error:', error);
+    logger.error('Unhandled Error:', error);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -2493,7 +2336,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + CLEAN PRODUCTION LOGGING',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2552,15 +2395,13 @@ const startServer = async () => {
         
         const dbOk = await testDatabase();
         if (!dbOk) {
-            console.error('[ERROR] Cannot start server without database');
+            logger.error('Cannot start server without database');
             process.exit(1);
         }
         
         // NEW: Auto-create welcome_email_sent column if it doesn't exist
         try {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[DB] Checking welcome_email_sent column...');
-            }
+            logger.debug('Checking welcome_email_sent column...');
             const columnCheck = await pool.query(`
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -2569,29 +2410,23 @@ const startServer = async () => {
             `);
 
             if (columnCheck.rows.length === 0) {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('[DB] Creating welcome_email_sent column...');
-                }
+                logger.debug('Creating welcome_email_sent column...');
                 await pool.query(`
                     ALTER TABLE users 
                     ADD COLUMN welcome_email_sent BOOLEAN DEFAULT FALSE
                 `);
-                console.log('[DB] ✅ welcome_email_sent column created successfully');
+                logger.success('welcome_email_sent column created successfully');
             } else {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('[DB] ✅ welcome_email_sent column already exists');
-                }
+                logger.debug('welcome_email_sent column already exists');
             }
         } catch (columnError) {
-            console.error('[DB] Warning: Could not create welcome_email_sent column:', columnError.message);
-            console.error('[DB] MailerSend will use in-memory guard instead');
+            logger.error('Warning: Could not create welcome_email_sent column:', columnError.message);
+            logger.error('MailerSend will use in-memory guard instead');
         }
         
         // NEW: Auto-create personal_info column if it doesn't exist
         try {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('[DB] Checking personal_info column...');
-            }
+            logger.debug('Checking personal_info column...');
             const columnCheck = await pool.query(`
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -2600,26 +2435,22 @@ const startServer = async () => {
             `);
 
             if (columnCheck.rows.length === 0) {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('[DB] Creating personal_info column...');
-                }
+                logger.debug('Creating personal_info column...');
                 await pool.query(`
                     ALTER TABLE user_profiles 
                     ADD COLUMN personal_info JSONB DEFAULT '{}'::jsonb
                 `);
-                console.log('[DB] ✅ personal_info column created successfully');
+                logger.success('personal_info column created successfully');
             } else {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('[DB] ✅ personal_info column already exists');
-                }
+                logger.debug('personal_info column already exists');
             }
         } catch (columnError) {
-            console.error('[DB] Warning: Could not create personal_info column:', columnError.message);
-            console.error('[DB] Personal information features may not work properly');
+            logger.error('Warning: Could not create personal_info column:', columnError.message);
+            logger.error('Personal information features may not work properly');
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ CLEAN PRODUCTION LOGGING ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2649,35 +2480,15 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ CANCELLATION HANDLING: Automatic subscription cancellation processing and downgrade to free plan`);
             console.log(`[SUCCESS] ✅ GOLD & PLATINUM PAYG: Added Gold-PAYG-USD (100 credits) and Platinum-PAYG-USD (250 credits) one-time purchase support`);
             console.log(`[SUCCESS] ✅ BILLING REFACTOR: Clean separation of billing logic into dedicated modules`);
-            console.log(`[SUCCESS] ✅ CLEAN PRODUCTION LOGGING: Environment-based debug logging - only shows detailed logs in development`);
-            console.log(`[WEBHOOK] ✅ CHARGEBEE WEBHOOK: https://api.msgly.ai/chargebee-webhook (BILLING REFACTOR: Now in routes/billingRoutes.js)`);
-            console.log(`[CHECKOUT] ✅ CHECKOUT CREATION: https://api.msgly.ai/create-checkout (BILLING REFACTOR: Now in routes/billingRoutes.js)`);
-            console.log(`[PENDING] ✅ PENDING REGISTRATION: https://api.msgly.ai/store-pending-registration`);
-            console.log(`[UPGRADE] ✅ UPGRADE PAGE: https://api.msgly.ai/upgrade`);
-            console.log(`[MESSAGES] ✅ MESSAGES PAGE: https://api.msgly.ai/messages (CLIENT-SIDE AUTHENTICATION)`);
-            console.log(`[MESSAGES] ✅ MESSAGES HISTORY: GET https://api.msgly.ai/messages/history (NEW ENDPOINT)`);
-            console.log(`[PROFILE] ✅ MSGLY PROFILE PAGE: https://api.msgly.ai/msgly-profile.html (STANDALONE PAGE)`);
-            console.log(`[PERSONAL] ✅ PERSONAL INFO API: GET/PUT /profile/personal-info (PERSONAL INFORMATION)`);
-            console.log(`[MANUAL] ✅ MANUAL EDITING API: PUT /profile/{basic-info,about,experience,education,skills,certifications} (MANUAL EDITING)`);
-            console.log(`[EMAIL] ✅ WELCOME EMAILS: Automated for all new users`);
-            console.log(`[DEBUG] ✅ REGISTRATION DEBUG: Enhanced logging to identify silent failures`);
-            console.log(`[REFACTOR] ✅ MODULAR MESSAGES: Handlers moved to dedicated controller/routes files`);
-            console.log(`[AUTH] ✅ AUTHENTICATION FIX: Messages page uses client-side authentication (redirects to /login)`);
-            console.log(`[PAYG] 🔧 PAYG CRITICAL FIX: Enhanced handleInvoiceGenerated with proper plan detection for both plan_item_price and charge_item_price`);
-            console.log(`[PAYG] 🔧 PAYG FALLBACK: Added handlePaymentSucceeded as backup webhook handler with enhanced plan detection`);
-            console.log(`[GOLD] ✅ GOLD MONTHLY PLAN: Gold-Monthly plan ID, 100 renewable credits, $32/month`);
-            console.log(`[PLATINUM] ✅ PLATINUM MONTHLY PLAN: Platinum-Monthly plan ID, 250 renewable credits, $63.87/month`);
-            console.log(`[GOLD] ✅ GOLD PAYG PLAN: Gold-PAYG-USD plan ID, 100 pay-as-you-go credits, $39/one-time`);
-            console.log(`[PLATINUM] ✅ PLATINUM PAYG PLAN: Platinum-PAYG-USD plan ID, 250 pay-as-you-go credits, $78/one-time`);
-            console.log(`[CANCELLATION] ✅ SUBSCRIPTION CANCELLATION HANDLING: Automatic processing of subscription cancellations`);
-            console.log(`[DOWNGRADE] ✅ AUTOMATIC DOWNGRADE: Users automatically downgraded to free plan when cancellation becomes effective`);
-            console.log(`[BILLING] ✅ BILLING REFACTOR: Plan mapping in config/billing.js, handlers in controllers/billingController.js, routes in routes/billingRoutes.js`);
-            console.log(`[LOGGING] ✅ CLEAN PRODUCTION LOGGING: Debug logs only show in development (NODE_ENV !== 'production')`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ CLEAN PRODUCTION LOGGING:`);
+            console.log(`[SUCCESS] ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment`);
+            console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
+            console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
+            console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER:`);
         });
         
     } catch (error) {
-        console.error('[ERROR] Startup failed:', error);
+        logger.error('Startup failed:', error);
         process.exit(1);
     }
 };
