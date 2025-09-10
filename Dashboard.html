@@ -1476,7 +1476,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1701,7 +1701,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard â€" Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -2069,15 +2069,15 @@
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
+                    profileSyncStatusEl.textContent = '✅ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2234,7 +2234,7 @@
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
@@ -2338,7 +2338,7 @@
         }
 
         function downloadChromeExtension() {
-            const extensionUrl = 'https://chrome.google.com/webstore/detail/msgly-ai-extension/[your-extension-id]';
+            const extensionUrl = 'https://chromewebstore.google.com/detail/msglyai-linkedin-message/gbnbbcbiimefgolddbfgplhedbijkgod';
             window.open(extensionUrl, '_blank');
         }
 
