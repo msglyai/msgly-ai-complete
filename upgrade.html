@@ -818,11 +818,17 @@
             document.querySelectorAll('.current-plan-badge').forEach(badge => badge.remove());
             document.querySelectorAll('.package-card').forEach(card => card.classList.remove('current'));
 
+            // ✅ PAYG FIX: Never mark PAYG plans as current - only monthly plans or free
             let cardId = null;
-            if (planCode === 'free') cardId = 'freeCard';
-            else if (planCode && planCode.startsWith('silver')) cardId = 'silverCard';
-            else if (planCode && planCode.startsWith('gold')) cardId = 'goldCard';
-            else if (planCode && planCode.startsWith('platinum')) cardId = 'platinumCard';
+            if (planCode === 'free') {
+                cardId = 'freeCard';
+            } else if (planCode && planCode.includes('-monthly')) {
+                // Only mark monthly plans as current
+                if (planCode.startsWith('silver')) cardId = 'silverCard';
+                else if (planCode.startsWith('gold')) cardId = 'goldCard';
+                else if (planCode.startsWith('platinum')) cardId = 'platinumCard';
+            }
+            // ✅ PAYG plans (payasyougo) are ignored - no current plan badge
 
             if (cardId) {
                 const card = document.getElementById(cardId);
