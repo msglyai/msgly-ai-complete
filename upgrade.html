@@ -806,9 +806,9 @@
                 const planCode = currentUser.planCode || 'free';
                 const currentPlan = planDisplayNames[planCode] || 'Free';
                 
-                // Calculate total credits (renewable + PAYG)
-                const renewableCredits = currentUser.renewableCredits || 0;
-                const payasyougoCredits = currentUser.payasyougoCredits || 0;
+                // Calculate total credits (renewable + PAYG) - FIX: Convert to numbers first
+                const renewableCredits = Number(currentUser.renewableCredits) || 0;
+                const payasyougoCredits = Number(currentUser.payasyougoCredits) || 0;
                 const totalCredits = renewableCredits + payasyougoCredits;
                 
                 // Determine billing type
