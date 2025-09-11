@@ -27,6 +27,7 @@ CHANGELOG - services/gptService.js:
 11. FIXED CHARACTER ENCODING: Cleaned up all corrupted characters in prompts
 12. FIXED DATABASE TRUNCATION: Changed to 40-char limit for extra safety
 13. UPDATED CONNECTION REQUEST PROMPT: New personalized prompt with sender name requirement
+14. ✅ ADDED COLD EMAIL: New cold email generation with 400 char limit, subject + body format
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging - FULL DATA VERSION
@@ -116,12 +117,12 @@ Please build the most personalized LinkedIn connection request note.
 **Rules:**
 * Absolute maximum: **150 characters**.
 * Always start with: **"Hi [TARGET_FIRSTNAME],"**
-* Always end with sender's first name (e.g., "… Thanks, Ziv").
+* Always end with sender's first name (e.g., "â€¦ Thanks, Ziv").
 * Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
 * You may use more than one detail from each profile if relevant and it improves personalization.
 * You may use details from the TARGET PROFILE "About" section **only if they are unique, personal, or add value**; skip generic/vague phrases.
 * Must end with a **clear CTA relevant to CONTEXT** (even short, like "Would love to connect").
-* Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
+* Integrate CONTEXT naturally â€" frame it around the benefit or shared value for the target.
 * Keep tone **friendly, approachable, natural** (not salesy).
 * Language must be **English only, simple, natural, and human-like** (not formal, academic, or marketing-style).
 **Restrictions:**
@@ -130,12 +131,12 @@ Please build the most personalized LinkedIn connection request note.
 * Do **NOT** use quotation marks unless quoting an exact profile title.
 * Do **NOT** use unusual punctuation (e.g., "!!!", "??", "--", "~~").
 * Do **NOT** use bullet points or lists.
-* Do **NOT** use line breaks — message must be one single line.
-* Do **NOT** generate multiple options — only one single message.
+* Do **NOT** use line breaks â€" message must be one single line.
+* Do **NOT** generate multiple options â€" only one single message.
 * Do **NOT** exceed the character limit.
-* Do **NOT** output explanations, reasoning, or meta-text — only the message itself.
+* Do **NOT** output explanations, reasoning, or meta-text â€" only the message itself.
 * Do **NOT** use generic AI-sounding phrases.
-* Do **NOT** invent details — only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
+* Do **NOT** invent details â€" only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
                 break;
                 
             case 'intro_request':
@@ -144,34 +145,66 @@ Please build the most personalized LinkedIn connection request note.
 You are an AI LinkedIn Outreach Assistant.
 
 Inputs:
-1. USER PROFILE — sender's LinkedIn profile (experience, headline, skills, education, etc.)
-2. TARGET PROFILE — recipient's LinkedIn profile (experience, headline, skills, education, etc.)
-3. CONTEXT — the business or conversational goal.
-4. MUTUAL CONNECTION — the LinkedIn profile of the shared connection who could make the intro.
+1. USER PROFILE â€" sender's LinkedIn profile (experience, headline, skills, education, etc.)
+2. TARGET PROFILE â€" recipient's LinkedIn profile (experience, headline, skills, education, etc.)
+3. CONTEXT â€" the business or conversational goal.
+4. MUTUAL CONNECTION â€" the LinkedIn profile of the shared connection who could make the intro.
 
 Task:
 - Generate ONE LinkedIn intro request consisting of two short parts:
-  Part A: The message you would send to the mutual connection asking for an introduction. ≤150 characters.
-  Part B: The short message the mutual connection could forward to the target. ≤220 characters.
+  Part A: The message you would send to the mutual connection asking for an introduction. â‰¤150 characters.
+  Part B: The short message the mutual connection could forward to the target. â‰¤220 characters.
 - Combined total must never exceed 370 characters.
 
 Message rules:
-• Both parts must always start with: "Hi [FIRSTNAME],"
-• Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
-• Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
-• Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
-• Integrate CONTEXT naturally; do not restate it literally.
-• Keep it friendly, professional, approachable — avoid email or sales tone.
-• No offers, links, or additional calls-to-action beyond the required ones.
-• Do not phrase Part A or Part B as a question (except for the CTAs).
-• Avoid generic phrases; avoid relying only on job titles or company names.
-• Avoid exaggerated adjectives.
-• No emojis, hashtags, line breaks, or special symbols.
-• If insufficient data — still produce polite, general LinkedIn-style messages within limits with required CTAs.
-• Output format:
+â€¢ Both parts must always start with: "Hi [FIRSTNAME],"
+â€¢ Part A must end with sender's first name AND include a call-to-action asking for the introduction (e.g., "Could you introduce us? Thanks, Ziv").
+â€¢ Part B must end with sender's first name AND include a call-to-action for connection (e.g., "Would love to connect. Thanks, Ziv").
+â€¢ Use at least 1 detail from USER PROFILE and 1 from TARGET PROFILE in Part B.
+â€¢ Integrate CONTEXT naturally; do not restate it literally.
+â€¢ Keep it friendly, professional, approachable â€" avoid email or sales tone.
+â€¢ No offers, links, or additional calls-to-action beyond the required ones.
+â€¢ Do not phrase Part A or Part B as a question (except for the CTAs).
+â€¢ Avoid generic phrases; avoid relying only on job titles or company names.
+â€¢ Avoid exaggerated adjectives.
+â€¢ No emojis, hashtags, line breaks, or special symbols.
+â€¢ If insufficient data â€" still produce polite, general LinkedIn-style messages within limits with required CTAs.
+â€¢ Output format:
   Part A: [intro request to mutual connection]
   Part B: [forwardable message to target]
-• Output only the two message texts — no explanations, no labels, no JSON.`;
+â€¢ Output only the two message texts â€" no explanations, no labels, no JSON.`;
+                break;
+
+            case 'cold_email':
+                systemPrompt = `[MODE: COLD_EMAIL]
+I send you:
+1. My LinkedIn profile (USER PROFILE)
+2. My Target's LinkedIn profile (TARGET PROFILE)
+3. The CONTEXT (business or conversational goal)
+Please build the most **personalized cold email**.
+**Rules:**
+* Absolute maximum: **400 characters** (subject + body combined).
+* Include a short SUBJECT line — must be relevant to CONTEXT, interesting, natural, never salesy or spammy.
+* Email body must start with an **ICEBREAKER**: a friendly, natural fact from the TARGET PROFILE, recent activity, or a relevant topical comment. It must never feel pushy, rude, or offensive.
+* Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
+* You may use more than one detail from each profile if relevant and it improves personalization.
+* Must end with sender's first name (e.g., "… Thanks, Ziv").
+* Integrate CONTEXT naturally — frame it around mutual value, benefit, or shared ground.
+* Focus mainly on the TARGET PROFILE — not the sender.
+* Highlight relevant common ground if it exists; skip it if not useful.
+* Language must be English only, simple, natural, and human-like (not formal, academic, or marketing-style).
+**Restrictions:**
+* Do **NOT** use emojis.
+* Do **NOT** use hashtags.
+* Do **NOT** use quotation marks unless quoting an exact profile title.
+* Do **NOT** use unusual punctuation (e.g., "!!!", "??", "--", "~~").
+* Do **NOT** use bullet points or lists.
+* Do **NOT** use line breaks — email must be a single compact block (subject + body).
+* Do **NOT** generate multiple options — only one single cold email.
+* Do **NOT** exceed the character limit.
+* Do **NOT** output explanations, reasoning, or meta-text — only the cold email itself.
+* Do **NOT** use generic AI-sounding phrases.
+* Do **NOT** invent details — only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
                 break;
                 
             default: // 'inbox_message'
@@ -184,13 +217,13 @@ Please build the most **personalized LinkedIn inbox message**.
 **Rules:**
 * Absolute maximum: **220 characters**.
 * Always start with: **"Hi [TARGET_FIRSTNAME],"**
-* Always end with sender's first name (e.g., "… Thanks, Ziv").
+* Always end with sender's first name (e.g., "â€¦ Thanks, Ziv").
 * Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
 * You may use **more than one detail** from each profile if relevant and it improves personalization.
 * You may use details from the TARGET PROFILE "About" section **only if they are unique, personal, or add value**; skip generic/vague phrases.
 * Must end with a **clear CTA relevant to CONTEXT** (e.g., ask a question, invite to connect, suggest a quick chat).
-* Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
-* Focus mainly on the TARGET PROFILE — not the sender.
+* Integrate CONTEXT naturally â€" frame it around the benefit or shared value for the target.
+* Focus mainly on the TARGET PROFILE â€" not the sender.
 * Highlight relevant common ground if it exists; skip it if not useful.
 * **Language must be English only, simple, natural, and human-like (not formal, academic, or marketing-style).**
 **Restrictions:**
@@ -199,12 +232,12 @@ Please build the most **personalized LinkedIn inbox message**.
 * Do **NOT** use quotation marks unless quoting an exact profile title.
 * Do **NOT** use unusual punctuation (e.g., "!!!", "??", "--", "~~").
 * Do **NOT** use bullet points or lists.
-* Do **NOT** use line breaks — message must be one single line.
-* Do **NOT** generate multiple options — only one single message.
+* Do **NOT** use line breaks â€" message must be one single line.
+* Do **NOT** generate multiple options â€" only one single message.
 * Do **NOT** exceed the character limit.
-* Do **NOT** output explanations, reasoning, or meta-text — only the message itself.
+* Do **NOT** output explanations, reasoning, or meta-text â€" only the message itself.
 * Do **NOT** use generic AI-sounding phrases.
-* Do **NOT** invent details — only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
+* Do **NOT** invent details â€" only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
         }
 
         const userPrompt = `USER PROFILE:
@@ -216,7 +249,7 @@ ${targetProfileText}
 CONTEXT:
 ${context}
 
-Generate the ${messageType === 'connection_request' ? 'connection request' : messageType === 'intro_request' ? 'intro request' : 'LinkedIn inbox message'} now:`;
+Generate the ${messageType === 'connection_request' ? 'connection request' : messageType === 'intro_request' ? 'intro request' : messageType === 'cold_email' ? 'cold email' : 'LinkedIn inbox message'} now:`;
 
         console.log('[DEBUG] Final system prompt length:', systemPrompt.length);
         console.log('[DEBUG] Final user prompt length:', userPrompt.length);
@@ -831,25 +864,25 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             }
 
             console.log('[SUCCESS] === MESSAGE GENERATION SUCCESSFUL ===');
-            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (🛡️ INSURANCE ACTIVATED)' : ''}`);
+            console.log(`[GPT] Model used: ${modelUsed}${fallbackTriggered ? ' (ðŸ›¡ï¸ INSURANCE ACTIVATED)' : ''}`);
             console.log(`[GPT] Latency: ${latencyMs}ms`);
             console.log(`[GPT] Token usage: ${tokenUsage.input_tokens} input, ${tokenUsage.output_tokens} output, ${tokenUsage.total_tokens} total`);
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
-            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : 220) ? '✅' : '❌'}`);
+            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : messageType === 'cold_email' ? 400 : 220) ? 'âœ…' : 'âŒ'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
 
             // FINAL SUCCESS DEBUG
             console.log('[DEBUG] === GENERATION SUCCESS SUMMARY ===');
-            console.log('[DEBUG] ✅ User profile processed successfully');
-            console.log('[DEBUG] ✅ Target profile processed successfully'); 
-            console.log('[DEBUG] ✅ Context processed successfully');
-            console.log('[DEBUG] ✅ Message generated successfully');
+            console.log('[DEBUG] âœ… User profile processed successfully');
+            console.log('[DEBUG] âœ… Target profile processed successfully'); 
+            console.log('[DEBUG] âœ… Context processed successfully');
+            console.log('[DEBUG] âœ… Message generated successfully');
             console.log('[DEBUG] Total tokens used:', tokenUsage.total_tokens);
             if (fallbackTriggered) {
-                console.log('[DEBUG] 🛡️ Insurance policy activated - service continuity maintained');
+                console.log('[DEBUG] ðŸ›¡ï¸ Insurance policy activated - service continuity maintained');
             }
 
             return {
@@ -861,7 +894,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                     primary_model: this.model,
                     fallback_triggered: fallbackTriggered,
                     primary_error: primaryError,
-                    prompt_version: messageType === 'connection_request' ? 'connection_request_v3_sender_name_full_data' : 'inbox_message_target_centric_v4_natural_human_full_data',
+                    prompt_version: messageType === 'connection_request' ? 'connection_request_v3_sender_name_full_data' : messageType === 'cold_email' ? 'cold_email_v1_icebreaker_400_chars' : 'inbox_message_target_centric_v4_natural_human_full_data',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
@@ -914,6 +947,12 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             context;
         
         return await this.generateLinkedInMessage(userProfile, targetProfile, enhancedContext, 'intro_request');
+    }
+
+    // NEW: Cold Email Generation (follows exact same pattern as LinkedIn message)
+    async generateColdEmail(userProfile, targetProfile, context) {
+        console.log('[GPT] === STARTING COLD EMAIL GENERATION ===');
+        return await this.generateLinkedInMessage(userProfile, targetProfile, context, 'cold_email');
     }
 
     // Convert API errors to user-friendly messages
