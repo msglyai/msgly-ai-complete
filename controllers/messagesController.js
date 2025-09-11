@@ -780,8 +780,247 @@ async function handleGenerateIntro(req, res) {
     }
 }
 
+// NEW: Cold Email Generation with dual credit system + VARCHAR(50) fix
+async function handleGenerateColdEmail(req, res) {
+    let holdId = null;
+    
+    try {
+        console.log('[COLD_EMAIL] === COLD EMAIL GENERATION WITH DUAL CREDITS ===');
+        console.log(`[USER] User ID: ${req.user.id}`);
+        
+        const { targetProfileUrl, outreachContext } = req.body;
+        const userId = req.user.id;
+        
+        if (!targetProfileUrl || !outreachContext) {
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile URL and outreach context are required'
+            });
+        }
+
+        console.log('[CHECK] targetProfileUrl:', targetProfileUrl.substring(0, 50) + '...');
+        console.log('[CHECK] outreachContext length:', outreachContext.length);
+
+        // Create credit hold
+        console.log('[CREDIT] Creating credit hold for cold email generation...');
+        const holdResult = await createCreditHold(userId, 'cold_email_generation', {
+            targetProfileUrl: targetProfileUrl,
+            outreachContext: outreachContext,
+            timestamp: new Date().toISOString()
+        });
+
+        if (!holdResult.success) {
+            if (holdResult.error === 'insufficient_credits') {
+                return res.status(402).json({
+                    success: false,
+                    error: 'insufficient_credits',
+                    userMessage: holdResult.userMessage,
+                    currentCredits: holdResult.currentCredits,
+                    requiredCredits: holdResult.requiredCredits
+                });
+            }
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create credit hold',
+                details: holdResult.error
+            });
+        }
+
+        holdId = holdResult.holdId;
+        console.log(`[SUCCESS] Credit hold created: ${holdId} for ${holdResult.amountHeld} credits`);
+
+        // STEP 1: Load user profile from database
+        console.log('[DATABASE] Loading user profile JSON...');
+        const userProfileResult = await pool.query(`
+            SELECT 
+                gemini_raw_data,
+                full_name,
+                headline,
+                current_job_title,
+                current_company,
+                location,
+                experience,
+                education,
+                skills,
+                about
+            FROM user_profiles
+            WHERE user_id = $1
+        `, [userId]);
+
+        if (userProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'user_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'User profile not found. Please complete your profile setup first.'
+            });
+        }
+
+        const userProfile = userProfileResult.rows[0];
+        console.log('[CHECK] user profile has name:', !!userProfile.full_name);
+
+        // STEP 2: Load target profile from database  
+        console.log('[DATABASE] Loading target profile JSON...');
+        const cleanTargetUrl = cleanLinkedInUrl(targetProfileUrl);
+        const targetProfileResult = await pool.query(`
+            SELECT 
+                id,
+                data_json,
+                linkedin_url
+            FROM target_profiles
+            WHERE linkedin_url = $1 OR linkedin_url = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        `, [cleanTargetUrl, targetProfileUrl]);
+
+        if (targetProfileResult.rows.length === 0) {
+            await releaseCreditHold(userId, holdId, 'target_profile_not_found');
+            return res.status(400).json({
+                success: false,
+                error: 'Target profile not found. Please analyze the target profile first.'
+            });
+        }
+
+        const targetProfile = targetProfileResult.rows[0];
+        console.log('[CHECK] target profile ID:', targetProfile.id);
+
+        // STEP 3: Call GPT service for cold email generation
+        console.log('[GPT] Calling GPT service for cold email generation...');
+        const gptStartTime = Date.now();
+        
+        const gptResult = await gptService.generateColdEmail(
+            userProfile,
+            targetProfile,
+            outreachContext
+        );
+
+        const gptEndTime = Date.now();
+        const gptLatency = gptEndTime - gptStartTime;
+
+        console.log(`[GPT] Cold email generation completed in ${gptLatency}ms`);
+        console.log('[CHECK] GPT success:', gptResult.success);
+
+        if (!gptResult.success) {
+            console.error('[ERROR] Cold email generation failed:', gptResult.error);
+            await releaseCreditHold(userId, holdId, 'gpt_generation_failed');
+            
+            return res.status(500).json({
+                success: false,
+                error: 'Cold email generation failed',
+                details: gptResult.userMessage || 'AI service temporarily unavailable'
+            });
+        }
+
+        const generatedColdEmail = gptResult.message;
+        console.log('[SUCCESS] Cold email generated successfully');
+        console.log('[GPT] Generated cold email preview:', generatedColdEmail.substring(0, 120) + '...');
+
+        // STEP 4: Store in message_logs table
+        console.log('[DATABASE] Storing cold email generation data...');
+        
+        // FIXED: Truncate metadata to prevent VARCHAR(50) errors
+        const safeFirstName = (gptResult.metadata.target_first_name || '').substring(0, 45);
+        const safeTitle = (gptResult.metadata.target_title || '').substring(0, 45);
+        const safeCompany = (gptResult.metadata.target_company || '').substring(0, 45);
+        
+        const messageLogResult = await pool.query(`
+            INSERT INTO message_logs (
+                user_id,
+                target_profile_url,
+                generated_message,
+                context_text,
+                message_type,
+                target_first_name,
+                target_title,
+                target_company,
+                model_name,
+                prompt_version,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                latency_ms,
+                data_json,
+                created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+            RETURNING id
+        `, [
+            userId,
+            targetProfileUrl,
+            generatedColdEmail,
+            outreachContext,
+            'cold_email',
+            safeFirstName,
+            safeTitle,
+            safeCompany,
+            gptResult.metadata.model_name,
+            gptResult.metadata.prompt_version,
+            gptResult.tokenUsage.input_tokens,
+            gptResult.tokenUsage.output_tokens,
+            gptResult.tokenUsage.total_tokens,
+            gptResult.metadata.latency_ms,
+            JSON.stringify(gptResult.rawResponse)
+        ]);
+
+        const messageLogId = messageLogResult.rows[0].id;
+        console.log('[SUCCESS] Cold email log inserted with ID:', messageLogId);
+
+        // STEP 5: Complete the credit hold
+        const completionResult = await completeOperation(userId, holdId, {
+            coldEmailGenerated: true,
+            messageLength: generatedColdEmail.length,
+            targetUrl: targetProfileUrl,
+            messageLogId: messageLogId,
+            tokenUsage: gptResult.tokenUsage
+        });
+
+        if (!completionResult.success) {
+            console.error('[ERROR] Failed to complete operation:', completionResult.error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to process credits after successful generation'
+            });
+        }
+
+        console.log(`[MONEY] Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
+
+        res.json({
+            success: true,
+            message: 'Cold email generated successfully',
+            data: {
+                generatedColdEmail: generatedColdEmail,
+                outreachContext: outreachContext,
+                targetProfileUrl: targetProfileUrl,
+                messageLogId: messageLogId,
+                tokenUsage: gptResult.tokenUsage,
+                processingTime: gptLatency
+            },
+            credits: {
+                deducted: completionResult.creditsDeducted,
+                newBalance: completionResult.newBalance,
+                renewableCredits: completionResult.renewableCredits,
+                payasyougoCredits: completionResult.payasyougoCredits,
+                transactionId: completionResult.transactionId
+            }
+        });
+
+    } catch (error) {
+        console.error('[ERROR] Cold email generation error:', error);
+        
+        if (holdId) {
+            await releaseCreditHold(req.user.id, holdId, 'processing_error');
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Cold email generation failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+}
+
 module.exports = {
     handleGenerateMessage,
     handleGenerateConnection,
-    handleGenerateIntro
+    handleGenerateIntro,
+    handleGenerateColdEmail
 };
