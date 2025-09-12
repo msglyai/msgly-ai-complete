@@ -227,6 +227,7 @@ Please build the most **personalized LinkedIn inbox message**.
 * If their profile highlights a unique achievement (e.g., award, major project, publication) → you may open by mentioning it, but keep it concise and personal.
 * If their “About” section includes a clear personal passion or interest (only if unique and specific, not generic) → you may use it for a warm, authentic opening.
 * Must end with a **clear CTA relevant to CONTEXT** (e.g., ask a question, invite to connect, suggest a quick chat).
+* The CTA must always be explicit and unambiguous — clearly telling the target what to do next (e.g., try the tool via link, connect, schedule a chat, or share feedback).
 * Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
 * Focus mainly on the TARGET PROFILE — not the sender.
 * Highlight relevant common ground if it exists; skip it if not useful.
