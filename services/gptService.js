@@ -217,14 +217,20 @@ Please build the most **personalized LinkedIn inbox message**.
 **Rules:**
 * Absolute maximum: **220 characters**.
 * Always start with: **"Hi [TARGET_FIRSTNAME],"**
-* Always end with sender's first name (e.g., "â€¦ Thanks, Ziv").
+* Always end with sender's first name (e.g., "... Thanks, Ziv").
 * Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
 * You may use **more than one detail** from each profile if relevant and it improves personalization.
-* You may use details from the TARGET PROFILE "About" section **only if they are unique, personal, or add value**; skip generic/vague phrases.
+* Always begin with a natural ice-breaker line based on the target’s most recent and relevant context. It must feel authentic and specific, never generic like “Hope you’re well.”
+* If the target’s most recent role started within the last 3 months → congratulate naturally on the new role (e.g., “Congrats on your new role at [COMPANY]!”). The model may rephrase, but must keep it clear and friendly.
+* If they were recently promoted → acknowledge the promotion briefly and positively.
+* If they’ve been in their current role or company for multiple years → recognize the milestone naturally (e.g., “Impressive to see your [X]-year journey at [COMPANY]!”).
+* If their profile highlights a unique achievement (e.g., award, major project, publication) → you may open by mentioning it, but keep it concise and personal.
+* If their “About” section includes a clear personal passion or interest (only if unique and specific, not generic) → you may use it for a warm, authentic opening.
 * Must end with a **clear CTA relevant to CONTEXT** (e.g., ask a question, invite to connect, suggest a quick chat).
-* Integrate CONTEXT naturally â€" frame it around the benefit or shared value for the target.
-* Focus mainly on the TARGET PROFILE â€" not the sender.
+* Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
+* Focus mainly on the TARGET PROFILE — not the sender.
 * Highlight relevant common ground if it exists; skip it if not useful.
+* Even within the character limit, all sentences must remain clear and complete. Do not cut words or leave unfinished phrases; avoid shorthand that could confuse the reader.
 * **Language must be English only, simple, natural, and human-like (not formal, academic, or marketing-style).**
 **Restrictions:**
 * Do **NOT** use emojis.
@@ -232,12 +238,12 @@ Please build the most **personalized LinkedIn inbox message**.
 * Do **NOT** use quotation marks unless quoting an exact profile title.
 * Do **NOT** use unusual punctuation (e.g., "!!!", "??", "--", "~~").
 * Do **NOT** use bullet points or lists.
-* Do **NOT** use line breaks â€" message must be one single line.
-* Do **NOT** generate multiple options â€" only one single message.
+* Do **NOT** use line breaks — message must be one single line.
+* Do **NOT** generate multiple options — only one single message.
 * Do **NOT** exceed the character limit.
-* Do **NOT** output explanations, reasoning, or meta-text â€" only the message itself.
+* Do **NOT** output explanations, reasoning, or meta-text — only the message itself.
 * Do **NOT** use generic AI-sounding phrases.
-* Do **NOT** invent details â€" only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
+* Do **NOT** invent details — only use what exists in USER PROFILE, TARGET PROFILE, or CONTEXT.`;
         }
 
         const userPrompt = `USER PROFILE:
