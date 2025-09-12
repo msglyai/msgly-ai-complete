@@ -73,7 +73,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /messages/:id - Update message status and comments (NEW: MISSING ENDPOINT THAT FIXES SAVE FUNCTIONALITY)
+// PUT /messages/:id - Update message status and comments (FIXED: SQL type casting)
 router.put('/messages/:id', authenticateToken, async (req, res) => {
     try {
         const messageId = parseInt(req.params.id);
@@ -93,15 +93,15 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
             });
         }
         
-        // Update message in database
+        // FIXED: Update message with explicit type casting to avoid PostgreSQL type inference errors
         const result = await pool.query(`
             UPDATE message_logs 
             SET 
-                sent_status = $1,
-                reply_status = $2, 
-                comments = $3,
-                sent_date = CASE WHEN $1 = 'yes' AND sent_date IS NULL THEN NOW() ELSE sent_date END,
-                reply_date = CASE WHEN $2 = 'yes' AND reply_date IS NULL THEN NOW() ELSE reply_date END
+                sent_status = $1::varchar,
+                reply_status = $2::varchar, 
+                comments = $3::text,
+                sent_date = CASE WHEN $1::varchar = 'yes' AND sent_date IS NULL THEN NOW() ELSE sent_date END,
+                reply_date = CASE WHEN $2::varchar = 'yes' AND reply_date IS NULL THEN NOW() ELSE reply_date END
             WHERE id = $4 AND user_id = $5
             RETURNING *
         `, [sent_status, reply_status, comments, messageId, userId]);
