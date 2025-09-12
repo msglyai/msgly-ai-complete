@@ -468,12 +468,13 @@
             background: rgba(128, 57, 223, 0.02);
         }
 
-        /* Column Widths */
-        .col-message { width: 35%; }
-        .col-target { width: 20%; }
-        .col-sent { width: 12%; }
-        .col-reply { width: 12%; }
-        .col-comment { width: 16%; }
+        /* Column Widths - UPDATED for new Context column */
+        .col-message { width: 30%; }
+        .col-context { width: 20%; }
+        .col-target { width: 18%; }
+        .col-sent { width: 10%; }
+        .col-reply { width: 10%; }
+        .col-comment { width: 12%; }
         .col-actions { width: 5%; }
 
         /* Message Content */
@@ -519,7 +520,37 @@
             display: inline-block;
         }
 
-        /* Target Profile - FIXED: Show first name only */
+        /* NEW: Context Column Styles */
+        .context-content {
+            max-width: 300px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: var(--dark-gray);
+        }
+
+        .context-content.truncated {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .context-expand {
+            color: var(--primary-purple);
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.3rem;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .context-expand:hover {
+            color: var(--dark-purple);
+            text-decoration: underline;
+        }
+
+        /* Target Profile - Show first name only */
         .target-profile {
             display: flex;
             flex-direction: column;
@@ -769,7 +800,7 @@
             margin: 0 auto;
         }
 
-        /* MOBILE CARDS VIEW */
+        /* MOBILE CARDS VIEW - FIXED: No duplication */
         .messages-cards {
             display: none;
         }
@@ -801,7 +832,7 @@
         }
 
         .card-message-content {
-            margin-bottom: 1.2rem;
+            margin-bottom: 1rem;
         }
 
         .card-message-text {
@@ -811,6 +842,27 @@
             font-size: 0.85rem;
             line-height: 1.4;
             color: var(--dark-gray);
+            margin-bottom: 0.8rem;
+        }
+
+        /* NEW: Context section for mobile */
+        .card-context-content {
+            background: rgba(128, 57, 223, 0.05);
+            padding: 0.8rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: var(--dark-gray);
+            border-left: 3px solid var(--primary-purple);
+        }
+
+        .card-context-label {
+            font-size: 0.7rem;
+            color: var(--primary-purple);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
         }
 
         .card-status-row {
@@ -862,7 +914,7 @@
             }
 
             .messages-table {
-                min-width: 900px;
+                min-width: 1100px; /* Increased for Context column */
             }
         }
 
@@ -1081,6 +1133,7 @@
                     <thead>
                         <tr>
                             <th class="col-message">Message</th>
+                            <th class="col-context">Context</th>
                             <th class="col-target">Target Profile</th>
                             <th class="col-sent">Sent</th>
                             <th class="col-reply">Reply</th>
@@ -1118,11 +1171,12 @@
         let currentSearchTerm = '';
         let pendingChanges = new Map();
 
-        // FIXED: Authentication check and data loading
+        // FIXED: Authentication check and data loading + user profile loading
         document.addEventListener('DOMContentLoaded', function() {
             if (!checkAuthentication()) {
                 return; // Redirect will happen in checkAuthentication
             }
+            loadUserProfile(); // NEW: Load user profile for sidebar
             loadMessagesData();
         });
 
@@ -1138,6 +1192,73 @@
 
         function getAuthToken() {
             return localStorage.getItem('authToken');
+        }
+
+        // NEW: Load user profile for sidebar (FIXES LOADING ISSUE)
+        async function loadUserProfile() {
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const response = await fetch('/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update sidebar user info
+                    const user = data.data.user;
+                    
+                    document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
+                    document.getElementById('sidebarUserEmail').textContent = user.email;
+                    
+                    // Update avatar with initials
+                    const displayName = user.displayName || user.email;
+                    const initials = getInitials(displayName);
+                    document.getElementById('sidebarUserAvatar').textContent = initials;
+                    
+                    console.log('[PROFILE] User profile loaded successfully');
+                } else {
+                    throw new Error(data.error || 'Failed to load profile');
+                }
+                
+            } catch (error) {
+                console.error('[PROFILE] Error loading user profile:', error);
+                // Fallback: show generic info
+                document.getElementById('sidebarUserName').textContent = 'User';
+                document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
+                document.getElementById('sidebarUserAvatar').textContent = 'U';
+            }
+        }
+
+        // NEW: Helper function to get initials
+        function getInitials(name) {
+            if (!name) return '??';
+            
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                return name.substring(0, 2).toUpperCase();
+            }
         }
 
         // REAL DATA: Authentication-aware data loading from API
@@ -1211,6 +1332,7 @@
             if (currentSearchTerm) {
                 filtered = filtered.filter(message => 
                     (message.message && message.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                    (message.context && message.context.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.target.firstName && message.target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.targetProfile.role && message.targetProfile.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                     (message.targetProfile.company && message.targetProfile.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
@@ -1259,19 +1381,32 @@
             document.getElementById('emptyState').style.display = 'none';
         }
 
+        // FIXED: Remove MSG_XXX IDs and add Context column
         function createTableRow(message) {
             const row = document.createElement('tr');
+            
+            // Clean message text by removing MSG_XXX prefix
+            const cleanMessage = cleanMessageText(message.message || 'No message content');
+            const context = message.context || 'No context available';
+            
             row.innerHTML = `
                 <td class="col-message">
                     <div class="message-content">
-                        <div class="message-id">MSG_${String(message.id).padStart(3, '0')}</div>
-                        <div class="message-text ${(message.message && message.message.length > 150) ? 'truncated' : ''}" id="message-${message.id}">
-                            ${message.message || 'No message content'}
+                        <div class="message-text ${cleanMessage.length > 150 ? 'truncated' : ''}" id="message-${message.id}">
+                            ${cleanMessage}
                         </div>
-                        ${(message.message && message.message.length > 150) ? 
+                        ${cleanMessage.length > 150 ? 
                             `<div class="message-expand" onclick="toggleMessageExpand(${message.id})">Read more...</div>` : ''
                         }
                     </div>
+                </td>
+                <td class="col-context">
+                    <div class="context-content ${context.length > 100 ? 'truncated' : ''}" id="context-${message.id}">
+                        ${context}
+                    </div>
+                    ${context.length > 100 ? 
+                        `<div class="context-expand" onclick="toggleContextExpand(${message.id})">Show more...</div>` : ''
+                    }
                 </td>
                 <td class="col-target">
                     <div class="target-profile">
@@ -1315,9 +1450,15 @@
             return row;
         }
 
+        // FIXED: Mobile cards without duplication + Context section
         function createMessageCard(message) {
             const card = document.createElement('div');
             card.className = 'message-card';
+            
+            // Clean message text by removing MSG_XXX prefix
+            const cleanMessage = cleanMessageText(message.message || 'No message content');
+            const context = message.context || 'No context available';
+            
             card.innerHTML = `
                 <div class="message-card-header">
                     <div class="card-target-profile">
@@ -1325,15 +1466,22 @@
                         <div class="target-role">${message.targetProfile.role || 'Professional'}</div>
                         <div class="target-company">${message.targetProfile.company || 'Company'}</div>
                     </div>
-                    <div class="message-id">MSG_${String(message.id).padStart(3, '0')}</div>
                 </div>
                 
                 <div class="card-message-content">
-                    <div class="card-message-text ${(message.message && message.message.length > 120) ? 'truncated' : ''}" id="card-message-${message.id}">
-                        ${message.message || 'No message content'}
+                    <div class="card-message-text ${cleanMessage.length > 120 ? 'truncated' : ''}" id="card-message-${message.id}">
+                        ${cleanMessage}
                     </div>
-                    ${(message.message && message.message.length > 120) ? 
+                    ${cleanMessage.length > 120 ? 
                         `<div class="message-expand" onclick="toggleCardMessageExpand(${message.id})">Read more...</div>` : ''
+                    }
+                    
+                    <div class="card-context-label">Context Used:</div>
+                    <div class="card-context-content ${context.length > 80 ? 'truncated' : ''}" id="card-context-${message.id}">
+                        ${context}
+                    </div>
+                    ${context.length > 80 ? 
+                        `<div class="context-expand" onclick="toggleCardContextExpand(${message.id})">Show more...</div>` : ''
                     }
                 </div>
                 
@@ -1376,6 +1524,19 @@
                 </div>
             `;
             return card;
+        }
+
+        // NEW: Function to clean message text by removing MSG_XXX prefix
+        function cleanMessageText(messageText) {
+            if (!messageText) return '';
+            
+            // Remove MSG_XXX pattern from the beginning of the message
+            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
+            
+            // Also remove Subject: prefix if it exists
+            const finalText = cleanedText.replace(/^Subject:\s*/i, '');
+            
+            return finalText.trim();
         }
 
         function getStatusIcon(status) {
@@ -1574,6 +1735,19 @@
             }
         }
 
+        function toggleContextExpand(messageId) {
+            const contextEl = document.getElementById(`context-${messageId}`);
+            const expandBtn = contextEl.nextElementSibling;
+            
+            if (contextEl.classList.contains('truncated')) {
+                contextEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                contextEl.classList.add('truncated');
+                expandBtn.textContent = 'Show more...';
+            }
+        }
+
         function toggleCardMessageExpand(messageId) {
             const messageEl = document.getElementById(`card-message-${messageId}`);
             const expandBtn = messageEl.nextElementSibling;
@@ -1584,6 +1758,19 @@
             } else {
                 messageEl.classList.add('truncated');
                 expandBtn.textContent = 'Read more...';
+            }
+        }
+
+        function toggleCardContextExpand(messageId) {
+            const contextEl = document.getElementById(`card-context-${messageId}`);
+            const expandBtn = contextEl.nextElementSibling;
+            
+            if (contextEl.classList.contains('truncated')) {
+                contextEl.classList.remove('truncated');
+                expandBtn.textContent = 'Show less';
+            } else {
+                contextEl.classList.add('truncated');
+                expandBtn.textContent = 'Show more...';
             }
         }
 
