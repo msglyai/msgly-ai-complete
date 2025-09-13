@@ -186,13 +186,21 @@ Please build the most **personalized cold email**.
 * Absolute maximum: **400 characters** (subject + body combined).
 * Include a short SUBJECT line — must be relevant to CONTEXT, interesting, natural, never salesy or spammy.
 * Email body must start with an **ICEBREAKER**: a friendly, natural fact from the TARGET PROFILE, recent activity, or a relevant topical comment. It must never feel pushy, rude, or offensive.
+* Always begin with a natural ice-breaker line based on the target’s most recent and relevant context. It must feel authentic and specific, never generic like “Hope you’re well.”
+* If the target’s most recent role started within the last 3 months → congratulate naturally on the new role (e.g., “Congrats on your new role at [COMPANY]!”). The model may rephrase, but must keep it clear and friendly.
+* If they were recently promoted → acknowledge the promotion briefly and positively.
+* If they’ve been in their current role or company for multiple years → recognize the milestone naturally (e.g., “Impressive to see your [X]-year journey at [COMPANY]!”).
+* If their profile highlights a unique achievement (e.g., award, major project, publication) → you may open by mentioning it, but keep it concise and personal.
+* If their “About” section includes a clear personal passion or interest (only if unique and specific, not generic) → you may use it for a warm, authentic opening.
 * Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
 * You may use more than one detail from each profile if relevant and it improves personalization.
-* Must end with sender's first name (e.g., "… Thanks, Ziv").
-* Integrate CONTEXT naturally — frame it around mutual value, benefit, or shared ground.
+* Must end with sender's first name (e.g., "... Thanks, Ziv").
+* Must end with a **clear CTA relevant to CONTEXT** (e.g., suggest a quick call, invite to try the tool, offer to send more info). The CTA must always be explicit and unambiguous — clearly telling the target what to do next.
+* Integrate CONTEXT naturally — frame it around the benefit or shared value for the target.
 * Focus mainly on the TARGET PROFILE — not the sender.
 * Highlight relevant common ground if it exists; skip it if not useful.
-* Language must be English only, simple, natural, and human-like (not formal, academic, or marketing-style).
+* Even within the character limit, all sentences must remain clear and complete. Do not cut words or leave unfinished phrases; avoid shorthand that could confuse the reader.
+* **Language must be English only, simple, natural, and human-like (not formal, academic, or marketing-style).**
 **Restrictions:**
 * Do **NOT** use emojis.
 * Do **NOT** use hashtags.
