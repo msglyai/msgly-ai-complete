@@ -2041,6 +2041,80 @@
             }
         }
 
+        // NEW: Basic Info Save Function
+        async function saveBasicInfo(field, value) {
+            const token = getAuthToken();
+            try {
+                // Get current profile data to avoid data loss
+                const nameData = extractFirstLastName(currentProfileData);
+                const currentBasicData = {
+                    firstName: nameData.firstName,
+                    lastName: nameData.lastName,
+                    fullName: currentProfileData?.fullName || '',
+                    headline: currentProfileData?.headline || '',
+                    currentJobTitle: currentProfileData?.currentJobTitle || '',
+                    currentCompany: currentProfileData?.currentCompany || currentProfileData?.currentCompanyName || '',
+                    location: currentProfileData?.location || ''
+                };
+
+                // Update with new field value
+                const updatedData = { ...currentBasicData, [field]: value };
+                console.log('[BASIC_INFO] Saving:', field, '=', value);
+
+                const response = await fetch('https://api.msgly.ai/profile/basic-info', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('[BASIC_INFO] Save successful');
+                    return data.success;
+                } else {
+                    const errorData = await response.json();
+                    console.error('[BASIC_INFO] Server error:', errorData);
+                    return false;
+                }
+            } catch (error) {
+                console.error('[BASIC_INFO] Save failed:', error);
+                return false;
+            }
+        }
+
+        // NEW: About Save Function
+        async function saveAbout(value) {
+            const token = getAuthToken();
+            try {
+                console.log('[ABOUT] Saving about section');
+
+                const response = await fetch('https://api.msgly.ai/profile/about', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ about: value })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('[ABOUT] Save successful');
+                    return data.success;
+                } else {
+                    const errorData = await response.json();
+                    console.error('[ABOUT] Server error:', errorData);
+                    return false;
+                }
+            } catch (error) {
+                console.error('[ABOUT] Save failed:', error);
+                return false;
+            }
+        }
+
         function cancelEdit() {
             if (!editingField) return;
 
