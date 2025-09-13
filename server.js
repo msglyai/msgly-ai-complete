@@ -40,9 +40,10 @@ CHANGELOG - server.js:
 33. BILLING REFACTOR: Moved all billing logic to dedicated modules (config/billing.js, controllers/billingController.js, routes/billingRoutes.js)
 34. PROFESSIONAL LOGGER: Replaced all wrapped console.log with professional logger utility
 35. MESSAGES DB FIX: Added missing PUT /messages/:id endpoint and fixed GET /messages/history to read actual database values
+36. PERSONAL INFO SAVE FIX: Fixed PUT /profile/personal-info to handle missing user_profiles records
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -68,6 +69,7 @@ CHANGELOG - server.js:
 // ✅ BILLING REFACTOR: Clean separation of billing logic into dedicated modules
 // ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment
 // ✅ MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration
+// ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records
 
 const express = require('express');
 const cors = require('cors');
@@ -937,7 +939,7 @@ app.use('/', require('./routes/messagesRoutes'));
 // BILLING REFACTOR: Mount billing routes
 app.use('/', require('./routes/billingRoutes'));
 
-// ==================== NEW: PERSONAL INFORMATION ENDPOINTS ====================
+// ==================== PERSONAL INFORMATION ENDPOINTS ====================
 
 // Get personal information
 app.get('/profile/personal-info', authenticateToken, async (req, res) => {
@@ -961,16 +963,24 @@ app.get('/profile/personal-info', authenticateToken, async (req, res) => {
     }
 });
 
-// Update personal information
+// ✅ PERSONAL INFO SAVE FIX: Update personal information - FIXED to handle missing user_profiles records
 app.put('/profile/personal-info', authenticateToken, async (req, res) => {
     try {
         const personalInfo = req.body;
         
-        await pool.query(`
+        const result = await pool.query(`
             UPDATE user_profiles 
             SET personal_info = $1, updated_at = NOW() 
             WHERE user_id = $2
         `, [JSON.stringify(personalInfo), req.user.id]);
+        
+        // If UPDATE didn't affect any rows, INSERT a new record
+        if (result.rowCount === 0) {
+            await pool.query(`
+                INSERT INTO user_profiles (user_id, personal_info, created_at, updated_at)
+                VALUES ($1, $2, NOW(), NOW())
+            `, [req.user.id, JSON.stringify(personalInfo)]);
+        }
         
         res.json({
             success: true,
@@ -985,7 +995,7 @@ app.put('/profile/personal-info', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== NEW: MANUAL EDITING ENDPOINTS ====================
+// ==================== MANUAL EDITING ENDPOINTS ====================
 
 // 1. Basic Information Updates
 app.put('/profile/basic-info', authenticateToken, async (req, res) => {
@@ -1103,7 +1113,7 @@ app.put('/profile/certifications', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== NEW: PENDING REGISTRATION ENDPOINT (FOR SIGN-UP PAGE) ====================
+// ==================== PENDING REGISTRATION ENDPOINT (FOR SIGN-UP PAGE) ====================
 
 app.post('/store-pending-registration', authenticateToken, async (req, res) => {
     try {
@@ -1606,7 +1616,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1650,7 +1660,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX'
                 }
             }
         });
@@ -1728,7 +1738,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX'
             };
         }
 
@@ -1828,7 +1838,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX'
             }
         });
     } catch (error) {
@@ -1880,7 +1890,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2402,7 +2412,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2427,7 +2437,7 @@ app.use((req, res, next) => {
             'GET /profile-status',
             'GET /traffic-light-status',
             'GET /profile/personal-info (NEW: Get personal information)',
-            'PUT /profile/personal-info (NEW: Update personal information)',
+            'PUT /profile/personal-info (✅ PERSONAL INFO SAVE FIX: Now handles missing user_profiles records)',
             'PUT /profile/basic-info (NEW: Update basic information)',
             'PUT /profile/about (NEW: Update about section)',
             'PUT /profile/experience (NEW: Update experience)',
@@ -2517,7 +2527,7 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
             console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
@@ -2549,13 +2559,15 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ BILLING REFACTOR: Clean separation of billing logic into dedicated modules`);
             console.log(`[SUCCESS] ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment`);
             console.log(`[SUCCESS] ✅ MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration`);
+            console.log(`[SUCCESS] ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
+            console.log(`[PERSONAL INFO] ✅ PUT /profile/personal-info - FIXED: Now handles missing user_profiles records with UPSERT logic`);
         });
         
     } catch (error) {
