@@ -138,6 +138,16 @@
             text-overflow: ellipsis;
         }
 
+        .sidebar-user-plan {
+            font-size: 0.7rem;
+            opacity: 0.9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #FFD700;
+            font-weight: 600;
+        }
+
         .sidebar-nav {
             padding: 1.5rem 0;
         }
@@ -187,6 +197,17 @@
         .coming-soon-badge {
             background: rgba(255, 255, 255, 0.2);
             color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .new-badge {
+            background: var(--success-green);
+            color: var(--white);
             font-size: 0.7rem;
             padding: 0.2rem 0.5rem;
             border-radius: 10px;
@@ -1352,7 +1373,7 @@
     <!-- Side Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <a href="/dashboard" class="sidebar-logo">
+            <a href="https://api.msgly.ai/dashboard" class="sidebar-logo">
                 <i class="fas fa-comments"></i>
                 <div class="sidebar-logo-text">
                     <div class="sidebar-logo-main">Msgly.AI</div>
@@ -1365,6 +1386,7 @@
                 <div class="sidebar-user-info">
                     <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
                     <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
+                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
                 </div>
             </div>
         </div>
@@ -1372,32 +1394,33 @@
         <div class="sidebar-nav">
             <div class="nav-section">
                 <div class="nav-section-title">Main Menu</div>
-                <a href="#" class="nav-item active" onclick="showSection('dashboard')">
+                <a href="https://api.msgly.ai/dashboard" class="nav-item active">
                     <i class="fas fa-tachometer-alt"></i>
                     <span class="nav-item-text">Dashboard</span>
                 </a>
-                <a href="/messages" class="nav-item">
+                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
+                    <i class="fab fa-linkedin"></i>
+                    <span class="nav-item-text">Msgly Profile</span>
+                </a>
+                <a href="https://api.msgly.ai/messages" class="nav-item">
                     <i class="fas fa-envelope"></i>
                     <span class="nav-item-text">Messages</span>
+                </a>
+                <a href="https://api.msgly.ai/message-generator.html" class="nav-item">
+                    <i class="fas fa-magic"></i>
+                    <span class="nav-item-text">Message Generator</span>
+                    <span class="new-badge">New</span>
                 </a>
                 <a href="#" class="nav-item" onclick="showSection('analytics')">
                     <i class="fas fa-chart-line"></i>
                     <span class="nav-item-text">Analytics</span>
                     <span class="coming-soon-badge">Soon</span>
                 </a>
-                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
-                    <i class="fab fa-linkedin"></i>
-                    <span class="nav-item-text">Msgly Profile</span>
-                </a>
             </div>
 
             <div class="nav-section">
                 <div class="nav-section-title">Account</div>
-                <a href="#" class="nav-item" onclick="showSection('profile')">
-                    <i class="fas fa-user-circle"></i>
-                    <span class="nav-item-text">Profile</span>
-                </a>
-                <a href="https://chopa.chargebeeportal.com" class="nav-item" target="_blank">
+                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
                     <i class="fas fa-credit-card"></i>
                     <span class="nav-item-text">Billing</span>
                 </a>
@@ -1476,7 +1499,7 @@
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1636,7 +1659,7 @@
                                 </div>
                                 <h3 class="recent-messages-title">Recent Messages</h3>
                             </div>
-                            <a href="/messages" class="view-all-btn">
+                            <a href="https://api.msgly.ai/messages" class="view-all-btn">
                                 <i class="fas fa-arrow-right"></i>
                                 View All Messages
                             </a>
@@ -1701,7 +1724,7 @@
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard — Coming Soon</h3>
+                            <h3>Analytics Dashboard â€" Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -2027,6 +2050,17 @@
             const displayName = extractFirstLastName(profile).firstName || user.displayName || user.email;
             document.getElementById('sidebarUserName').textContent = displayName;
             document.getElementById('sidebarUserEmail').textContent = user.email;
+            const planDisplayNames = {
+                'free': 'Free Plan',
+                'silver-monthly': 'Silver Monthly',
+                'silver-payasyougo': 'Silver Pay-as-you-go',
+                'gold-monthly': 'Gold Monthly', 
+                'gold-payasyougo': 'Gold Pay-as-you-go',
+                'platinum-monthly': 'Platinum Monthly',
+                'platinum-payasyougo': 'Platinum Pay-as-you-go'
+            };
+            const planDisplayName = planDisplayNames[user.planCode] || 'Unknown Plan';
+            document.getElementById('sidebarUserPlan').textContent = planDisplayName;
             const sidebarInitials = getInitials(displayName);
             document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
 
@@ -2069,15 +2103,15 @@
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = '✅ Fully Synced';
+                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = '🔄 Processing...';
+                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = '🔴 Sync Required';
+                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2234,7 +2268,7 @@
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
