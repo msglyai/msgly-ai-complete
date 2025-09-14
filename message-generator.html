@@ -160,12 +160,22 @@
             text-overflow: ellipsis;
         }
 
-        .user-plan {
+        .user-email {
             font-size: 0.75rem;
             opacity: 0.8;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .user-plan {
+            font-size: 0.7rem;
+            opacity: 0.9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #FFD700;
+            font-weight: 600;
         }
 
         .nav-menu {
@@ -1595,11 +1605,11 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <a href="/dashboard" class="logo">
-                    <i class="fas fa-paper-plane"></i>
+                <a href="https://api.msgly.ai/dashboard" class="logo">
+                    <i class="fas fa-comments"></i>
                     <div class="logo-text">
-                        <h1>Msgly</h1>
-                        <p>AI Message Generator</p>
+                        <h1>Msgly.AI</h1>
+                        <p>By Chopa AI LTD</p>
                     </div>
                 </a>
                 
@@ -1607,6 +1617,7 @@
                     <div class="user-avatar" id="userAvatar">??</div>
                     <div class="user-details">
                         <div class="user-name" id="userName">Loading...</div>
+                        <div class="user-email" id="userEmail">Loading...</div>
                         <div class="user-plan" id="userPlan">Loading...</div>
                     </div>
                 </div>
@@ -1615,16 +1626,19 @@
             <nav class="nav-menu">
                 <div class="nav-section">
                     <div class="nav-section-title">Main Menu</div>
-                    <a href="/dashboard" class="nav-item">
+                    <a href="https://api.msgly.ai/dashboard" class="nav-item">
                         <i class="fas fa-tachometer-alt"></i>
                         <span>Dashboard</span>
                     </a>
-                    <a href="#" class="nav-item">
+                    <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
+                        <i class="fab fa-linkedin"></i>
+                        <span>Msgly Profile</span>
+                    </a>
+                    <a href="https://api.msgly.ai/messages" class="nav-item">
                         <i class="fas fa-envelope"></i>
                         <span>Messages</span>
-                        <span class="badge coming-soon">Soon</span>
                     </a>
-                    <a href="#" class="nav-item active">
+                    <a href="https://api.msgly.ai/message-generator.html" class="nav-item active">
                         <i class="fas fa-magic"></i>
                         <span>Message Generator</span>
                         <span class="badge">New</span>
@@ -1638,13 +1652,17 @@
 
                 <div class="nav-section">
                     <div class="nav-section-title">Account</div>
-                    <a href="#" class="nav-item">
-                        <i class="fas fa-user-circle"></i>
-                        <span>Profile</span>
-                    </a>
-                    <a href="#" class="nav-item">
+                    <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" target="_blank" class="nav-item">
                         <i class="fas fa-credit-card"></i>
                         <span>Billing</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Support</div>
+                    <a href="#" class="nav-item">
+                        <i class="fas fa-question-circle"></i>
+                        <span>Help Center</span>
                     </a>
                 </div>
             </nav>
@@ -2441,6 +2459,7 @@
 
             // Update sidebar user info
             document.getElementById('userName').textContent = user.displayName || user.email;
+            document.getElementById('userEmail').textContent = user.email;
             const planDisplayName = PLAN_DISPLAY_NAMES[user.planCode] || 'Unknown Plan';
             document.getElementById('userPlan').textContent = planDisplayName;
             const userInitials = getInitials(user.displayName || user.email);
