@@ -138,6 +138,16 @@
             text-overflow: ellipsis;
         }
 
+        .sidebar-user-plan {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         .sidebar-nav {
             padding: 1.5rem 0;
         }
@@ -184,7 +194,7 @@
             flex: 1;
         }
 
-        .coming-soon-badge {
+        .nav-badge {
             background: rgba(255, 255, 255, 0.2);
             color: rgba(255, 255, 255, 0.8);
             font-size: 0.7rem;
@@ -193,6 +203,16 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+
+        .nav-badge.new {
+            background: var(--accent-pink);
+            color: var(--white);
+        }
+
+        .nav-badge.soon {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .sidebar-footer {
@@ -993,7 +1013,7 @@
     <!-- Side Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <a href="/dashboard" class="sidebar-logo">
+            <a href="https://api.msgly.ai/dashboard" class="sidebar-logo">
                 <i class="fas fa-comments"></i>
                 <div class="sidebar-logo-text">
                     <div class="sidebar-logo-main">Msgly.AI</div>
@@ -1006,6 +1026,7 @@
                 <div class="sidebar-user-info">
                     <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
                     <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
+                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
                 </div>
             </div>
         </div>
@@ -1013,32 +1034,33 @@
         <div class="sidebar-nav">
             <div class="nav-section">
                 <div class="nav-section-title">Main Menu</div>
-                <a href="/dashboard" class="nav-item">
+                <a href="https://api.msgly.ai/dashboard" class="nav-item">
                     <i class="fas fa-tachometer-alt"></i>
                     <span class="nav-item-text">Dashboard</span>
                 </a>
-                <a href="#" class="nav-item active" onclick="showSection('messages')">
+                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="nav-item-text">Msgly Profile</span>
+                </a>
+                <a href="https://api.msgly.ai/messages" class="nav-item active">
                     <i class="fas fa-envelope"></i>
                     <span class="nav-item-text">Messages</span>
                 </a>
-                <a href="#" class="nav-item" onclick="showSection('analytics')">
+                <a href="https://api.msgly.ai/message-generator.html" class="nav-item">
+                    <i class="fas fa-magic"></i>
+                    <span class="nav-item-text">Message Generator</span>
+                    <span class="nav-badge new">New</span>
+                </a>
+                <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
                     <i class="fas fa-chart-line"></i>
                     <span class="nav-item-text">Analytics</span>
-                    <span class="coming-soon-badge">Soon</span>
-                </a>
-                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
-                    <i class="fab fa-linkedin"></i>
-                    <span class="nav-item-text">Msgly Profile</span>
+                    <span class="nav-badge soon">Soon</span>
                 </a>
             </div>
 
             <div class="nav-section">
                 <div class="nav-section-title">Account</div>
-                <a href="#" class="nav-item" onclick="showSection('profile')">
-                    <i class="fas fa-user-circle"></i>
-                    <span class="nav-item-text">Profile</span>
-                </a>
-                <a href="https://chopa.chargebeeportal.com" class="nav-item" target="_blank">
+                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
                     <i class="fas fa-credit-card"></i>
                     <span class="nav-item-text">Billing</span>
                 </a>
@@ -1046,7 +1068,7 @@
 
             <div class="nav-section">
                 <div class="nav-section-title">Support</div>
-                <a href="#" class="nav-item" onclick="showSection('help')">
+                <a href="#" class="nav-item" onclick="alert('Help Center coming soon!')">
                     <i class="fas fa-question-circle"></i>
                     <span class="nav-item-text">Help Center</span>
                 </a>
@@ -1229,6 +1251,7 @@
                     
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
+                    document.getElementById('sidebarUserPlan').textContent = user.plan || 'Free Plan';
                     
                     // Update avatar with initials
                     const displayName = user.displayName || user.email;
@@ -1245,6 +1268,7 @@
                 // Fallback: show generic info
                 document.getElementById('sidebarUserName').textContent = 'User';
                 document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
+                document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
                 document.getElementById('sidebarUserAvatar').textContent = 'U';
             }
         }
