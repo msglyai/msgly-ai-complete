@@ -1,0 +1,2752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Generator - Msgly AI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #8039DF;
+            --primary-dark: #3E0075;
+            --primary-light: #F5EDFF;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #EF4444;
+            --gray-900: #111827;
+            --gray-700: #374151;
+            --gray-500: #6B7280;
+            --gray-100: #F9FAFB;
+            --white: #FFFFFF;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-100);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* === LOADING STATE === */
+        .auth-loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100%;
+            flex-direction: column;
+            gap: 1.5rem;
+            background: var(--gray-100);
+        }
+
+        .auth-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--gray-100);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .auth-loading-text {
+            color: var(--gray-700);
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* === SIDEBAR === */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 1rem;
+        }
+
+        .logo i {
+            font-size: 2rem;
+            margin-right: 12px;
+        }
+
+        .logo-text h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .logo-text p {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .user-plan {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        .nav-menu {
+            padding: 1.5rem 0;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            padding: 0 1.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            box-shadow: inset 4px 0 0 white;
+        }
+
+        .nav-item i {
+            width: 20px;
+            margin-right: 12px;
+        }
+
+        .badge {
+            background: var(--success);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: auto;
+        }
+
+        .badge.coming-soon {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        /* === MAIN CONTENT === */
+        .main-wrapper {
+            flex: 1;
+            margin-left: 280px;
+            min-height: 100vh;
+            display: none; /* Hidden until authenticated */
+        }
+
+        .page-header {
+            background: white;
+            padding: 2rem;
+            border-bottom: 1px solid #E5E7EB;
+        }
+
+        .page-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--gray-500);
+            font-size: 1rem;
+        }
+
+        /* === TAB NAVIGATION === */
+        .tab-navigation {
+            background: white;
+            border-bottom: 1px solid #E5E7EB;
+            position: sticky;
+            top: 0;
+            z-index: 999;
+        }
+
+        .tab-nav {
+            display: flex;
+            padding: 0 2rem;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 1rem 1.5rem;
+            color: var(--gray-500);
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+            background: rgba(128, 57, 223, 0.05);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background: rgba(128, 57, 223, 0.08);
+        }
+
+        .tab-badge {
+            background: var(--warning);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .tab-badge.silver {
+            background: #C0C0C0;
+        }
+
+        /* === CONTENT AREA === */
+        .content-area {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === CARDS === */
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-description {
+            color: var(--gray-500);
+            line-height: 1.6;
+        }
+
+        /* === PLAN FEATURE BOX === */
+        .plan-feature-box {
+            background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(192, 192, 192, 0.05) 100%);
+            border: 2px solid #C0C0C0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .plan-feature-box.gold {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%);
+            border-color: var(--warning);
+        }
+
+        .plan-feature-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .plan-feature-icon {
+            font-size: 2rem;
+            color: #C0C0C0;
+        }
+
+        .plan-feature-icon.gold {
+            color: var(--warning);
+        }
+
+        .plan-feature-content h4 {
+            color: var(--gray-900);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .plan-feature-content p {
+            color: var(--gray-500);
+            margin-bottom: 1rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            margin: 1rem 0;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--gray-700);
+        }
+
+        .feature-list i {
+            color: #C0C0C0;
+        }
+
+        .feature-list .gold i {
+            color: var(--warning);
+        }
+
+        .upgrade-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .upgrade-link:hover {
+            text-decoration: underline;
+        }
+
+        /* === UPLOAD AREA === */
+        .upload-zone {
+            border: 2px dashed #D1D5DB;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .upload-zone.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-hint {
+            color: var(--gray-500);
+            margin-bottom: 1.5rem;
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .upload-btn:disabled {
+            background: var(--gray-500);
+            cursor: not-allowed;
+        }
+
+        /* === URL SECTION === */
+        .url-section {
+            margin-bottom: 2rem;
+        }
+
+        .url-input-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #E5E7EB;
+            border-radius: 12px;
+            font-size: 1rem;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .url-example {
+            background: var(--gray-100);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: var(--gray-700);
+            margin-bottom: 1.5rem;
+        }
+
+        .analysis-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .analysis-btn-container {
+            text-align: center;
+        }
+
+        .analysis-btn {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .analysis-btn.chrome {
+            background: var(--primary);
+            color: white;
+        }
+
+        .analysis-btn.chrome:hover {
+            background: var(--primary-dark);
+        }
+
+        .analysis-btn.url {
+            background: var(--gray-700);
+            color: white;
+        }
+
+        .analysis-btn.url:hover {
+            background: var(--gray-900);
+        }
+
+        .analysis-description {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-top: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .recommended-badge {
+            background: var(--success);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 0.3rem;
+            display: inline-block;
+        }
+
+        /* === PROFILE PREVIEW === */
+        .profile-preview {
+            display: none;
+            background: var(--primary-light);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .profile-preview.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .profile-avatar {
+            width: 60px;
+            height: 60px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .profile-info h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .profile-info p {
+            color: var(--gray-700);
+            font-size: 1rem;
+        }
+
+        /* === MESSAGE GENERATION === */
+        .message-section {
+            display: none;
+        }
+
+        .message-section.show {
+            display: block;
+        }
+
+        .message-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .message-type {
+            background: var(--gray-100);
+            border: 2px solid var(--gray-100);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .message-type:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .message-type.selected {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .message-type i {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .message-type h4 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-type p {
+            color: var(--gray-500);
+            font-size: 0.9rem;
+        }
+
+        /* === CONTEXT SECTION === */
+        .context-section {
+            background: var(--gray-100);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .context-section h4 {
+            color: var(--gray-900);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .context-section p {
+            color: var(--gray-500);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .context-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #E5E7EB;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 80px;
+            margin-bottom: 1rem;
+            font-family: inherit;
+        }
+
+        .context-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .context-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn-secondary {
+            background: var(--gray-700);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-900);
+        }
+
+        /* === MESSAGE DELIVERY INFO === */
+        .message-delivery-info {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+            border: 2px solid var(--success);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .delivery-info-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .delivery-info-icon {
+            font-size: 1.5rem;
+            color: var(--success);
+        }
+
+        .delivery-info-title {
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        .delivery-info-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .delivery-info-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+            color: var(--gray-700);
+        }
+
+        .delivery-info-list li:last-child {
+            margin-bottom: 0;
+        }
+
+        .delivery-info-list i {
+            color: var(--success);
+            width: 16px;
+        }
+
+        /* === ADVANCED OPTIONS === */
+        .advanced-section {
+            border-top: 1px solid #E5E7EB;
+            padding-top: 2rem;
+            margin-top: 2rem;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .option-card {
+            background: var(--gray-100);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        .option-card.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .option-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .option-title {
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .plan-badge {
+            background: #C0C0C0;
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .plan-badge.gold {
+            background: var(--warning);
+        }
+
+        .plan-badge.platinum {
+            background: #E5E7EB;
+            color: var(--gray-700);
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: var(--gray-500);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: var(--success);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active::after {
+            left: 26px;
+        }
+
+        .select-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #E5E7EB;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: white;
+        }
+
+        .select-input:disabled {
+            background: var(--gray-100);
+            cursor: not-allowed;
+        }
+
+        /* === CREDIT CALCULATOR === */
+        .credit-calculator {
+            background: linear-gradient(135deg, var(--primary-light) 0%, rgba(128, 57, 223, 0.1) 100%);
+            border: 2px solid var(--primary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .calculator-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .calculator-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .breakdown {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #E5E7EB;
+        }
+
+        .breakdown-item:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+
+        .credit-balance {
+            background: var(--success);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        /* === MODAL === */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            margin: 2rem;
+            position: relative;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-500);
+            padding: 0.5rem;
+        }
+
+        .modal-close:hover {
+            color: var(--gray-900);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-icon {
+            font-size: 2rem;
+            color: var(--success);
+        }
+
+        .modal-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        .modal-content {
+            margin-bottom: 2rem;
+        }
+
+        .modal-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .modal-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            color: var(--gray-700);
+        }
+
+        .modal-list li:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-list i {
+            color: var(--success);
+            width: 16px;
+        }
+
+        .modal-footer {
+            text-align: center;
+        }
+
+        .auto-close-text {
+            color: var(--gray-500);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        /* === BUTTONS === */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #E5E7EB;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            background: var(--gray-500);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        /* === ALERTS === */
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .alert.show {
+            display: flex;
+            animation: slideDown 0.3s ease;
+        }
+
+        .alert.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 2px solid var(--success);
+            color: var(--success);
+        }
+
+        .alert.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid var(--error);
+            color: var(--error);
+        }
+
+        /* === LOADING === */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #E5E7EB;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        /* === RESULTS === */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+            display: none;
+        }
+
+        .results-grid.show {
+            display: grid;
+        }
+
+        .result-card {
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .result-type {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--gray-500);
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--gray-100);
+            color: var(--gray-900);
+        }
+
+        .result-message {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--gray-700);
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        /* === ERROR STATE === */
+        .error-state {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+            color: var(--error);
+        }
+
+        .error-state i {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .error-state h3 {
+            margin-bottom: 1rem;
+        }
+
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .main-wrapper {
+                margin-left: 0;
+            }
+            
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .content-area {
+                padding: 1rem;
+            }
+            
+            .tab-nav {
+                padding: 0 1rem;
+            }
+            
+            .analysis-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .url-input-group {
+                flex-direction: column;
+            }
+            
+            .breakdown-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .context-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication Loading State -->
+    <div class="auth-loading" id="authLoading">
+        <div class="auth-spinner"></div>
+        <div class="auth-loading-text">Checking authentication...</div>
+    </div>
+
+    <!-- Generation Modal -->
+    <div class="modal-overlay" id="generationModal">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-header">
+                <i class="fas fa-check-circle modal-icon"></i>
+                <h3 class="modal-title">Message Generation Started</h3>
+            </div>
+            <div class="modal-content">
+                <ul class="modal-list">
+                    <li><i class="fas fa-envelope"></i> Generated messages will be sent to your inbox via email</li>
+                    <li><i class="fas fa-folder"></i> Available in the Messages tab (usually within 10 min)</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="closeModal()">
+                    <i class="fas fa-check"></i>
+                    Got it
+                </button>
+                <p class="auto-close-text">This modal will close automatically in 5 seconds</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <a href="/dashboard" class="logo">
+                <i class="fas fa-paper-plane"></i>
+                <div class="logo-text">
+                    <h1>Msgly</h1>
+                    <p>AI Message Generator</p>
+                </div>
+            </a>
+            
+            <div class="user-info">
+                <div class="user-avatar" id="userAvatar">??</div>
+                <div>
+                    <div class="user-name" id="userName">Loading...</div>
+                    <div class="user-plan" id="userPlan">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="nav-menu">
+            <div class="nav-section">
+                <div class="nav-section-title">Main Menu</div>
+                <a href="/dashboard" class="nav-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-envelope"></i>
+                    <span>Messages</span>
+                    <span class="badge coming-soon">Soon</span>
+                </a>
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-magic"></i>
+                    <span>Message Generator</span>
+                    <span class="badge">New</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Analytics</span>
+                    <span class="badge coming-soon">Soon</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Profile</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Billing</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Error State -->
+    <div class="error-state" id="errorState">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>Unable to load Message Generator</h3>
+        <p id="errorMessage">Please try refreshing the page or logging in again.</p>
+        <button class="btn btn-primary" onclick="retryAuthentication()" style="margin-top: 1rem;">
+            <i class="fas fa-refresh"></i>
+            Retry
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-wrapper" id="mainContent">
+        <!-- Page Header -->
+        <header class="page-header">
+            <h1 class="page-title">Message Generator</h1>
+            <p class="page-subtitle">Generate personalized cold emails, LinkedIn messages, and connection requests</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-navigation">
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="upload">
+                    <i class="fas fa-file-upload"></i>
+                    Upload Profile File
+                    <span class="tab-badge silver">Silver+</span>
+                </button>
+                <button class="tab-btn" data-tab="linkedin">
+                    <i class="fab fa-linkedin"></i>
+                    LinkedIn Profile URL
+                    <span class="tab-badge silver">Silver+</span>
+                </button>
+                <button class="tab-btn" data-tab="bulk-linkedin">
+                    <i class="fab fa-linkedin"></i>
+                    Bulk LinkedIn URLs
+                    <span class="tab-badge">Gold+</span>
+                </button>
+                <button class="tab-btn" data-tab="bulk-profiles">
+                    <i class="fas fa-users"></i>
+                    Bulk Profile List
+                    <span class="tab-badge">Gold+</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Alert Messages -->
+            <div class="alert success" id="successAlert">
+                <i class="fas fa-check-circle"></i>
+                <span id="successText">Success message</span>
+            </div>
+            
+            <div class="alert error" id="errorAlert">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="errorText">Error message</span>
+            </div>
+
+            <!-- Tab Content: Upload File -->
+            <div class="tab-content active" id="upload-content">
+                <!-- Plan Feature Box -->
+                <div class="plan-feature-box" id="uploadFeatureBox">
+                    <div class="plan-feature-header">
+                        <div class="plan-feature-icon">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <div class="plan-feature-content">
+                            <h4>Silver Plan Feature</h4>
+                            <p>File upload analysis requires a Silver Plan or above subscription.</p>
+                            <a href="/upgrade" class="upgrade-link">Upgrade to Silver Plan →</a>
+                        </div>
+                    </div>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Upload CV, resume, or profile documents</li>
+                        <li><i class="fas fa-check"></i> Advanced document parsing</li>
+                        <li><i class="fas fa-check"></i> Personalized message generation</li>
+                        <li><i class="fas fa-check"></i> Multiple format support (PDF, DOC, TXT)</li>
+                    </ul>
+                </div>
+
+                <!-- Input Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-file-upload"></i>
+                            Upload Profile File
+                        </h2>
+                        <p class="card-description">
+                            Upload CV, resume, or any document containing profile information. Supported formats: PDF, DOC, DOCX, TXT
+                        </p>
+                    </div>
+
+                    <div class="upload-zone" id="uploadZone" onclick="handleUploadClick()">
+                        <div class="upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <div class="upload-text">Drag & drop your file here</div>
+                        <div class="upload-hint">or click to browse your files</div>
+                        <input type="file" class="file-input" id="profileFile" accept=".pdf,.doc,.docx,.txt">
+                        <button class="upload-btn">Choose File</button>
+                    </div>
+
+                    <!-- Profile Preview -->
+                    <div class="profile-preview" id="uploadProfilePreview">
+                        <div class="profile-header">
+                            <div class="profile-avatar">JS</div>
+                            <div class="profile-info">
+                                <h3>Jane Smith</h3>
+                                <p>Senior Marketing Manager at TechCorp</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Generation Section -->
+                <div class="card message-section" id="uploadMessageSection">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-magic"></i>
+                            Generate Messages
+                        </h2>
+                        <p class="card-description">Choose message types and configure generation options</p>
+                    </div>
+
+                    <!-- Message Delivery Info -->
+                    <div class="message-delivery-info">
+                        <div class="delivery-info-header">
+                            <i class="fas fa-info-circle delivery-info-icon"></i>
+                            <span class="delivery-info-title">Message Delivery Information</span>
+                        </div>
+                        <ul class="delivery-info-list">
+                            <li><i class="fas fa-envelope"></i> Generated messages will be sent to your inbox via email</li>
+                            <li><i class="fas fa-folder"></i> Available in the Messages tab for future reference</li>
+                            <li><i class="fas fa-tag"></i> Source: Generated by Upload File</li>
+                        </ul>
+                    </div>
+
+                    <!-- Message Types -->
+                    <div class="message-types">
+                        <div class="message-type selected" data-type="cold-email" data-method="upload">
+                            <i class="fas fa-envelope"></i>
+                            <h4>Cold Email</h4>
+                            <p>Professional email outreach for business opportunities</p>
+                        </div>
+                        <div class="message-type" data-type="linkedin-message" data-method="upload">
+                            <i class="fab fa-linkedin"></i>
+                            <h4>LinkedIn Message</h4>
+                            <p>Direct message for existing LinkedIn connections</p>
+                        </div>
+                        <div class="message-type" data-type="connection-request" data-method="upload">
+                            <i class="fas fa-user-plus"></i>
+                            <h4>Connection Request</h4>
+                            <p>LinkedIn connection request with personalized note</p>
+                        </div>
+                    </div>
+
+                    <!-- Context Section -->
+                    <div class="context-section">
+                        <h4><i class="fas fa-pencil-alt"></i> Additional Context</h4>
+                        <p>Provide specific context or instructions to personalize your messages further.</p>
+                        <textarea class="context-input" id="uploadContextInput" placeholder="e.g., Mention our upcoming product launch, reference the conference we met at, focus on cost savings benefits..."></textarea>
+                        <div class="context-buttons">
+                            <button class="btn-secondary" onclick="handleSaveContext('upload')">
+                                <i class="fas fa-save"></i> Save Context
+                            </button>
+                            <button class="btn-secondary" onclick="handleLoadContext('upload')">
+                                <i class="fas fa-download"></i> Load Context
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div class="advanced-section">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--gray-900);">Advanced Options</h3>
+                        
+                        <div class="options-grid">
+                            <!-- A/B Testing -->
+                            <div class="option-card">
+                                <div class="option-header">
+                                    <div class="option-title">
+                                        <i class="fas fa-flask"></i>
+                                        A/B Testing
+                                    </div>
+                                    <span class="plan-badge">Silver+</span>
+                                </div>
+                                <div class="toggle-row">
+                                    <div class="toggle-switch" data-option="ab-testing" data-method="upload"></div>
+                                    <span>Generate multiple variants</span>
+                                </div>
+                                <select class="select-input" id="uploadAbVariants" disabled>
+                                    <option value="2">2 Variants (Silver+)</option>
+                                    <option value="3">3 Variants (Gold+)</option>
+                                    <option value="4">4 Variants (Platinum Only)</option>
+                                </select>
+                            </div>
+
+                            <!-- Follow-up Sequence -->
+                            <div class="option-card">
+                                <div class="option-header">
+                                    <div class="option-title">
+                                        <i class="fas fa-arrows-alt-h"></i>
+                                        Follow-up Sequence
+                                    </div>
+                                    <span class="plan-badge">Silver+</span>
+                                </div>
+                                <div class="toggle-row">
+                                    <div class="toggle-switch" data-option="follow-up" data-method="upload"></div>
+                                    <span>Generate follow-up messages</span>
+                                </div>
+                                <select class="select-input" id="uploadFollowUp" disabled>
+                                    <option value="2">2-Message Sequence</option>
+                                    <option value="3">3-Message Sequence</option>
+                                    <option value="5">5-Message Sequence</option>
+                                </select>
+                            </div>
+
+                            <!-- Export Format -->
+                            <div class="option-card">
+                                <div class="option-header">
+                                    <div class="option-title">
+                                        <i class="fas fa-file-export"></i>
+                                        Export Format
+                                    </div>
+                                </div>
+                                <select class="select-input">
+                                    <option value="excel">Excel Format</option>
+                                    <option value="txt">Text Format</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Credit Calculator -->
+                    <div class="credit-calculator">
+                        <div class="calculator-header">
+                            <i class="fas fa-calculator"></i>
+                            <h3 class="calculator-title">Credit Calculation</h3>
+                        </div>
+                        <div class="breakdown" id="uploadBreakdown">
+                            <div class="breakdown-item">
+                                <span>Base Cost (Upload Profile)</span>
+                                <span>1.00 credits per message</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Selected Messages</span>
+                                <span id="uploadMessageCount">1 message type</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>A/B Testing</span>
+                                <span id="uploadAbCost">+0.00 credits (disabled)</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Follow-up Sequence</span>
+                                <span id="uploadFollowCost">+0.00 credits (disabled)</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Total Cost</span>
+                                <span id="uploadTotalCost">1.00 credits</span>
+                            </div>
+                        </div>
+                        <div class="credit-balance" id="creditBalance">Current Balance: Loading...</div>
+                    </div>
+
+                    <!-- Generate Button -->
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="uploadGenerateBtn" data-method="upload">
+                            <i class="fas fa-magic"></i>
+                            Generate Messages (1.00 credits)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: LinkedIn Profile URL -->
+            <div class="tab-content" id="linkedin-content">
+                <!-- Plan Requirement Notice -->
+                <div class="plan-feature-box" id="linkedinFeatureBox">
+                    <div class="plan-feature-header">
+                        <div class="plan-feature-icon">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <div class="plan-feature-content">
+                            <h4>Silver Plan Feature</h4>
+                            <p>LinkedIn profile analysis requires a Silver Plan or above subscription.</p>
+                            <a href="/upgrade" class="upgrade-link">Upgrade to Silver Plan →</a>
+                        </div>
+                    </div>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> LinkedIn profile data extraction</li>
+                        <li><i class="fas fa-check"></i> Enhanced Chrome extension analysis</li>
+                        <li><i class="fas fa-check"></i> Professional background insights</li>
+                        <li><i class="fas fa-check"></i> Personalized message generation</li>
+                    </ul>
+                </div>
+
+                <!-- Input Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fab fa-linkedin"></i>
+                            LinkedIn Profile URL
+                        </h2>
+                        <p class="card-description">
+                            Enter a LinkedIn profile URL to analyze and extract profile information for personalized message generation.
+                        </p>
+                    </div>
+
+                    <div class="url-section">
+                        <div class="url-input-group">
+                            <input type="url" class="url-input" id="linkedinUrl" placeholder="https://linkedin.com/in/profile-url">
+                        </div>
+                        <div class="url-example">
+                            Example: https://linkedin.com/in/jane-smith-marketing-manager
+                        </div>
+                        
+                        <!-- Analysis Method Buttons -->
+                        <div class="analysis-buttons">
+                            <div class="analysis-btn-container">
+                                <button class="analysis-btn chrome" id="chromeAnalyzeBtn">
+                                    <i class="fab fa-chrome"></i>
+                                    Analyze Profile With Chrome Extension
+                                </button>
+                                <div class="analysis-description">
+                                    Enhanced data extraction with comprehensive profile analysis
+                                </div>
+                                <span class="recommended-badge">Recommended</span>
+                            </div>
+                            
+                            <div class="analysis-btn-container">
+                                <button class="analysis-btn url" id="urlAnalyzeBtn">
+                                    <i class="fas fa-link"></i>
+                                    Analyze Profile URL (Only)
+                                </button>
+                                <div class="analysis-description">
+                                    Basic public data extraction - publicly available information only
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile Preview -->
+                    <div class="profile-preview" id="linkedinProfilePreview">
+                        <div class="profile-header">
+                            <div class="profile-avatar">JS</div>
+                            <div class="profile-info">
+                                <h3>Jane Smith</h3>
+                                <p>Senior Marketing Manager at TechCorp</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Generation Section -->
+                <div class="card message-section" id="linkedinMessageSection">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-magic"></i>
+                            Generate Messages
+                        </h2>
+                        <p class="card-description">Choose message types and configure generation options</p>
+                    </div>
+
+                    <!-- Message Delivery Info -->
+                    <div class="message-delivery-info">
+                        <div class="delivery-info-header">
+                            <i class="fas fa-info-circle delivery-info-icon"></i>
+                            <span class="delivery-info-title">Message Delivery Information</span>
+                        </div>
+                        <ul class="delivery-info-list">
+                            <li><i class="fas fa-envelope"></i> Generated messages will be sent to your inbox via email</li>
+                            <li><i class="fas fa-folder"></i> Available in the Messages tab for future reference</li>
+                            <li><i class="fas fa-tag"></i> Source: Generated by LinkedIn Analysis</li>
+                        </ul>
+                    </div>
+
+                    <!-- Message Types -->
+                    <div class="message-types">
+                        <div class="message-type selected" data-type="cold-email" data-method="linkedin">
+                            <i class="fas fa-envelope"></i>
+                            <h4>Cold Email</h4>
+                            <p>Professional email outreach for business opportunities</p>
+                        </div>
+                        <div class="message-type" data-type="linkedin-message" data-method="linkedin">
+                            <i class="fab fa-linkedin"></i>
+                            <h4>LinkedIn Message</h4>
+                            <p>Direct message for existing LinkedIn connections</p>
+                        </div>
+                        <div class="message-type" data-type="connection-request" data-method="linkedin">
+                            <i class="fas fa-user-plus"></i>
+                            <h4>Connection Request</h4>
+                            <p>LinkedIn connection request with personalized note</p>
+                        </div>
+                    </div>
+
+                    <!-- Context Section -->
+                    <div class="context-section">
+                        <h4><i class="fas fa-pencil-alt"></i> Additional Context</h4>
+                        <p>Provide specific context or instructions to personalize your messages further.</p>
+                        <textarea class="context-input" id="linkedinContextInput" placeholder="e.g., Mention our upcoming product launch, reference the conference we met at, focus on cost savings benefits..."></textarea>
+                        <div class="context-buttons">
+                            <button class="btn-secondary" onclick="handleSaveContext('linkedin')">
+                                <i class="fas fa-save"></i> Save Context
+                            </button>
+                            <button class="btn-secondary" onclick="handleLoadContext('linkedin')">
+                                <i class="fas fa-download"></i> Load Context
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div class="advanced-section">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--gray-900);">Advanced Options</h3>
+                        
+                        <div class="options-grid">
+                            <!-- A/B Testing -->
+                            <div class="option-card">
+                                <div class="option-header">
+                                    <div class="option-title">
+                                        <i class="fas fa-flask"></i>
+                                        A/B Testing
+                                    </div>
+                                    <span class="plan-badge">Silver+</span>
+                                </div>
+                                <div class="toggle-row">
+                                    <div class="toggle-switch" data-option="ab-testing" data-method="linkedin"></div>
+                                    <span>Generate multiple variants</span>
+                                </div>
+                                <select class="select-input" id="linkedinAbVariants" disabled>
+                                    <option value="2">2 Variants (Silver+)</option>
+                                    <option value="3">3 Variants (Gold+)</option>
+                                    <option value="4">4 Variants (Platinum Only)</option>
+                                </select>
+                            </div>
+
+                            <!-- Follow-up Sequence -->
+                            <div class="option-card">
+                                <div class="option-header">
+                                    <div class="option-title">
+                                        <i class="fas fa-arrows-alt-h"></i>
+                                        Follow-up Sequence
+                                    </div>
+                                    <span class="plan-badge">Silver+</span>
+                                </div>
+                                <div class="toggle-row">
+                                    <div class="toggle-switch" data-option="follow-up" data-method="linkedin"></div>
+                                    <span>Generate follow-up messages</span>
+                                </div>
+                                <select class="select-input" id="linkedinFollowUp" disabled>
+                                    <option value="2">2-Message Sequence</option>
+                                    <option value="3">3-Message Sequence</option>
+                                    <option value="5">5-Message Sequence</option>
+                                </select>
+                            </div>
+
+                            <!-- Export Format -->
+                            <div class="option-card">
+                                <div class="option-header">
+                                    <div class="option-title">
+                                        <i class="fas fa-file-export"></i>
+                                        Export Format
+                                    </div>
+                                </div>
+                                <select class="select-input">
+                                    <option value="excel">Excel Format</option>
+                                    <option value="txt">Text Format</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Credit Calculator -->
+                    <div class="credit-calculator">
+                        <div class="calculator-header">
+                            <i class="fas fa-calculator"></i>
+                            <h3 class="calculator-title">Credit Calculation</h3>
+                        </div>
+                        <div class="breakdown" id="linkedinBreakdown">
+                            <div class="breakdown-item">
+                                <span>Base Cost (LinkedIn Analysis)</span>
+                                <span>1.25 credits per message</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Selected Messages</span>
+                                <span id="linkedinMessageCount">1 message type</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>A/B Testing</span>
+                                <span id="linkedinAbCost">+0.00 credits (disabled)</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Follow-up Sequence</span>
+                                <span id="linkedinFollowCost">+0.00 credits (disabled)</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Total Cost</span>
+                                <span id="linkedinTotalCost">1.25 credits</span>
+                            </div>
+                        </div>
+                        <div class="credit-balance">Current Balance: Loading...</div>
+                    </div>
+
+                    <!-- Generate Button -->
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="linkedinGenerateBtn" data-method="linkedin">
+                            <i class="fas fa-magic"></i>
+                            Generate Messages (1.25 credits)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Bulk LinkedIn URLs -->
+            <div class="tab-content" id="bulk-linkedin-content">
+                <!-- Plan Feature Box -->
+                <div class="plan-feature-box gold">
+                    <div class="plan-feature-header">
+                        <div class="plan-feature-icon gold">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <div class="plan-feature-content">
+                            <h4>Gold Plan Feature</h4>
+                            <p>Bulk LinkedIn URL analysis requires a Gold Plan or above subscription.</p>
+                            <a href="/upgrade" class="upgrade-link">Upgrade to Gold Plan →</a>
+                        </div>
+                    </div>
+                    <ul class="feature-list gold">
+                        <li><i class="fas fa-check"></i> Process up to 50 LinkedIn URLs at once</li>
+                        <li><i class="fas fa-check"></i> Bulk profile data extraction</li>
+                        <li><i class="fas fa-check"></i> Mass message generation</li>
+                        <li><i class="fas fa-check"></i> Advanced export options</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fab fa-linkedin"></i>
+                            Bulk LinkedIn URLs
+                        </h2>
+                        <p class="card-description">
+                            Upload a list of LinkedIn URLs and we'll provide all the profile data for bulk message generation.
+                        </p>
+                    </div>
+
+                    <div style="text-align: center; padding: 3rem; color: var(--gray-500);">
+                        <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 1.5rem; color: var(--gray-400);"></i>
+                        <h4>Upgrade to Gold Plan</h4>
+                        <p>This feature will be available after upgrading to Gold Plan or above.</p>
+                        <div style="margin-top: 1rem;">
+                            <a href="/upgrade" class="upgrade-link">View upgrade options →</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Bulk Profile List -->
+            <div class="tab-content" id="bulk-profiles-content">
+                <!-- Plan Feature Box -->
+                <div class="plan-feature-box gold">
+                    <div class="plan-feature-header">
+                        <div class="plan-feature-icon gold">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <div class="plan-feature-content">
+                            <h4>Gold Plan Feature</h4>
+                            <p>Bulk profile list processing requires a Gold Plan or above subscription.</p>
+                            <a href="/upgrade" class="upgrade-link">Upgrade to Gold Plan →</a>
+                        </div>
+                    </div>
+                    <ul class="feature-list gold">
+                        <li><i class="fas fa-check"></i> Upload CSV or Excel files with profile data</li>
+                        <li><i class="fas fa-check"></i> Process up to 100 profiles at once</li>
+                        <li><i class="fas fa-check"></i> Custom field mapping</li>
+                        <li><i class="fas fa-check"></i> Bulk message generation</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-users"></i>
+                            Bulk Profile List
+                        </h2>
+                        <p class="card-description">
+                            Upload a CSV or Excel file with multiple profiles you provide for bulk message generation. Perfect for large outreach campaigns with your own data.
+                        </p>
+                    </div>
+
+                    <div style="text-align: center; padding: 3rem; color: var(--gray-500);">
+                        <i class="fas fa-lock" style="font-size: 3rem; margin-bottom: 1.5rem; color: var(--gray-400);"></i>
+                        <h4>Upgrade to Gold Plan</h4>
+                        <p>This feature will be available after upgrading to Gold Plan or above.</p>
+                        <div style="margin-top: 1rem;">
+                            <a href="/upgrade" class="upgrade-link">View upgrade options →</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-grid" id="resultsGrid">
+                <div class="result-card">
+                    <div class="result-header">
+                        <div class="result-type">Cold Email</div>
+                        <div class="result-actions">
+                            <button class="action-btn" title="Copy"><i class="fas fa-copy"></i></button>
+                            <button class="action-btn" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="action-btn" title="Preview"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </div>
+                    <div class="result-message">
+                        <strong>Subject:</strong> Partnership opportunity for TechCorp<br><br>
+                        Hi Jane,<br><br>
+                        I came across your profile and was impressed by your role as Senior Marketing Manager at TechCorp. Your leadership in marketing strategy caught my attention.<br><br>
+                        I'd love to share how we've helped similar companies enhance their marketing effectiveness...
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-header">
+                        <div class="result-type">LinkedIn Message</div>
+                        <div class="result-actions">
+                            <button class="action-btn" title="Copy"><i class="fas fa-copy"></i></button>
+                            <button class="action-btn" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="action-btn" title="Preview"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </div>
+                    <div class="result-message">
+                        Hi Jane! I noticed your marketing leadership at TechCorp and was impressed by your professional approach. I'd love to connect and potentially share some insights that might be valuable for your team...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Section -->
+            <div class="btn-group" id="exportSection" style="display: none;">
+                <button class="btn btn-success" id="exportBtn">
+                    <i class="fas fa-download"></i>
+                    Export All Messages
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <p>Generating personalized messages...</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Global Variables
+        let currentUserData = null;
+        let isAuthenticated = false;
+
+        // Application State
+        const appState = {
+            currentTab: 'upload',
+            currentPlan: 'Free',
+            currentCredits: 0,
+            selectedMessages: {
+                upload: ['cold-email'],
+                linkedin: ['cold-email']
+            },
+            advancedOptions: {
+                upload: { abTesting: false, followUp: false },
+                linkedin: { abTesting: false, followUp: false }
+            },
+            profileLoaded: {
+                upload: false,
+                linkedin: false
+            },
+            contextData: {
+                upload: '',
+                linkedin: ''
+            }
+        };
+
+        // Credit Pricing
+        const CREDIT_COSTS = {
+            upload: 1.00,
+            linkedin: 1.25,
+            abTesting: 0.25, // per additional variant
+            followUp: { 2: 1.0, 3: 1.5, 5: 3.0 }
+        };
+
+        // Plan Requirements
+        const PLAN_REQUIREMENTS = {
+            upload: 'Silver',
+            linkedin: 'Silver',
+            bulkLinkedin: 'Gold',
+            bulkProfiles: 'Gold'
+        };
+
+        // Plan Display Names
+        const PLAN_DISPLAY_NAMES = {
+            'free': 'Free Plan',
+            'silver-monthly': 'Silver Monthly',
+            'silver-payasyougo': 'Silver Pay-as-you-go',
+            'gold-monthly': 'Gold Monthly',
+            'gold-payasyougo': 'Gold Pay-as-you-go',
+            'platinum-monthly': 'Platinum Monthly',
+            'platinum-payasyougo': 'Platinum Pay-as-you-go'
+        };
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[GENERATOR] Page loaded - starting authentication...');
+            checkAuthentication();
+        });
+
+        // Authentication Functions
+        async function checkAuthentication() {
+            const token = getAuthToken();
+            
+            if (!token) {
+                console.log('[AUTH] No authentication token found - redirecting to login');
+                redirectToLogin();
+                return;
+            }
+
+            try {
+                await loadUserData(token);
+                if (isAuthenticated) {
+                    initializeApplication();
+                } else {
+                    redirectToLogin();
+                }
+            } catch (error) {
+                console.error('[AUTH] Authentication error:', error);
+                showError('Authentication failed. Please log in again.');
+                setTimeout(() => {
+                    redirectToLogin();
+                }, 3000);
+            }
+        }
+
+        function getAuthToken() {
+            // Check URL params first (from OAuth callback)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = urlParams.get('token');
+            
+            if (urlToken) {
+                localStorage.setItem('authToken', urlToken);
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return urlToken;
+            }
+            
+            // Check localStorage
+            return localStorage.getItem('authToken');
+        }
+
+        async function loadUserData(token) {
+            try {
+                const response = await fetch('https://api.msgly.ai/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load profile data');
+                }
+
+                currentUserData = data.data;
+                isAuthenticated = true;
+                updateUserInterface(data.data);
+                
+            } catch (error) {
+                console.error('[API] Error loading user data:', error);
+                isAuthenticated = false;
+                throw error;
+            }
+        }
+
+        function updateUserInterface(data) {
+            const { user } = data;
+            
+            console.log('[GENERATOR] Updating UI with user data:', {
+                userId: user.id,
+                planCode: user.planCode,
+                credits: user.credits
+            });
+
+            // Update sidebar user info
+            document.getElementById('userName').textContent = user.displayName || user.email;
+            const planDisplayName = PLAN_DISPLAY_NAMES[user.planCode] || 'Unknown Plan';
+            document.getElementById('userPlan').textContent = planDisplayName;
+            const userInitials = getInitials(user.displayName || user.email);
+            document.getElementById('userAvatar').textContent = userInitials;
+
+            // Update application state
+            appState.currentPlan = user.planCode || 'free';
+            appState.currentCredits = user.credits || 0;
+
+            // Update credit display
+            const creditElements = document.querySelectorAll('.credit-balance');
+            creditElements.forEach(el => {
+                el.textContent = `Current Balance: ${appState.currentCredits} credits`;
+            });
+
+            // Check plan restrictions
+            checkPlanRestrictions();
+        }
+
+        function checkPlanRestrictions() {
+            const userPlan = appState.currentPlan;
+            console.log('[RESTRICTIONS] Checking plan restrictions for:', userPlan);
+
+            // Check upload functionality
+            const uploadFeatureBox = document.getElementById('uploadFeatureBox');
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('profileFile');
+
+            if (!hasAccess(userPlan, 'upload')) {
+                uploadZone.classList.add('disabled');
+                fileInput.disabled = true;
+                uploadFeatureBox.style.display = 'block';
+            } else {
+                uploadZone.classList.remove('disabled');
+                fileInput.disabled = false;
+                uploadFeatureBox.style.display = 'none';
+            }
+
+            // Check LinkedIn functionality
+            const linkedinFeatureBox = document.getElementById('linkedinFeatureBox');
+            const chromeAnalyzeBtn = document.getElementById('chromeAnalyzeBtn');
+            const urlAnalyzeBtn = document.getElementById('urlAnalyzeBtn');
+
+            if (!hasAccess(userPlan, 'linkedin')) {
+                chromeAnalyzeBtn.disabled = true;
+                urlAnalyzeBtn.disabled = true;
+                linkedinFeatureBox.style.display = 'block';
+            } else {
+                chromeAnalyzeBtn.disabled = false;
+                urlAnalyzeBtn.disabled = false;
+                linkedinFeatureBox.style.display = 'none';
+            }
+        }
+
+        function hasAccess(userPlan, feature) {
+            const planHierarchy = {
+                'free': 0,
+                'silver-monthly': 1,
+                'silver-payasyougo': 1,
+                'gold-monthly': 2,
+                'gold-payasyougo': 2,
+                'platinum-monthly': 3,
+                'platinum-payasyougo': 3
+            };
+
+            const requiredLevel = {
+                'upload': 1, // Silver+
+                'linkedin': 1, // Silver+
+                'bulk': 2 // Gold+
+            };
+
+            const userLevel = planHierarchy[userPlan] || 0;
+            const required = requiredLevel[feature] || 0;
+
+            return userLevel >= required;
+        }
+
+        function initializeApplication() {
+            // Hide loading and error states
+            document.getElementById('authLoading').style.display = 'none';
+            document.getElementById('errorState').style.display = 'none';
+            
+            // Show main content
+            document.getElementById('mainContent').style.display = 'flex';
+
+            // Initialize event listeners
+            initializeEventListeners();
+            
+            // Initialize calculations
+            calculateCredits('upload');
+            calculateCredits('linkedin');
+
+            console.log('[GENERATOR] Application initialized successfully');
+        }
+
+        function showError(message) {
+            document.getElementById('authLoading').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorState').style.display = 'block';
+        }
+
+        function redirectToLogin() {
+            console.log('[AUTH] Redirecting to login...');
+            window.location.href = '/login';
+        }
+
+        function retryAuthentication() {
+            document.getElementById('errorState').style.display = 'none';
+            document.getElementById('authLoading').style.display = 'flex';
+            setTimeout(() => {
+                checkAuthentication();
+            }, 1000);
+        }
+
+        // Event Listeners
+        function initializeEventListeners() {
+            // Tab Navigation
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', handleTabSwitch);
+            });
+
+            // File Upload
+            document.getElementById('profileFile').addEventListener('change', handleFileUpload);
+
+            // LinkedIn Analysis Buttons
+            document.getElementById('chromeAnalyzeBtn').addEventListener('click', handleChromeAnalysis);
+            document.getElementById('urlAnalyzeBtn').addEventListener('click', handleUrlAnalysis);
+
+            // Message Type Selection
+            document.querySelectorAll('.message-type').forEach(type => {
+                type.addEventListener('click', handleMessageTypeSelection);
+            });
+
+            // Toggle Switches
+            document.querySelectorAll('.toggle-switch').forEach(toggle => {
+                toggle.addEventListener('click', handleToggleSwitch);
+            });
+
+            // Dropdown Changes
+            document.querySelectorAll('select').forEach(select => {
+                select.addEventListener('change', handleDropdownChange);
+            });
+
+            // Generate Buttons
+            document.querySelectorAll('[data-method]').forEach(btn => {
+                if (btn.id.includes('GenerateBtn')) {
+                    btn.addEventListener('click', handleGenerate);
+                }
+            });
+
+            // Export Button
+            if (document.getElementById('exportBtn')) {
+                document.getElementById('exportBtn').addEventListener('click', handleExport);
+            }
+
+            // Copy to Clipboard
+            document.querySelectorAll('.action-btn').forEach(btn => {
+                btn.addEventListener('click', handleActionBtn);
+            });
+
+            // Drag and Drop
+            setupDragAndDrop();
+        }
+
+        // Handle Upload Click
+        function handleUploadClick() {
+            if (!hasAccess(appState.currentPlan, 'upload')) {
+                showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
+                return;
+            }
+            document.getElementById('profileFile').click();
+        }
+
+        // Tab Switching
+        function handleTabSwitch(e) {
+            const btn = e.currentTarget;
+            const tabName = btn.dataset.tab;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName + '-content').classList.add('active');
+
+            appState.currentTab = tabName;
+        }
+
+        // File Upload Handler
+        function handleFileUpload(e) {
+            if (!hasAccess(appState.currentPlan, 'upload')) {
+                showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
+                e.target.value = ''; // Clear the file input
+                return;
+            }
+
+            if (e.target.files.length > 0) {
+                const fileName = e.target.files[0].name;
+                showAlert(`File "${fileName}" uploaded successfully!`, 'success');
+                
+                setTimeout(() => {
+                    showProfilePreview('upload');
+                    showMessageSection('upload');
+                }, 1000);
+            }
+        }
+
+        // Chrome Extension Analysis
+        function handleChromeAnalysis() {
+            if (!hasAccess(appState.currentPlan, 'linkedin')) {
+                showAlert('LinkedIn analysis requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
+                return;
+            }
+
+            const url = document.getElementById('linkedinUrl').value;
+            if (!url) {
+                showAlert('Please enter a LinkedIn URL', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('chromeAnalyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting to Extension...';
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fab fa-chrome"></i> Analyze Profile With Chrome Extension';
+                showAlert('Chrome Extension connected! Enhanced data extracted successfully.', 'success');
+                showProfilePreview('linkedin');
+                showMessageSection('linkedin');
+            }, 2000);
+        }
+
+        // URL Analysis Handler
+        function handleUrlAnalysis() {
+            if (!hasAccess(appState.currentPlan, 'linkedin')) {
+                showAlert('LinkedIn analysis requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
+                return;
+            }
+
+            const url = document.getElementById('linkedinUrl').value;
+            if (!url) {
+                showAlert('Please enter a LinkedIn URL', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('urlAnalyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-link"></i> Analyze Profile URL (Only)';
+                showAlert('LinkedIn profile analyzed! Basic public data extracted successfully.', 'success');
+                showProfilePreview('linkedin');
+                showMessageSection('linkedin');
+            }, 2000);
+        }
+
+        // Message Type Selection
+        function handleMessageTypeSelection(e) {
+            const element = e.currentTarget;
+            const type = element.dataset.type;
+            const method = element.dataset.method;
+
+            element.classList.toggle('selected');
+
+            if (element.classList.contains('selected')) {
+                if (!appState.selectedMessages[method].includes(type)) {
+                    appState.selectedMessages[method].push(type);
+                }
+            } else {
+                appState.selectedMessages[method] = appState.selectedMessages[method].filter(t => t !== type);
+            }
+
+            calculateCredits(method);
+        }
+
+        // Toggle Switch Handler
+        function handleToggleSwitch(e) {
+            const toggle = e.currentTarget;
+            const option = toggle.dataset.option;
+            const method = toggle.dataset.method;
+
+            toggle.classList.toggle('active');
+            const isActive = toggle.classList.contains('active');
+
+            // Enable/disable corresponding select
+            const selectId = method + (option === 'ab-testing' ? 'AbVariants' : 'FollowUp');
+            const select = document.getElementById(selectId);
+            if (select) {
+                select.disabled = !isActive;
+            }
+
+            // Update state
+            if (option === 'ab-testing') {
+                appState.advancedOptions[method].abTesting = isActive;
+            } else if (option === 'follow-up') {
+                appState.advancedOptions[method].followUp = isActive;
+            }
+
+            calculateCredits(method);
+        }
+
+        // Dropdown Change Handler
+        function handleDropdownChange(e) {
+            const select = e.target;
+            if (select.id.includes('AbVariants') || select.id.includes('FollowUp')) {
+                const method = select.id.includes('upload') ? 'upload' : 'linkedin';
+                calculateCredits(method);
+            }
+        }
+
+        // Generate Handler
+        function handleGenerate(e) {
+            const method = e.currentTarget.dataset.method;
+            
+            if (appState.selectedMessages[method].length === 0) {
+                showAlert('Please select at least one message type', 'error');
+                return;
+            }
+
+            // Show modal instead of loading
+            showGenerationModal();
+        }
+
+        // Context Functionality
+        function handleSaveContext(method) {
+            const contextInput = document.getElementById(method + 'ContextInput');
+            const contextValue = contextInput.value.trim();
+            
+            if (!contextValue) {
+                showAlert('Please enter some context to save', 'error');
+                return;
+            }
+            
+            // Save to localStorage
+            localStorage.setItem(`msgly_context_${method}`, contextValue);
+            appState.contextData[method] = contextValue;
+            
+            showAlert('Context saved successfully!', 'success');
+        }
+
+        function handleLoadContext(method) {
+            const savedContext = localStorage.getItem(`msgly_context_${method}`);
+            const contextInput = document.getElementById(method + 'ContextInput');
+            
+            if (!savedContext) {
+                showAlert('No saved context found', 'error');
+                return;
+            }
+            
+            contextInput.value = savedContext;
+            appState.contextData[method] = savedContext;
+            
+            showAlert('Context loaded successfully!', 'success');
+        }
+
+        // Modal Functions
+        function showGenerationModal() {
+            const modal = document.getElementById('generationModal');
+            modal.classList.add('show');
+            
+            // Auto close after 5 seconds
+            setTimeout(() => {
+                if (modal.classList.contains('show')) {
+                    closeModal();
+                }
+            }, 5000);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('generationModal');
+            modal.classList.remove('show');
+            
+            // Start the generation process
+            startGeneration();
+        }
+
+        function startGeneration() {
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                showAlert('Messages generated successfully! Check your email inbox and Messages tab', 'success');
+                showResults();
+            }, 3000);
+        }
+
+        // Export Handler
+        function handleExport() {
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                showAlert('Messages exported successfully!', 'success');
+                downloadFile();
+            }, 1000);
+        }
+
+        // Action Button Handler
+        function handleActionBtn(e) {
+            const btn = e.currentTarget;
+            const action = btn.title;
+            
+            if (action === 'Copy') {
+                const messageEl = btn.closest('.result-card').querySelector('.result-message');
+                navigator.clipboard.writeText(messageEl.textContent).then(() => {
+                    showAlert('Message copied to clipboard!', 'success');
+                });
+            }
+        }
+
+        // Credit Calculation
+        function calculateCredits(method) {
+            const messageCount = appState.selectedMessages[method].length;
+            const baseCost = CREDIT_COSTS[method];
+            let totalCost = baseCost * messageCount;
+
+            // A/B Testing cost
+            let abCost = 0;
+            if (appState.advancedOptions[method].abTesting) {
+                const variantsSelect = document.getElementById(method + 'AbVariants');
+                const variants = parseInt(variantsSelect.value);
+                abCost = (variants - 1) * CREDIT_COSTS.abTesting * messageCount;
+                totalCost += abCost;
+            }
+
+            // Follow-up sequence cost
+            let followUpCost = 0;
+            if (appState.advancedOptions[method].followUp) {
+                const followUpSelect = document.getElementById(method + 'FollowUp');
+                const sequenceLength = parseInt(followUpSelect.value);
+                followUpCost = CREDIT_COSTS.followUp[sequenceLength] * messageCount;
+                totalCost += followUpCost;
+            }
+
+            // Update breakdown display
+            updateCreditBreakdown(method, messageCount, abCost, followUpCost, totalCost);
+
+            // Update generate button
+            updateGenerateButton(method, totalCost);
+        }
+
+        // Update Credit Breakdown Display
+        function updateCreditBreakdown(method, messageCount, abCost, followUpCost, totalCost) {
+            document.getElementById(method + 'MessageCount').textContent = 
+                `${messageCount} message type${messageCount !== 1 ? 's' : ''}`;
+            
+            document.getElementById(method + 'AbCost').textContent = 
+                appState.advancedOptions[method].abTesting ? 
+                `+${abCost.toFixed(2)} credits` : '+0.00 credits (disabled)';
+            
+            document.getElementById(method + 'FollowCost').textContent = 
+                appState.advancedOptions[method].followUp ? 
+                `+${followUpCost.toFixed(2)} credits` : '+0.00 credits (disabled)';
+            
+            document.getElementById(method + 'TotalCost').textContent = `${totalCost.toFixed(2)} credits`;
+        }
+
+        // Update Generate Button
+        function updateGenerateButton(method, totalCost) {
+            const btn = document.getElementById(method + 'GenerateBtn');
+            btn.innerHTML = `<i class="fas fa-magic"></i> Generate Messages (${totalCost.toFixed(2)} credits)`;
+            btn.disabled = totalCost > appState.currentCredits;
+        }
+
+        // Show Profile Preview
+        function showProfilePreview(method) {
+            const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
+            const preview = document.getElementById(previewId);
+            preview.classList.add('show');
+            appState.profileLoaded[method] = true;
+        }
+
+        // Show Message Section
+        function showMessageSection(method) {
+            const sectionId = method + 'MessageSection';
+            const section = document.getElementById(sectionId);
+            section.classList.add('show');
+            section.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Show/Hide Functions
+        function showLoading() {
+            document.getElementById('loadingState').classList.add('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingState').classList.remove('show');
+        }
+
+        function showAlert(message, type) {
+            const alertId = type + 'Alert';
+            const textId = type + 'Text';
+            
+            document.getElementById(textId).textContent = message;
+            document.getElementById(alertId).classList.add('show');
+            
+            setTimeout(() => {
+                document.getElementById(alertId).classList.remove('show');
+            }, 5000);
+        }
+
+        function showResults() {
+            document.getElementById('resultsGrid').classList.add('show');
+            document.getElementById('exportSection').style.display = 'flex';
+            document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Download File (Excel or Text)
+        function downloadFile() {
+            const content = `Cold Email:\nSubject: Partnership opportunity for TechCorp\n\nHi Jane,\n\nI came across your profile and was impressed by your role as Senior Marketing Manager at TechCorp...\n\nLinkedIn Message:\nHi Jane! I noticed your marketing leadership at TechCorp...`;
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'generated-messages.txt';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Drag and Drop Setup
+        function setupDragAndDrop() {
+            const uploadZone = document.getElementById('uploadZone');
+            
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (!uploadZone.classList.contains('disabled')) {
+                    uploadZone.classList.add('drag-over');
+                }
+            });
+
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('drag-over');
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('drag-over');
+                
+                if (uploadZone.classList.contains('disabled')) {
+                    showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
+                    return;
+                }
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById('profileFile').files = files;
+                    handleFileUpload({ target: { files: files } });
+                }
+            });
+        }
+
+        // Utility Functions
+        function getInitials(name) {
+            if (!name) return '??';
+            
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                return name.substring(0, 2).toUpperCase();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>
