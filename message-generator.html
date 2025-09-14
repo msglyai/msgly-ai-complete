@@ -340,7 +340,7 @@
             font-size: 0.9rem;
         }
 
-        .tab-btn:hover {
+        .tab-btn:hover:not(.disabled) {
             color: var(--primary);
             background: rgba(128, 57, 223, 0.05);
         }
@@ -351,6 +351,20 @@
             background: rgba(128, 57, 223, 0.08);
         }
 
+        /* Disabled tab styles */
+        .tab-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            color: var(--gray-400);
+            pointer-events: none;
+        }
+
+        .tab-badges {
+            display: flex;
+            gap: 0.25rem;
+            margin-left: 0.5rem;
+        }
+
         .tab-badge {
             background: var(--warning);
             color: white;
@@ -358,11 +372,15 @@
             padding: 0.2rem 0.5rem;
             border-radius: 6px;
             font-weight: 600;
-            margin-left: 0.5rem;
         }
 
         .tab-badge.silver {
             background: #C0C0C0;
+        }
+
+        .tab-badge.coming-soon {
+            background: var(--gray-500);
+            color: white;
         }
 
         /* === CONTENT AREA - FIXED === */
@@ -1689,22 +1707,33 @@
                     <button class="tab-btn active" data-tab="upload">
                         <i class="fas fa-file-upload"></i>
                         Upload Profile File
-                        <span class="tab-badge silver">Silver+</span>
+                        <div class="tab-badges">
+                            <span class="tab-badge silver">Silver+</span>
+                        </div>
                     </button>
-                    <button class="tab-btn" data-tab="linkedin">
+                    <button class="tab-btn disabled" data-tab="linkedin">
                         <i class="fab fa-linkedin"></i>
                         LinkedIn Profile URL
-                        <span class="tab-badge silver">Silver+</span>
+                        <div class="tab-badges">
+                            <span class="tab-badge silver">Silver+</span>
+                            <span class="tab-badge coming-soon">Coming Soon</span>
+                        </div>
                     </button>
-                    <button class="tab-btn" data-tab="bulk-linkedin">
+                    <button class="tab-btn disabled" data-tab="bulk-linkedin">
                         <i class="fab fa-linkedin"></i>
                         Bulk LinkedIn URLs
-                        <span class="tab-badge">Gold+</span>
+                        <div class="tab-badges">
+                            <span class="tab-badge">Gold+</span>
+                            <span class="tab-badge coming-soon">Coming Soon</span>
+                        </div>
                     </button>
-                    <button class="tab-btn" data-tab="bulk-profiles">
+                    <button class="tab-btn disabled" data-tab="bulk-profiles">
                         <i class="fas fa-users"></i>
                         Bulk Profile List
-                        <span class="tab-badge">Gold+</span>
+                        <div class="tab-badges">
+                            <span class="tab-badge">Gold+</span>
+                            <span class="tab-badge coming-soon">Coming Soon</span>
+                        </div>
                     </button>
                 </div>
             </nav>
@@ -1946,9 +1975,8 @@
                                 <i class="fas fa-crown"></i>
                             </div>
                             <div class="plan-feature-content">
-                                <h4>Silver Plan Feature</h4>
-                                <p>LinkedIn profile analysis requires a Silver Plan or above subscription.</p>
-                                <a href="/upgrade" class="upgrade-link">Upgrade to Silver Plan →</a>
+                                <h4>Coming Soon</h4>
+                                <p>LinkedIn profile analysis feature is currently under development and will be available soon.</p>
                             </div>
                         </div>
                         <ul class="feature-list">
@@ -1959,7 +1987,6 @@
                         </ul>
                     </div>
 
-                    <!-- Input Section -->
                     <div class="card">
                         <div class="card-header">
                             <h2 class="card-title">
@@ -1967,210 +1994,14 @@
                                 LinkedIn Profile URL
                             </h2>
                             <p class="card-description">
-                                Enter a LinkedIn profile URL to analyze and extract profile information for personalized message generation.
+                                This feature will allow you to analyze LinkedIn profiles and generate personalized messages.
                             </p>
                         </div>
 
-                        <div class="url-section">
-                            <div class="url-input-group">
-                                <input type="url" class="url-input" id="linkedinUrl" placeholder="https://linkedin.com/in/profile-url">
-                            </div>
-                            <div class="url-example">
-                                Example: https://linkedin.com/in/jane-smith-marketing-manager
-                            </div>
-                            
-                            <!-- Analysis Method Buttons -->
-                            <div class="analysis-buttons">
-                                <div class="analysis-btn-container">
-                                    <button class="analysis-btn chrome" id="chromeAnalyzeBtn">
-                                        <i class="fab fa-chrome"></i>
-                                        Analyze Profile With Chrome Extension
-                                    </button>
-                                    <div class="analysis-description">
-                                        Enhanced data extraction with comprehensive profile analysis
-                                    </div>
-                                    <span class="recommended-badge">Recommended</span>
-                                </div>
-                                
-                                <div class="analysis-btn-container">
-                                    <button class="analysis-btn url" id="urlAnalyzeBtn">
-                                        <i class="fas fa-link"></i>
-                                        Analyze Profile URL (Only)
-                                    </button>
-                                    <div class="analysis-description">
-                                        Basic public data extraction - publicly available information only
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Profile Preview -->
-                        <div class="profile-preview" id="linkedinProfilePreview">
-                            <div class="profile-header">
-                                <div class="profile-avatar">JS</div>
-                                <div class="profile-info">
-                                    <h3>Jane Smith</h3>
-                                    <p>Senior Marketing Manager at TechCorp</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Message Generation Section -->
-                    <div class="card message-section" id="linkedinMessageSection">
-                        <div class="card-header">
-                            <h2 class="card-title">
-                                <i class="fas fa-magic"></i>
-                                Generate Messages
-                            </h2>
-                            <p class="card-description">Choose message types and configure generation options</p>
-                        </div>
-
-                        <!-- Message Delivery Info -->
-                        <div class="message-delivery-info">
-                            <div class="delivery-info-header">
-                                <i class="fas fa-info-circle delivery-info-icon"></i>
-                                <span class="delivery-info-title">Message Delivery Information</span>
-                            </div>
-                            <ul class="delivery-info-list">
-                                <li><i class="fas fa-envelope"></i> Generated messages will be sent to your inbox via email</li>
-                                <li><i class="fas fa-folder"></i> Available in the Messages tab for future reference</li>
-                                <li><i class="fas fa-tag"></i> Source: Generated by LinkedIn Analysis</li>
-                            </ul>
-                        </div>
-
-                        <!-- Message Types -->
-                        <div class="message-types">
-                            <div class="message-type selected" data-type="cold-email" data-method="linkedin">
-                                <i class="fas fa-envelope"></i>
-                                <h4>Cold Email</h4>
-                                <p>Professional email outreach for business opportunities</p>
-                            </div>
-                            <div class="message-type" data-type="linkedin-message" data-method="linkedin">
-                                <i class="fab fa-linkedin"></i>
-                                <h4>LinkedIn Message</h4>
-                                <p>Direct message for existing LinkedIn connections</p>
-                            </div>
-                            <div class="message-type" data-type="connection-request" data-method="linkedin">
-                                <i class="fas fa-user-plus"></i>
-                                <h4>Connection Request</h4>
-                                <p>LinkedIn connection request with personalized note</p>
-                            </div>
-                        </div>
-
-                        <!-- Context Section -->
-                        <div class="context-section">
-                            <h4><i class="fas fa-pencil-alt"></i> Additional Context</h4>
-                            <p>Provide specific context or instructions to personalize your messages further.</p>
-                            <textarea class="context-input" id="linkedinContextInput" placeholder="e.g., Mention our upcoming product launch, reference the conference we met at, focus on cost savings benefits..."></textarea>
-                            <div class="context-buttons">
-                                <button class="btn-secondary" onclick="handleSaveContext('linkedin')">
-                                    <i class="fas fa-save"></i> Save Context
-                                </button>
-                                <button class="btn-secondary" onclick="handleLoadContext('linkedin')">
-                                    <i class="fas fa-download"></i> Load Context
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Advanced Options -->
-                        <div class="advanced-section">
-                            <h3 style="margin-bottom: 1.5rem; color: var(--gray-900);">Advanced Options</h3>
-                            
-                            <div class="options-grid">
-                                <!-- A/B Testing -->
-                                <div class="option-card">
-                                    <div class="option-header">
-                                        <div class="option-title">
-                                            <i class="fas fa-flask"></i>
-                                            A/B Testing
-                                        </div>
-                                        <span class="plan-badge">Silver+</span>
-                                    </div>
-                                    <div class="toggle-row">
-                                        <div class="toggle-switch" data-option="ab-testing" data-method="linkedin"></div>
-                                        <span>Generate multiple variants</span>
-                                    </div>
-                                    <select class="select-input" id="linkedinAbVariants" disabled>
-                                        <option value="2">2 Variants (Silver+)</option>
-                                        <option value="3">3 Variants (Gold+)</option>
-                                        <option value="4">4 Variants (Platinum Only)</option>
-                                    </select>
-                                </div>
-
-                                <!-- Follow-up Sequence -->
-                                <div class="option-card">
-                                    <div class="option-header">
-                                        <div class="option-title">
-                                            <i class="fas fa-arrows-alt-h"></i>
-                                            Follow-up Sequence
-                                        </div>
-                                        <span class="plan-badge">Silver+</span>
-                                    </div>
-                                    <div class="toggle-row">
-                                        <div class="toggle-switch" data-option="follow-up" data-method="linkedin"></div>
-                                        <span>Generate follow-up messages</span>
-                                    </div>
-                                    <select class="select-input" id="linkedinFollowUp" disabled>
-                                        <option value="2">2-Message Sequence</option>
-                                        <option value="3">3-Message Sequence</option>
-                                        <option value="5">5-Message Sequence</option>
-                                    </select>
-                                </div>
-
-                                <!-- Export Format -->
-                                <div class="option-card">
-                                    <div class="option-header">
-                                        <div class="option-title">
-                                            <i class="fas fa-file-export"></i>
-                                            Export Format
-                                        </div>
-                                    </div>
-                                    <select class="select-input">
-                                        <option value="excel">Excel Format</option>
-                                        <option value="txt">Text Format</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Credit Calculator -->
-                        <div class="credit-calculator">
-                            <div class="calculator-header">
-                                <i class="fas fa-calculator"></i>
-                                <h3 class="calculator-title">Credit Calculation</h3>
-                            </div>
-                            <div class="breakdown" id="linkedinBreakdown">
-                                <div class="breakdown-item">
-                                    <span>Base Cost (LinkedIn Analysis)</span>
-                                    <span>1.25 credits per message</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span>Selected Messages</span>
-                                    <span id="linkedinMessageCount">1 message type</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span>A/B Testing</span>
-                                    <span id="linkedinAbCost">+0.00 credits (disabled)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span>Follow-up Sequence</span>
-                                    <span id="linkedinFollowCost">+0.00 credits (disabled)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span>Total Cost</span>
-                                    <span id="linkedinTotalCost">1.25 credits</span>
-                                </div>
-                            </div>
-                            <div class="credit-balance">Current Balance: Loading...</div>
-                        </div>
-
-                        <!-- Generate Button -->
-                        <div class="btn-group">
-                            <button class="btn btn-primary" id="linkedinGenerateBtn" data-method="linkedin">
-                                <i class="fas fa-magic"></i>
-                                Generate Messages (1.25 credits)
-                            </button>
+                        <div class="locked-content">
+                            <i class="fas fa-clock"></i>
+                            <h4>Feature Coming Soon</h4>
+                            <p>We're working hard to bring you LinkedIn profile analysis capabilities.</p>
                         </div>
                     </div>
                 </div>
@@ -2184,9 +2015,8 @@
                                 <i class="fas fa-crown"></i>
                             </div>
                             <div class="plan-feature-content">
-                                <h4>Gold Plan Feature</h4>
-                                <p>Bulk LinkedIn URL analysis requires a Gold Plan or above subscription.</p>
-                                <a href="/upgrade" class="upgrade-link">Upgrade to Gold Plan →</a>
+                                <h4>Coming Soon</h4>
+                                <p>Bulk LinkedIn URL analysis feature is currently under development and will be available soon.</p>
                             </div>
                         </div>
                         <ul class="feature-list gold">
@@ -2204,17 +2034,14 @@
                                 Bulk LinkedIn URLs
                             </h2>
                             <p class="card-description">
-                                Upload a list of LinkedIn URLs and we'll provide all the profile data for bulk message generation.
+                                This feature will allow you to process multiple LinkedIn URLs for bulk message generation.
                             </p>
                         </div>
 
                         <div class="locked-content">
-                            <i class="fas fa-lock"></i>
-                            <h4>Upgrade to Gold Plan</h4>
-                            <p>This feature will be available after upgrading to Gold Plan or above.</p>
-                            <div>
-                                <a href="/upgrade" class="upgrade-link">View upgrade options →</a>
-                            </div>
+                            <i class="fas fa-clock"></i>
+                            <h4>Feature Coming Soon</h4>
+                            <p>We're working hard to bring you bulk LinkedIn processing capabilities.</p>
                         </div>
                     </div>
                 </div>
@@ -2228,9 +2055,8 @@
                                 <i class="fas fa-crown"></i>
                             </div>
                             <div class="plan-feature-content">
-                                <h4>Gold Plan Feature</h4>
-                                <p>Bulk profile list processing requires a Gold Plan or above subscription.</p>
-                                <a href="/upgrade" class="upgrade-link">Upgrade to Gold Plan →</a>
+                                <h4>Coming Soon</h4>
+                                <p>Bulk profile list processing feature is currently under development and will be available soon.</p>
                             </div>
                         </div>
                         <ul class="feature-list gold">
@@ -2248,17 +2074,14 @@
                                 Bulk Profile List
                             </h2>
                             <p class="card-description">
-                                Upload a CSV or Excel file with multiple profiles you provide for bulk message generation. Perfect for large outreach campaigns with your own data.
+                                This feature will allow you to upload CSV or Excel files with multiple profiles for bulk message generation.
                             </p>
                         </div>
 
                         <div class="locked-content">
-                            <i class="fas fa-lock"></i>
-                            <h4>Upgrade to Gold Plan</h4>
-                            <p>This feature will be available after upgrading to Gold Plan or above.</p>
-                            <div>
-                                <a href="/upgrade" class="upgrade-link">View upgrade options →</a>
-                            </div>
+                            <i class="fas fa-clock"></i>
+                            <h4>Feature Coming Soon</h4>
+                            <p>We're working hard to bring you bulk profile processing capabilities.</p>
                         </div>
                     </div>
                 </div>
@@ -2503,14 +2326,16 @@
             const chromeAnalyzeBtn = document.getElementById('chromeAnalyzeBtn');
             const urlAnalyzeBtn = document.getElementById('urlAnalyzeBtn');
 
-            if (!hasAccess(userPlan, 'linkedin')) {
-                chromeAnalyzeBtn.disabled = true;
-                urlAnalyzeBtn.disabled = true;
-                linkedinFeatureBox.style.display = 'block';
-            } else {
-                chromeAnalyzeBtn.disabled = false;
-                urlAnalyzeBtn.disabled = false;
-                linkedinFeatureBox.style.display = 'none';
+            if (chromeAnalyzeBtn && urlAnalyzeBtn) {
+                if (!hasAccess(userPlan, 'linkedin')) {
+                    chromeAnalyzeBtn.disabled = true;
+                    urlAnalyzeBtn.disabled = true;
+                    linkedinFeatureBox.style.display = 'block';
+                } else {
+                    chromeAnalyzeBtn.disabled = false;
+                    urlAnalyzeBtn.disabled = false;
+                    linkedinFeatureBox.style.display = 'none';
+                }
             }
         }
 
@@ -2550,7 +2375,6 @@
             
             // Initialize calculations
             calculateCredits('upload');
-            calculateCredits('linkedin');
 
             console.log('[GENERATOR] Application initialized successfully');
         }
@@ -2577,17 +2401,13 @@
 
         // Event Listeners
         function initializeEventListeners() {
-            // Tab Navigation
-            document.querySelectorAll('.tab-btn').forEach(btn => {
+            // Tab Navigation - Only allow upload tab
+            document.querySelectorAll('.tab-btn:not(.disabled)').forEach(btn => {
                 btn.addEventListener('click', handleTabSwitch);
             });
 
             // File Upload
             document.getElementById('profileFile').addEventListener('change', handleFileUpload);
-
-            // LinkedIn Analysis Buttons
-            document.getElementById('chromeAnalyzeBtn').addEventListener('click', handleChromeAnalysis);
-            document.getElementById('urlAnalyzeBtn').addEventListener('click', handleUrlAnalysis);
 
             // Message Type Selection
             document.querySelectorAll('.message-type').forEach(type => {
@@ -2634,9 +2454,16 @@
             document.getElementById('profileFile').click();
         }
 
-        // Tab Switching
+        // Tab Switching - Modified to prevent disabled tabs
         function handleTabSwitch(e) {
             const btn = e.currentTarget;
+            
+            // Prevent switching to disabled tabs
+            if (btn.classList.contains('disabled')) {
+                showAlert('This feature is coming soon!', 'error');
+                return;
+            }
+            
             const tabName = btn.dataset.tab;
             
             // Update tab buttons
@@ -2667,58 +2494,6 @@
                     showMessageSection('upload');
                 }, 1000);
             }
-        }
-
-        // Chrome Extension Analysis
-        function handleChromeAnalysis() {
-            if (!hasAccess(appState.currentPlan, 'linkedin')) {
-                showAlert('LinkedIn analysis requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
-                return;
-            }
-
-            const url = document.getElementById('linkedinUrl').value;
-            if (!url) {
-                showAlert('Please enter a LinkedIn URL', 'error');
-                return;
-            }
-
-            const btn = document.getElementById('chromeAnalyzeBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting to Extension...';
-
-            setTimeout(() => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fab fa-chrome"></i> Analyze Profile With Chrome Extension';
-                showAlert('Chrome Extension connected! Enhanced data extracted successfully.', 'success');
-                showProfilePreview('linkedin');
-                showMessageSection('linkedin');
-            }, 2000);
-        }
-
-        // URL Analysis Handler
-        function handleUrlAnalysis() {
-            if (!hasAccess(appState.currentPlan, 'linkedin')) {
-                showAlert('LinkedIn analysis requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
-                return;
-            }
-
-            const url = document.getElementById('linkedinUrl').value;
-            if (!url) {
-                showAlert('Please enter a LinkedIn URL', 'error');
-                return;
-            }
-
-            const btn = document.getElementById('urlAnalyzeBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
-
-            setTimeout(() => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-link"></i> Analyze Profile URL (Only)';
-                showAlert('LinkedIn profile analyzed! Basic public data extracted successfully.', 'success');
-                showProfilePreview('linkedin');
-                showMessageSection('linkedin');
-            }, 2000);
         }
 
         // Message Type Selection
