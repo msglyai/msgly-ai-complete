@@ -37,6 +37,16 @@ router.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'Dashboard.html'));
 });
 
+// 🔧 FIX: Added missing message-generator route
+router.get('/message-generator.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'message-generator.html'));
+});
+
+// Also support without .html extension
+router.get('/message-generator', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'message-generator.html'));
+});
+
 // ✅ SPECIAL FILES - SEO and PWA support
 router.get('/robots.txt', (req, res) => {
     res.type('text/plain');
@@ -72,6 +82,12 @@ router.get('/sitemap.xml', (req, res) => {
     </url>
     <url>
         <loc>https://msgly.ai/dashboard</loc>
+        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+    <url>
+        <loc>https://msgly.ai/message-generator</loc>
         <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.9</priority>
