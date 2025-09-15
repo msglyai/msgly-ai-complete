@@ -100,12 +100,6 @@ async function handleFileUpload(req, res) {
             processingTime: 0
         });
 
-        // FIXED: Add success check for credit completion
-        if (!completionResult.success) {
-            console.error('[FILE_UPLOAD] Credit completion failed:', completionResult.error);
-            throw new Error(`Credit deduction failed: ${completionResult.error}`);
-        }
-
         console.log(`[FILE_UPLOAD] Analysis completed successfully for ${file.originalname}`);
 
         // 8. Return success response
