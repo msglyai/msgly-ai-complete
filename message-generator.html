@@ -2970,45 +2970,75 @@
             window.location.href = '/login';
         }
 
-        // === DEBUG SCRIPT - TEMPORARILY ADDED FOR TROUBLESHOOTING ===
-        console.log('=== FILE UPLOAD DEBUG TEST ===');
+        // Add consent checkbox handler
+        document.getElementById('consentCheckbox').addEventListener('change', handleConsentChange);
 
-        // Test 1: Check if file input exists
-        const fileInput = document.getElementById('profileFile');
-        console.log('✓ File input found:', fileInput ? 'YES' : 'NO');
-
-        // Test 2: Check if handleFileUpload function exists  
-        console.log('✓ handleFileUpload function:', typeof handleFileUpload === 'function' ? 'EXISTS' : 'MISSING');
-
-        // Test 3: Add debug listener to file input
-        if (fileInput) {
-            fileInput.addEventListener('change', function(e) {
-                console.log('🔥 FILE SELECTED!');
-                console.log('File details:', {
-                    name: e.target.files[0]?.name,
-                    size: e.target.files[0]?.size,
-                    type: e.target.files[0]?.type
-                });
+        // Consent change handler
+        async function handleConsentChange(e) {
+            if (e.target.checked && uploadedFileData) {
+                console.log('🚀 Consent given - starting file upload...');
                 
-                // Test if our handler gets called
-                if (typeof handleFileUpload === 'function') {
-                    console.log('🚀 Calling handleFileUpload...');
-                    // Note: handleFileUpload will be called by the event listener above
-                } else {
-                    console.error('❌ handleFileUpload function not found!');
+                // Upload and analyze file immediately
+                showLoading();
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('profileFile', uploadedFileData);
+                    formData.append('userConsented', 'true');
+
+                    const token = getAuthToken();
+                    const response = await fetch('/api/analyze-profile-file', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.error || 'File analysis failed');
+                    }
+
+                    hideLoading();
+
+                    if (result.isDuplicate) {
+                        showAlert(`${result.message} - No additional credits charged.`, 'success');
+                    } else {
+                        showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
+                        
+                        // Update credit balance
+                        appState.currentCredits = result.newBalance;
+                        const creditElements = document.querySelectorAll('.credit-balance');
+                        creditElements.forEach(el => {
+                            el.textContent = `Current Balance: ${appState.currentCredits} credits`;
+                        });
+                    }
+
+                    // Show profile preview with analyzed data
+                    showProfilePreview('upload', result.data);
+                    
+                    // Clear uploaded file data and hide consent
+                    uploadedFileData = null;
+                    document.getElementById('consentSection').style.display = 'none';
+                    document.getElementById('profileFile').value = '';
+                    
+                    // Update button back to generation mode
+                    const generateBtn = document.getElementById('uploadGenerateBtn');
+                    generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Messages (1.00 credits)';
+                    calculateCredits('upload');
+
+                } catch (error) {
+                    hideLoading();
+                    console.error('File upload error:', error);
+                    showAlert(`File analysis failed: ${error.message}`, 'error');
+                    
+                    // Reset consent checkbox on error
+                    e.target.checked = false;
                 }
-            });
+            }
         }
-
-        // Test 4: Check if consent checkbox exists
-        const consentCheckbox = document.getElementById('consentCheckbox');
-        console.log('✓ Consent checkbox found:', consentCheckbox ? 'YES' : 'NO');
-
-        // Test 5: Check if upload zone exists
-        const uploadZone = document.getElementById('uploadZone');
-        console.log('✓ Upload zone found:', uploadZone ? 'YES' : 'NO');
-
-        console.log('=== DEBUG SETUP COMPLETE ===');
     </script>
 </body>
 </html>
