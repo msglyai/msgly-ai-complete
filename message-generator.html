@@ -2451,6 +2451,11 @@
             });
 
             setupDragAndDrop();
+
+            // FIXED: Add context input listener for real-time validation
+            document.getElementById('uploadContextInput').addEventListener('input', function() {
+                calculateCredits('upload');
+            });
         }
 
         function handleTabSwitch(e) {
@@ -2510,7 +2515,7 @@
             analyzeBtn.disabled = !e.target.checked;
         }
 
-        // File Analysis Handler - UPDATED TO USE REAL API
+        // FIXED: File Analysis Handler - Updated to use real API with correct data extraction
         async function handleFileAnalysis() {
             if (!uploadedFileData) {
                 showAlert('No file selected for analysis.', 'error');
@@ -2554,7 +2559,7 @@
                     });
                 }
 
-                // Show profile preview with REAL data from API
+                // FIXED: Show profile preview with REAL data from API
                 showProfilePreview('upload', result.data);
                 
                 // Hide analysis section
@@ -2633,6 +2638,13 @@
 
             if (!appState.profileLoaded[method]) {
                 showAlert('Please analyze a profile first before generating messages.', 'error');
+                return;
+            }
+
+            // FIXED: Check context field validation
+            const contextInput = document.getElementById(method + 'ContextInput');
+            if (!contextInput.value.trim()) {
+                showAlert('Please fill in the context field before generating messages.', 'error');
                 return;
             }
 
@@ -2761,15 +2773,19 @@
             document.getElementById(method + 'TotalCost').textContent = `${totalCost.toFixed(2)} credits`;
         }
 
+        // FIXED: Updated generate button validation to include context field
         function updateGenerateButton(method, totalCost) {
             const btn = document.getElementById(method + 'GenerateBtn');
+            const contextInput = document.getElementById(method + 'ContextInput');
+            const contextFilled = contextInput && contextInput.value.trim().length > 0;
             
             btn.innerHTML = `<i class="fas fa-magic"></i> Generate Messages (${totalCost.toFixed(2)} credits)`;
             
-            btn.disabled = totalCost > appState.currentCredits || !appState.profileLoaded[method];
+            // FIXED: Include context validation in button disable logic
+            btn.disabled = totalCost > appState.currentCredits || !appState.profileLoaded[method] || !contextFilled;
         }
 
-        // Show Profile Preview - FIXED TO USE REAL DATA
+        // FIXED: Show Profile Preview - Updated to extract real data from correct JSON structure
         function showProfilePreview(method, profileData = null) {
             const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
             const preview = document.getElementById(previewId);
@@ -2779,21 +2795,46 @@
                 const name = preview.querySelector('#profileName');
                 const title = preview.querySelector('#profileTitle');
                 
-                if (profileData.fullName) {
-                    avatar.textContent = getInitials(profileData.fullName);
-                    name.textContent = profileData.fullName;
-                } else {
-                    avatar.textContent = '??';
-                    name.textContent = 'Profile Name';
+                console.log('🔍 Raw profile data:', profileData);
+                
+                // FIXED: Extract data based on actual database JSON structure
+                let extractedName = 'Profile Name';
+                let extractedTitle = 'Professional Title';
+                
+                // Handle the actual database structure: data.profile.name, data.profile.headline, etc.
+                if (profileData && profileData.profile) {
+                    const profile = profileData.profile;
+                    
+                    // Extract name
+                    if (profile.name) {
+                        extractedName = profile.name;
+                    } else if (profile.firstName && profile.lastName) {
+                        extractedName = `${profile.firstName} ${profile.lastName}`;
+                    } else if (profile.firstName) {
+                        extractedName = profile.firstName;
+                    }
+                    
+                    // Extract title/headline
+                    if (profile.headline) {
+                        extractedTitle = profile.headline;
+                    } else if (profile.currentRole && profile.currentCompany) {
+                        extractedTitle = `${profile.currentRole} at ${profile.currentCompany}`;
+                    } else if (profile.currentRole) {
+                        extractedTitle = profile.currentRole;
+                    } else if (profile.currentCompany) {
+                        extractedTitle = `Professional at ${profile.currentCompany}`;
+                    }
                 }
                 
-                if (profileData.headline) {
-                    title.textContent = profileData.headline;
-                } else if (profileData.currentJobTitle && profileData.currentCompany) {
-                    title.textContent = `${profileData.currentJobTitle} at ${profileData.currentCompany}`;
-                } else {
-                    title.textContent = 'Professional Title';
-                }
+                // Update UI with extracted data
+                avatar.textContent = getInitials(extractedName);
+                name.textContent = extractedName;
+                title.textContent = extractedTitle;
+                
+                console.log('✅ Profile preview updated:', {
+                    name: extractedName,
+                    title: extractedTitle
+                });
             }
             
             preview.classList.add('show');
