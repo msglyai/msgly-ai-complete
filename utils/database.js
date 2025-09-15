@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -11,6 +11,7 @@
 // ✅ MESSAGES FIX: Added campaign tracking fields to message_logs table
 // ✅ PROMPT VERSION FIX: Increased prompt_version column size from VARCHAR(50) to VARCHAR(255)
 // ✅ CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
+// ✅ CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -102,6 +103,44 @@ const ensureTargetProfilesTable = async () => {
     }
 };
 
+// ✅ NEW: Ensure saved_contexts table exists
+const ensureSavedContextsTable = async () => {
+    try {
+        console.log('[INIT] Creating saved_contexts table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS saved_contexts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                context_name VARCHAR(100) NOT NULL,
+                context_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                UNIQUE(user_id, context_name)
+            );
+        `);
+        
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_saved_contexts_user_id 
+                ON saved_contexts(user_id);
+                CREATE INDEX IF NOT EXISTS idx_saved_contexts_created_at 
+                ON saved_contexts(created_at);
+            `);
+            console.log('[SUCCESS] Created saved_contexts indexes');
+        } catch (err) {
+            console.log('[INFO] Saved contexts indexes might already exist:', err.message);
+        }
+        
+        console.log('[SUCCESS] saved_contexts table ensured');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure saved_contexts table:', error);
+        throw error;
+    }
+};
+
 // ✅ NEW: Ensure pending_registrations table exists
 const ensurePendingRegistrationsTable = async () => {
     try {
@@ -159,7 +198,7 @@ const fixPromptVersionColumn = async () => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -430,6 +469,9 @@ const initDB = async () => {
         // NEW: TARGET_PROFILES TABLE with proper UNIQUE constraint
         await ensureTargetProfilesTable();
         
+        // ✅ NEW: SAVED_CONTEXTS TABLE for context management
+        await ensureSavedContextsTable();
+        
         // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
         await ensurePendingRegistrationsTable();
 
@@ -599,7 +641,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -635,6 +677,10 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
                 
+                -- ✅ NEW: Saved contexts indexes for fast user context lookups
+                CREATE INDEX IF NOT EXISTS idx_saved_contexts_user_id ON saved_contexts(user_id);
+                CREATE INDEX IF NOT EXISTS idx_saved_contexts_created_at ON saved_contexts(created_at);
+                
                 -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE + CAMPAIGN TRACKING
                 CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_model_name ON message_logs(model_name);
@@ -644,7 +690,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -660,7 +706,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1472,7 +1518,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS
 module.exports = {
     // Database connection
     pool,
@@ -1484,6 +1530,7 @@ module.exports = {
     // NEW: Cleanup functions
     cleanupDuplicateTargetProfiles,
     ensureTargetProfilesTable,
+    ensureSavedContextsTable,
     ensurePendingRegistrationsTable,
     fixPromptVersionColumn,
     
