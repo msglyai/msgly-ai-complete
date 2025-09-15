@@ -902,6 +902,283 @@
             background: var(--gray-900);
         }
 
+        /* === CONTEXT MANAGEMENT MODAL === */
+        .context-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+            padding: 1rem;
+        }
+
+        .context-modal-overlay.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .context-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            animation: slideUp 0.3s ease;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .context-modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-500);
+            padding: 0.5rem;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .context-modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-900);
+        }
+
+        .context-modal-header {
+            margin-bottom: 2rem;
+            padding-right: 3rem;
+        }
+
+        .context-modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .context-modal-subtitle {
+            color: var(--gray-500);
+            font-size: 0.9rem;
+        }
+
+        .context-usage {
+            background: var(--primary-light);
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .context-usage-text {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .context-usage-upgrade {
+            font-size: 0.85rem;
+            color: var(--gray-600);
+        }
+
+        .context-usage-upgrade a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .context-usage-upgrade a:hover {
+            text-decoration: underline;
+        }
+
+        .context-form {
+            margin-bottom: 2rem;
+        }
+
+        .context-form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .context-form-label {
+            display: block;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .context-form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #E5E7EB;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .context-form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .context-form-textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .context-form-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .context-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .context-btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .context-btn-primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .context-btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .context-btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        .context-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .contexts-list {
+            margin-bottom: 2rem;
+        }
+
+        .contexts-list-title {
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 1rem;
+        }
+
+        .context-item {
+            background: var(--gray-50);
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .context-item:hover {
+            border-color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .context-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+            gap: 1rem;
+        }
+
+        .context-item-name {
+            font-weight: 600;
+            color: var(--gray-900);
+            flex: 1;
+        }
+
+        .context-item-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .context-action-btn {
+            background: none;
+            border: none;
+            padding: 0.25rem;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--gray-500);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .context-action-btn:hover {
+            background: white;
+            color: var(--gray-900);
+        }
+
+        .context-action-btn.delete:hover {
+            color: var(--error);
+        }
+
+        .context-item-preview {
+            color: var(--gray-600);
+            font-size: 0.85rem;
+            line-height: 1.4;
+            max-height: 3.4em;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .empty-contexts {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray-500);
+        }
+
+        .empty-contexts i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--gray-400);
+        }
+
+        .empty-contexts h4 {
+            margin-bottom: 0.5rem;
+            color: var(--gray-700);
+        }
+
         /* === MESSAGE DELIVERY INFO === */
         .message-delivery-info {
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
@@ -1531,6 +1808,11 @@
                 padding: 1.5rem;
             }
 
+            .context-modal {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+
             .options-grid {
                 grid-template-columns: 1fr;
             }
@@ -1622,6 +1904,60 @@
                         Got it
                     </button>
                     <p class="auto-close-text">This modal will close automatically in 5 seconds</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Context Management Modal -->
+        <div class="context-modal-overlay" id="contextModal">
+            <div class="context-modal">
+                <button class="context-modal-close" onclick="closeContextModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="context-modal-header">
+                    <h3 class="context-modal-title">
+                        <i class="fas fa-bookmark"></i>
+                        Manage Contexts
+                    </h3>
+                    <p class="context-modal-subtitle">Save and manage your message contexts for quick reuse</p>
+                </div>
+
+                <!-- Context Usage -->
+                <div class="context-usage" id="contextUsage">
+                    <div class="context-usage-text" id="contextUsageText">0/1 contexts used</div>
+                    <div class="context-usage-upgrade" id="contextUsageUpgrade">
+                        <a href="/upgrade">Upgrade to Silver</a> for 3 contexts, <a href="/upgrade">Gold</a> for 6 contexts
+                    </div>
+                </div>
+
+                <!-- Save New Context Form -->
+                <div class="context-form" id="contextForm">
+                    <div class="context-form-group">
+                        <label class="context-form-label" for="contextNameInput">Context Name</label>
+                        <input type="text" id="contextNameInput" class="context-form-input" placeholder="e.g., Product Launch, Conference Follow-up" maxlength="100">
+                    </div>
+                    <div class="context-form-group">
+                        <label class="context-form-label" for="contextTextInput">Context Text</label>
+                        <textarea id="contextTextInput" class="context-form-input context-form-textarea" placeholder="Enter your context details..."></textarea>
+                    </div>
+                    <div class="context-form-buttons">
+                        <button class="context-btn context-btn-secondary" onclick="clearContextForm()">
+                            <i class="fas fa-times"></i>
+                            Clear
+                        </button>
+                        <button class="context-btn context-btn-primary" id="saveContextBtn" onclick="saveNewContext()">
+                            <i class="fas fa-save"></i>
+                            Save Context
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Saved Contexts List -->
+                <div class="contexts-list">
+                    <div class="contexts-list-title">Saved Contexts</div>
+                    <div id="contextsList">
+                        <!-- Dynamic content -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -1900,11 +2236,8 @@
                             <p>Provide specific context or instructions to personalize your messages further.</p>
                             <textarea class="context-input" id="uploadContextInput" placeholder="e.g., Mention our upcoming product launch, reference the conference we met at, focus on cost savings benefits..."></textarea>
                             <div class="context-buttons">
-                                <button class="btn-secondary" onclick="handleSaveContext('upload')">
-                                    <i class="fas fa-save"></i> Save Context
-                                </button>
-                                <button class="btn-secondary" onclick="handleLoadContext('upload')">
-                                    <i class="fas fa-download"></i> Load Context
+                                <button class="btn-secondary" onclick="openContextManager()">
+                                    <i class="fas fa-bookmark"></i> Manage Contexts
                                 </button>
                             </div>
                         </div>
@@ -2188,6 +2521,11 @@
         let isAuthenticated = false;
         let uploadedFileData = null;
 
+        // Context Management Variables
+        let userContexts = [];
+        let contextLimits = { used: 0, max: 1 };
+        let editingContextId = null;
+
         // Application State
         const appState = {
             currentTab: 'upload',
@@ -2237,6 +2575,17 @@
             'gold-payasyougo': 'Gold Pay-as-you-go',
             'platinum-monthly': 'Platinum Monthly',
             'platinum-payasyougo': 'Platinum Pay-as-you-go'
+        };
+
+        // Context Limits by Plan
+        const CONTEXT_LIMITS = {
+            'free': 1,
+            'silver-monthly': 3,
+            'silver-payasyougo': 3,
+            'gold-monthly': 6,
+            'gold-payasyougo': 6,
+            'platinum-monthly': 10,
+            'platinum-payasyougo': 10
         };
 
         // Initialize Application
@@ -2339,6 +2688,9 @@
                 el.textContent = `Current Balance: ${appState.currentCredits} credits`;
             });
 
+            // Set context limits based on plan
+            contextLimits.max = CONTEXT_LIMITS[appState.currentPlan] || 1;
+
             checkPlanRestrictions();
         }
 
@@ -2390,6 +2742,7 @@
             document.getElementById('appContainer').classList.add('show');
 
             initializeEventListeners();
+            loadUserContexts();
             calculateCredits('upload');
 
             console.log('[GENERATOR] Application initialized successfully');
@@ -2651,34 +3004,235 @@
             showGenerationModal();
         }
 
-        function handleSaveContext(method) {
-            const contextInput = document.getElementById(method + 'ContextInput');
-            const contextValue = contextInput.value.trim();
-            
-            if (!contextValue) {
-                showAlert('Please enter some context to save', 'error');
-                return;
+        // Context Management Functions
+        async function loadUserContexts() {
+            try {
+                const token = getAuthToken();
+                const response = await fetch('https://api.msgly.ai/contexts', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    userContexts = data.data.contexts;
+                    contextLimits.used = data.data.used;
+                    contextLimits.max = data.data.maxAllowed;
+                    updateContextUI();
+                }
+            } catch (error) {
+                console.error('[CONTEXT] Error loading contexts:', error);
+                // Fallback to empty contexts
+                userContexts = [];
+                contextLimits.used = 0;
             }
-            
-            localStorage.setItem(`msgly_context_${method}`, contextValue);
-            appState.contextData[method] = contextValue;
-            
-            showAlert('Context saved successfully!', 'success');
         }
 
-        function handleLoadContext(method) {
-            const savedContext = localStorage.getItem(`msgly_context_${method}`);
-            const contextInput = document.getElementById(method + 'ContextInput');
+        function openContextManager() {
+            loadUserContexts();
+            updateContextUsage();
+            document.getElementById('contextModal').classList.add('show');
+        }
+
+        function closeContextModal() {
+            document.getElementById('contextModal').classList.remove('show');
+            clearContextForm();
+        }
+
+        function updateContextUsage() {
+            const usageText = document.getElementById('contextUsageText');
+            const upgradeText = document.getElementById('contextUsageUpgrade');
             
-            if (!savedContext) {
-                showAlert('No saved context found', 'error');
+            usageText.textContent = `${contextLimits.used}/${contextLimits.max} contexts used`;
+            
+            const planName = appState.currentPlan;
+            if (planName === 'free') {
+                upgradeText.innerHTML = '<a href="/upgrade">Upgrade to Silver</a> for 3 contexts, <a href="/upgrade">Gold</a> for 6 contexts, <a href="/upgrade">Platinum</a> for 10 contexts';
+            } else if (planName.includes('silver')) {
+                upgradeText.innerHTML = '<a href="/upgrade">Upgrade to Gold</a> for 6 contexts, <a href="/upgrade">Platinum</a> for 10 contexts';
+            } else if (planName.includes('gold')) {
+                upgradeText.innerHTML = '<a href="/upgrade">Upgrade to Platinum</a> for 10 contexts';
+            } else {
+                upgradeText.innerHTML = 'You have the maximum context limit!';
+            }
+        }
+
+        function updateContextUI() {
+            const contextsList = document.getElementById('contextsList');
+            
+            if (userContexts.length === 0) {
+                contextsList.innerHTML = `
+                    <div class="empty-contexts">
+                        <i class="fas fa-bookmark"></i>
+                        <h4>No Saved Contexts</h4>
+                        <p>Create your first context to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            contextsList.innerHTML = userContexts.map(context => `
+                <div class="context-item">
+                    <div class="context-item-header">
+                        <div class="context-item-name">${escapeHtml(context.context_name)}</div>
+                        <div class="context-item-actions">
+                            <button class="context-action-btn" onclick="loadContext(${context.id})" title="Load">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <button class="context-action-btn" onclick="editContext(${context.id})" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="context-action-btn delete" onclick="deleteContext(${context.id})" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="context-item-preview">${escapeHtml(context.context_text)}</div>
+                </div>
+            `).join('');
+        }
+
+        async function saveNewContext() {
+            const nameInput = document.getElementById('contextNameInput');
+            const textInput = document.getElementById('contextTextInput');
+            
+            const name = nameInput.value.trim();
+            const text = textInput.value.trim();
+            
+            if (!name) {
+                showAlert('Please enter a context name', 'error');
                 return;
             }
             
-            contextInput.value = savedContext;
-            appState.contextData[method] = savedContext;
+            if (!text) {
+                showAlert('Please enter context text', 'error');
+                return;
+            }
+
+            if (contextLimits.used >= contextLimits.max && !editingContextId) {
+                showAlert(`Context limit reached (${contextLimits.max}). Please upgrade or delete existing contexts.`, 'error');
+                return;
+            }
+
+            try {
+                const token = getAuthToken();
+                const url = editingContextId ? 
+                    `https://api.msgly.ai/contexts/${editingContextId}` : 
+                    'https://api.msgly.ai/contexts';
+                const method = editingContextId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        context_name: name,
+                        context_text: text
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to save context');
+                }
+
+                if (data.success) {
+                    showAlert(editingContextId ? 'Context updated successfully!' : 'Context saved successfully!', 'success');
+                    clearContextForm();
+                    loadUserContexts();
+                } else {
+                    throw new Error(data.error || 'Failed to save context');
+                }
+            } catch (error) {
+                console.error('[CONTEXT] Save error:', error);
+                showAlert(`Failed to save context: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadContext(contextId) {
+            const context = userContexts.find(c => c.id === contextId);
+            if (!context) return;
+
+            // Load into the current context input
+            const contextInput = document.getElementById('uploadContextInput');
+            contextInput.value = context.context_text;
             
             showAlert('Context loaded successfully!', 'success');
+            closeContextModal();
+        }
+
+        function editContext(contextId) {
+            const context = userContexts.find(c => c.id === contextId);
+            if (!context) return;
+
+            editingContextId = contextId;
+            document.getElementById('contextNameInput').value = context.context_name;
+            document.getElementById('contextTextInput').value = context.context_text;
+            
+            const saveBtn = document.getElementById('saveContextBtn');
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> Update Context';
+        }
+
+        async function deleteContext(contextId) {
+            if (!confirm('Are you sure you want to delete this context?')) return;
+
+            try {
+                const token = getAuthToken();
+                const response = await fetch(`https://api.msgly.ai/contexts/${contextId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to delete context');
+                }
+
+                if (data.success) {
+                    showAlert('Context deleted successfully!', 'success');
+                    loadUserContexts();
+                } else {
+                    throw new Error(data.error || 'Failed to delete context');
+                }
+            } catch (error) {
+                console.error('[CONTEXT] Delete error:', error);
+                showAlert(`Failed to delete context: ${error.message}`, 'error');
+            }
+        }
+
+        function clearContextForm() {
+            document.getElementById('contextNameInput').value = '';
+            document.getElementById('contextTextInput').value = '';
+            editingContextId = null;
+            
+            const saveBtn = document.getElementById('saveContextBtn');
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Context';
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
         }
 
         function showGenerationModal() {
