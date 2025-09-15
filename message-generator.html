@@ -2785,7 +2785,7 @@
             btn.disabled = totalCost > appState.currentCredits || !appState.profileLoaded[method] || !contextFilled;
         }
 
-        // FIXED: Show Profile Preview - Updated to extract real data from correct JSON structure
+        // FIXED: Show Profile Preview - Updated to handle flat data structure from server
         function showProfilePreview(method, profileData = null) {
             const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
             const preview = document.getElementById(previewId);
@@ -2797,33 +2797,21 @@
                 
                 console.log('🔍 Raw profile data:', profileData);
                 
-                // FIXED: Extract data based on actual database JSON structure
+                // FIXED: Handle the flat structure returned by server
                 let extractedName = 'Profile Name';
                 let extractedTitle = 'Professional Title';
                 
-                // Handle the actual database structure: data.profile.name, data.profile.headline, etc.
-                if (profileData && profileData.profile) {
-                    const profile = profileData.profile;
-                    
-                    // Extract name
-                    if (profile.name) {
-                        extractedName = profile.name;
-                    } else if (profile.firstName && profile.lastName) {
-                        extractedName = `${profile.firstName} ${profile.lastName}`;
-                    } else if (profile.firstName) {
-                        extractedName = profile.firstName;
-                    }
-                    
-                    // Extract title/headline
-                    if (profile.headline) {
-                        extractedTitle = profile.headline;
-                    } else if (profile.currentRole && profile.currentCompany) {
-                        extractedTitle = `${profile.currentRole} at ${profile.currentCompany}`;
-                    } else if (profile.currentRole) {
-                        extractedTitle = profile.currentRole;
-                    } else if (profile.currentCompany) {
-                        extractedTitle = `Professional at ${profile.currentCompany}`;
-                    }
+                // Server returns flat structure directly
+                if (profileData.fullName) {
+                    extractedName = profileData.fullName;
+                }
+                
+                if (profileData.headline) {
+                    extractedTitle = profileData.headline;
+                } else if (profileData.currentJobTitle && profileData.currentCompany) {
+                    extractedTitle = `${profileData.currentJobTitle} at ${profileData.currentCompany}`;
+                } else if (profileData.currentJobTitle) {
+                    extractedTitle = profileData.currentJobTitle;
                 }
                 
                 // Update UI with extracted data
