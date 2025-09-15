@@ -41,10 +41,9 @@ CHANGELOG - server.js:
 34. PROFESSIONAL LOGGER: Replaced all wrapped console.log with professional logger utility
 35. MESSAGES DB FIX: Added missing PUT /messages/:id endpoint and fixed GET /messages/history to read actual database values
 36. PERSONAL INFO SAVE FIX: Fixed PUT /profile/personal-info to handle missing user_profiles records
-37. FILE UPLOAD: Added file upload functionality with minimal changes (multer + 1 route)
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -54,7 +53,7 @@ CHANGELOG - server.js:
 // ✅ MAILERSEND INTEGRATION: Welcome email automation
 // ✅ WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error
 // ✅ PAYG FIX: Fixed one-time purchase webhook handling
-// ✅ REGISTRATION DEBUG: Enhanced logging to identify registration failures
+// ✅ REGISTRATION DEBUG: Added comprehensive logging to identify registration failures
 // ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion in webhooks after payment
 // ✅ MODULAR REFACTOR: Messages handlers moved to dedicated controller/routes files
 // ✅ MESSAGES ROUTE FIX: Added /messages route to serve messages.html with authentication
@@ -71,7 +70,6 @@ CHANGELOG - server.js:
 // ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment
 // ✅ MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration
 // ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records
-// ✅ FILE UPLOAD: Added file upload functionality for target profile analysis with consent checkbox
 
 const express = require('express');
 const cors = require('cors');
@@ -84,9 +82,6 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
-
-// NEW: File upload dependencies
-const multer = require('multer');
 
 // NEW: Import professional logger utility
 const logger = require('./utils/logger');
@@ -105,9 +100,6 @@ const { sendWelcomeEmail } = require('./mailer/mailer');
 
 // NEW: Import billing configuration
 const { CHARGEBEE_PLAN_MAPPING } = require('./config/billing');
-
-// NEW: Import file upload controller
-const { handleFileUpload } = require('./controllers/file-upload-controller');
 
 require('dotenv').config();
 
@@ -189,31 +181,6 @@ const staticRoutes = require('./routes/static');
 
 // NEW: RACE CONDITION FIX - Track active profile processing to prevent duplicates
 const activeProcessing = new Map();
-
-// NEW: Configure multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-        files: 1 // Only one file at a time
-    },
-    fileFilter: (req, file, cb) => {
-        // Allow PDF, DOC, DOCX, and TXT files
-        const allowedTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'text/plain'
-        ];
-        
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed.'), false);
-        }
-    }
-});
 
 // NEW: Robust token number cleaner
 function cleanTokenNumber(value) {
@@ -972,67 +939,6 @@ app.use('/', require('./routes/messagesRoutes'));
 // BILLING REFACTOR: Mount billing routes
 app.use('/', require('./routes/billingRoutes'));
 
-// ==================== FILE UPLOAD ROUTES ====================
-
-// NEW: File Upload Route
-app.post('/api/analyze-profile-file', authenticateToken, upload.single('profileFile'), async (req, res) => {
-    try {
-        logger.custom('FILE', '=== FILE UPLOAD ANALYSIS ===');
-        logger.info(`User ID: ${req.user.id}`);
-        logger.info(`File Upload: ${req.file?.originalname}`);
-        logger.debug('Request body:', req.body);
-        
-        // Check if user consented to 7-day storage
-        if (!req.body.userConsented || req.body.userConsented !== 'true') {
-            return res.status(400).json({
-                success: false,
-                error: 'User consent for 7-day file storage is required'
-            });
-        }
-        
-        // Check if file was uploaded
-        if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                error: 'No file uploaded'
-            });
-        }
-        
-        logger.debug('File details:', {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.size
-        });
-        
-        // Call the file upload controller
-        await handleFileUpload(req, res);
-        
-    } catch (error) {
-        logger.error('File upload route error:', error);
-        
-        // Handle multer errors
-        if (error.code === 'LIMIT_FILE_SIZE') {
-            return res.status(400).json({
-                success: false,
-                error: 'File too large. Maximum size is 10MB.'
-            });
-        }
-        
-        if (error.message.includes('Invalid file type')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed.'
-            });
-        }
-        
-        res.status(500).json({
-            success: false,
-            error: 'File upload failed',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
 // ==================== PERSONAL INFORMATION ENDPOINTS ====================
 
 // Get personal information
@@ -1710,7 +1616,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1754,7 +1660,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX'
                 }
             }
         });
@@ -1832,7 +1738,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX'
             };
         }
 
@@ -1932,7 +1838,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX'
             }
         });
     } catch (error) {
@@ -1984,7 +1890,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2506,7 +2412,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2540,7 +2446,6 @@ app.use((req, res, next) => {
             'PUT /profile/certifications (NEW: Update certifications)',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
             'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
-            'POST /api/analyze-profile-file (NEW: File upload analysis with consent checkbox)',
             'POST /generate-message (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-connection (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-intro (REFACTORED: Now in routes/messagesRoutes.js)',
@@ -2622,10 +2527,10 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE`);
-            console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING`);
+            console.log(`[FILE] Target Storage: DATABASE (target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
@@ -2655,18 +2560,14 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment`);
             console.log(`[SUCCESS] ✅ MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration`);
             console.log(`[SUCCESS] ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records`);
-            console.log(`[SUCCESS] ✅ FILE UPLOAD: Added file upload functionality with consent checkbox and 7-day storage`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
             console.log(`[PERSONAL INFO] ✅ PUT /profile/personal-info - FIXED: Now handles missing user_profiles records with UPSERT logic`);
-            console.log(`[FILE UPLOAD] ✅ POST /api/analyze-profile-file - NEW: File upload with consent checkbox, text extraction, and 7-day retention`);
-            console.log(`[FILE UPLOAD] ✅ Multer Configuration - PDF, DOC, DOCX, TXT support with 10MB size limit`);
-            console.log(`[FILE UPLOAD] ✅ Credit System Integration - 0.25 credits per file analysis with duplicate detection`);
         });
         
     } catch (error) {
