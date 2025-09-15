@@ -1,7 +1,7 @@
 {
   "name": "msgly-ai-server",
-  "version": "3.0.0",
-  "description": "Msgly.AI Server with Complete LinkedIn Profile Extraction",
+  "version": "3.0.1",
+  "description": "Msgly.AI Server with Complete LinkedIn Profile Extraction and File Upload",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
