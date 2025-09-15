@@ -278,7 +278,7 @@
             margin-left: 280px;
             min-height: 100vh;
             background: var(--gray-100);
-            width: calc(100% - 280px); /* Fixed: Ensure proper width calculation */
+            width: calc(100% - 280px);
         }
 
         .page-header {
@@ -351,7 +351,6 @@
             background: rgba(128, 57, 223, 0.08);
         }
 
-        /* Disabled tab styles */
         .tab-btn.disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -383,11 +382,11 @@
             color: white;
         }
 
-        /* === CONTENT AREA - FIXED === */
+        /* === CONTENT AREA === */
         .content-area {
             padding: 2rem;
-            width: 100%; /* Fixed: Use full width instead of max-width constraint */
-            margin: 0; /* Fixed: Remove auto margin that was causing centering issues */
+            width: 100%;
+            margin: 0;
         }
 
         .tab-content {
@@ -404,7 +403,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* === CARDS - IMPROVED === */
+        /* === CARDS === */
         .card {
             background: white;
             border-radius: 16px;
@@ -412,7 +411,7 @@
             box-shadow: var(--shadow);
             margin-bottom: 2rem;
             border: 1px solid #E5E7EB;
-            width: 100%; /* Fixed: Ensure cards use full width */
+            width: 100%;
             box-sizing: border-box;
         }
 
@@ -436,14 +435,14 @@
             font-size: 0.95rem;
         }
 
-        /* === PLAN FEATURE BOX - IMPROVED === */
+        /* === PLAN FEATURE BOX === */
         .plan-feature-box {
             background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(192, 192, 192, 0.05) 100%);
             border: 2px solid #C0C0C0;
             border-radius: 12px;
             padding: 1.5rem;
             margin-bottom: 2rem;
-            width: 100%; /* Fixed: Ensure full width */
+            width: 100%;
             box-sizing: border-box;
         }
 
@@ -520,7 +519,7 @@
             text-decoration: underline;
         }
 
-        /* === UPLOAD AREA - IMPROVED === */
+        /* === UPLOAD AREA === */
         .upload-zone {
             border: 2px dashed #D1D5DB;
             border-radius: 12px;
@@ -530,9 +529,9 @@
             transition: all 0.3s ease;
             position: relative;
             background: #FAFAFA;
-            width: 100%; /* Fixed: Ensure full width */
+            width: 100%;
             box-sizing: border-box;
-            min-height: 200px; /* Fixed: Add minimum height */
+            min-height: 200px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -599,7 +598,7 @@
             cursor: not-allowed;
         }
 
-        /* NEW: Consent checkbox styles */
+        /* === CONSENT SECTION === */
         .consent-section {
             margin: 1.5rem 0;
             text-align: left;
@@ -634,113 +633,7 @@
             font-style: italic;
         }
 
-        /* === URL SECTION - IMPROVED === */
-        .url-section {
-            margin-bottom: 2rem;
-            width: 100%;
-        }
-
-        .url-input-group {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1rem;
-            width: 100%;
-        }
-
-        .url-input {
-            flex: 1;
-            padding: 1rem;
-            border: 2px solid #E5E7EB;
-            border-radius: 12px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .url-input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .url-example {
-            background: var(--gray-100);
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            color: var(--gray-700);
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--primary);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .analysis-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            width: 100%;
-        }
-
-        .analysis-btn-container {
-            text-align: center;
-            width: 100%;
-        }
-
-        .analysis-btn {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            box-sizing: border-box;
-        }
-
-        .analysis-btn.chrome {
-            background: var(--primary);
-            color: white;
-        }
-
-        .analysis-btn.chrome:hover {
-            background: var(--primary-dark);
-        }
-
-        .analysis-btn.url {
-            background: var(--gray-700);
-            color: white;
-        }
-
-        .analysis-btn.url:hover {
-            background: var(--gray-900);
-        }
-
-        .analysis-description {
-            font-size: 0.8rem;
-            color: var(--gray-500);
-            margin-top: 0.5rem;
-            line-height: 1.4;
-        }
-
-        .recommended-badge {
-            background: var(--success);
-            color: white;
-            font-size: 0.7rem;
-            padding: 0.2rem 0.6rem;
-            border-radius: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-top: 0.3rem;
-            display: inline-block;
-        }
-
-        /* === PROFILE PREVIEW - IMPROVED === */
+        /* === PROFILE PREVIEW === */
         .profile-preview {
             display: none;
             background: var(--primary-light);
@@ -797,7 +690,7 @@
             font-size: 1rem;
         }
 
-        /* === MESSAGE GENERATION - IMPROVED === */
+        /* === MESSAGE GENERATION === */
         .message-section {
             display: none;
             width: 100%;
@@ -854,7 +747,7 @@
             font-size: 0.9rem;
         }
 
-        /* === CONTEXT SECTION - IMPROVED === */
+        /* === CONTEXT SECTION === */
         .context-section {
             background: var(--gray-100);
             border-radius: 12px;
@@ -923,7 +816,7 @@
             background: var(--gray-900);
         }
 
-        /* === MESSAGE DELIVERY INFO - IMPROVED === */
+        /* === MESSAGE DELIVERY INFO === */
         .message-delivery-info {
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
             border: 2px solid var(--success);
@@ -974,7 +867,7 @@
             flex-shrink: 0;
         }
 
-        /* === ADVANCED OPTIONS - IMPROVED === */
+        /* === ADVANCED OPTIONS === */
         .advanced-section {
             border-top: 1px solid #E5E7EB;
             padding-top: 2rem;
@@ -1098,7 +991,7 @@
             cursor: not-allowed;
         }
 
-        /* === CREDIT CALCULATOR - IMPROVED === */
+        /* === CREDIT CALCULATOR === */
         .credit-calculator {
             background: linear-gradient(135deg, var(--primary-light) 0%, rgba(128, 57, 223, 0.1) 100%);
             border: 2px solid var(--primary);
@@ -1455,13 +1348,13 @@
             margin-bottom: 1rem;
         }
 
-        /* === LOCKED CONTENT - IMPROVED === */
+        /* === LOCKED CONTENT === */
         .locked-content {
             text-align: center;
             padding: 3rem;
             color: var(--gray-500);
             width: 100%;
-            min-height: 300px; /* Fixed: Add minimum height */
+            min-height: 300px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -1484,7 +1377,7 @@
             margin-bottom: 1.5rem;
         }
 
-        /* === RESPONSIVE - IMPROVED === */
+        /* === RESPONSIVE === */
         @media (max-width: 1024px) {
             .sidebar {
                 width: 260px;
@@ -1513,14 +1406,6 @@
             
             .tab-nav {
                 padding: 0 1rem;
-            }
-            
-            .analysis-buttons {
-                grid-template-columns: 1fr;
-            }
-            
-            .url-input-group {
-                flex-direction: column;
             }
             
             .breakdown-item {
@@ -1830,7 +1715,7 @@
                             <button class="upload-btn">Choose File</button>
                         </div>
 
-                        <!-- NEW: Consent Section -->
+                        <!-- Consent Section -->
                         <div class="consent-section" id="consentSection" style="display: none;">
                             <div class="consent-checkbox">
                                 <input type="checkbox" id="consentCheckbox" required>
@@ -1840,6 +1725,14 @@
                             </div>
                             <div class="consent-note">
                                 Your data security is important to us. Files are processed securely and automatically deleted after the retention period.
+                            </div>
+                            
+                            <!-- Analyze Button -->
+                            <div style="margin-top: 1rem; text-align: center;">
+                                <button class="btn btn-primary" id="analyzeBtn" disabled onclick="handleFileAnalysis()">
+                                    <i class="fas fa-search"></i>
+                                    Analyze File (0.25 credits)
+                                </button>
                             </div>
                         </div>
 
@@ -1981,10 +1874,6 @@
                             </div>
                             <div class="breakdown" id="uploadBreakdown">
                                 <div class="breakdown-item">
-                                    <span>File Analysis</span>
-                                    <span>0.25 credits</span>
-                                </div>
-                                <div class="breakdown-item">
                                     <span>Message Generation</span>
                                     <span id="uploadMessageCost">1.00 credits per message</span>
                                 </div>
@@ -2002,7 +1891,7 @@
                                 </div>
                                 <div class="breakdown-item">
                                     <span>Total Cost</span>
-                                    <span id="uploadTotalCost">1.25 credits</span>
+                                    <span id="uploadTotalCost">1.00 credits</span>
                                 </div>
                             </div>
                             <div class="credit-balance" id="creditBalance">Current Balance: Loading...</div>
@@ -2012,7 +1901,7 @@
                         <div class="btn-group">
                             <button class="btn btn-primary" id="uploadGenerateBtn" data-method="upload">
                                 <i class="fas fa-magic"></i>
-                                Generate Messages (1.25 credits)
+                                Generate Messages (1.00 credits)
                             </button>
                         </div>
                     </div>
@@ -2193,7 +2082,7 @@
         // Global Variables
         let currentUserData = null;
         let isAuthenticated = false;
-        let uploadedFileData = null; // NEW: Store uploaded file data
+        let uploadedFileData = null;
 
         // Application State
         const appState = {
@@ -2218,12 +2107,12 @@
             }
         };
 
-        // Credit Pricing - UPDATED
+        // Credit Pricing
         const CREDIT_COSTS = {
-            fileAnalysis: 0.25, // NEW: File analysis cost
-            upload: 1.00, // Message generation cost
+            fileAnalysis: 0.25,
+            upload: 1.00,
             linkedin: 1.25,
-            abTesting: 0.25, // per additional variant
+            abTesting: 0.25,
             followUp: { 2: 1.0, 3: 1.5, 5: 3.0 }
         };
 
@@ -2279,18 +2168,15 @@
         }
 
         function getAuthToken() {
-            // Check URL params first (from OAuth callback)
             const urlParams = new URLSearchParams(window.location.search);
             const urlToken = urlParams.get('token');
             
             if (urlToken) {
                 localStorage.setItem('authToken', urlToken);
-                // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
                 return urlToken;
             }
             
-            // Check localStorage
             return localStorage.getItem('authToken');
         }
 
@@ -2334,7 +2220,6 @@
                 credits: user.credits
             });
 
-            // Update sidebar user info
             document.getElementById('userName').textContent = user.displayName || user.email;
             document.getElementById('userEmail').textContent = user.email;
             const planDisplayName = PLAN_DISPLAY_NAMES[user.planCode] || 'Unknown Plan';
@@ -2342,17 +2227,14 @@
             const userInitials = getInitials(user.displayName || user.email);
             document.getElementById('userAvatar').textContent = userInitials;
 
-            // Update application state
             appState.currentPlan = user.planCode || 'free';
             appState.currentCredits = user.credits || 0;
 
-            // Update credit display
             const creditElements = document.querySelectorAll('.credit-balance');
             creditElements.forEach(el => {
                 el.textContent = `Current Balance: ${appState.currentCredits} credits`;
             });
 
-            // Check plan restrictions
             checkPlanRestrictions();
         }
 
@@ -2360,7 +2242,6 @@
             const userPlan = appState.currentPlan;
             console.log('[RESTRICTIONS] Checking plan restrictions for:', userPlan);
 
-            // Check upload functionality
             const uploadFeatureBox = document.getElementById('uploadFeatureBox');
             const uploadZone = document.getElementById('uploadZone');
             const fileInput = document.getElementById('profileFile');
@@ -2373,23 +2254,6 @@
                 uploadZone.classList.remove('disabled');
                 fileInput.disabled = false;
                 uploadFeatureBox.style.display = 'none';
-            }
-
-            // Check LinkedIn functionality
-            const linkedinFeatureBox = document.getElementById('linkedinFeatureBox');
-            const chromeAnalyzeBtn = document.getElementById('chromeAnalyzeBtn');
-            const urlAnalyzeBtn = document.getElementById('urlAnalyzeBtn');
-
-            if (chromeAnalyzeBtn && urlAnalyzeBtn) {
-                if (!hasAccess(userPlan, 'linkedin')) {
-                    chromeAnalyzeBtn.disabled = true;
-                    urlAnalyzeBtn.disabled = true;
-                    linkedinFeatureBox.style.display = 'block';
-                } else {
-                    chromeAnalyzeBtn.disabled = false;
-                    urlAnalyzeBtn.disabled = false;
-                    linkedinFeatureBox.style.display = 'none';
-                }
             }
         }
 
@@ -2405,9 +2269,9 @@
             };
 
             const requiredLevel = {
-                'upload': 1, // Silver+
-                'linkedin': 1, // Silver+
-                'bulk': 2 // Gold+
+                'upload': 1,
+                'linkedin': 1,
+                'bulk': 2
             };
 
             const userLevel = planHierarchy[userPlan] || 0;
@@ -2417,17 +2281,11 @@
         }
 
         function initializeApplication() {
-            // Hide loading and error states
             document.getElementById('authLoading').style.display = 'none';
             document.getElementById('errorState').style.display = 'none';
-            
-            // Show main content
             document.getElementById('appContainer').classList.add('show');
 
-            // Initialize event listeners
             initializeEventListeners();
-            
-            // Initialize calculations
             calculateCredits('upload');
 
             console.log('[GENERATOR] Application initialized successfully');
@@ -2455,51 +2313,42 @@
 
         // Event Listeners
         function initializeEventListeners() {
-            // Tab Navigation - Only allow upload tab
             document.querySelectorAll('.tab-btn:not(.disabled)').forEach(btn => {
                 btn.addEventListener('click', handleTabSwitch);
             });
 
-            // File Upload
             document.getElementById('profileFile').addEventListener('change', handleFileUpload);
+            document.getElementById('consentCheckbox').addEventListener('change', handleConsentChange);
 
-            // Message Type Selection
             document.querySelectorAll('.message-type').forEach(type => {
                 type.addEventListener('click', handleMessageTypeSelection);
             });
 
-            // Toggle Switches
             document.querySelectorAll('.toggle-switch').forEach(toggle => {
                 toggle.addEventListener('click', handleToggleSwitch);
             });
 
-            // Dropdown Changes
             document.querySelectorAll('select').forEach(select => {
                 select.addEventListener('change', handleDropdownChange);
             });
 
-            // Generate Buttons
             document.querySelectorAll('[data-method]').forEach(btn => {
                 if (btn.id.includes('GenerateBtn')) {
                     btn.addEventListener('click', handleGenerate);
                 }
             });
 
-            // Export Button
             if (document.getElementById('exportBtn')) {
                 document.getElementById('exportBtn').addEventListener('click', handleExport);
             }
 
-            // Copy to Clipboard
             document.querySelectorAll('.action-btn').forEach(btn => {
                 btn.addEventListener('click', handleActionBtn);
             });
 
-            // Drag and Drop
             setupDragAndDrop();
         }
 
-        // Handle Upload Click
         function handleUploadClick() {
             if (!hasAccess(appState.currentPlan, 'upload')) {
                 showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
@@ -2508,11 +2357,9 @@
             document.getElementById('profileFile').click();
         }
 
-        // Tab Switching - Modified to prevent disabled tabs
         function handleTabSwitch(e) {
             const btn = e.currentTarget;
             
-            // Prevent switching to disabled tabs
             if (btn.classList.contains('disabled')) {
                 showAlert('This feature is coming soon!', 'error');
                 return;
@@ -2520,22 +2367,20 @@
             
             const tabName = btn.dataset.tab;
             
-            // Update tab buttons
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Update tab content
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(tabName + '-content').classList.add('active');
 
             appState.currentTab = tabName;
         }
 
-        // NEW: File Upload Handler - UPDATED to call API
-        async function handleFileUpload(e) {
+        // File Upload Handler - SIMPLIFIED
+        function handleFileUpload(e) {
             if (!hasAccess(appState.currentPlan, 'upload')) {
                 showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
-                e.target.value = ''; // Clear the file input
+                e.target.value = '';
                 return;
             }
 
@@ -2543,22 +2388,83 @@
                 const file = e.target.files[0];
                 const fileName = file.name;
                 
-                // Show consent section
+                uploadedFileData = file;
+                
                 const consentSection = document.getElementById('consentSection');
                 consentSection.style.display = 'block';
                 
-                // Store file for later upload
-                uploadedFileData = file;
+                document.getElementById('consentCheckbox').checked = false;
+                document.getElementById('analyzeBtn').disabled = true;
                 
-                showAlert(`File "${fileName}" selected. Please review and accept the consent terms below.`, 'success');
-                
-                // Update generate button to show file analysis is needed
-                const generateBtn = document.getElementById('uploadGenerateBtn');
-                generateBtn.innerHTML = '<i class="fas fa-magic"></i> Analyze File & Generate Messages (1.25 credits)';
+                showAlert(`File "${fileName}" selected. Please review and accept the consent terms, then click Analyze.`, 'success');
             }
         }
 
-        // Message Type Selection
+        // Consent Checkbox Handler
+        function handleConsentChange(e) {
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            analyzeBtn.disabled = !e.target.checked;
+        }
+
+        // File Analysis Handler
+        async function handleFileAnalysis() {
+            if (!uploadedFileData) {
+                showAlert('No file selected for analysis.', 'error');
+                return;
+            }
+
+            console.log('🚀 Starting file analysis...');
+            showLoading();
+            
+            try {
+                const formData = new FormData();
+                formData.append('profileFile', uploadedFileData);
+                formData.append('userConsented', 'true');
+
+                const token = getAuthToken();
+                const response = await fetch('/api/analyze-profile-file', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || 'File analysis failed');
+                }
+
+                hideLoading();
+
+                if (result.isDuplicate) {
+                    showAlert(`${result.message} - No additional credits charged.`, 'success');
+                } else {
+                    showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
+                    
+                    appState.currentCredits = result.newBalance;
+                    const creditElements = document.querySelectorAll('.credit-balance');
+                    creditElements.forEach(el => {
+                        el.textContent = `Current Balance: ${appState.currentCredits} credits`;
+                    });
+                }
+
+                showProfilePreview('upload', result.data);
+                
+                document.getElementById('consentSection').style.display = 'none';
+                document.getElementById('profileFile').value = '';
+                uploadedFileData = null;
+                
+                calculateCredits('upload');
+
+            } catch (error) {
+                hideLoading();
+                console.error('File analysis error:', error);
+                showAlert(`File analysis failed: ${error.message}`, 'error');
+            }
+        }
+
         function handleMessageTypeSelection(e) {
             const element = e.currentTarget;
             const type = element.dataset.type;
@@ -2577,7 +2483,6 @@
             calculateCredits(method);
         }
 
-        // Toggle Switch Handler
         function handleToggleSwitch(e) {
             const toggle = e.currentTarget;
             const option = toggle.dataset.option;
@@ -2586,14 +2491,12 @@
             toggle.classList.toggle('active');
             const isActive = toggle.classList.contains('active');
 
-            // Enable/disable corresponding select
             const selectId = method + (option === 'ab-testing' ? 'AbVariants' : 'FollowUp');
             const select = document.getElementById(selectId);
             if (select) {
                 select.disabled = !isActive;
             }
 
-            // Update state
             if (option === 'ab-testing') {
                 appState.advancedOptions[method].abTesting = isActive;
             } else if (option === 'follow-up') {
@@ -2603,7 +2506,6 @@
             calculateCredits(method);
         }
 
-        // Dropdown Change Handler
         function handleDropdownChange(e) {
             const select = e.target;
             if (select.id.includes('AbVariants') || select.id.includes('FollowUp')) {
@@ -2612,7 +2514,7 @@
             }
         }
 
-        // NEW: Generate Handler - UPDATED to call file upload API
+        // Generate Handler - SIMPLIFIED for message generation only
         async function handleGenerate(e) {
             const method = e.currentTarget.dataset.method;
             
@@ -2621,77 +2523,14 @@
                 return;
             }
 
-            // Check if we need to upload a file first
-            if (method === 'upload' && uploadedFileData) {
-                const consentCheckbox = document.getElementById('consentCheckbox');
-                if (!consentCheckbox.checked) {
-                    showAlert('Please accept the consent terms for 7-day data storage.', 'error');
-                    consentCheckbox.focus();
-                    return;
-                }
-
-                // Upload and analyze file first
-                showLoading();
-                
-                try {
-                    const formData = new FormData();
-                    formData.append('profileFile', uploadedFileData);
-                    formData.append('userConsented', 'true');
-
-                    const token = getAuthToken();
-                    const response = await fetch('/api/analyze-profile-file', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                        },
-                        body: formData
-                    });
-
-                    const result = await response.json();
-
-                    if (!result.success) {
-                        throw new Error(result.error || 'File analysis failed');
-                    }
-
-                    hideLoading();
-
-                    if (result.isDuplicate) {
-                        showAlert(`${result.message} - No additional credits charged.`, 'success');
-                    } else {
-                        showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
-                        
-                        // Update credit balance
-                        appState.currentCredits = result.newBalance;
-                        const creditElements = document.querySelectorAll('.credit-balance');
-                        creditElements.forEach(el => {
-                            el.textContent = `Current Balance: ${appState.currentCredits} credits`;
-                        });
-                    }
-
-                    // Show profile preview with analyzed data
-                    showProfilePreview('upload', result.data);
-                    
-                    // Clear uploaded file data and hide consent
-                    uploadedFileData = null;
-                    document.getElementById('consentSection').style.display = 'none';
-                    document.getElementById('profileFile').value = '';
-                    
-                    // Update button back to generation mode
-                    calculateCredits('upload');
-
-                } catch (error) {
-                    hideLoading();
-                    console.error('File upload error:', error);
-                    showAlert(`File analysis failed: ${error.message}`, 'error');
-                    return;
-                }
+            if (!appState.profileLoaded[method]) {
+                showAlert('Please analyze a profile first before generating messages.', 'error');
+                return;
             }
 
-            // Show generation modal
             showGenerationModal();
         }
 
-        // Context Functionality
         function handleSaveContext(method) {
             const contextInput = document.getElementById(method + 'ContextInput');
             const contextValue = contextInput.value.trim();
@@ -2701,7 +2540,6 @@
                 return;
             }
             
-            // Save to localStorage
             localStorage.setItem(`msgly_context_${method}`, contextValue);
             appState.contextData[method] = contextValue;
             
@@ -2723,12 +2561,10 @@
             showAlert('Context loaded successfully!', 'success');
         }
 
-        // Modal Functions
         function showGenerationModal() {
             const modal = document.getElementById('generationModal');
             modal.classList.add('show');
             
-            // Auto close after 5 seconds
             setTimeout(() => {
                 if (modal.classList.contains('show')) {
                     closeModal();
@@ -2740,7 +2576,6 @@
             const modal = document.getElementById('generationModal');
             modal.classList.remove('show');
             
-            // Start the generation process
             startGeneration();
         }
 
@@ -2753,7 +2588,6 @@
             }, 3000);
         }
 
-        // Export Handler
         function handleExport() {
             showLoading();
             setTimeout(() => {
@@ -2763,7 +2597,6 @@
             }, 1000);
         }
 
-        // Action Button Handler
         function handleActionBtn(e) {
             const btn = e.currentTarget;
             const action = btn.title;
@@ -2782,12 +2615,6 @@
             const messageCost = CREDIT_COSTS[method];
             let totalCost = messageCost * messageCount;
 
-            // Add file analysis cost for upload method
-            if (method === 'upload' && uploadedFileData) {
-                totalCost += CREDIT_COSTS.fileAnalysis;
-            }
-
-            // A/B Testing cost
             let abCost = 0;
             if (appState.advancedOptions[method].abTesting) {
                 const variantsSelect = document.getElementById(method + 'AbVariants');
@@ -2796,7 +2623,6 @@
                 totalCost += abCost;
             }
 
-            // Follow-up sequence cost
             let followUpCost = 0;
             if (appState.advancedOptions[method].followUp) {
                 const followUpSelect = document.getElementById(method + 'FollowUp');
@@ -2805,16 +2631,11 @@
                 totalCost += followUpCost;
             }
 
-            // Update breakdown display
             updateCreditBreakdown(method, messageCount, abCost, followUpCost, totalCost);
-
-            // Update generate button
             updateGenerateButton(method, totalCost);
         }
 
-        // Update Credit Breakdown Display - UPDATED
         function updateCreditBreakdown(method, messageCount, abCost, followUpCost, totalCost) {
-            // Update message generation cost display
             document.getElementById(method + 'MessageCost').textContent = 
                 `${CREDIT_COSTS[method].toFixed(2)} credits per message`;
             
@@ -2836,22 +2657,16 @@
         function updateGenerateButton(method, totalCost) {
             const btn = document.getElementById(method + 'GenerateBtn');
             
-            if (method === 'upload' && uploadedFileData) {
-                btn.innerHTML = `<i class="fas fa-magic"></i> Analyze File & Generate Messages (${totalCost.toFixed(2)} credits)`;
-            } else {
-                btn.innerHTML = `<i class="fas fa-magic"></i> Generate Messages (${totalCost.toFixed(2)} credits)`;
-            }
+            btn.innerHTML = `<i class="fas fa-magic"></i> Generate Messages (${totalCost.toFixed(2)} credits)`;
             
-            btn.disabled = totalCost > appState.currentCredits;
+            btn.disabled = totalCost > appState.currentCredits || !appState.profileLoaded[method];
         }
 
-        // Show Profile Preview - UPDATED
         function showProfilePreview(method, profileData = null) {
             const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
             const preview = document.getElementById(previewId);
             
             if (profileData) {
-                // Update preview with actual data if available
                 const avatar = preview.querySelector('.profile-avatar');
                 const name = preview.querySelector('.profile-info h3');
                 const title = preview.querySelector('.profile-info p');
@@ -2873,7 +2688,6 @@
             showMessageSection(method);
         }
 
-        // Show Message Section
         function showMessageSection(method) {
             const sectionId = method + 'MessageSection';
             const section = document.getElementById(sectionId);
@@ -2881,7 +2695,6 @@
             section.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Show/Hide Functions
         function showLoading() {
             document.getElementById('loadingState').classList.add('show');
         }
@@ -2908,7 +2721,6 @@
             document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Download File (Excel or Text)
         function downloadFile() {
             const content = `Cold Email:\nSubject: Partnership opportunity for TechCorp\n\nHi Jane,\n\nI came across your profile and was impressed by your role as Senior Marketing Manager at TechCorp...\n\nLinkedIn Message:\nHi Jane! I noticed your marketing leadership at TechCorp...`;
             
@@ -2921,7 +2733,6 @@
             window.URL.revokeObjectURL(url);
         }
 
-        // Drag and Drop Setup
         function setupDragAndDrop() {
             const uploadZone = document.getElementById('uploadZone');
             
@@ -2953,7 +2764,6 @@
             });
         }
 
-        // Utility Functions
         function getInitials(name) {
             if (!name) return '??';
             
@@ -2968,76 +2778,6 @@
         function logout() {
             localStorage.removeItem('authToken');
             window.location.href = '/login';
-        }
-
-        // Add consent checkbox handler
-        document.getElementById('consentCheckbox').addEventListener('change', handleConsentChange);
-
-        // Consent change handler
-        async function handleConsentChange(e) {
-            if (e.target.checked && uploadedFileData) {
-                console.log('🚀 Consent given - starting file upload...');
-                
-                // Upload and analyze file immediately
-                showLoading();
-                
-                try {
-                    const formData = new FormData();
-                    formData.append('profileFile', uploadedFileData);
-                    formData.append('userConsented', 'true');
-
-                    const token = getAuthToken();
-                    const response = await fetch('/api/analyze-profile-file', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                        },
-                        body: formData
-                    });
-
-                    const result = await response.json();
-
-                    if (!result.success) {
-                        throw new Error(result.error || 'File analysis failed');
-                    }
-
-                    hideLoading();
-
-                    if (result.isDuplicate) {
-                        showAlert(`${result.message} - No additional credits charged.`, 'success');
-                    } else {
-                        showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
-                        
-                        // Update credit balance
-                        appState.currentCredits = result.newBalance;
-                        const creditElements = document.querySelectorAll('.credit-balance');
-                        creditElements.forEach(el => {
-                            el.textContent = `Current Balance: ${appState.currentCredits} credits`;
-                        });
-                    }
-
-                    // Show profile preview with analyzed data
-                    showProfilePreview('upload', result.data);
-                    
-                    // Clear uploaded file data and hide consent
-                    uploadedFileData = null;
-                    document.getElementById('consentSection').style.display = 'none';
-                    document.getElementById('profileFile').value = '';
-                    
-                    // Update button back to generation mode
-                    const generateBtn = document.getElementById('uploadGenerateBtn');
-                    generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Messages (1.00 credits)';
-                    calculateCredits('upload');
-
-                } catch (error) {
-                    hideLoading();
-                    console.error('File upload error:', error);
-                    showAlert(`File analysis failed: ${error.message}`, 'error');
-                    
-                    // Reset consent checkbox on error
-                    e.target.checked = false;
-                }
-            }
         }
     </script>
 </body>
