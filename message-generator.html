@@ -587,6 +587,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            pointer-events: none;
         }
 
         .upload-btn:hover {
@@ -631,12 +632,6 @@
             color: var(--gray-500);
             margin-top: 0.5rem;
             font-style: italic;
-        }
-
-        /* FIXED: Center the analyze button */
-        .analyze-button-container {
-            margin-top: 1rem;
-            text-align: center;
         }
 
         /* === PROFILE PREVIEW === */
@@ -1711,7 +1706,7 @@
                             </p>
                         </div>
 
-                        <div class="upload-zone" id="uploadZone" onclick="handleUploadClick()">
+                        <div class="upload-zone" id="uploadZone">
                             <div class="upload-icon">
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
@@ -1733,8 +1728,8 @@
                                 Your data security is important to us. Files are processed securely and automatically deleted after the retention period.
                             </div>
                             
-                            <!-- FIXED: Centered Analyze Button -->
-                            <div class="analyze-button-container">
+                            <!-- Analyze Button -->
+                            <div style="margin-top: 1rem; text-align: center;">
                                 <button class="btn btn-primary" id="analyzeBtn" disabled onclick="handleFileAnalysis()">
                                     <i class="fas fa-search"></i>
                                     Analyze File (0.25 credits)
@@ -1742,13 +1737,13 @@
                             </div>
                         </div>
 
-                        <!-- FIXED: Profile Preview with empty initial state -->
+                        <!-- Profile Preview -->
                         <div class="profile-preview" id="uploadProfilePreview">
                             <div class="profile-header">
-                                <div class="profile-avatar" id="profileAvatar">?</div>
+                                <div class="profile-avatar">JS</div>
                                 <div class="profile-info">
-                                    <h3 id="profileName">Loading profile...</h3>
-                                    <p id="profileTitle">Please wait while we analyze your file</p>
+                                    <h3>Jane Smith</h3>
+                                    <p>Senior Marketing Manager at TechCorp</p>
                                 </div>
                             </div>
                         </div>
@@ -2355,14 +2350,6 @@
             setupDragAndDrop();
         }
 
-        function handleUploadClick() {
-            if (!hasAccess(appState.currentPlan, 'upload')) {
-                showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
-                return;
-            }
-            document.getElementById('profileFile').click();
-        }
-
         function handleTabSwitch(e) {
             const btn = e.currentTarget;
             
@@ -2382,7 +2369,7 @@
             appState.currentTab = tabName;
         }
 
-        // FIXED: File Upload Handler
+        // File Upload Handler - FIXED
         function handleFileUpload(e) {
             if (!hasAccess(appState.currentPlan, 'upload')) {
                 showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
@@ -2412,7 +2399,7 @@
             analyzeBtn.disabled = !e.target.checked;
         }
 
-        // FIXED: File Analysis Handler with proper API endpoint
+        // File Analysis Handler
         async function handleFileAnalysis() {
             if (!uploadedFileData) {
                 showAlert('No file selected for analysis.', 'error');
@@ -2425,9 +2412,10 @@
             try {
                 const formData = new FormData();
                 formData.append('profileFile', uploadedFileData);
+                formData.append('userConsented', 'true');
 
                 const token = getAuthToken();
-                const response = await fetch('https://api.msgly.ai/api/analyze-profile-file', {
+                const response = await fetch('/api/analyze-profile-file', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -2443,31 +2431,23 @@
 
                 hideLoading();
 
-                // FIXED: Handle the response correctly
-                console.log('Analysis result:', result);
-
-                if (result.alreadyAnalyzed) {
-                    showAlert('File already analyzed - no additional credits charged.', 'success');
+                if (result.isDuplicate) {
+                    showAlert(`${result.message} - No additional credits charged.`, 'success');
                 } else {
-                    const creditsCharged = result.credits?.deducted || 0.25;
-                    const newBalance = result.credits?.newBalance || appState.currentCredits;
+                    showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
                     
-                    showAlert(`File analyzed successfully! Used ${creditsCharged} credits. New balance: ${newBalance}`, 'success');
-                    
-                    // Update credit balance
-                    appState.currentCredits = newBalance;
+                    appState.currentCredits = result.newBalance;
                     const creditElements = document.querySelectorAll('.credit-balance');
                     creditElements.forEach(el => {
                         el.textContent = `Current Balance: ${appState.currentCredits} credits`;
                     });
                 }
 
-                // FIXED: Show profile preview with real data
                 showProfilePreview('upload', result.data);
                 
-                // Hide consent section and reset file input
                 document.getElementById('consentSection').style.display = 'none';
-                // DON'T clear the file input - keep the analyzed file
+                document.getElementById('profileFile').value = '';
+                uploadedFileData = null;
                 
                 calculateCredits('upload');
 
@@ -2675,7 +2655,6 @@
             btn.disabled = totalCost > appState.currentCredits || !appState.profileLoaded[method];
         }
 
-        // FIXED: Show Profile Preview with real data
         function showProfilePreview(method, profileData = null) {
             const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
             const preview = document.getElementById(previewId);
@@ -2685,42 +2664,16 @@
                 const name = preview.querySelector('.profile-info h3');
                 const title = preview.querySelector('.profile-info p');
                 
-                // Handle different data structures
-                let fullName = '';
-                let headline = '';
-                
                 if (profileData.fullName) {
-                    fullName = profileData.fullName;
-                } else if (profileData.name) {
-                    fullName = profileData.name;
-                } else if (profileData.firstName && profileData.lastName) {
-                    fullName = `${profileData.firstName} ${profileData.lastName}`;
+                    avatar.textContent = getInitials(profileData.fullName);
+                    name.textContent = profileData.fullName;
                 }
                 
                 if (profileData.headline) {
-                    headline = profileData.headline;
+                    title.textContent = profileData.headline;
                 } else if (profileData.currentJobTitle && profileData.currentCompany) {
-                    headline = `${profileData.currentJobTitle} at ${profileData.currentCompany}`;
-                } else if (profileData.jobTitle) {
-                    headline = profileData.jobTitle;
+                    title.textContent = `${profileData.currentJobTitle} at ${profileData.currentCompany}`;
                 }
-                
-                // Update the preview elements
-                if (fullName) {
-                    avatar.textContent = getInitials(fullName);
-                    name.textContent = fullName;
-                } else {
-                    avatar.textContent = 'U';
-                    name.textContent = 'Profile User';
-                }
-                
-                if (headline) {
-                    title.textContent = headline;
-                } else {
-                    title.textContent = 'Professional';
-                }
-                
-                console.log('Profile preview updated:', { fullName, headline });
             }
             
             preview.classList.add('show');
