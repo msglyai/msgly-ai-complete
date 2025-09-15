@@ -2,6 +2,7 @@
 // Handles renewable + pay-as-you-go credits, holds, deductions, transactions, and validation
 // FIXED: All SQL queries now handle INTEGER + DECIMAL operations properly
 // ADDED: cold_email_generation operation type
+// FIXED: Added file_analysis operation type for file upload functionality
 
 const { pool } = require('./utils/database');
 
@@ -9,6 +10,7 @@ class CreditManager {
     constructor() {
         this.OPERATION_COSTS = {
             'target_analysis': 0.25,
+            'file_analysis': 0.25,        // FIXED: Added file_analysis operation type
             'message_generation': 1.0,
             'connection_generation': 1.0,
             'cold_email_generation': 1.0  // ← ADDED: Cold email generation support
