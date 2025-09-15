@@ -680,7 +680,7 @@
             font-style: italic;
         }
 
-        /* === ANALYZE BUTTON - PROMINENT === */
+        /* === ANALYZE BUTTON - ENHANCED WITH ANIMATIONS === */
         .analyze-button-section {
             text-align: center;
             margin: 2rem 0;
@@ -700,11 +700,14 @@
             align-items: center;
             gap: 0.75rem;
             box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+            transform: scale(1);
         }
 
-        .analyze-btn:hover:not(:disabled) {
+        .analyze-btn:hover:not(:disabled):not(.loading) {
             background: var(--primary-dark);
-            transform: translateY(-2px);
+            transform: translateY(-2px) scale(1.02);
             box-shadow: var(--shadow-lg);
         }
 
@@ -713,6 +716,67 @@
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+        }
+
+        /* === ANALYZE BUTTON ANIMATIONS === */
+        .analyze-btn.clicked {
+            animation: buttonClick 0.2s ease-out;
+        }
+
+        @keyframes buttonClick {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        .analyze-btn.loading {
+            cursor: wait;
+            pointer-events: none;
+        }
+
+        .analyze-btn.loading .btn-text {
+            opacity: 0.7;
+        }
+
+        .analyze-btn.loading .btn-icon {
+            animation: spin 1s linear infinite;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: all 0.6s ease;
+            opacity: 0;
+        }
+
+        .analyze-btn.ripple::before {
+            width: 300px;
+            height: 300px;
+            opacity: 1;
+            transition: all 0.6s ease;
+        }
+
+        .analyze-btn.ripple-fade::before {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .analyze-btn.success {
+            background: var(--success);
+            animation: successPulse 0.6s ease-out;
+        }
+
+        @keyframes successPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+            100% { transform: scale(1); }
         }
 
         .analyze-btn i {
@@ -1801,7 +1865,7 @@
                             <button class="upload-btn">Choose File</button>
                         </div>
 
-                        <!-- File Analysis Section - NEW PROMINENT LAYOUT -->
+                        <!-- File Analysis Section - ENHANCED WITH ANIMATIONS -->
                         <div class="analysis-section" id="analysisSection">
                             <div class="analysis-header">
                                 <h3 class="analysis-title">
@@ -1831,11 +1895,11 @@
                                 </div>
                             </div>
 
-                            <!-- Prominent Analyze Button -->
+                            <!-- Enhanced Analyze Button with Animations -->
                             <div class="analyze-button-section">
                                 <button class="analyze-btn" id="analyzeBtn" disabled onclick="handleFileAnalysis()">
-                                    <i class="fas fa-search"></i>
-                                    Analyze File (0.25 credits)
+                                    <i class="fas fa-search btn-icon"></i>
+                                    <span class="btn-text">Analyze File (0.25 credits)</span>
                                 </button>
                             </div>
                         </div>
@@ -2515,16 +2579,24 @@
             analyzeBtn.disabled = !e.target.checked;
         }
 
-        // FIXED: File Analysis Handler - Updated to use real API with correct data extraction
+        // ENHANCED: File Analysis Handler with Full Animation Support
         async function handleFileAnalysis() {
-            if (!uploadedFileData) {
+            const button = document.getElementById('analyzeBtn');
+            
+            if (!uploadedFileData || button.disabled) {
                 showAlert('No file selected for analysis.', 'error');
                 return;
             }
 
-            console.log('🚀 Starting file analysis...');
-            showLoading();
+            // Add click animation
+            addClickAnimation(button);
             
+            // Add ripple effect
+            addRippleEffect(button);
+            
+            // Set loading state
+            setLoadingState(button, true);
+
             try {
                 const formData = new FormData();
                 formData.append('profileFile', uploadedFileData);
@@ -2545,37 +2617,78 @@
                     throw new Error(result.error || 'File analysis failed');
                 }
 
-                hideLoading();
-
-                if (result.isDuplicate) {
-                    showAlert(`${result.message} - No additional credits charged.`, 'success');
-                } else {
-                    showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
+                // Show success animation
+                showSuccessAnimation(button);
+                
+                setTimeout(() => {
+                    setLoadingState(button, false);
                     
-                    appState.currentCredits = result.newBalance;
-                    const creditElements = document.querySelectorAll('.credit-balance');
-                    creditElements.forEach(el => {
-                        el.textContent = `Current Balance: ${appState.currentCredits} credits`;
-                    });
-                }
+                    if (result.isDuplicate) {
+                        showAlert(`${result.message} - No additional credits charged.`, 'success');
+                    } else {
+                        showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
+                        
+                        appState.currentCredits = result.newBalance;
+                        const creditElements = document.querySelectorAll('.credit-balance');
+                        creditElements.forEach(el => {
+                            el.textContent = `Current Balance: ${appState.currentCredits} credits`;
+                        });
+                    }
 
-                // FIXED: Show profile preview with REAL data from API
-                showProfilePreview('upload', result.data);
-                
-                // Hide analysis section
-                document.getElementById('analysisSection').classList.remove('show');
-                
-                // Clear file input
-                document.getElementById('profileFile').value = '';
-                uploadedFileData = null;
-                
-                calculateCredits('upload');
+                    showProfilePreview('upload', result.data);
+                    document.getElementById('analysisSection').classList.remove('show');
+                    document.getElementById('profileFile').value = '';
+                    uploadedFileData = null;
+                    calculateCredits('upload');
+                }, 1000);
 
             } catch (error) {
-                hideLoading();
+                setLoadingState(button, false);
                 console.error('File analysis error:', error);
                 showAlert(`File analysis failed: ${error.message}`, 'error');
             }
+        }
+
+        // Animation Helper Functions
+        function addClickAnimation(button) {
+            button.classList.add('clicked');
+            setTimeout(() => {
+                button.classList.remove('clicked');
+            }, 200);
+        }
+
+        function addRippleEffect(button) {
+            button.classList.add('ripple');
+            
+            setTimeout(() => {
+                button.classList.add('ripple-fade');
+            }, 400);
+            
+            setTimeout(() => {
+                button.classList.remove('ripple', 'ripple-fade');
+            }, 700);
+        }
+
+        function setLoadingState(button, loading) {
+            if (loading) {
+                button.classList.add('loading');
+                button.querySelector('.btn-icon').className = 'fas fa-spinner btn-icon';
+                button.querySelector('.btn-text').textContent = 'Analyzing File...';
+            } else {
+                button.classList.remove('loading');
+                button.querySelector('.btn-icon').className = 'fas fa-search btn-icon';
+                button.querySelector('.btn-text').textContent = 'Analyze File (0.25 credits)';
+            }
+        }
+
+        function showSuccessAnimation(button) {
+            button.classList.add('success');
+            button.querySelector('.btn-icon').className = 'fas fa-check btn-icon';
+            button.querySelector('.btn-text').textContent = 'Analysis Complete!';
+            
+            setTimeout(() => {
+                button.classList.remove('success');
+            }, 1000);
         }
 
         function handleMessageTypeSelection(e) {
