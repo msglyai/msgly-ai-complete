@@ -43,9 +43,11 @@ CHANGELOG - server.js:
 36. PERSONAL INFO SAVE FIX: Fixed PUT /profile/personal-info to handle missing user_profiles records
 37. FILE UPLOAD: Added file upload functionality with minimal changes (multer + 1 route)
 38. PROFILE DATA EXTRACTION FIX: Added extractProfileFromJson function and updated file upload response to include extracted profile data
+39. MINIMAL FIX: Fixed extractProfileFromJson to use correct JSON structure from database
+40. MINIMAL FIX: Simplified file upload response handling to prevent "headers already sent" error
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -74,6 +76,7 @@ CHANGELOG - server.js:
 // ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records
 // ✅ FILE UPLOAD: Added file upload functionality for target profile analysis with consent checkbox
 // ✅ PROFILE DATA EXTRACTION FIX: Added profile data extraction from JSON and proper response formatting
+// ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified response handling
 
 const express = require('express');
 const cors = require('cors');
@@ -217,7 +220,7 @@ const upload = multer({
     }
 });
 
-// NEW: Extract profile data from JSON structure
+// MINIMAL FIX: Extract profile data from JSON structure - FIXED to use correct database structure
 function extractProfileFromJson(rawJsonData) {
     try {
         let profile;
@@ -227,21 +230,32 @@ function extractProfileFromJson(rawJsonData) {
             profile = rawJsonData;
         }
         
-        // Extract from nested structure
-        const dataSection = profile.data || profile;
-        const profileInfo = dataSection.profile || profile.profile || dataSection;
+        // FIXED: Use the correct JSON structure from database
+        // Actual structure: { "profile": { "name": "ZIV SHECHORY", "firstName": "Ziv", etc } }
+        const profileSection = profile.profile || {};
         
-        return {
-            fullName: profileInfo.name || profileInfo.fullName || profileInfo.firstName || 'Profile Name',
-            headline: profileInfo.headline || profileInfo.currentRole || profileInfo.title || 'Professional Title',
-            currentJobTitle: profileInfo.currentJobTitle || profileInfo.currentRole || profileInfo.role,
-            currentCompany: profileInfo.currentCompany || profileInfo.company || profileInfo.current_company
+        logger.debug('[EXTRACT] Profile section found:', !!profileSection);
+        logger.debug('[EXTRACT] Available fields:', Object.keys(profileSection));
+        
+        const extractedData = {
+            fullName: profileSection.name || profileSection.fullName || 
+                     (profileSection.firstName && profileSection.lastName ? 
+                      `${profileSection.firstName} ${profileSection.lastName}` : 'Profile Name'),
+            headline: profileSection.headline || profileSection.currentRole || 'Professional Title',
+            currentJobTitle: profileSection.currentRole || profileSection.currentJobTitle || profileSection.headline,
+            currentCompany: profileSection.currentCompany || profileSection.company || 'Company'
         };
+        
+        logger.debug('[EXTRACT] Extracted profile data:', extractedData);
+        return extractedData;
+        
     } catch (error) {
-        logger.error('Error extracting profile from JSON:', error);
+        logger.error('[EXTRACT] Profile extraction failed:', error);
         return {
-            fullName: 'Profile Extracted',
-            headline: 'Analysis Complete'
+            fullName: 'Profile Extracted', 
+            headline: 'Analysis Complete',
+            currentJobTitle: 'Professional',
+            currentCompany: 'Company'
         };
     }
 }
@@ -1005,13 +1019,12 @@ app.use('/', require('./routes/billingRoutes'));
 
 // ==================== FILE UPLOAD ROUTES ====================
 
-// FIXED: File Upload Route with Profile Data Extraction
+// MINIMAL FIX: Simplified File Upload Route - Remove complex response interception
 app.post('/api/analyze-profile-file', authenticateToken, upload.single('profileFile'), async (req, res) => {
     try {
         logger.custom('FILE', '=== FILE UPLOAD ANALYSIS ===');
         logger.info(`User ID: ${req.user.id}`);
         logger.info(`File Upload: ${req.file?.originalname}`);
-        logger.debug('Request body:', req.body);
         
         // Check if user consented to 7-day storage
         if (!req.body.userConsented || req.body.userConsented !== 'true') {
@@ -1035,53 +1048,82 @@ app.post('/api/analyze-profile-file', authenticateToken, upload.single('profileF
             size: req.file.size
         });
         
-        // Call the file upload controller
-        const originalSend = res.send;
-        const originalJson = res.json;
-        let responseData = null;
+        // MINIMAL FIX: Create a simple wrapper to capture response data without complex interception
+        let controllerResponse = null;
+        let controllerStatus = 200;
         
-        // Intercept the response to extract data
-        res.json = function(data) {
-            responseData = data;
-            return originalJson.call(this, data);
-        };
-        
-        res.send = function(data) {
-            if (typeof data === 'string') {
-                try {
-                    responseData = JSON.parse(data);
-                } catch (e) {
-                    responseData = { message: data };
+        const responseCapture = {
+            status: function(code) {
+                controllerStatus = code;
+                return this;
+            },
+            json: function(data) {
+                controllerResponse = data;
+                return this;
+            },
+            send: function(data) {
+                if (typeof data === 'string') {
+                    try {
+                        controllerResponse = JSON.parse(data);
+                    } catch (e) {
+                        controllerResponse = { message: data };
+                    }
+                } else {
+                    controllerResponse = data;
                 }
-            } else {
-                responseData = data;
+                return this;
             }
-            return originalSend.call(this, data);
         };
         
-        await handleFileUpload(req, res);
+        logger.debug('[FILE] Calling handleFileUpload controller...');
         
-        // If response was sent but we need to modify it
-        if (responseData && responseData.success && responseData.data) {
-            // Extract profile information from saved data
-            let extractedProfile = { fullName: 'Profile Name', headline: 'Professional Title' };
-            
-            if (responseData.data.data_json) {
-                extractedProfile = extractProfileFromJson(responseData.data.data_json);
-            }
-            
-            // Update the response data with extracted profile information
-            responseData.data = {
-                ...responseData.data,
+        // Call the file upload controller
+        await handleFileUpload(req, responseCapture);
+        
+        logger.debug('[FILE] Controller completed. Response captured:', !!controllerResponse);
+        
+        // Check if the controller completed successfully
+        if (!controllerResponse || !controllerResponse.success) {
+            logger.error('[FILE] Controller failed:', controllerResponse);
+            return res.status(controllerStatus || 500).json(controllerResponse || {
+                success: false,
+                error: 'File processing failed'
+            });
+        }
+        
+        logger.debug('[FILE] Extracting profile data from response...');
+        
+        // MINIMAL FIX: Extract profile information from the saved data
+        let extractedProfile = {
+            fullName: 'Profile Name',
+            headline: 'Professional Title',
+            currentJobTitle: 'Professional',
+            currentCompany: 'Company'
+        };
+        
+        if (controllerResponse.data && controllerResponse.data.data_json) {
+            logger.debug('[FILE] Found data_json, extracting profile...');
+            extractedProfile = extractProfileFromJson(controllerResponse.data.data_json);
+            logger.debug('[FILE] Extraction complete:', extractedProfile);
+        } else {
+            logger.debug('[FILE] No data_json found in response');
+        }
+        
+        // MINIMAL FIX: Return enhanced response with extracted profile data
+        const enhancedResponse = {
+            ...controllerResponse,
+            data: {
+                ...controllerResponse.data,
+                // Add extracted profile fields
                 fullName: extractedProfile.fullName,
                 headline: extractedProfile.headline,
                 currentJobTitle: extractedProfile.currentJobTitle,
                 currentCompany: extractedProfile.currentCompany
-            };
-            
-            // Send the updated response
-            return res.json(responseData);
-        }
+            }
+        };
+        
+        logger.success('[FILE] Enhanced response prepared, sending to client');
+        return res.status(controllerStatus).json(enhancedResponse);
         
     } catch (error) {
         logger.error('File upload route error:', error);
@@ -1786,7 +1828,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1830,7 +1872,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX'
                 }
             }
         });
@@ -1908,7 +1950,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX'
             };
         }
 
@@ -2008,7 +2050,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX'
             }
         });
     } catch (error) {
@@ -2060,7 +2102,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2582,7 +2624,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2616,7 +2658,7 @@ app.use((req, res, next) => {
             'PUT /profile/certifications (NEW: Update certifications)',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
             'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
-            'POST /api/analyze-profile-file (✅ FIXED: File upload analysis with profile data extraction)',
+            'POST /api/analyze-profile-file (✅ MINIMAL FIX: File upload analysis with simplified response handling and correct profile data extraction)',
             'POST /generate-message (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-connection (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-intro (REFACTORED: Now in routes/messagesRoutes.js)',
@@ -2698,9 +2740,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -2733,17 +2775,18 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records`);
             console.log(`[SUCCESS] ✅ FILE UPLOAD: Added file upload functionality with consent checkbox and 7-day storage`);
             console.log(`[SUCCESS] ✅ PROFILE DATA EXTRACTION FIX: Added extractProfileFromJson function and response modification for real profile data display`);
+            console.log(`[SUCCESS] ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified file upload response handling`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
             console.log(`[PERSONAL INFO] ✅ PUT /profile/personal-info - FIXED: Now handles missing user_profiles records with UPSERT logic`);
-            console.log(`[FILE UPLOAD] ✅ POST /api/analyze-profile-file - FIXED: File upload with profile data extraction and real name/title display`);
-            console.log(`[FILE UPLOAD] ✅ Profile Data Extraction - extractProfileFromJson function extracts names, titles, companies from JSON`);
-            console.log(`[FILE UPLOAD] ✅ Response Enhancement - API now returns extracted profile fields for frontend display`);
+            console.log(`[FILE UPLOAD] ✅ POST /api/analyze-profile-file - MINIMAL FIX: Simplified response handling and correct profile data extraction`);
+            console.log(`[FILE UPLOAD] ✅ Profile Data Extraction - FIXED: extractProfileFromJson now uses correct database JSON structure`);
+            console.log(`[FILE UPLOAD] ✅ Response Enhancement - SIMPLIFIED: Clean response capture without complex interception`);
         });
         
     } catch (error) {
