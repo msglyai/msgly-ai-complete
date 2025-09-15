@@ -599,6 +599,41 @@
             cursor: not-allowed;
         }
 
+        /* NEW: Consent checkbox styles */
+        .consent-section {
+            margin: 1.5rem 0;
+            text-align: left;
+            padding: 1rem;
+            background: rgba(128, 57, 223, 0.05);
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+        }
+
+        .consent-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .consent-checkbox input[type="checkbox"] {
+            margin-top: 0.2rem;
+            flex-shrink: 0;
+        }
+
+        .consent-text {
+            font-size: 0.9rem;
+            color: var(--gray-700);
+            line-height: 1.4;
+        }
+
+        .consent-note {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
         /* === URL SECTION - IMPROVED === */
         .url-section {
             margin-bottom: 2rem;
@@ -1795,6 +1830,19 @@
                             <button class="upload-btn">Choose File</button>
                         </div>
 
+                        <!-- NEW: Consent Section -->
+                        <div class="consent-section" id="consentSection" style="display: none;">
+                            <div class="consent-checkbox">
+                                <input type="checkbox" id="consentCheckbox" required>
+                                <div class="consent-text">
+                                    <strong>I consent to storing my uploaded file data for 7 days</strong> for analysis and message generation purposes. The file and extracted data will be automatically deleted after 7 days.
+                                </div>
+                            </div>
+                            <div class="consent-note">
+                                Your data security is important to us. Files are processed securely and automatically deleted after the retention period.
+                            </div>
+                        </div>
+
                         <!-- Profile Preview -->
                         <div class="profile-preview" id="uploadProfilePreview">
                             <div class="profile-header">
@@ -1933,8 +1981,12 @@
                             </div>
                             <div class="breakdown" id="uploadBreakdown">
                                 <div class="breakdown-item">
-                                    <span>Base Cost (Upload Profile)</span>
-                                    <span>1.00 credits per message</span>
+                                    <span>File Analysis</span>
+                                    <span>0.25 credits</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span>Message Generation</span>
+                                    <span id="uploadMessageCost">1.00 credits per message</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span>Selected Messages</span>
@@ -1950,7 +2002,7 @@
                                 </div>
                                 <div class="breakdown-item">
                                     <span>Total Cost</span>
-                                    <span id="uploadTotalCost">1.00 credits</span>
+                                    <span id="uploadTotalCost">1.25 credits</span>
                                 </div>
                             </div>
                             <div class="credit-balance" id="creditBalance">Current Balance: Loading...</div>
@@ -1960,7 +2012,7 @@
                         <div class="btn-group">
                             <button class="btn btn-primary" id="uploadGenerateBtn" data-method="upload">
                                 <i class="fas fa-magic"></i>
-                                Generate Messages (1.00 credits)
+                                Generate Messages (1.25 credits)
                             </button>
                         </div>
                     </div>
@@ -2131,7 +2183,7 @@
                 <!-- Loading State -->
                 <div class="loading" id="loadingState">
                     <div class="spinner"></div>
-                    <p>Generating personalized messages...</p>
+                    <p>Analyzing file and generating personalized messages...</p>
                 </div>
             </div>
         </main>
@@ -2141,6 +2193,7 @@
         // Global Variables
         let currentUserData = null;
         let isAuthenticated = false;
+        let uploadedFileData = null; // NEW: Store uploaded file data
 
         // Application State
         const appState = {
@@ -2165,9 +2218,10 @@
             }
         };
 
-        // Credit Pricing
+        // Credit Pricing - UPDATED
         const CREDIT_COSTS = {
-            upload: 1.00,
+            fileAnalysis: 0.25, // NEW: File analysis cost
+            upload: 1.00, // Message generation cost
             linkedin: 1.25,
             abTesting: 0.25, // per additional variant
             followUp: { 2: 1.0, 3: 1.5, 5: 3.0 }
@@ -2477,8 +2531,8 @@
             appState.currentTab = tabName;
         }
 
-        // File Upload Handler
-        function handleFileUpload(e) {
+        // NEW: File Upload Handler - UPDATED to call API
+        async function handleFileUpload(e) {
             if (!hasAccess(appState.currentPlan, 'upload')) {
                 showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
                 e.target.value = ''; // Clear the file input
@@ -2486,13 +2540,21 @@
             }
 
             if (e.target.files.length > 0) {
-                const fileName = e.target.files[0].name;
-                showAlert(`File "${fileName}" uploaded successfully!`, 'success');
+                const file = e.target.files[0];
+                const fileName = file.name;
                 
-                setTimeout(() => {
-                    showProfilePreview('upload');
-                    showMessageSection('upload');
-                }, 1000);
+                // Show consent section
+                const consentSection = document.getElementById('consentSection');
+                consentSection.style.display = 'block';
+                
+                // Store file for later upload
+                uploadedFileData = file;
+                
+                showAlert(`File "${fileName}" selected. Please review and accept the consent terms below.`, 'success');
+                
+                // Update generate button to show file analysis is needed
+                const generateBtn = document.getElementById('uploadGenerateBtn');
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> Analyze File & Generate Messages (1.25 credits)';
             }
         }
 
@@ -2550,8 +2612,8 @@
             }
         }
 
-        // Generate Handler
-        function handleGenerate(e) {
+        // NEW: Generate Handler - UPDATED to call file upload API
+        async function handleGenerate(e) {
             const method = e.currentTarget.dataset.method;
             
             if (appState.selectedMessages[method].length === 0) {
@@ -2559,7 +2621,73 @@
                 return;
             }
 
-            // Show modal instead of loading
+            // Check if we need to upload a file first
+            if (method === 'upload' && uploadedFileData) {
+                const consentCheckbox = document.getElementById('consentCheckbox');
+                if (!consentCheckbox.checked) {
+                    showAlert('Please accept the consent terms for 7-day data storage.', 'error');
+                    consentCheckbox.focus();
+                    return;
+                }
+
+                // Upload and analyze file first
+                showLoading();
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('profileFile', uploadedFileData);
+                    formData.append('userConsented', 'true');
+
+                    const token = getAuthToken();
+                    const response = await fetch('/api/analyze-profile-file', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.error || 'File analysis failed');
+                    }
+
+                    hideLoading();
+
+                    if (result.isDuplicate) {
+                        showAlert(`${result.message} - No additional credits charged.`, 'success');
+                    } else {
+                        showAlert(`File analyzed successfully! Used ${result.creditsCharged} credits. New balance: ${result.newBalance}`, 'success');
+                        
+                        // Update credit balance
+                        appState.currentCredits = result.newBalance;
+                        const creditElements = document.querySelectorAll('.credit-balance');
+                        creditElements.forEach(el => {
+                            el.textContent = `Current Balance: ${appState.currentCredits} credits`;
+                        });
+                    }
+
+                    // Show profile preview with analyzed data
+                    showProfilePreview('upload', result.data);
+                    
+                    // Clear uploaded file data and hide consent
+                    uploadedFileData = null;
+                    document.getElementById('consentSection').style.display = 'none';
+                    document.getElementById('profileFile').value = '';
+                    
+                    // Update button back to generation mode
+                    calculateCredits('upload');
+
+                } catch (error) {
+                    hideLoading();
+                    console.error('File upload error:', error);
+                    showAlert(`File analysis failed: ${error.message}`, 'error');
+                    return;
+                }
+            }
+
+            // Show generation modal
             showGenerationModal();
         }
 
@@ -2648,11 +2776,16 @@
             }
         }
 
-        // Credit Calculation
+        // Credit Calculation - UPDATED
         function calculateCredits(method) {
             const messageCount = appState.selectedMessages[method].length;
-            const baseCost = CREDIT_COSTS[method];
-            let totalCost = baseCost * messageCount;
+            const messageCost = CREDIT_COSTS[method];
+            let totalCost = messageCost * messageCount;
+
+            // Add file analysis cost for upload method
+            if (method === 'upload' && uploadedFileData) {
+                totalCost += CREDIT_COSTS.fileAnalysis;
+            }
 
             // A/B Testing cost
             let abCost = 0;
@@ -2679,8 +2812,12 @@
             updateGenerateButton(method, totalCost);
         }
 
-        // Update Credit Breakdown Display
+        // Update Credit Breakdown Display - UPDATED
         function updateCreditBreakdown(method, messageCount, abCost, followUpCost, totalCost) {
+            // Update message generation cost display
+            document.getElementById(method + 'MessageCost').textContent = 
+                `${CREDIT_COSTS[method].toFixed(2)} credits per message`;
+            
             document.getElementById(method + 'MessageCount').textContent = 
                 `${messageCount} message type${messageCount !== 1 ? 's' : ''}`;
             
@@ -2695,19 +2832,45 @@
             document.getElementById(method + 'TotalCost').textContent = `${totalCost.toFixed(2)} credits`;
         }
 
-        // Update Generate Button
+        // Update Generate Button - UPDATED
         function updateGenerateButton(method, totalCost) {
             const btn = document.getElementById(method + 'GenerateBtn');
-            btn.innerHTML = `<i class="fas fa-magic"></i> Generate Messages (${totalCost.toFixed(2)} credits)`;
+            
+            if (method === 'upload' && uploadedFileData) {
+                btn.innerHTML = `<i class="fas fa-magic"></i> Analyze File & Generate Messages (${totalCost.toFixed(2)} credits)`;
+            } else {
+                btn.innerHTML = `<i class="fas fa-magic"></i> Generate Messages (${totalCost.toFixed(2)} credits)`;
+            }
+            
             btn.disabled = totalCost > appState.currentCredits;
         }
 
-        // Show Profile Preview
-        function showProfilePreview(method) {
+        // Show Profile Preview - UPDATED
+        function showProfilePreview(method, profileData = null) {
             const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
             const preview = document.getElementById(previewId);
+            
+            if (profileData) {
+                // Update preview with actual data if available
+                const avatar = preview.querySelector('.profile-avatar');
+                const name = preview.querySelector('.profile-info h3');
+                const title = preview.querySelector('.profile-info p');
+                
+                if (profileData.fullName) {
+                    avatar.textContent = getInitials(profileData.fullName);
+                    name.textContent = profileData.fullName;
+                }
+                
+                if (profileData.headline) {
+                    title.textContent = profileData.headline;
+                } else if (profileData.currentJobTitle && profileData.currentCompany) {
+                    title.textContent = `${profileData.currentJobTitle} at ${profileData.currentCompany}`;
+                }
+            }
+            
             preview.classList.add('show');
             appState.profileLoaded[method] = true;
+            showMessageSection(method);
         }
 
         // Show Message Section
