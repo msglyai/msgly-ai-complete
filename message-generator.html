@@ -599,14 +599,58 @@
             cursor: not-allowed;
         }
 
+        /* === FILE ANALYSIS SECTION === */
+        .analysis-section {
+            display: none;
+            margin: 2rem 0;
+            padding: 2rem;
+            background: white;
+            border: 2px solid var(--primary);
+            border-radius: 16px;
+            text-align: center;
+            animation: slideDown 0.3s ease;
+        }
+
+        .analysis-section.show {
+            display: block;
+        }
+
+        .analysis-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .analysis-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .analysis-description {
+            color: var(--gray-500);
+            margin-bottom: 1.5rem;
+        }
+
+        .file-info {
+            background: var(--gray-100);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        .file-info strong {
+            color: var(--gray-900);
+        }
+
         /* === CONSENT SECTION === */
         .consent-section {
             margin: 1.5rem 0;
             text-align: left;
-            padding: 1rem;
+            padding: 1.5rem;
             background: rgba(128, 57, 223, 0.05);
             border: 1px solid var(--primary);
-            border-radius: 8px;
+            border-radius: 12px;
         }
 
         .consent-checkbox {
@@ -619,6 +663,8 @@
         .consent-checkbox input[type="checkbox"] {
             margin-top: 0.2rem;
             flex-shrink: 0;
+            width: 18px;
+            height: 18px;
         }
 
         .consent-text {
@@ -632,6 +678,45 @@
             color: var(--gray-500);
             margin-top: 0.5rem;
             font-style: italic;
+        }
+
+        /* === ANALYZE BUTTON - PROMINENT === */
+        .analyze-button-section {
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .analyze-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem 2.5rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: var(--shadow);
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .analyze-btn:disabled {
+            background: var(--gray-500);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .analyze-btn i {
+            font-size: 1.2rem;
         }
 
         /* === PROFILE PREVIEW === */
@@ -1716,34 +1801,52 @@
                             <button class="upload-btn">Choose File</button>
                         </div>
 
-                        <!-- Consent Section -->
-                        <div class="consent-section" id="consentSection" style="display: none;">
-                            <div class="consent-checkbox">
-                                <input type="checkbox" id="consentCheckbox" required>
-                                <div class="consent-text">
-                                    <strong>I consent to storing my uploaded file data for 7 days</strong> for analysis and message generation purposes. The file and extracted data will be automatically deleted after 7 days.
+                        <!-- File Analysis Section - NEW PROMINENT LAYOUT -->
+                        <div class="analysis-section" id="analysisSection">
+                            <div class="analysis-header">
+                                <h3 class="analysis-title">
+                                    <i class="fas fa-file-text"></i>
+                                    Ready to Analyze File
+                                </h3>
+                                <p class="analysis-description">
+                                    File uploaded successfully! Review the consent terms below and click analyze to extract profile information.
+                                </p>
+                            </div>
+
+                            <!-- File Info -->
+                            <div class="file-info" id="fileInfo">
+                                <strong>Selected File:</strong> <span id="fileName">No file selected</span>
+                            </div>
+
+                            <!-- Consent Section -->
+                            <div class="consent-section">
+                                <div class="consent-checkbox">
+                                    <input type="checkbox" id="consentCheckbox" required>
+                                    <div class="consent-text">
+                                        <strong>I consent to storing my uploaded file data for 7 days</strong> for analysis and message generation purposes. The file and extracted data will be automatically deleted after 7 days.
+                                    </div>
+                                </div>
+                                <div class="consent-note">
+                                    Your data security is important to us. Files are processed securely and automatically deleted after the retention period.
                                 </div>
                             </div>
-                            <div class="consent-note">
-                                Your data security is important to us. Files are processed securely and automatically deleted after the retention period.
-                            </div>
-                            
-                            <!-- Analyze Button -->
-                            <div style="margin-top: 1rem; text-align: center;">
-                                <button class="btn btn-primary" id="analyzeBtn" disabled onclick="handleFileAnalysis()">
+
+                            <!-- Prominent Analyze Button -->
+                            <div class="analyze-button-section">
+                                <button class="analyze-btn" id="analyzeBtn" disabled onclick="handleFileAnalysis()">
                                     <i class="fas fa-search"></i>
                                     Analyze File (0.25 credits)
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Profile Preview -->
+                        <!-- Profile Preview - NO MOCK DATA -->
                         <div class="profile-preview" id="uploadProfilePreview">
                             <div class="profile-header">
-                                <div class="profile-avatar">JS</div>
+                                <div class="profile-avatar" id="profileAvatar">??</div>
                                 <div class="profile-info">
-                                    <h3>Jane Smith</h3>
-                                    <p>Senior Marketing Manager at TechCorp</p>
+                                    <h3 id="profileName">Profile Name</h3>
+                                    <p id="profileTitle">Professional Title</p>
                                 </div>
                             </div>
                         </div>
@@ -2073,7 +2176,7 @@
                 <!-- Loading State -->
                 <div class="loading" id="loadingState">
                     <div class="spinner"></div>
-                    <p>Analyzing file and generating personalized messages...</p>
+                    <p>Analyzing file...</p>
                 </div>
             </div>
         </main>
@@ -2369,7 +2472,7 @@
             appState.currentTab = tabName;
         }
 
-        // File Upload Handler - FIXED
+        // File Upload Handler - FIXED FLOW
         function handleFileUpload(e) {
             if (!hasAccess(appState.currentPlan, 'upload')) {
                 showAlert('Upload file feature requires Silver Plan or above. Please upgrade your plan to use this feature.', 'error');
@@ -2383,13 +2486,21 @@
                 
                 uploadedFileData = file;
                 
-                const consentSection = document.getElementById('consentSection');
-                consentSection.style.display = 'block';
+                // Show file info
+                document.getElementById('fileName').textContent = fileName;
                 
+                // Show analysis section
+                const analysisSection = document.getElementById('analysisSection');
+                analysisSection.classList.add('show');
+                
+                // Scroll to analysis section
+                analysisSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Reset consent checkbox
                 document.getElementById('consentCheckbox').checked = false;
                 document.getElementById('analyzeBtn').disabled = true;
                 
-                showAlert(`File "${fileName}" selected. Please review and accept the consent terms, then click Analyze.`, 'success');
+                showAlert(`File "${fileName}" selected. Please review consent terms and click Analyze.`, 'success');
             }
         }
 
@@ -2399,7 +2510,7 @@
             analyzeBtn.disabled = !e.target.checked;
         }
 
-        // File Analysis Handler
+        // File Analysis Handler - UPDATED TO USE REAL API
         async function handleFileAnalysis() {
             if (!uploadedFileData) {
                 showAlert('No file selected for analysis.', 'error');
@@ -2415,7 +2526,7 @@
                 formData.append('userConsented', 'true');
 
                 const token = getAuthToken();
-                const response = await fetch('/api/analyze-profile-file', {
+                const response = await fetch('https://api.msgly.ai/api/analyze-profile-file', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -2443,9 +2554,13 @@
                     });
                 }
 
+                // Show profile preview with REAL data from API
                 showProfilePreview('upload', result.data);
                 
-                document.getElementById('consentSection').style.display = 'none';
+                // Hide analysis section
+                document.getElementById('analysisSection').classList.remove('show');
+                
+                // Clear file input
                 document.getElementById('profileFile').value = '';
                 uploadedFileData = null;
                 
@@ -2507,7 +2622,7 @@
             }
         }
 
-        // Generate Handler - SIMPLIFIED for message generation only
+        // Generate Handler
         async function handleGenerate(e) {
             const method = e.currentTarget.dataset.method;
             
@@ -2602,7 +2717,7 @@
             }
         }
 
-        // Credit Calculation - UPDATED
+        // Credit Calculation
         function calculateCredits(method) {
             const messageCount = appState.selectedMessages[method].length;
             const messageCost = CREDIT_COSTS[method];
@@ -2646,7 +2761,6 @@
             document.getElementById(method + 'TotalCost').textContent = `${totalCost.toFixed(2)} credits`;
         }
 
-        // Update Generate Button - UPDATED
         function updateGenerateButton(method, totalCost) {
             const btn = document.getElementById(method + 'GenerateBtn');
             
@@ -2655,24 +2769,30 @@
             btn.disabled = totalCost > appState.currentCredits || !appState.profileLoaded[method];
         }
 
+        // Show Profile Preview - FIXED TO USE REAL DATA
         function showProfilePreview(method, profileData = null) {
             const previewId = method === 'upload' ? 'uploadProfilePreview' : 'linkedinProfilePreview';
             const preview = document.getElementById(previewId);
             
             if (profileData) {
                 const avatar = preview.querySelector('.profile-avatar');
-                const name = preview.querySelector('.profile-info h3');
-                const title = preview.querySelector('.profile-info p');
+                const name = preview.querySelector('#profileName');
+                const title = preview.querySelector('#profileTitle');
                 
                 if (profileData.fullName) {
                     avatar.textContent = getInitials(profileData.fullName);
                     name.textContent = profileData.fullName;
+                } else {
+                    avatar.textContent = '??';
+                    name.textContent = 'Profile Name';
                 }
                 
                 if (profileData.headline) {
                     title.textContent = profileData.headline;
                 } else if (profileData.currentJobTitle && profileData.currentCompany) {
                     title.textContent = `${profileData.currentJobTitle} at ${profileData.currentCompany}`;
+                } else {
+                    title.textContent = 'Professional Title';
                 }
             }
             
