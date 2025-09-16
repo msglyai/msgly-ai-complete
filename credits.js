@@ -13,11 +13,11 @@ class CreditManager {
             'file_analysis': 0.25,        // FIXED: Added file_analysis operation type
             'message_generation': 1.0,
             'connection_generation': 1.0,
-            'cold_email_generation': 1.0  // ← ADDED: Cold email generation support
+            'cold_email_generation': 1.0  // â† ADDED: Cold email generation support
         };
     }
 
-    // ✅ ENHANCED: Check if user has sufficient credits (dual system) - FIXED
+    // âœ… ENHANCED: Check if user has sufficient credits (dual system) - FIXED
     async checkCredits(userId, operationType) {
         try {
             const result = await pool.query(`
@@ -37,7 +37,7 @@ class CreditManager {
             const currentCredits = parseFloat(total_credits) || 0;
             const requiredCredits = this.OPERATION_COSTS[operationType] || 0;
 
-            console.log(`💳 Credit check for user ${userId}:`);
+            console.log(`ðŸ'³ Credit check for user ${userId}:`);
             console.log(`   - Renewable: ${renewable_credits || 0}`);
             console.log(`   - Pay-as-you-go: ${payasyougo_credits || 0}`);
             console.log(`   - Total: ${currentCredits}`);
@@ -54,7 +54,7 @@ class CreditManager {
                 remaining: currentCredits - requiredCredits
             };
         } catch (error) {
-            console.error('❌ Error checking credits:', error);
+            console.error('âŒ Error checking credits:', error);
             return {
                 success: false,
                 error: error.message,
@@ -63,7 +63,7 @@ class CreditManager {
         }
     }
 
-    // ✅ ENHANCED: Create credit hold before operation (dual system aware)
+    // âœ… ENHANCED: Create credit hold before operation (dual system aware)
     async createHold(userId, operationType, operationData = {}) {
         try {
             const creditCheck = await this.checkCredits(userId, operationType);
@@ -90,7 +90,7 @@ class CreditManager {
             const holdId = this.generateHoldId();
             const requiredCredits = this.OPERATION_COSTS[operationType];
 
-            // ✅ Create hold record in credits_transactions with dual credit info
+            // âœ… Create hold record in credits_transactions with dual credit info
             await pool.query(`
                 INSERT INTO credits_transactions (
                     user_id, operation_type, amount, status, 
@@ -112,7 +112,7 @@ class CreditManager {
                 })
             ]);
 
-            console.log(`✅ Credit hold created: ${holdId} for ${requiredCredits} credits`);
+            console.log(`âœ… Credit hold created: ${holdId} for ${requiredCredits} credits`);
             console.log(`   - User has ${creditCheck.currentCredits} total credits`);
             console.log(`   - Renewable: ${creditCheck.renewableCredits}, Pay-as-you-go: ${creditCheck.payasyougoCredits}`);
 
@@ -127,7 +127,7 @@ class CreditManager {
             };
 
         } catch (error) {
-            console.error('❌ Error creating credit hold:', error);
+            console.error('âŒ Error creating credit hold:', error);
             return {
                 success: false,
                 error: 'Failed to create credit hold',
@@ -136,7 +136,7 @@ class CreditManager {
         }
     }
 
-    // ✅ ENHANCED: Complete operation and deduct credits (dual system) - FIXED
+    // âœ… ENHANCED: Complete operation and deduct credits (dual system) - FIXED
     async completeOperation(userId, holdId, operationResult = {}) {
         try {
             // Start transaction
@@ -158,18 +158,30 @@ class CreditManager {
                 const hold = holdResult.rows[0];
                 const creditAmount = Math.abs(hold.amount);
 
-                // ✅ Get current credit breakdown before deduction - FIXED
+                // âœ… FIXED: Add FOR UPDATE lock to prevent race conditions
                 const beforeResult = await client.query(`
                     SELECT 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
-                        COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits
-                    FROM users WHERE id = $1
+                        COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits,
+                        (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
+                    FROM users WHERE id = $1 FOR UPDATE
                 `, [userId]);
 
-                const beforeCredits = beforeResult.rows[0];
-                console.log(`💳 Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
+                if (beforeResult.rows.length === 0) {
+                    throw new Error('User not found');
+                }
 
-                // ✅ Use dual credit spending logic (pay-as-you-go first, then renewable)
+                const beforeCredits = beforeResult.rows[0];
+                const totalAvailable = parseFloat(beforeCredits.total_credits) || 0;
+
+                // âœ… FIXED: Check credits before attempting update
+                if (totalAvailable < creditAmount) {
+                    throw new Error(`Insufficient credits: need ${creditAmount}, have ${totalAvailable}`);
+                }
+
+                console.log(`ðŸ'³ Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
+
+                // âœ… Use dual credit spending logic (pay-as-you-go first, then renewable)
                 let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits) || 0;
                 let newRenewable = parseFloat(beforeCredits.renewable_credits) || 0;
                 
@@ -187,7 +199,7 @@ class CreditManager {
                 newPayasyougo = Math.max(0, newPayasyougo);
                 newRenewable = Math.max(0, newRenewable);
 
-                // ✅ Update user credits with dual system - FIXED: Use explicit casting
+                // âœ… FIXED: Simplified UPDATE without complex WHERE condition
                 const updateResult = await client.query(`
                     UPDATE users 
                     SET 
@@ -195,21 +207,22 @@ class CreditManager {
                         payasyougo_credits = $2::DECIMAL(10,2),
                         credits_remaining = $1::DECIMAL(10,2) + $2::DECIMAL(10,2),
                         updated_at = NOW()
-                    WHERE id = $3 AND (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) >= $4::DECIMAL(10,2)
+                    WHERE id = $3
                     RETURNING 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
                         COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
                         (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
-                `, [newRenewable, newPayasyougo, userId, creditAmount]);
+                `, [newRenewable, newPayasyougo, userId]);
 
+                // âœ… FIXED: This should never happen now since we locked the user row
                 if (updateResult.rows.length === 0) {
-                    throw new Error('Insufficient credits or user not found');
+                    throw new Error('Failed to update user credits - user may have been deleted');
                 }
 
                 const afterCredits = updateResult.rows[0];
                 const newBalance = parseFloat(afterCredits.total_credits);
 
-                console.log(`💰 After deduction - Renewable: ${afterCredits.renewable_credits}, Pay-as-you-go: ${afterCredits.payasyougo_credits}, Total: ${newBalance}`);
+                console.log(`ðŸ'° After deduction - Renewable: ${afterCredits.renewable_credits}, Pay-as-you-go: ${afterCredits.payasyougo_credits}, Total: ${newBalance}`);
 
                 // Update hold to completed transaction
                 await client.query(`
@@ -239,7 +252,7 @@ class CreditManager {
 
                 await client.query('COMMIT');
 
-                console.log(`✅ Operation completed: ${holdId}, Credits deducted: ${creditAmount}, New balance: ${newBalance}`);
+                console.log(`âœ… Operation completed: ${holdId}, Credits deducted: ${creditAmount}, New balance: ${newBalance}`);
 
                 return {
                     success: true,
@@ -258,7 +271,7 @@ class CreditManager {
             }
 
         } catch (error) {
-            console.error('❌ Error completing operation:', error);
+            console.error('âŒ Error completing operation:', error);
             return {
                 success: false,
                 error: 'Failed to complete operation',
@@ -285,12 +298,12 @@ class CreditManager {
             ]);
 
             if (result.rows.length === 0) {
-                console.warn(`⚠️ No hold found to release: ${holdId}`);
+                console.warn(`âš ï¸ No hold found to release: ${holdId}`);
                 return { success: true, message: 'No hold to release' };
             }
 
             const creditAmount = Math.abs(result.rows[0].amount);
-            console.log(`✅ Hold released: ${holdId}, Credits released: ${creditAmount}`);
+            console.log(`âœ… Hold released: ${holdId}, Credits released: ${creditAmount}`);
 
             return {
                 success: true,
@@ -299,7 +312,7 @@ class CreditManager {
             };
 
         } catch (error) {
-            console.error('❌ Error releasing hold:', error);
+            console.error('âŒ Error releasing hold:', error);
             return {
                 success: false,
                 error: 'Failed to release hold',
@@ -308,7 +321,7 @@ class CreditManager {
         }
     }
 
-    // ✅ ENHANCED: Get current user credits (dual system) - FIXED
+    // âœ… ENHANCED: Get current user credits (dual system) - FIXED
     async getCurrentCredits(userId) {
         try {
             const result = await pool.query(`
@@ -340,7 +353,7 @@ class CreditManager {
             };
 
         } catch (error) {
-            console.error('❌ Error getting current credits:', error);
+            console.error('âŒ Error getting current credits:', error);
             return {
                 success: false,
                 error: error.message,
@@ -382,7 +395,7 @@ class CreditManager {
             };
 
         } catch (error) {
-            console.error('❌ Error getting transaction history:', error);
+            console.error('âŒ Error getting transaction history:', error);
             return {
                 success: false,
                 error: error.message,
@@ -406,7 +419,7 @@ class CreditManager {
             `);
 
             if (result.rows.length > 0) {
-                console.log(`🧹 Cleaned up ${result.rows.length} expired holds`);
+                console.log(`ðŸ§¹ Cleaned up ${result.rows.length} expired holds`);
             }
 
             return {
@@ -415,7 +428,7 @@ class CreditManager {
             };
 
         } catch (error) {
-            console.error('❌ Error cleaning up old holds:', error);
+            console.error('âŒ Error cleaning up old holds:', error);
             return {
                 success: false,
                 error: error.message
@@ -423,7 +436,7 @@ class CreditManager {
         }
     }
 
-    // ✅ NEW: Add pay-as-you-go credits (for purchases) - FIXED
+    // âœ… NEW: Add pay-as-you-go credits (for purchases) - FIXED
     async addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
         try {
             const client = await pool.connect();
@@ -472,7 +485,7 @@ class CreditManager {
 
                 await client.query('COMMIT');
 
-                console.log(`💰 Added ${amount} pay-as-you-go credits to user ${userId}`);
+                console.log(`ðŸ'° Added ${amount} pay-as-you-go credits to user ${userId}`);
                 console.log(`   - New total: ${credits.total_credits}`);
 
                 return {
@@ -491,7 +504,7 @@ class CreditManager {
             }
 
         } catch (error) {
-            console.error('❌ Error adding pay-as-you-go credits:', error);
+            console.error('âŒ Error adding pay-as-you-go credits:', error);
             return {
                 success: false,
                 error: error.message
@@ -499,7 +512,7 @@ class CreditManager {
         }
     }
 
-    // ✅ NEW: Reset renewable credits (monthly billing cycle) - FIXED
+    // âœ… NEW: Reset renewable credits (monthly billing cycle) - FIXED
     async resetRenewableCredits(userId) {
         try {
             const client = await pool.connect();
@@ -560,7 +573,7 @@ class CreditManager {
 
                 await client.query('COMMIT');
 
-                console.log(`🔄 Reset renewable credits for user ${userId} to ${planRenewableCredits}`);
+                console.log(`ðŸ"„ Reset renewable credits for user ${userId} to ${planRenewableCredits}`);
                 console.log(`   - Pay-as-you-go credits kept: ${credits.payasyougo_credits}`);
                 console.log(`   - New total: ${credits.total_credits}`);
 
@@ -579,7 +592,7 @@ class CreditManager {
             }
 
         } catch (error) {
-            console.error('❌ Error resetting renewable credits:', error);
+            console.error('âŒ Error resetting renewable credits:', error);
             return {
                 success: false,
                 error: error.message
@@ -606,7 +619,7 @@ class CreditManager {
 // Create singleton instance
 const creditManager = new CreditManager();
 
-// ✅ ENHANCED: Helper functions for easy import (dual credit system aware)
+// âœ… ENHANCED: Helper functions for easy import (dual credit system aware)
 async function createCreditHold(userId, operationType, operationData = {}) {
     return await creditManager.createHold(userId, operationType, operationData);
 }
@@ -635,7 +648,7 @@ async function cleanupExpiredHolds() {
     return await creditManager.cleanupOldHolds();
 }
 
-// ✅ NEW: Helper functions for dual credit system
+// âœ… NEW: Helper functions for dual credit system
 async function addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
     return await creditManager.addPayAsYouGoCredits(userId, amount, purchaseData);
 }
@@ -663,11 +676,11 @@ module.exports = {
     getCurrentCredits,
     getTransactionHistory,
     cleanupExpiredHolds,
-    // ✅ NEW: Dual credit system functions
+    // âœ… NEW: Dual credit system functions
     addPayAsYouGoCredits,
     resetRenewableCredits,
     getOperationCost,
     isValidOperationType
 };
 
-console.log('💳 Enhanced Credit Management System with Dual Credits loaded successfully!');
+console.log('ðŸ'³ Enhanced Credit Management System with Dual Credits loaded successfully!');
