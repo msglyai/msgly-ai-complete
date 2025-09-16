@@ -46,10 +46,10 @@ CHANGELOG - server.js:
 39. MINIMAL FIX: Fixed extractProfileFromJson to use correct JSON structure from database
 40. MINIMAL FIX: Simplified file upload response handling to prevent "headers already sent" error
 41. CONTEXTS: Added contexts routes mounting for context management system
-42. UNIFIED GENERATION FIX: Added /generate-unified endpoint to fix 404 error from client
+42. UNIFIED GENERATION FIX: Connected /generate-unified endpoint to existing GPT-5 message generation system - REMOVED ALL MOCK DATA
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION FIX
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -80,7 +80,7 @@ CHANGELOG - server.js:
 // ✅ PROFILE DATA EXTRACTION FIX: Added profile data extraction from JSON and proper response formatting
 // ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified response handling
 // ✅ CONTEXTS: Added context management system with plan-based limits
-// ✅ UNIFIED GENERATION FIX: Added /generate-unified endpoint to fix 404 error from client
+// ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified to existing GPT-5 message generation - NO MORE MOCK DATA
 
 const express = require('express');
 const cors = require('cors');
@@ -105,6 +105,13 @@ const { sendToGemini } = require('./sendToGemini');
 
 // NEW: Import GPT-5 service
 const gptService = require('./services/gptService');
+
+// NEW: Import message generation functions for unified endpoint
+const { 
+    handleGenerateMessage, 
+    handleGenerateConnection, 
+    handleGenerateColdEmail 
+} = require('./controllers/messagesController');
 
 // NEW: Import Chargebee service
 const { chargebeeService } = require('./services/chargebeeService');
@@ -1835,7 +1842,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Fix.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1879,7 +1886,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT'
                 }
             }
         });
@@ -1957,7 +1964,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT'
             };
         }
 
@@ -2057,7 +2064,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT'
             }
         });
     } catch (error) {
@@ -2109,7 +2116,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2592,12 +2599,12 @@ app.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== UNIFIED GENERATION FIX: NEW ENDPOINT ====================
+// ==================== UNIFIED GENERATION REAL GPT: CONNECTED TO EXISTING WORKING SYSTEM ====================
 
-// NEW: Unified generation endpoint to fix 404 error from client
+// FIXED: Unified generation endpoint - now uses real GPT integration instead of mock data
 app.post('/generate-unified', authenticateToken, async (req, res) => {
     try {
-        logger.custom('UNIFIED', '=== UNIFIED MESSAGE GENERATION ===');
+        logger.custom('UNIFIED', '=== UNIFIED MESSAGE GENERATION - REAL GPT INTEGRATION ===');
         logger.info(`User ID: ${req.user.id}`);
         logger.info(`Target URL: ${req.body.targetProfileUrl}`);
         logger.info(`Message Types: ${JSON.stringify(req.body.messageTypes)}`);
@@ -2668,37 +2675,69 @@ app.post('/generate-unified', authenticateToken, async (req, res) => {
         const holdId = holdResult.holdId;
         
         try {
-            // Generate messages for each type
+            // Generate messages using real GPT integration
             const generatedMessages = [];
             let totalTokensUsed = 0;
             
             for (const messageType of messageTypes) {
-                logger.info(`Generating ${messageType}...`);
+                logger.info(`Generating real ${messageType} using GPT-5...`);
                 
-                // TODO: Replace with actual generation logic
-                // For now, generate placeholder messages
-                let mockMessage;
-                switch (messageType) {
-                    case 'linkedin-message':
-                        mockMessage = `Hi there! I saw your profile and was impressed by your work. I'd love to connect and discuss ${outreachContext}. Looking forward to hearing from you!`;
-                        break;
-                    case 'connection-request':
-                        mockMessage = `I'd love to connect with you to discuss ${outreachContext}. Your background looks very interesting!`;
-                        break;
-                    case 'cold-email':
-                        mockMessage = `Subject: Partnership Opportunity\n\nHi,\n\nI hope this email finds you well. I came across your profile and was impressed by your work. I'd like to discuss ${outreachContext}.\n\nWould you be open to a brief conversation?\n\nBest regards`;
-                        break;
-                    default:
-                        mockMessage = `Generated ${messageType} for ${outreachContext}. This is a placeholder message.`;
+                // Create mock request/response objects for message handlers
+                const mockReq = {
+                    user: req.user,
+                    body: {
+                        targetProfileUrl: targetProfileUrl,
+                        outreachContext: outreachContext
+                    }
+                };
+                
+                let mockRes = {
+                    statusCode: 200,
+                    responseData: null,
+                    status: function(code) {
+                        this.statusCode = code;
+                        return this;
+                    },
+                    json: function(data) {
+                        this.responseData = data;
+                        return this;
+                    }
+                };
+                
+                // Route to appropriate message generation function
+                try {
+                    switch (messageType) {
+                        case 'linkedin-message':
+                            await handleGenerateMessage(mockReq, mockRes);
+                            break;
+                        case 'connection-request':
+                            await handleGenerateConnection(mockReq, mockRes);
+                            break;
+                        case 'cold-email':
+                            await handleGenerateColdEmail(mockReq, mockRes);
+                            break;
+                        default:
+                            throw new Error(`Unsupported message type: ${messageType}`);
+                    }
+                    
+                    // Extract generated message from response
+                    if (mockRes.responseData && mockRes.responseData.success) {
+                        generatedMessages.push({
+                            type: messageType,
+                            message: mockRes.responseData.data.message || mockRes.responseData.data.generatedMessage,
+                            tokensUsed: mockRes.responseData.credits?.tokensUsed || 50
+                        });
+                        
+                        totalTokensUsed += (mockRes.responseData.credits?.tokensUsed || 50);
+                        logger.success(`Generated real ${messageType} successfully`);
+                    } else {
+                        throw new Error(`Failed to generate ${messageType}: ${mockRes.responseData?.error || 'Unknown error'}`);
+                    }
+                    
+                } catch (generationError) {
+                    logger.error(`Error generating ${messageType}:`, generationError);
+                    throw new Error(`Failed to generate ${messageType}: ${generationError.message}`);
                 }
-                
-                generatedMessages.push({
-                    type: messageType,
-                    message: mockMessage,
-                    tokensUsed: 50 // Mock token count
-                });
-                
-                totalTokensUsed += 50;
             }
             
             // Complete operation and deduct credits
@@ -2717,7 +2756,7 @@ app.post('/generate-unified', authenticateToken, async (req, res) => {
                 });
             }
             
-            logger.success(`Unified generation completed: ${generatedMessages.length} messages generated`);
+            logger.success(`Unified generation completed: ${generatedMessages.length} real messages generated using GPT-5`);
             logger.custom('MONEY', `Credits deducted: ${completionResult.creditsDeducted}, New balance: ${completionResult.newBalance}`);
             
             res.json({
@@ -2794,7 +2833,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2832,7 +2871,7 @@ app.use((req, res, next) => {
             'POST /generate-message (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-connection (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-intro (REFACTORED: Now in routes/messagesRoutes.js)',
-            'POST /generate-unified (✅ NEW: Unified message generation endpoint - FIXES 404 ERROR)',
+            'POST /generate-unified (✅ FIXED: Real GPT-5 integration - NO MORE MOCK DATA)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -2916,9 +2955,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION FIX ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION FIX`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -2953,11 +2992,11 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ PROFILE DATA EXTRACTION FIX: Added extractProfileFromJson function and response modification for real profile data display`);
             console.log(`[SUCCESS] ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified file upload response handling`);
             console.log(`[SUCCESS] ✅ CONTEXTS: Context management system with plan-based limits (Free: 1, Silver: 3, Gold: 6, Platinum: 10)`);
-            console.log(`[SUCCESS] ✅ UNIFIED GENERATION FIX: Added /generate-unified endpoint to fix 404 error from client-side unified message generation system`);
+            console.log(`[SUCCESS] ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified endpoint to existing GPT-5 message generation system - NO MORE MOCK DATA`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION FIX:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
@@ -2970,11 +3009,11 @@ const startServer = async () => {
             console.log(`[CONTEXTS] ✅ Full CRUD operations: Create, Read, Update, Delete contexts`);
             console.log(`[CONTEXTS] ✅ Plan enforcement: Automatic limit checking based on user subscription`);
             console.log(`[CONTEXTS] ✅ Ready for web deployment and extension integration`);
-            console.log(`[UNIFIED GENERATION] ✅ POST /generate-unified - NEW: Unified message generation endpoint`);
-            console.log(`[UNIFIED GENERATION] ✅ FIXES 404 ERROR: Client-side unified generation system now works`);
+            console.log(`[UNIFIED GENERATION] ✅ POST /generate-unified - FIXED: Real GPT-5 integration instead of mock data`);
+            console.log(`[UNIFIED GENERATION] ✅ CONNECTED TO EXISTING SYSTEM: Uses handleGenerateMessage, handleGenerateConnection, handleGenerateColdEmail functions`);
             console.log(`[UNIFIED GENERATION] ✅ Credit Management: Integrated with existing credit hold/deduction system`);
-            console.log(`[UNIFIED GENERATION] ✅ Multi-Message Support: Generates multiple message types in single request`);
-            console.log(`[UNIFIED GENERATION] ✅ Placeholder Messages: Ready for integration with existing message generation logic`);
+            console.log(`[UNIFIED GENERATION] ✅ Multi-Message Support: Generates multiple message types in single request using real GPT-5`);
+            console.log(`[UNIFIED GENERATION] ✅ NO MORE MOCK DATA: All messages generated using proven working GPT pipeline`);
             console.log(`[UNIFIED GENERATION] ✅ Error Handling: Comprehensive error handling and credit release on failure`);
         });
         
