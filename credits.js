@@ -3,9 +3,6 @@
 // FIXED: All SQL queries now handle INTEGER + DECIMAL operations properly
 // ADDED: cold_email_generation operation type
 // FIXED: Added file_analysis operation type for file upload functionality
-// FIXED: Race condition and row locking issues in completeOperation
-// CRITICAL FIX: NaN corruption bug that was destroying user credits
-// FINAL FIX: Removed false positive NaN validation that was blocking valid operations
 
 const { pool } = require('./utils/database');
 
@@ -16,11 +13,11 @@ class CreditManager {
             'file_analysis': 0.25,        // FIXED: Added file_analysis operation type
             'message_generation': 1.0,
             'connection_generation': 1.0,
-            'cold_email_generation': 1.0  // ADDED: Cold email generation support
+            'cold_email_generation': 1.0  // ← ADDED: Cold email generation support
         };
     }
 
-    // ENHANCED: Check if user has sufficient credits (dual system) - FIXED
+    // ✅ ENHANCED: Check if user has sufficient credits (dual system) - FIXED
     async checkCredits(userId, operationType) {
         try {
             const result = await pool.query(`
@@ -66,7 +63,7 @@ class CreditManager {
         }
     }
 
-    // ENHANCED: Create credit hold before operation (dual system aware)
+    // ✅ ENHANCED: Create credit hold before operation (dual system aware)
     async createHold(userId, operationType, operationData = {}) {
         try {
             const creditCheck = await this.checkCredits(userId, operationType);
@@ -93,7 +90,7 @@ class CreditManager {
             const holdId = this.generateHoldId();
             const requiredCredits = this.OPERATION_COSTS[operationType];
 
-            // Create hold record in credits_transactions with dual credit info
+            // ✅ Create hold record in credits_transactions with dual credit info
             await pool.query(`
                 INSERT INTO credits_transactions (
                     user_id, operation_type, amount, status, 
@@ -139,7 +136,7 @@ class CreditManager {
         }
     }
 
-    // CRITICAL FIX: Complete operation and deduct credits (dual system) - NaN bug FIXED
+    // ✅ ENHANCED: Complete operation and deduct credits (dual system) - FIXED
     async completeOperation(userId, holdId, operationResult = {}) {
         try {
             // Start transaction
@@ -161,53 +158,36 @@ class CreditManager {
                 const hold = holdResult.rows[0];
                 const creditAmount = Math.abs(hold.amount);
 
-                // FIXED: Get current credit breakdown with row lock to prevent race conditions
+                // ✅ Get current credit breakdown before deduction - FIXED
                 const beforeResult = await client.query(`
                     SELECT 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
                         COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits
-                    FROM users 
-                    WHERE id = $1 
-                    FOR UPDATE
+                    FROM users WHERE id = $1
                 `, [userId]);
-
-                if (beforeResult.rows.length === 0) {
-                    throw new Error('User not found');
-                }
 
                 const beforeCredits = beforeResult.rows[0];
                 console.log(`💳 Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
 
-                // CRITICAL FIX: Proper NaN handling - this was corrupting user credits
-                let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits);
-                let newRenewable = parseFloat(beforeCredits.renewable_credits);
-                
-                // Handle NaN values explicitly (the || 0 pattern doesn't work with NaN!)
-                if (isNaN(newPayasyougo)) newPayasyougo = 0;
-                if (isNaN(newRenewable)) newRenewable = 0;
-                
-                const totalAvailable = newPayasyougo + newRenewable;
-                
-                // Verify sufficient credits before deduction
-                if (totalAvailable < creditAmount) {
-                    throw new Error(`Insufficient credits: need ${creditAmount}, have ${totalAvailable}`);
-                }
+                // ✅ Use dual credit spending logic (pay-as-you-go first, then renewable)
+                let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits) || 0;
+                let newRenewable = parseFloat(beforeCredits.renewable_credits) || 0;
                 
                 // Spend pay-as-you-go first
                 if (newPayasyougo >= creditAmount) {
-                    newPayasyougo = parseFloat((newPayasyougo - creditAmount).toFixed(2));
+                    newPayasyougo = newPayasyougo - creditAmount;
                 } else {
                     // Spend all pay-as-you-go, then renewable
-                    const remaining = parseFloat((creditAmount - newPayasyougo).toFixed(2));
+                    const remaining = creditAmount - newPayasyougo;
                     newPayasyougo = 0;
-                    newRenewable = parseFloat((newRenewable - remaining).toFixed(2));
+                    newRenewable = newRenewable - remaining;
                 }
 
                 // Ensure no negative credits
                 newPayasyougo = Math.max(0, newPayasyougo);
                 newRenewable = Math.max(0, newRenewable);
 
-                // FIXED: Update user credits - removed complex WHERE condition causing race condition
+                // ✅ Update user credits with dual system - FIXED: Use explicit casting
                 const updateResult = await client.query(`
                     UPDATE users 
                     SET 
@@ -215,15 +195,15 @@ class CreditManager {
                         payasyougo_credits = $2::DECIMAL(10,2),
                         credits_remaining = $1::DECIMAL(10,2) + $2::DECIMAL(10,2),
                         updated_at = NOW()
-                    WHERE id = $3
+                    WHERE id = $3 AND (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) >= $4::DECIMAL(10,2)
                     RETURNING 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
                         COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
                         (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
-                `, [newRenewable, newPayasyougo, userId]);
+                `, [newRenewable, newPayasyougo, userId, creditAmount]);
 
                 if (updateResult.rows.length === 0) {
-                    throw new Error('User not found during credit update');
+                    throw new Error('Insufficient credits or user not found');
                 }
 
                 const afterCredits = updateResult.rows[0];
@@ -328,7 +308,7 @@ class CreditManager {
         }
     }
 
-    // ENHANCED: Get current user credits (dual system) - FIXED
+    // ✅ ENHANCED: Get current user credits (dual system) - FIXED
     async getCurrentCredits(userId) {
         try {
             const result = await pool.query(`
@@ -443,7 +423,7 @@ class CreditManager {
         }
     }
 
-    // NEW: Add pay-as-you-go credits (for purchases) - FIXED
+    // ✅ NEW: Add pay-as-you-go credits (for purchases) - FIXED
     async addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
         try {
             const client = await pool.connect();
@@ -519,7 +499,7 @@ class CreditManager {
         }
     }
 
-    // NEW: Reset renewable credits (monthly billing cycle) - FIXED
+    // ✅ NEW: Reset renewable credits (monthly billing cycle) - FIXED
     async resetRenewableCredits(userId) {
         try {
             const client = await pool.connect();
@@ -626,7 +606,7 @@ class CreditManager {
 // Create singleton instance
 const creditManager = new CreditManager();
 
-// ENHANCED: Helper functions for easy import (dual credit system aware)
+// ✅ ENHANCED: Helper functions for easy import (dual credit system aware)
 async function createCreditHold(userId, operationType, operationData = {}) {
     return await creditManager.createHold(userId, operationType, operationData);
 }
@@ -655,7 +635,7 @@ async function cleanupExpiredHolds() {
     return await creditManager.cleanupOldHolds();
 }
 
-// NEW: Helper functions for dual credit system
+// ✅ NEW: Helper functions for dual credit system
 async function addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
     return await creditManager.addPayAsYouGoCredits(userId, amount, purchaseData);
 }
@@ -683,11 +663,11 @@ module.exports = {
     getCurrentCredits,
     getTransactionHistory,
     cleanupExpiredHolds,
-    // NEW: Dual credit system functions
+    // ✅ NEW: Dual credit system functions
     addPayAsYouGoCredits,
     resetRenewableCredits,
     getOperationCost,
     isValidOperationType
 };
 
-console.log('💳 Enhanced Credit Management System with Dual Credits loaded successfully! ✅ NaN BUG FIXED! ✅ FALSE POSITIVE VALIDATION REMOVED!');
+console.log('💳 Enhanced Credit Management System with Dual Credits loaded successfully!');
