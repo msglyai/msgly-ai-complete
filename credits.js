@@ -3,6 +3,7 @@
 // FIXED: All SQL queries now handle INTEGER + DECIMAL operations properly
 // ADDED: cold_email_generation operation type
 // FIXED: Added file_analysis operation type for file upload functionality
+// FIXED: Race condition and row locking issues in completeOperation
 
 const { pool } = require('./utils/database');
 
@@ -136,7 +137,7 @@ class CreditManager {
         }
     }
 
-    // ✅ ENHANCED: Complete operation and deduct credits (dual system) - FIXED
+    // ✅ FIXED: Complete operation and deduct credits (dual system) - Race condition fixed
     async completeOperation(userId, holdId, operationResult = {}) {
         try {
             // Start transaction
@@ -158,13 +159,19 @@ class CreditManager {
                 const hold = holdResult.rows[0];
                 const creditAmount = Math.abs(hold.amount);
 
-                // ✅ Get current credit breakdown before deduction - FIXED
+                // ✅ FIXED: Get current credit breakdown with row lock to prevent race conditions
                 const beforeResult = await client.query(`
                     SELECT 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
                         COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits
-                    FROM users WHERE id = $1
+                    FROM users 
+                    WHERE id = $1 
+                    FOR UPDATE
                 `, [userId]);
+
+                if (beforeResult.rows.length === 0) {
+                    throw new Error('User not found');
+                }
 
                 const beforeCredits = beforeResult.rows[0];
                 console.log(`💳 Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
@@ -172,22 +179,28 @@ class CreditManager {
                 // ✅ Use dual credit spending logic (pay-as-you-go first, then renewable)
                 let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits) || 0;
                 let newRenewable = parseFloat(beforeCredits.renewable_credits) || 0;
+                const totalAvailable = newPayasyougo + newRenewable;
+                
+                // Verify sufficient credits before deduction
+                if (totalAvailable < creditAmount) {
+                    throw new Error(`Insufficient credits: need ${creditAmount}, have ${totalAvailable}`);
+                }
                 
                 // Spend pay-as-you-go first
                 if (newPayasyougo >= creditAmount) {
-                    newPayasyougo = newPayasyougo - creditAmount;
+                    newPayasyougo = parseFloat((newPayasyougo - creditAmount).toFixed(2));
                 } else {
                     // Spend all pay-as-you-go, then renewable
-                    const remaining = creditAmount - newPayasyougo;
+                    const remaining = parseFloat((creditAmount - newPayasyougo).toFixed(2));
                     newPayasyougo = 0;
-                    newRenewable = newRenewable - remaining;
+                    newRenewable = parseFloat((newRenewable - remaining).toFixed(2));
                 }
 
                 // Ensure no negative credits
                 newPayasyougo = Math.max(0, newPayasyougo);
                 newRenewable = Math.max(0, newRenewable);
 
-                // ✅ Update user credits with dual system - FIXED: Use explicit casting
+                // ✅ FIXED: Update user credits - removed complex WHERE condition causing race condition
                 const updateResult = await client.query(`
                     UPDATE users 
                     SET 
@@ -195,15 +208,15 @@ class CreditManager {
                         payasyougo_credits = $2::DECIMAL(10,2),
                         credits_remaining = $1::DECIMAL(10,2) + $2::DECIMAL(10,2),
                         updated_at = NOW()
-                    WHERE id = $3 AND (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) >= $4::DECIMAL(10,2)
+                    WHERE id = $3
                     RETURNING 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits, 
                         COALESCE(payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits, 
                         (COALESCE(renewable_credits, 0)::DECIMAL(10,2) + COALESCE(payasyougo_credits, 0)::DECIMAL(10,2)) as total_credits
-                `, [newRenewable, newPayasyougo, userId, creditAmount]);
+                `, [newRenewable, newPayasyougo, userId]);
 
                 if (updateResult.rows.length === 0) {
-                    throw new Error('Insufficient credits or user not found');
+                    throw new Error('User not found during credit update');
                 }
 
                 const afterCredits = updateResult.rows[0];
