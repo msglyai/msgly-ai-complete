@@ -37,7 +37,7 @@ class CreditManager {
             const currentCredits = parseFloat(total_credits) || 0;
             const requiredCredits = this.OPERATION_COSTS[operationType] || 0;
 
-            console.log(`ðŸ'³ Credit check for user ${userId}:`);
+            console.log(`Credit check for user ${userId}:`);
             console.log(`   - Renewable: ${renewable_credits || 0}`);
             console.log(`   - Pay-as-you-go: ${payasyougo_credits || 0}`);
             console.log(`   - Total: ${currentCredits}`);
@@ -112,7 +112,7 @@ class CreditManager {
                 })
             ]);
 
-            console.log(`âœ… Credit hold created: ${holdId} for ${requiredCredits} credits`);
+            console.log(`Credit hold created: ${holdId} for ${requiredCredits} credits`);
             console.log(`   - User has ${creditCheck.currentCredits} total credits`);
             console.log(`   - Renewable: ${creditCheck.renewableCredits}, Pay-as-you-go: ${creditCheck.payasyougoCredits}`);
 
@@ -179,7 +179,7 @@ class CreditManager {
                     throw new Error(`Insufficient credits: need ${creditAmount}, have ${totalAvailable}`);
                 }
 
-                console.log(`ðŸ'³ Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
+                console.log(`Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
 
                 // âœ… Use dual credit spending logic (pay-as-you-go first, then renewable)
                 let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits) || 0;
@@ -222,7 +222,7 @@ class CreditManager {
                 const afterCredits = updateResult.rows[0];
                 const newBalance = parseFloat(afterCredits.total_credits);
 
-                console.log(`ðŸ'° After deduction - Renewable: ${afterCredits.renewable_credits}, Pay-as-you-go: ${afterCredits.payasyougo_credits}, Total: ${newBalance}`);
+                console.log(`After deduction - Renewable: ${afterCredits.renewable_credits}, Pay-as-you-go: ${afterCredits.payasyougo_credits}, Total: ${newBalance}`);
 
                 // Update hold to completed transaction
                 await client.query(`
@@ -252,7 +252,7 @@ class CreditManager {
 
                 await client.query('COMMIT');
 
-                console.log(`âœ… Operation completed: ${holdId}, Credits deducted: ${creditAmount}, New balance: ${newBalance}`);
+                console.log(`Operation completed: ${holdId}, Credits deducted: ${creditAmount}, New balance: ${newBalance}`);
 
                 return {
                     success: true,
@@ -298,12 +298,12 @@ class CreditManager {
             ]);
 
             if (result.rows.length === 0) {
-                console.warn(`âš ï¸ No hold found to release: ${holdId}`);
+                console.warn(`No hold found to release: ${holdId}`);
                 return { success: true, message: 'No hold to release' };
             }
 
             const creditAmount = Math.abs(result.rows[0].amount);
-            console.log(`âœ… Hold released: ${holdId}, Credits released: ${creditAmount}`);
+            console.log(`Hold released: ${holdId}, Credits released: ${creditAmount}`);
 
             return {
                 success: true,
@@ -419,7 +419,7 @@ class CreditManager {
             `);
 
             if (result.rows.length > 0) {
-                console.log(`ðŸ§¹ Cleaned up ${result.rows.length} expired holds`);
+                console.log(`Cleaned up ${result.rows.length} expired holds`);
             }
 
             return {
@@ -485,7 +485,7 @@ class CreditManager {
 
                 await client.query('COMMIT');
 
-                console.log(`ðŸ'° Added ${amount} pay-as-you-go credits to user ${userId}`);
+                console.log(`Added ${amount} pay-as-you-go credits to user ${userId}`);
                 console.log(`   - New total: ${credits.total_credits}`);
 
                 return {
