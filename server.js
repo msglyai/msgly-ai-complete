@@ -2708,13 +2708,13 @@ app.post('/generate-unified', authenticateToken, async (req, res) => {
                 try {
                     switch (messageType) {
                         case 'linkedin-message':
-                            await handleGenerateMessage(mockReq, mockRes);
+                            await handleGenerateMessage(mockReq, mockRes, true); // UNIFIED FIX: Skip credits
                             break;
                         case 'connection-request':
-                            await handleGenerateConnection(mockReq, mockRes);
+                            await handleGenerateConnection(mockReq, mockRes, true); // UNIFIED FIX: Skip credits
                             break;
                         case 'cold-email':
-                            await handleGenerateColdEmail(mockReq, mockRes);
+                            await handleGenerateColdEmail(mockReq, mockRes, true); // UNIFIED FIX: Skip credits
                             break;
                         default:
                             throw new Error(`Unsupported message type: ${messageType}`);
@@ -2724,7 +2724,7 @@ app.post('/generate-unified', authenticateToken, async (req, res) => {
                     if (mockRes.responseData && mockRes.responseData.success) {
                         generatedMessages.push({
                             type: messageType,
-                            message: mockRes.responseData.data.message || mockRes.responseData.data.generatedMessage,
+                            message: mockRes.responseData.data.message, // UNIFIED FIX: Use consistent field name
                             tokensUsed: mockRes.responseData.credits?.tokensUsed || 50
                         });
                         
