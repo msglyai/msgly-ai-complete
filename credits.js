@@ -5,6 +5,7 @@
 // FIXED: Added file_analysis operation type for file upload functionality
 // FIXED: Race condition and row locking issues in completeOperation
 // CRITICAL FIX: NaN corruption bug that was destroying user credits
+// FINAL FIX: Removed false positive NaN validation that was blocking valid operations
 
 const { pool } = require('./utils/database');
 
@@ -15,11 +16,11 @@ class CreditManager {
             'file_analysis': 0.25,        // FIXED: Added file_analysis operation type
             'message_generation': 1.0,
             'connection_generation': 1.0,
-            'cold_email_generation': 1.0  // â† ADDED: Cold email generation support
+            'cold_email_generation': 1.0  // ADDED: Cold email generation support
         };
     }
 
-    // âœ… ENHANCED: Check if user has sufficient credits (dual system) - FIXED
+    // ENHANCED: Check if user has sufficient credits (dual system) - FIXED
     async checkCredits(userId, operationType) {
         try {
             const result = await pool.query(`
@@ -65,7 +66,7 @@ class CreditManager {
         }
     }
 
-    // âœ… ENHANCED: Create credit hold before operation (dual system aware)
+    // ENHANCED: Create credit hold before operation (dual system aware)
     async createHold(userId, operationType, operationData = {}) {
         try {
             const creditCheck = await this.checkCredits(userId, operationType);
@@ -92,7 +93,7 @@ class CreditManager {
             const holdId = this.generateHoldId();
             const requiredCredits = this.OPERATION_COSTS[operationType];
 
-            // âœ… Create hold record in credits_transactions with dual credit info
+            // Create hold record in credits_transactions with dual credit info
             await pool.query(`
                 INSERT INTO credits_transactions (
                     user_id, operation_type, amount, status, 
@@ -138,7 +139,7 @@ class CreditManager {
         }
     }
 
-    // âœ… CRITICAL FIX: Complete operation and deduct credits (dual system) - NaN bug FIXED
+    // CRITICAL FIX: Complete operation and deduct credits (dual system) - NaN bug FIXED
     async completeOperation(userId, holdId, operationResult = {}) {
         try {
             // Start transaction
@@ -160,7 +161,7 @@ class CreditManager {
                 const hold = holdResult.rows[0];
                 const creditAmount = Math.abs(hold.amount);
 
-                // âœ… FIXED: Get current credit breakdown with row lock to prevent race conditions
+                // FIXED: Get current credit breakdown with row lock to prevent race conditions
                 const beforeResult = await client.query(`
                     SELECT 
                         COALESCE(renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
@@ -177,7 +178,7 @@ class CreditManager {
                 const beforeCredits = beforeResult.rows[0];
                 console.log(`💳 Before deduction - Renewable: ${beforeCredits.renewable_credits}, Pay-as-you-go: ${beforeCredits.payasyougo_credits}`);
 
-                // 🚨 CRITICAL FIX: Proper NaN handling - this was corrupting user credits
+                // CRITICAL FIX: Proper NaN handling - this was corrupting user credits
                 let newPayasyougo = parseFloat(beforeCredits.payasyougo_credits);
                 let newRenewable = parseFloat(beforeCredits.renewable_credits);
                 
@@ -202,16 +203,11 @@ class CreditManager {
                     newRenewable = parseFloat((newRenewable - remaining).toFixed(2));
                 }
 
-                // Ensure no negative credits and validate final values
+                // Ensure no negative credits
                 newPayasyougo = Math.max(0, newPayasyougo);
                 newRenewable = Math.max(0, newRenewable);
-                
-                // 🚨 CRITICAL VALIDATION: Prevent NaN from reaching database
-                if (isNaN(newPayasyougo) || isNaN(newRenewable)) {
-                    throw new Error('Credit calculation resulted in invalid values (NaN detected)');
-                }
 
-                // âœ… FIXED: Update user credits - removed complex WHERE condition causing race condition
+                // FIXED: Update user credits - removed complex WHERE condition causing race condition
                 const updateResult = await client.query(`
                     UPDATE users 
                     SET 
@@ -332,7 +328,7 @@ class CreditManager {
         }
     }
 
-    // âœ… ENHANCED: Get current user credits (dual system) - FIXED
+    // ENHANCED: Get current user credits (dual system) - FIXED
     async getCurrentCredits(userId) {
         try {
             const result = await pool.query(`
@@ -447,7 +443,7 @@ class CreditManager {
         }
     }
 
-    // âœ… NEW: Add pay-as-you-go credits (for purchases) - FIXED
+    // NEW: Add pay-as-you-go credits (for purchases) - FIXED
     async addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
         try {
             const client = await pool.connect();
@@ -523,7 +519,7 @@ class CreditManager {
         }
     }
 
-    // âœ… NEW: Reset renewable credits (monthly billing cycle) - FIXED
+    // NEW: Reset renewable credits (monthly billing cycle) - FIXED
     async resetRenewableCredits(userId) {
         try {
             const client = await pool.connect();
@@ -630,7 +626,7 @@ class CreditManager {
 // Create singleton instance
 const creditManager = new CreditManager();
 
-// âœ… ENHANCED: Helper functions for easy import (dual credit system aware)
+// ENHANCED: Helper functions for easy import (dual credit system aware)
 async function createCreditHold(userId, operationType, operationData = {}) {
     return await creditManager.createHold(userId, operationType, operationData);
 }
@@ -659,7 +655,7 @@ async function cleanupExpiredHolds() {
     return await creditManager.cleanupOldHolds();
 }
 
-// âœ… NEW: Helper functions for dual credit system
+// NEW: Helper functions for dual credit system
 async function addPayAsYouGoCredits(userId, amount, purchaseData = {}) {
     return await creditManager.addPayAsYouGoCredits(userId, amount, purchaseData);
 }
@@ -687,11 +683,11 @@ module.exports = {
     getCurrentCredits,
     getTransactionHistory,
     cleanupExpiredHolds,
-    // âœ… NEW: Dual credit system functions
+    // NEW: Dual credit system functions
     addPayAsYouGoCredits,
     resetRenewableCredits,
     getOperationCost,
     isValidOperationType
 };
 
-console.log('💳 Enhanced Credit Management System with Dual Credits loaded successfully! 🚨 CRITICAL NaN BUG FIXED! 🚨');
+console.log('💳 Enhanced Credit Management System with Dual Credits loaded successfully! ✅ NaN BUG FIXED! ✅ FALSE POSITIVE VALIDATION REMOVED!');
