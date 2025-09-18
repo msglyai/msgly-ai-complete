@@ -13,7 +13,7 @@
 // ✅ CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
 // ✅ CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
 // ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
-// 🆕 CONTEXT ADDON FUNCTIONS: Added getContextAddonUsage, createContextAddon, getUserContextAddons
+// 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -302,11 +302,56 @@ const fixPromptVersionColumn = async () => {
     }
 };
 
+// 🆕 NEW: Initialize existing users with proper context slots based on their plans
+const initializeContextSlots = async () => {
+    try {
+        console.log('[INIT] Initializing context slots for existing users...');
+        
+        // Plan to context slots mapping
+        const planContextSlots = {
+            'free': 1,
+            'silver-monthly': 3,
+            'gold-monthly': 6,
+            'platinum-monthly': 10,
+            'silver-payasyougo': 1,
+            'gold-payasyougo': 1,
+            'platinum-payasyougo': 1
+        };
+        
+        // Update all users with their base context slots
+        for (const [planCode, baseSlots] of Object.entries(planContextSlots)) {
+            const result = await pool.query(`
+                UPDATE users 
+                SET plan_context_slots = $1,
+                    total_context_slots = plan_context_slots + COALESCE(extra_context_slots, 0)
+                WHERE plan_code = $2 AND (plan_context_slots IS NULL OR plan_context_slots = 0)
+            `, [baseSlots, planCode]);
+            
+            if (result.rowCount > 0) {
+                console.log(`[INIT] Updated ${result.rowCount} ${planCode} users with ${baseSlots} base context slots`);
+            }
+        }
+        
+        // Handle any users with missing plan_code (default to free)
+        await pool.query(`
+            UPDATE users 
+            SET plan_context_slots = 1,
+                total_context_slots = 1 + COALESCE(extra_context_slots, 0)
+            WHERE plan_context_slots IS NULL OR plan_context_slots = 0
+        `);
+        
+        console.log('[SUCCESS] Context slots initialization completed');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to initialize context slots:', error);
+    }
+};
+
 // ==================== DATABASE INITIALIZATION ====================
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -347,7 +392,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -365,6 +410,12 @@ const initDB = async () => {
                 plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
                 renewable_credits INTEGER DEFAULT 7,
                 payasyougo_credits INTEGER DEFAULT 0,
+                
+                -- 🆕 NEW: Direct Context Slot Fields (like credit system)
+                plan_context_slots INTEGER DEFAULT 1,
+                extra_context_slots INTEGER DEFAULT 0,
+                total_context_slots INTEGER DEFAULT 1,
+                contexts_count INTEGER DEFAULT 0,
                 
                 -- NEW: Billing Cycle Management
                 subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -589,7 +640,7 @@ const initDB = async () => {
         // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
         await fixPromptVersionColumn();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -610,6 +661,12 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP',
                 
+                // 🆕 NEW: Context Slot System columns (like credit system)
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_context_slots INTEGER DEFAULT 1',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_context_slots INTEGER DEFAULT 0',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_context_slots INTEGER DEFAULT 1',
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0',
+                
                 // ✅ CHARGEBEE FIX: Add missing Chargebee columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100) UNIQUE',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)',
@@ -620,11 +677,21 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
                     await pool.query(columnQuery);
+                    // Log context slot column additions
+                    if (columnQuery.includes('plan_context_slots')) {
+                        console.log('🆕 CONTEXT SLOTS: Added plan_context_slots column');
+                    }
+                    if (columnQuery.includes('extra_context_slots')) {
+                        console.log('🆕 CONTEXT SLOTS: Added extra_context_slots column');
+                    }
+                    if (columnQuery.includes('total_context_slots')) {
+                        console.log('🆕 CONTEXT SLOTS: Added total_context_slots column');
+                    }
                     // Log Chargebee column additions
                     if (columnQuery.includes('chargebee_subscription_id')) {
                         console.log('✅ CHARGEBEE FIX: Added chargebee_subscription_id column');
@@ -752,7 +819,10 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES
+        // 🆕 NEW: Initialize context slots for existing users
+        await initializeContextSlots();
+
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -766,6 +836,10 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_users_linkedin_url ON users(linkedin_url);
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_users_plan_code ON users(plan_code);
+                
+                -- 🆕 CONTEXT SLOTS: Add context slot indexes for fast usage calculation
+                CREATE INDEX IF NOT EXISTS idx_users_context_usage ON users(plan_context_slots, extra_context_slots, total_context_slots);
+                CREATE INDEX IF NOT EXISTS idx_users_contexts_count ON users(contexts_count);
                 
                 -- ✅ CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_subscription_id ON users(chargebee_subscription_id);
@@ -808,7 +882,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -824,7 +898,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1155,6 +1229,8 @@ const downgradeUserToFree = async (userId) => {
                     next_billing_date = NULL,
                     cancellation_scheduled_at = NULL,
                     cancellation_effective_date = NULL,
+                    plan_context_slots = 1,
+                    total_context_slots = 1 + COALESCE(extra_context_slots, 0),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1
                 RETURNING *
@@ -1184,74 +1260,39 @@ const downgradeUserToFree = async (userId) => {
     }
 };
 
-// ==================== CONTEXT ADDON MANAGEMENT FUNCTIONS ====================
+// ==================== 🆕 SIMPLIFIED CONTEXT SLOT MANAGEMENT FUNCTIONS ====================
 
-// 🆕 Get user's context addon slots and usage
+// 🆕 Get user's context addon slots and usage - SIMPLIFIED: Direct field access
 const getContextAddonUsage = async (userId) => {
     try {
-        const client = await pool.connect();
+        const result = await pool.query(`
+            SELECT 
+                plan_context_slots,
+                extra_context_slots,
+                total_context_slots,
+                contexts_count,
+                plan_code
+            FROM users 
+            WHERE id = $1
+        `, [userId]);
         
-        try {
-            // Get user's base plan limits
-            const userResult = await client.query(`
-                SELECT 
-                    u.plan_code,
-                    u.contexts_count,
-                    p.plan_name
-                FROM users u
-                LEFT JOIN plans p ON u.plan_code = p.plan_code
-                WHERE u.id = $1
-            `, [userId]);
-            
-            if (userResult.rows.length === 0) {
-                throw new Error('User not found');
-            }
-            
-            const user = userResult.rows[0];
-            
-            // Get base limit based on plan
-            let baseLimit = 1; // Free default
-            switch (user.plan_code) {
-                case 'silver-monthly':
-                case 'silver-payasyougo':
-                    baseLimit = 3;
-                    break;
-                case 'gold-monthly':
-                case 'gold-payasyougo':
-                    baseLimit = 6;
-                    break;
-                case 'platinum-monthly':
-                case 'platinum-payasyougo':
-                    baseLimit = 10;
-                    break;
-            }
-            
-            // Get active addon slots
-            const addonResult = await client.query(`
-                SELECT COUNT(*) as addon_count
-                FROM user_context_addons 
-                WHERE user_id = $1 AND status = 'active'
-                AND (expires_at IS NULL OR expires_at > NOW())
-            `, [userId]);
-            
-            const addonSlots = parseInt(addonResult.rows[0].addon_count) || 0;
-            const used = parseInt(user.contexts_count) || 0;
-            const totalLimit = baseLimit + addonSlots;
-            
-            return {
-                success: true,
-                data: {
-                    used: used,
-                    baseLimit: baseLimit,
-                    addonSlots: addonSlots,
-                    totalLimit: totalLimit,
-                    planName: user.plan_name || user.plan_code
-                }
-            };
-            
-        } finally {
-            client.release();
+        if (result.rows.length === 0) {
+            throw new Error('User not found');
         }
+        
+        const user = result.rows[0];
+        
+        return {
+            success: true,
+            data: {
+                used: user.contexts_count || 0,
+                baseLimit: user.plan_context_slots || 1,
+                addonSlots: user.extra_context_slots || 0,
+                totalLimit: user.total_context_slots || 1,
+                planCode: user.plan_code
+            }
+        };
+        
     } catch (error) {
         console.error('Error getting context addon usage:', error);
         return {
@@ -1261,7 +1302,7 @@ const getContextAddonUsage = async (userId) => {
     }
 };
 
-// 🆕 Create context addon subscription after successful payment
+// 🆕 Create context addon subscription - SIMPLIFIED: Direct field increment
 const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails = {}) => {
     try {
         const client = await pool.connect();
@@ -1269,7 +1310,8 @@ const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails 
         try {
             await client.query('BEGIN');
             
-            const result = await client.query(`
+            // Create addon record
+            const addonResult = await client.query(`
                 INSERT INTO user_context_addons (
                     user_id,
                     chargebee_subscription_id,
@@ -1294,28 +1336,14 @@ const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails 
                 addonDetails.chargebeeStatus || 'active'
             ]);
             
-            // Log the event
+            // 🆕 SIMPLIFIED: Increment extra_context_slots directly
             await client.query(`
-                INSERT INTO context_slot_events (
-                    user_id,
-                    event_type,
-                    addon_id,
-                    base_limit,
-                    active_extra_slots,
-                    total_limit,
-                    current_usage,
-                    metadata
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            `, [
-                userId,
-                'addon_purchased',
-                result.rows[0].id,
-                addonDetails.baseLimit || 1,
-                1, // Adding 1 slot
-                (addonDetails.baseLimit || 1) + 1,
-                addonDetails.currentUsage || 0,
-                JSON.stringify({ chargebeeSubscriptionId, price: addonDetails.price || 3.99 })
-            ]);
+                UPDATE users 
+                SET extra_context_slots = extra_context_slots + $1,
+                    total_context_slots = plan_context_slots + extra_context_slots + $1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+            `, [addonDetails.quantity || 1, userId]);
             
             await client.query('COMMIT');
             
@@ -1323,7 +1351,7 @@ const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails 
             
             return {
                 success: true,
-                data: result.rows[0]
+                data: addonResult.rows[0]
             };
             
         } catch (error) {
@@ -1364,6 +1392,110 @@ const getUserContextAddons = async (userId) => {
         };
     } catch (error) {
         console.error('Error getting user context addons:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// 🆕 Update user context slots when plan changes (like credit functions)
+const updateUserContextSlots = async (userId, newPlanCode) => {
+    try {
+        // Plan to context slots mapping
+        const planContextSlots = {
+            'free': 1,
+            'silver-monthly': 3,
+            'gold-monthly': 6,
+            'platinum-monthly': 10,
+            'silver-payasyougo': 1,
+            'gold-payasyougo': 1,
+            'platinum-payasyougo': 1
+        };
+        
+        const newBaseSlots = planContextSlots[newPlanCode] || 1;
+        
+        const result = await pool.query(`
+            UPDATE users 
+            SET plan_context_slots = $1,
+                total_context_slots = $1 + COALESCE(extra_context_slots, 0),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING plan_context_slots, extra_context_slots, total_context_slots
+        `, [newBaseSlots, userId]);
+        
+        if (result.rows.length === 0) {
+            throw new Error('User not found');
+        }
+        
+        const slots = result.rows[0];
+        
+        return {
+            success: true,
+            baseSlots: Number(slots.plan_context_slots),
+            extraSlots: Number(slots.extra_context_slots),
+            totalSlots: Number(slots.total_context_slots)
+        };
+    } catch (error) {
+        console.error('Error updating user context slots:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// 🆕 Remove context addon (decrement slots)
+const removeContextAddon = async (userId, addonId) => {
+    try {
+        const client = await pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Get addon details
+            const addonResult = await client.query(`
+                SELECT addon_quantity FROM user_context_addons 
+                WHERE id = $1 AND user_id = $2
+            `, [addonId, userId]);
+            
+            if (addonResult.rows.length === 0) {
+                throw new Error('Addon not found');
+            }
+            
+            const addonQuantity = addonResult.rows[0].addon_quantity || 1;
+            
+            // Cancel addon
+            await client.query(`
+                UPDATE user_context_addons 
+                SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1
+            `, [addonId]);
+            
+            // 🆕 SIMPLIFIED: Decrement extra_context_slots directly
+            await client.query(`
+                UPDATE users 
+                SET extra_context_slots = GREATEST(0, extra_context_slots - $1),
+                    total_context_slots = plan_context_slots + GREATEST(0, extra_context_slots - $1),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+            `, [addonQuantity, userId]);
+            
+            await client.query('COMMIT');
+            
+            return {
+                success: true,
+                removedSlots: addonQuantity
+            };
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error removing context addon:', error);
         return {
             success: false,
             error: error.message
@@ -1692,15 +1824,30 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     
     const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
     
+    // 🆕 Get context slots for plan
+    const planContextSlots = {
+        'free': 1,
+        'silver-monthly': 3,
+        'gold-monthly': 6,
+        'platinum-monthly': 10,
+        'silver-payasyougo': 1,
+        'gold-payasyougo': 1,
+        'platinum-payasyougo': 1
+    };
+    
+    const contextSlots = planContextSlots[packageType] || 1;
+    
     const result = await pool.query(`
         INSERT INTO users (
             email, password_hash, package_type, billing_model, plan_code,
             renewable_credits, payasyougo_credits, credits_remaining,
+            plan_context_slots, extra_context_slots, total_context_slots,
             subscription_starts_at, next_billing_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *
     `, [
         email, passwordHash, packageType, billingModel, packageType,
         renewableCredits, 0, renewableCredits,
+        contextSlots, 0, contextSlots,
         new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
     ]);
     
@@ -1717,6 +1864,19 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
     
+    // 🆕 Get context slots for plan
+    const planContextSlots = {
+        'free': 1,
+        'silver-monthly': 3,
+        'gold-monthly': 6,
+        'platinum-monthly': 10,
+        'silver-payasyougo': 1,
+        'gold-payasyougo': 1,
+        'platinum-payasyougo': 1
+    };
+    
+    const contextSlots = planContextSlots[packageType] || 1;
+    
     // ✅ AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
     const registrationCompleted = !!linkedinUrl;
     
@@ -1725,13 +1885,15 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
             email, google_id, display_name, profile_picture, 
             package_type, billing_model, plan_code,
             renewable_credits, payasyougo_credits, credits_remaining,
+            plan_context_slots, extra_context_slots, total_context_slots,
             subscription_starts_at, next_billing_date,
             linkedin_url, registration_completed
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *
     `, [
         email, googleId, displayName, profilePicture, 
         packageType, billingModel, packageType,
         renewableCredits, 0, renewableCredits,
+        contextSlots, 0, contextSlots,
         new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
         linkedinUrl, registrationCompleted // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
     ]);
@@ -1823,7 +1985,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 CONTEXT ADDON FUNCTIONS
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM
 module.exports = {
     // Database connection
     pool,
@@ -1839,6 +2001,7 @@ module.exports = {
     ensureContextAddonTables, // ✅ NEW: Context addon tables function
     ensurePendingRegistrationsTable,
     fixPromptVersionColumn,
+    initializeContextSlots, // 🆕 NEW: Initialize context slots function
     
     // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
@@ -1865,10 +2028,12 @@ module.exports = {
     getPendingRegistration,
     completePendingRegistration,
     
-    // 🆕 NEW: Context Addon Management
+    // 🆕 NEW: Context Slot Management (like credit functions)
     getContextAddonUsage,
     createContextAddon,
     getUserContextAddons,
+    updateUserContextSlots,
+    removeContextAddon,
     
     // Data processing helpers (used by USER profiles only)
     sanitizeForJSON,
