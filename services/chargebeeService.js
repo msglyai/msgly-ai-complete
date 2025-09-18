@@ -1,4 +1,4 @@
-// services/chargebeeService.js - Enhanced Chargebee Service with Silver Plan Integration
+// services/chargebeeService.js - Enhanced Chargebee Service with Silver Plan Integration + Context Addon Support
 // STEP 8A: Added checkout creation, plan management, and subscription handling
 // Preserves all existing functionality while adding Silver plan support
 // FIXED: Updated createCheckout method for Product Catalog 2.0
@@ -8,6 +8,7 @@
 // NEW: Added Gold-Monthly and Platinum-Monthly plans
 // CANCELLATION FIX: Added subscription cancellation handling
 // PAYG EXPANSION: Added Gold-PAYG-USD and Platinum-PAYG-USD plans
+// CONTEXT ADDON: Added Context-Addon-Monthly-USD-Monthly support for extra context slots
 
 const chargebee = require('chargebee');
 require('dotenv').config();
@@ -31,6 +32,7 @@ try {
 // FINAL FIX: Updated to match actual Chargebee Item Price IDs
 // NEW: Added Gold-Monthly and Platinum-Monthly plans
 // PAYG EXPANSION: Added Gold-PAYG-USD and Platinum-PAYG-USD plans
+// CONTEXT ADDON: Added Context-Addon-Monthly-USD-Monthly for extra context slots
 const CHARGEBEE_PLAN_MAPPING = {
     'Silver-Monthly': {
         planCode: 'silver-monthly',
@@ -71,6 +73,14 @@ const CHARGEBEE_PLAN_MAPPING = {
         payasyougoCredits: 250,
         billingModel: 'one_time',
         displayName: 'Platinum Pay-as-you-go'
+    },
+    // NEW: Context Addon - Extra Context Slot
+    'Context-Addon-Monthly-USD-Monthly': {
+        planCode: 'context-addon',
+        addonType: 'context-slot',
+        billingModel: 'monthly',
+        price: 3.99,
+        displayName: 'Extra Context Slot'
     }
 };
 
@@ -78,7 +88,7 @@ class ChargebeeService {
     constructor() {
         this.isConfigured = false;
         this.planMapping = CHARGEBEE_PLAN_MAPPING;
-        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support (Monthly + PAYG) + cancellation handling');
+        console.log('[CHARGEBEE] Service initialized with Silver, Gold, and Platinum plan support (Monthly + PAYG) + cancellation handling + context addon support');
     }
 
     // EXISTING METHOD: Test connection using Product Catalog 2.0 API (preserved)
