@@ -14,6 +14,7 @@
 // ✅ CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
 // ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
 // 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
+// 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -302,45 +303,55 @@ const fixPromptVersionColumn = async () => {
     }
 };
 
-// 🆕 NEW: Initialize existing users with proper context slots based on their plans
+// 🆕 NEW: Initialize existing users with proper context slots based on their plans - FIXED: Handle both plan_code AND package_type
 const initializeContextSlots = async () => {
     try {
         console.log('[INIT] Initializing context slots for existing users...');
         
-        // Plan to context slots mapping
-        const planContextSlots = {
-            'free': 1,
-            'silver-monthly': 3,
-            'gold-monthly': 6,
-            'platinum-monthly': 10,
-            'silver-payasyougo': 1,
-            'gold-payasyougo': 1,
-            'platinum-payasyougo': 1
-        };
-        
-        // Update all users with their base context slots
-        for (const [planCode, baseSlots] of Object.entries(planContextSlots)) {
-            const result = await pool.query(`
-                UPDATE users 
-                SET plan_context_slots = $1,
-                    total_context_slots = plan_context_slots + COALESCE(extra_context_slots, 0)
-                WHERE plan_code = $2 AND (plan_context_slots IS NULL OR plan_context_slots = 0)
-            `, [baseSlots, planCode]);
-            
-            if (result.rowCount > 0) {
-                console.log(`[INIT] Updated ${result.rowCount} ${planCode} users with ${baseSlots} base context slots`);
-            }
-        }
-        
-        // Handle any users with missing plan_code (default to free)
-        await pool.query(`
+        // 🔧 FIXED: Use comprehensive CTE approach to handle both field names
+        const result = await pool.query(`
+            WITH plan_mapping AS (
+                SELECT id, 
+                       COALESCE(plan_code, package_type, 'free') as effective_plan,
+                       CASE 
+                           WHEN COALESCE(plan_code, package_type, 'free') = 'silver-monthly' THEN 3
+                           WHEN COALESCE(plan_code, package_type, 'free') = 'gold-monthly' THEN 6
+                           WHEN COALESCE(plan_code, package_type, 'free') = 'platinum-monthly' THEN 10
+                           WHEN COALESCE(plan_code, package_type, 'free') LIKE '%-payasyougo' THEN 1
+                           ELSE 1  -- free and unknown plans default to 1
+                       END as correct_base_slots
+                FROM users
+            )
             UPDATE users 
-            SET plan_context_slots = 1,
-                total_context_slots = 1 + COALESCE(extra_context_slots, 0)
-            WHERE plan_context_slots IS NULL OR plan_context_slots = 0
+            SET plan_context_slots = plan_mapping.correct_base_slots,
+                total_context_slots = plan_mapping.correct_base_slots + COALESCE(users.extra_context_slots, 0),
+                updated_at = CURRENT_TIMESTAMP
+            FROM plan_mapping 
+            WHERE users.id = plan_mapping.id
+            AND (users.plan_context_slots IS NULL 
+                 OR users.plan_context_slots != plan_mapping.correct_base_slots 
+                 OR users.plan_context_slots = 1) -- Force update even existing 1s to ensure correct values
         `);
         
-        console.log('[SUCCESS] Context slots initialization completed');
+        console.log(`[INIT] ✅ Updated ${result.rowCount} users with correct context slots`);
+        
+        // 🔧 VERIFICATION: Log the results for verification
+        const verification = await pool.query(`
+            SELECT 
+                COALESCE(plan_code, package_type, 'unknown') as effective_plan,
+                plan_context_slots,
+                COUNT(*) as user_count
+            FROM users 
+            GROUP BY effective_plan, plan_context_slots
+            ORDER BY effective_plan, plan_context_slots
+        `);
+        
+        console.log('[INIT] Context slots verification results:');
+        verification.rows.forEach(row => {
+            console.log(`  ${row.effective_plan}: ${row.plan_context_slots} slots (${row.user_count} users)`);
+        });
+        
+        console.log('[SUCCESS] ✅ Context slots initialization completed successfully');
         
     } catch (error) {
         console.error('[ERROR] Failed to initialize context slots:', error);
@@ -819,7 +830,7 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // 🆕 NEW: Initialize context slots for existing users
+        // 🆕 NEW: Initialize context slots for existing users - FIXED VERSION
         await initializeContextSlots();
 
         // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES
