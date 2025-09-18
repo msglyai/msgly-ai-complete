@@ -559,6 +559,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin-bottom: 1.5rem;
         }
 
+        /* NEW: Three-column row for Account/Subscription/Context */
+        .dashboard-row-three {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+
         /* Recent Messages Section - Full Width */
         .recent-messages-section {
             margin-bottom: 1.5rem;
@@ -1020,6 +1028,168 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             box-shadow: var(--intense-glow);
         }
 
+        /* NEW: Context Storage Card Styles */
+        .context-usage-display {
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
+            border-radius: 12px;
+            margin: 1rem 0;
+            border: 1px solid rgba(128, 57, 223, 0.15);
+        }
+
+        .context-usage-number {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            text-shadow: 0 2px 4px rgba(128, 57, 223, 0.15);
+        }
+
+        .context-usage-info {
+            flex: 1;
+        }
+
+        .context-usage-text {
+            color: var(--dark-gray);
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .context-usage-details {
+            color: var(--gray);
+            font-size: 0.75rem;
+            line-height: 1.3;
+        }
+
+        .context-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(128, 57, 223, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .context-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .context-progress-fill.warning {
+            background: linear-gradient(90deg, var(--warning-orange) 0%, #D97706 100%);
+        }
+
+        .context-progress-fill.danger {
+            background: linear-gradient(90deg, var(--error-red) 0%, #DC2626 100%);
+        }
+
+        .buy-addon-btn {
+            width: 100%;
+            padding: 0.8rem 1.2rem;
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #E11D48 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 0.8rem;
+            box-shadow: 0 3px 12px rgba(255, 35, 112, 0.25);
+        }
+
+        .buy-addon-btn:hover {
+            background: linear-gradient(135deg, #E11D48 0%, var(--accent-pink) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(255, 35, 112, 0.35);
+        }
+
+        .addon-management {
+            margin-top: 1rem;
+        }
+
+        .addon-section-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.8rem;
+        }
+
+        .addon-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .addon-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.7rem 0.9rem;
+            background: var(--light-gray);
+            border-radius: 10px;
+            border-left: 4px solid var(--accent-pink);
+        }
+
+        .addon-info {
+            flex: 1;
+        }
+
+        .addon-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--black);
+            margin-bottom: 0.2rem;
+        }
+
+        .addon-details {
+            font-size: 0.7rem;
+            color: var(--gray);
+        }
+
+        .addon-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .cancel-addon-btn {
+            padding: 0.4rem 0.8rem;
+            background: var(--error-red);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .cancel-addon-btn:hover {
+            background: #DC2626;
+            transform: translateY(-1px);
+        }
+
+        .empty-addons {
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--gray);
+            font-size: 0.85rem;
+            background: var(--light-gray);
+            border-radius: 10px;
+        }
+
         /* Optimized LinkedIn Profile Card */
         .profile-summary {
             display: flex;
@@ -1273,6 +1443,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 grid-template-columns: 1fr;
             }
             
+            .dashboard-row-three {
+                grid-template-columns: 1fr;
+            }
+            
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
@@ -1344,6 +1518,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             }
 
             .credits-display {
+                flex-direction: column;
+                text-align: center;
+                gap: 0.8rem;
+            }
+
+            .context-usage-display {
                 flex-direction: column;
                 text-align: center;
                 gap: 0.8rem;
@@ -1510,7 +1690,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1549,8 +1729,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             <!-- Dashboard Content -->
             <div id="dashboardContent" style="display: none;">
-                <!-- Top Row: Account Info and Subscription -->
-                <div class="dashboard-row">
+                <!-- Top Row: Account Info, Subscription, and Context Storage -->
+                <div class="dashboard-row-three">
                     <!-- Enhanced Account Information -->
                     <div class="card">
                         <div class="card-header">
@@ -1658,6 +1838,47 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             Upgrade Plan / Buy Credits
                         </a>
                     </div>
+
+                    <!-- NEW: Context Storage Management -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <h3 class="card-title">Context Storage</h3>
+                        </div>
+                        
+                        <div class="context-usage-display">
+                            <div class="context-usage-number" id="contextUsageNumber">--</div>
+                            <div class="context-usage-info">
+                                <div class="context-usage-text">Contexts Used</div>
+                                <div class="context-usage-details" id="contextUsageDetails">
+                                    <span id="contextBreakdown">Loading...</span><br>
+                                    <span id="contextLimitInfo">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="context-progress-bar">
+                            <div class="context-progress-fill" id="contextProgressFill" style="width: 0%"></div>
+                        </div>
+                        
+                        <button class="buy-addon-btn" onclick="purchaseContextAddon()">
+                            <i class="fas fa-plus"></i>
+                            Buy +1 Extra Context Slot - $3.99/month
+                        </button>
+                        
+                        <div class="addon-management" id="addonManagement" style="display: none;">
+                            <div class="addon-section-title">Active Context Addons</div>
+                            <div class="addon-list" id="addonList">
+                                <!-- Addons will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div class="empty-addons" id="emptyAddons">
+                            No active context addons
+                        </div>
+                    </div>
                 </div>
 
                 <!-- NEW: Recent Messages Section -->
@@ -1735,7 +1956,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard â€" Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1749,6 +1970,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let currentUserData = null;
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
+        let currentContextUsage = null;
 
         // MOCK RECENT MESSAGES DATA - Replace with API call
         const mockRecentMessages = [
@@ -1833,12 +2055,207 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
+        // NEW: Context Addon Functions
+        async function loadContextUsage() {
+            const token = getAuthToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch('https://api.msgly.ai/contexts/limits', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentContextUsage = data.data;
+                    updateContextStorageDisplay(data.data);
+                }
+                
+            } catch (error) {
+                console.error('[CONTEXT] Error loading context usage:', error);
+                // Show fallback data
+                updateContextStorageDisplay({
+                    used: 0,
+                    baseLimit: 1,
+                    totalLimit: 1,
+                    addonSlots: 0,
+                    addons: []
+                });
+            }
+        }
+
+        function updateContextStorageDisplay(usageData) {
+            const {
+                used = 0,
+                baseLimit = 1,
+                totalLimit = 1,
+                addonSlots = 0,
+                addons = []
+            } = usageData;
+
+            // Update usage number and details
+            document.getElementById('contextUsageNumber').textContent = `${used}/${totalLimit}`;
+            
+            const contextBreakdown = document.getElementById('contextBreakdown');
+            const contextLimitInfo = document.getElementById('contextLimitInfo');
+            
+            if (addonSlots > 0) {
+                contextBreakdown.textContent = `${baseLimit} base + ${addonSlots} addon slots`;
+                contextLimitInfo.textContent = `Total: ${totalLimit} context slots`;
+            } else {
+                contextBreakdown.textContent = `${baseLimit} base slots`;
+                contextLimitInfo.textContent = `Upgrade plan or buy addons for more`;
+            }
+
+            // Update progress bar
+            const progressFill = document.getElementById('contextProgressFill');
+            const usagePercentage = totalLimit > 0 ? (used / totalLimit) * 100 : 0;
+            
+            progressFill.style.width = `${usagePercentage}%`;
+            
+            // Change progress bar color based on usage
+            progressFill.className = 'context-progress-fill';
+            if (usagePercentage >= 90) {
+                progressFill.classList.add('danger');
+            } else if (usagePercentage >= 70) {
+                progressFill.classList.add('warning');
+            }
+
+            // Update addon management section
+            const addonManagement = document.getElementById('addonManagement');
+            const emptyAddons = document.getElementById('emptyAddons');
+            const addonList = document.getElementById('addonList');
+
+            if (addons.length > 0) {
+                addonManagement.style.display = 'block';
+                emptyAddons.style.display = 'none';
+                
+                addonList.innerHTML = addons.map(addon => createAddonListItem(addon)).join('');
+            } else {
+                addonManagement.style.display = 'none';
+                emptyAddons.style.display = 'block';
+            }
+        }
+
+        function createAddonListItem(addon) {
+            const renewalDate = addon.renewalDate ? 
+                new Date(addon.renewalDate).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : 
+                'Unknown';
+
+            return `
+                <div class="addon-item">
+                    <div class="addon-info">
+                        <div class="addon-name">+1 Extra Context Slot</div>
+                        <div class="addon-details">$3.99/month • Renews ${renewalDate}</div>
+                    </div>
+                    <div class="addon-actions">
+                        <button class="cancel-addon-btn" onclick="cancelContextAddon('${addon.id}')">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function purchaseContextAddon() {
+            const token = getAuthToken();
+            if (!token) {
+                alert('Please log in to purchase context addons');
+                return;
+            }
+
+            try {
+                console.log('[ADDON] Initiating context addon purchase...');
+                
+                const response = await fetch('https://api.msgly.ai/context-addons/purchase', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        addonType: 'context-slot',
+                        quantity: 1
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.success && result.data.checkoutUrl) {
+                    console.log('[ADDON] Opening Chargebee checkout...');
+                    window.open(result.data.checkoutUrl, '_blank');
+                    
+                    showUpgradeSuccessNotification('Checkout opened! Complete payment to add your extra context slot.');
+                } else {
+                    throw new Error(result.error || 'Purchase failed');
+                }
+
+            } catch (error) {
+                console.error('[ADDON] Purchase error:', error);
+                showUpgradeErrorNotification('Failed to initiate purchase. Please try again.');
+            }
+        }
+
+        async function cancelContextAddon(addonId) {
+            if (!confirm('Are you sure you want to cancel this context addon? You will lose access at the end of your current billing period.')) {
+                return;
+            }
+
+            const token = getAuthToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch(`https://api.msgly.ai/context-addons/${addonId}/cancel`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showUpgradeSuccessNotification('Context addon cancelled successfully. Access will continue until the end of your billing period.');
+                    
+                    // Refresh context usage
+                    setTimeout(() => loadContextUsage(), 1000);
+                } else {
+                    throw new Error(result.error || 'Cancellation failed');
+                }
+
+            } catch (error) {
+                console.error('[ADDON] Cancel error:', error);
+                showUpgradeErrorNotification('Failed to cancel addon. Please try again or contact support.');
+            }
+        }
+
         // UPGRADE HANDLING FUNCTIONS
-        function showUpgradeSuccessNotification() {
+        function showUpgradeSuccessNotification(customMessage = null) {
             const notification = document.getElementById('successNotification');
             const message = document.getElementById('successMessage');
             
-            message.textContent = 'Payment successful! Your plan has been upgraded and credits are ready to use.';
+            message.textContent = customMessage || 'Payment successful! Your plan has been upgraded and credits are ready to use.';
             notification.style.display = 'block';
             
             setTimeout(() => {
@@ -1846,8 +2263,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }, 10000);
         }
 
-        function showUpgradeErrorNotification() {
+        function showUpgradeErrorNotification(customMessage = null) {
             const notification = document.getElementById('errorNotification');
+            const message = document.getElementById('errorMessage');
+            
+            message.textContent = customMessage || 'There was an issue processing your upgrade. Please try again or contact support.';
             notification.style.display = 'block';
             
             setTimeout(() => {
@@ -1992,6 +2412,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             try {
                 await loadDashboardData(token);
+                await loadContextUsage(); // NEW: Load context usage
             } catch (error) {
                 console.error('[AUTH] Dashboard load error:', error);
                 if (error.message.includes('401') || error.message.includes('403')) {
@@ -2114,15 +2535,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ… Fully Synced';
+                    profileSyncStatusEl.textContent = '✓ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2279,7 +2700,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
