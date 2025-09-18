@@ -1,13 +1,14 @@
 // routes/contextsRoutes.js
-// Context Management Routes - Save/Load/Delete user contexts with plan-based limits
+// Context Management Routes - Save/Load/Delete user contexts with plan-based limits + CONTEXT ADDON SUPPORT
+// ✅ ENHANCED: Now includes purchased context addon slots in limit calculations
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
-const { pool } = require('../utils/database');
+const { pool, getContextAddonUsage } = require('../utils/database');
 const logger = require('../utils/logger');
 
-// Context limits by plan
-const CONTEXT_LIMITS = {
+// Base context limits by plan (before addons)
+const BASE_CONTEXT_LIMITS = {
     'free': 1,
     'silver-monthly': 3,
     'gold-monthly': 6,
@@ -18,9 +19,51 @@ const CONTEXT_LIMITS = {
     'platinum-payasyougo': 1
 };
 
-// Helper function to get user's context limit
-function getContextLimit(planCode) {
-    return CONTEXT_LIMITS[planCode] || 1; // Default to 1 for unknown plans
+// Helper function to get user's base context limit (without addons)
+function getBaseContextLimit(planCode) {
+    return BASE_CONTEXT_LIMITS[planCode] || 1; // Default to 1 for unknown plans
+}
+
+// ✅ NEW: Enhanced helper function to get user's total context limit (base + addons)
+async function getTotalContextLimit(userId, planCode) {
+    try {
+        // Get base plan limit
+        const baseLimit = getBaseContextLimit(planCode);
+        
+        // Get addon usage (includes base + addon slots)
+        const addonUsage = await getContextAddonUsage(userId);
+        
+        if (addonUsage.success) {
+            // Return total slots (base + addons)
+            return {
+                success: true,
+                totalSlots: addonUsage.totalSlots,
+                baseSlots: addonUsage.baseSlots,
+                addonSlots: addonUsage.addonSlots,
+                activeAddons: addonUsage.activeAddons
+            };
+        } else {
+            // Fallback to base plan limit if addon query fails
+            logger.debug('Addon usage query failed, using base limit:', addonUsage.error);
+            return {
+                success: true,
+                totalSlots: baseLimit,
+                baseSlots: baseLimit,
+                addonSlots: 0,
+                activeAddons: 0
+            };
+        }
+    } catch (error) {
+        logger.error('Error calculating total context limit:', error);
+        // Fallback to base plan limit on error
+        return {
+            success: true,
+            totalSlots: getBaseContextLimit(planCode),
+            baseSlots: getBaseContextLimit(planCode),
+            addonSlots: 0,
+            activeAddons: 0
+        };
+    }
 }
 
 // GET /contexts - List user's saved contexts
@@ -39,7 +82,9 @@ router.get('/contexts', authenticateToken, async (req, res) => {
         `, [req.user.id]);
         
         const planCode = userResult.rows[0]?.package_type || 'free';
-        const limit = getContextLimit(planCode);
+        
+        // ✅ ENHANCED: Get total limit including addons
+        const limitInfo = await getTotalContextLimit(req.user.id, planCode);
 
         res.json({
             success: true,
@@ -47,8 +92,14 @@ router.get('/contexts', authenticateToken, async (req, res) => {
                 contexts: result.rows,
                 usage: {
                     used: result.rows.length,
-                    limit: limit,
-                    remaining: Math.max(0, limit - result.rows.length)
+                    limit: limitInfo.totalSlots,
+                    remaining: Math.max(0, limitInfo.totalSlots - result.rows.length),
+                    // ✅ NEW: Include addon information
+                    breakdown: {
+                        baseSlots: limitInfo.baseSlots,
+                        addonSlots: limitInfo.addonSlots,
+                        activeAddons: limitInfo.activeAddons
+                    }
                 }
             }
         });
@@ -87,7 +138,9 @@ router.post('/contexts', authenticateToken, async (req, res) => {
         `, [req.user.id]);
         
         const planCode = userResult.rows[0]?.package_type || 'free';
-        const limit = getContextLimit(planCode);
+        
+        // ✅ ENHANCED: Get total limit including addons
+        const limitInfo = await getTotalContextLimit(req.user.id, planCode);
 
         const countResult = await pool.query(`
             SELECT COUNT(*) as count FROM saved_contexts WHERE user_id = $1
@@ -95,11 +148,22 @@ router.post('/contexts', authenticateToken, async (req, res) => {
 
         const currentCount = parseInt(countResult.rows[0].count);
 
-        if (currentCount >= limit) {
+        // ✅ ENHANCED: Check against total limit (base + addons)
+        if (currentCount >= limitInfo.totalSlots) {
             return res.status(400).json({
                 success: false,
-                error: `Context limit reached. Your ${planCode} plan allows ${limit} saved context${limit > 1 ? 's' : ''}.`,
-                planUpgradeRequired: true
+                error: `Context limit reached. You have ${limitInfo.totalSlots} total slot${limitInfo.totalSlots > 1 ? 's' : ''} (${limitInfo.baseSlots} base + ${limitInfo.addonSlots} addon${limitInfo.addonSlots !== 1 ? 's' : ''}).`,
+                planUpgradeRequired: limitInfo.addonSlots === 0, // Only suggest upgrade if no addons
+                addonPurchaseAvailable: true, // Always allow addon purchase
+                currentUsage: {
+                    used: currentCount,
+                    limit: limitInfo.totalSlots,
+                    breakdown: {
+                        baseSlots: limitInfo.baseSlots,
+                        addonSlots: limitInfo.addonSlots,
+                        activeAddons: limitInfo.activeAddons
+                    }
+                }
             });
         }
 
@@ -114,7 +178,18 @@ router.post('/contexts', authenticateToken, async (req, res) => {
             res.json({
                 success: true,
                 message: 'Context saved successfully',
-                data: result.rows[0]
+                data: result.rows[0],
+                // ✅ NEW: Include updated usage info
+                usage: {
+                    used: currentCount + 1,
+                    limit: limitInfo.totalSlots,
+                    remaining: limitInfo.totalSlots - (currentCount + 1),
+                    breakdown: {
+                        baseSlots: limitInfo.baseSlots,
+                        addonSlots: limitInfo.addonSlots,
+                        activeAddons: limitInfo.activeAddons
+                    }
+                }
             });
         } catch (dbError) {
             if (dbError.code === '23505') { // Unique violation
@@ -236,7 +311,9 @@ router.get('/contexts/limits', authenticateToken, async (req, res) => {
         `, [req.user.id]);
         
         const planCode = userResult.rows[0]?.package_type || 'free';
-        const limit = getContextLimit(planCode);
+        
+        // ✅ ENHANCED: Get total limit including addons
+        const limitInfo = await getTotalContextLimit(req.user.id, planCode);
 
         const countResult = await pool.query(`
             SELECT COUNT(*) as count FROM saved_contexts WHERE user_id = $1
@@ -248,10 +325,24 @@ router.get('/contexts/limits', authenticateToken, async (req, res) => {
             success: true,
             data: {
                 planCode: planCode,
-                limit: limit,
+                limit: limitInfo.totalSlots,
                 used: currentCount,
-                remaining: Math.max(0, limit - currentCount),
-                canSaveMore: currentCount < limit
+                remaining: Math.max(0, limitInfo.totalSlots - currentCount),
+                canSaveMore: currentCount < limitInfo.totalSlots,
+                // ✅ NEW: Include detailed breakdown
+                breakdown: {
+                    baseSlots: limitInfo.baseSlots,
+                    addonSlots: limitInfo.addonSlots,
+                    activeAddons: limitInfo.activeAddons,
+                    totalSlots: limitInfo.totalSlots
+                },
+                // ✅ NEW: Include addon purchase availability
+                addonInfo: {
+                    canPurchaseMore: true,
+                    addonPrice: 3.99,
+                    addonSlotsPerPurchase: 1,
+                    billingModel: 'monthly'
+                }
             }
         });
 
