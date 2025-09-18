@@ -2732,9 +2732,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             // Calculate and display next renewal date
             const nextRenewalEl = document.getElementById('nextRenewal');
-            if (user.subscriptionRenewalDate) {
-                const renewalDate = new Date(user.subscriptionRenewalDate);
-                nextRenewalEl.textContent = renewalDate.toLocaleDateString('en-US', {
+            const renewalDate = user.next_billing_date || user.subscriptionRenewalDate || user.renewalDate;
+            
+            if (renewalDate) {
+                const date = new Date(renewalDate);
+                nextRenewalEl.textContent = date.toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric'
