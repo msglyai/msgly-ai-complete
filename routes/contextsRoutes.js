@@ -1,19 +1,20 @@
 // routes/contextsRoutes.js
 // Context Management Routes - Save/Load/Delete user contexts with plan-based limits + CONTEXT ADDON SUPPORT
 // ✅ ENHANCED: Now includes purchased context addon slots in limit calculations
+// 🔧 FIXED: Robust base limit calculation that doesn't rely on database.js errors
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
 const { pool, getContextAddonUsage } = require('../utils/database');
 const logger = require('../utils/logger');
 
-// Base context limits by plan (before addons)
+// Base context limits by plan (before addons) - CORRECTED PAYG LIMITS
 const BASE_CONTEXT_LIMITS = {
     'free': 1,
     'silver-monthly': 3,
     'gold-monthly': 6,
     'platinum-monthly': 10,
-    // PAYG plans use free limits since they're credit purchases, not plan upgrades
+    // All PAYG plans get only 1 slot (like free) - pay per message, minimal storage
     'silver-payasyougo': 1,
     'gold-payasyougo': 1,
     'platinum-payasyougo': 1
@@ -24,31 +25,46 @@ function getBaseContextLimit(planCode) {
     return BASE_CONTEXT_LIMITS[planCode] || 1; // Default to 1 for unknown plans
 }
 
-// ✅ NEW: Enhanced helper function to get user's total context limit (base + addons)
+// ✅ FIXED: Enhanced helper function to get user's total context limit (base + addons)
 async function getTotalContextLimit(userId, planCode) {
     try {
-        // Get base plan limit
-        const baseLimit = getBaseContextLimit(planCode);
+        // STEP 1: Calculate the CORRECT base limit from plan code
+        const expectedBaseLimit = getBaseContextLimit(planCode);
         
-        // Get addon usage (includes base + addon slots)
+        // STEP 2: Get addon usage from database
         const addonUsage = await getContextAddonUsage(userId);
         
         if (addonUsage.success) {
-            // Return total slots (base + addons)
+            // STEP 3: Validate and correct the base limit if database.js returned wrong value
+            const actualAddonSlots = addonUsage.addonSlots || 0;
+            const actualActiveAddons = addonUsage.activeAddons || 0;
+            
+            // STEP 4: Calculate correct total (ignore potentially wrong baseSlots from database.js)
+            const correctedTotalSlots = expectedBaseLimit + actualAddonSlots;
+            
+            logger.debug(`Context limit calculation for user ${userId}:`, {
+                planCode: planCode,
+                expectedBaseLimit: expectedBaseLimit,
+                addonSlots: actualAddonSlots,
+                totalSlots: correctedTotalSlots,
+                databaseBaseSlots: addonUsage.baseSlots, // For debugging
+                databaseTotalSlots: addonUsage.totalSlots // For debugging
+            });
+            
             return {
                 success: true,
-                totalSlots: addonUsage.totalSlots,
-                baseSlots: addonUsage.baseSlots,
-                addonSlots: addonUsage.addonSlots,
-                activeAddons: addonUsage.activeAddons
+                totalSlots: correctedTotalSlots,
+                baseSlots: expectedBaseLimit, // Use our calculated value
+                addonSlots: actualAddonSlots,
+                activeAddons: actualActiveAddons
             };
         } else {
             // Fallback to base plan limit if addon query fails
             logger.debug('Addon usage query failed, using base limit:', addonUsage.error);
             return {
                 success: true,
-                totalSlots: baseLimit,
-                baseSlots: baseLimit,
+                totalSlots: expectedBaseLimit,
+                baseSlots: expectedBaseLimit,
                 addonSlots: 0,
                 activeAddons: 0
             };
@@ -56,10 +72,11 @@ async function getTotalContextLimit(userId, planCode) {
     } catch (error) {
         logger.error('Error calculating total context limit:', error);
         // Fallback to base plan limit on error
+        const fallbackLimit = getBaseContextLimit(planCode);
         return {
             success: true,
-            totalSlots: getBaseContextLimit(planCode),
-            baseSlots: getBaseContextLimit(planCode),
+            totalSlots: fallbackLimit,
+            baseSlots: fallbackLimit,
             addonSlots: 0,
             activeAddons: 0
         };
@@ -325,8 +342,11 @@ router.get('/contexts/limits', authenticateToken, async (req, res) => {
             success: true,
             data: {
                 planCode: planCode,
-                limit: limitInfo.totalSlots,
                 used: currentCount,
+                baseLimit: limitInfo.baseSlots,
+                totalLimit: limitInfo.totalSlots,
+                addonSlots: limitInfo.addonSlots,
+                addons: [], // Will be populated by database.js if available
                 remaining: Math.max(0, limitInfo.totalSlots - currentCount),
                 canSaveMore: currentCount < limitInfo.totalSlots,
                 // ✅ NEW: Include detailed breakdown
