@@ -2732,7 +2732,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             // Calculate and display next renewal date
             const nextRenewalEl = document.getElementById('nextRenewal');
-            const renewalDate = user.next_billing_date || user.subscriptionRenewalDate || user.renewalDate;
+            const renewalDate = user.nextBillingDate || user.next_billing_date || user.subscriptionRenewalDate;
             
             if (renewalDate) {
                 const date = new Date(renewalDate);
