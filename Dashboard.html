@@ -1144,6 +1144,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             align-items: center;
             justify-content: center;
             gap: 8px;
+            margin-top: 1.2rem;
             margin-bottom: 0.8rem;
             box-shadow: 0 3px 12px rgba(255, 35, 112, 0.25);
         }
@@ -1730,7 +1731,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1878,8 +1879,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <div class="detail-value" id="billingModel">Monthly</div>
                             </div>
                             <div class="detail-item">
-                                <div class="detail-label">Messages Sent</div>
-                                <div class="detail-value" id="messagesSent">0</div>
+                                <div class="detail-label">Next Renewal</div>
+                                <div class="detail-value" id="nextRenewal">Loading...</div>
                             </div>
                         </div>
                         
@@ -1979,7 +1980,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard — Coming Soon</h3>
+                            <h3>Analytics Dashboard â€" Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -2163,7 +2164,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="addon-item">
                     <div class="addon-info">
                         <div class="addon-name">+1 Extra Context Slot</div>
-                        <div class="addon-details">$3.99/month • Renews ${renewalDate}</div>
+                        <div class="addon-details">$3.99/month â€¢ Renews ${renewalDate}</div>
                     </div>
                     <div class="addon-actions">
                         <button class="cancel-addon-btn" onclick="cancelContextAddon('${addon.id}')">
@@ -2540,15 +2541,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = '✓ Fully Synced';
+                    profileSyncStatusEl.textContent = 'âœ" Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = '🔄 Processing...';
+                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = '🔴 Sync Required';
+                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2705,7 +2706,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
@@ -2729,7 +2730,27 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
             document.getElementById('billingModel').textContent = billingDisplay;
 
-            document.getElementById('messagesSent').textContent = '0';
+            // Calculate and display next renewal date
+            const nextRenewalEl = document.getElementById('nextRenewal');
+            if (user.subscriptionRenewalDate) {
+                const renewalDate = new Date(user.subscriptionRenewalDate);
+                nextRenewalEl.textContent = renewalDate.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            } else if (planCode.includes('monthly')) {
+                // Calculate next month's renewal for monthly plans
+                const nextMonth = new Date();
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                nextRenewalEl.textContent = nextMonth.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            } else {
+                nextRenewalEl.textContent = 'N/A';
+            }
         }
 
         // TRAFFIC LIGHT FUNCTIONS
