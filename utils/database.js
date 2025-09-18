@@ -13,6 +13,7 @@
 // ✅ CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
 // ✅ CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
 // ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
+// 🆕 CONTEXT ADDON FUNCTIONS: Added getContextAddonUsage, createContextAddon, getUserContextAddons
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -1183,6 +1184,193 @@ const downgradeUserToFree = async (userId) => {
     }
 };
 
+// ==================== CONTEXT ADDON MANAGEMENT FUNCTIONS ====================
+
+// 🆕 Get user's context addon slots and usage
+const getContextAddonUsage = async (userId) => {
+    try {
+        const client = await pool.connect();
+        
+        try {
+            // Get user's base plan limits
+            const userResult = await client.query(`
+                SELECT 
+                    u.plan_code,
+                    u.contexts_count,
+                    p.plan_name
+                FROM users u
+                LEFT JOIN plans p ON u.plan_code = p.plan_code
+                WHERE u.id = $1
+            `, [userId]);
+            
+            if (userResult.rows.length === 0) {
+                throw new Error('User not found');
+            }
+            
+            const user = userResult.rows[0];
+            
+            // Get base limit based on plan
+            let baseLimit = 1; // Free default
+            switch (user.plan_code) {
+                case 'silver-monthly':
+                case 'silver-payasyougo':
+                    baseLimit = 3;
+                    break;
+                case 'gold-monthly':
+                case 'gold-payasyougo':
+                    baseLimit = 6;
+                    break;
+                case 'platinum-monthly':
+                case 'platinum-payasyougo':
+                    baseLimit = 10;
+                    break;
+            }
+            
+            // Get active addon slots
+            const addonResult = await client.query(`
+                SELECT COUNT(*) as addon_count
+                FROM user_context_addons 
+                WHERE user_id = $1 AND status = 'active'
+                AND (expires_at IS NULL OR expires_at > NOW())
+            `, [userId]);
+            
+            const addonSlots = parseInt(addonResult.rows[0].addon_count) || 0;
+            const used = parseInt(user.contexts_count) || 0;
+            const totalLimit = baseLimit + addonSlots;
+            
+            return {
+                success: true,
+                data: {
+                    used: used,
+                    baseLimit: baseLimit,
+                    addonSlots: addonSlots,
+                    totalLimit: totalLimit,
+                    planName: user.plan_name || user.plan_code
+                }
+            };
+            
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error getting context addon usage:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// 🆕 Create context addon subscription after successful payment
+const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails = {}) => {
+    try {
+        const client = await pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            const result = await client.query(`
+                INSERT INTO user_context_addons (
+                    user_id,
+                    chargebee_subscription_id,
+                    addon_quantity,
+                    monthly_price,
+                    billing_period_start,
+                    billing_period_end,
+                    next_billing_date,
+                    status,
+                    chargebee_status
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING *
+            `, [
+                userId,
+                chargebeeSubscriptionId,
+                addonDetails.quantity || 1,
+                addonDetails.price || 3.99,
+                addonDetails.periodStart || new Date(),
+                addonDetails.periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                addonDetails.nextBillingDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                'active',
+                addonDetails.chargebeeStatus || 'active'
+            ]);
+            
+            // Log the event
+            await client.query(`
+                INSERT INTO context_slot_events (
+                    user_id,
+                    event_type,
+                    addon_id,
+                    base_limit,
+                    active_extra_slots,
+                    total_limit,
+                    current_usage,
+                    metadata
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [
+                userId,
+                'addon_purchased',
+                result.rows[0].id,
+                addonDetails.baseLimit || 1,
+                1, // Adding 1 slot
+                (addonDetails.baseLimit || 1) + 1,
+                addonDetails.currentUsage || 0,
+                JSON.stringify({ chargebeeSubscriptionId, price: addonDetails.price || 3.99 })
+            ]);
+            
+            await client.query('COMMIT');
+            
+            console.log(`[CONTEXT_ADDON] Created addon subscription for user ${userId}: ${chargebeeSubscriptionId}`);
+            
+            return {
+                success: true,
+                data: result.rows[0]
+            };
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error creating context addon:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// 🆕 Get user's active context addons
+const getUserContextAddons = async (userId) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                id,
+                chargebee_subscription_id,
+                addon_quantity,
+                monthly_price,
+                next_billing_date,
+                status,
+                created_at
+            FROM user_context_addons 
+            WHERE user_id = $1 AND status = 'active'
+            ORDER BY created_at DESC
+        `, [userId]);
+        
+        return {
+            success: true,
+            data: result.rows
+        };
+    } catch (error) {
+        console.error('Error getting user context addons:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
 // ==================== PENDING REGISTRATIONS FUNCTIONS ====================
 
 // ✅ NEW: Store pending registration before payment
@@ -1635,7 +1823,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 CONTEXT ADDON FUNCTIONS
 module.exports = {
     // Database connection
     pool,
@@ -1676,6 +1864,11 @@ module.exports = {
     storePendingRegistration,
     getPendingRegistration,
     completePendingRegistration,
+    
+    // 🆕 NEW: Context Addon Management
+    getContextAddonUsage,
+    createContextAddon,
+    getUserContextAddons,
     
     // Data processing helpers (used by USER profiles only)
     sanitizeForJSON,
