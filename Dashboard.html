@@ -1731,7 +1731,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1980,7 +1980,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard â€" Coming Soon</h3>
+                            <h3>Analytics Dashboard — Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -2164,7 +2164,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="addon-item">
                     <div class="addon-info">
                         <div class="addon-name">+1 Extra Context Slot</div>
-                        <div class="addon-details">$3.99/month â€¢ Renews ${renewalDate}</div>
+                        <div class="addon-details">$3.99/month • Renews ${renewalDate}</div>
                     </div>
                     <div class="addon-actions">
                         <button class="cancel-addon-btn" onclick="cancelContextAddon('${addon.id}')">
@@ -2481,7 +2481,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 renewableCredits: user.renewableCredits,
                 payasyougoCredits: user.payasyougoCredits,
                 totalCredits: user.credits,
-                packageType: user.packageType
+                packageType: user.packageType,
+                // RENEWAL DATE DEBUG: Add all date fields for debugging
+                nextBillingDate: user.nextBillingDate,
+                next_billing_date: user.next_billing_date,
+                subscriptionRenewalDate: user.subscriptionRenewalDate,
+                renewalDate: user.renewalDate
             });
 
             // Update sidebar user info
@@ -2541,15 +2546,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ" Fully Synced';
+                    profileSyncStatusEl.textContent = '✓ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2706,7 +2711,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
@@ -2730,28 +2735,61 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
             document.getElementById('billingModel').textContent = billingDisplay;
 
-            // Calculate and display next renewal date
+            // FIXED: Enhanced renewal date calculation with better debugging
             const nextRenewalEl = document.getElementById('nextRenewal');
-            const renewalDate = user.nextBillingDate || user.next_billing_date || user.subscriptionRenewalDate;
+            
+            // Try all possible renewal date fields
+            const renewalDate = user.nextBillingDate || user.next_billing_date || user.subscriptionRenewalDate || user.renewalDate;
+            
+            console.log('[RENEWAL_DEBUG] All date fields:', {
+                nextBillingDate: user.nextBillingDate,
+                next_billing_date: user.next_billing_date, 
+                subscriptionRenewalDate: user.subscriptionRenewalDate,
+                renewalDate: user.renewalDate,
+                finalRenewalDate: renewalDate
+            });
             
             if (renewalDate) {
-                const date = new Date(renewalDate);
-                nextRenewalEl.textContent = date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                });
-            } else if (planCode.includes('monthly')) {
-                // Calculate next month's renewal for monthly plans
-                const nextMonth = new Date();
-                nextMonth.setMonth(nextMonth.getMonth() + 1);
-                nextRenewalEl.textContent = nextMonth.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                });
+                try {
+                    const date = new Date(renewalDate);
+                    // Verify it's a valid date
+                    if (!isNaN(date.getTime())) {
+                        const formattedDate = date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                        });
+                        nextRenewalEl.textContent = formattedDate;
+                        console.log('[RENEWAL_SUCCESS] Using renewal date:', formattedDate);
+                    } else {
+                        throw new Error('Invalid date');
+                    }
+                } catch (error) {
+                    console.error('[RENEWAL_ERROR] Invalid renewal date:', renewalDate, error);
+                    // Fall back to calculated date
+                    calculateFallbackRenewal();
+                }
             } else {
-                nextRenewalEl.textContent = 'N/A';
+                console.log('[RENEWAL_DEBUG] No renewal date found, using fallback');
+                calculateFallbackRenewal();
+            }
+            
+            function calculateFallbackRenewal() {
+                if (planCode.includes('monthly')) {
+                    // Calculate next month's renewal for monthly plans
+                    const nextMonth = new Date();
+                    nextMonth.setMonth(nextMonth.getMonth() + 1);
+                    const fallbackDate = nextMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                    nextRenewalEl.textContent = fallbackDate;
+                    console.log('[RENEWAL_FALLBACK] Using calculated date:', fallbackDate);
+                } else {
+                    nextRenewalEl.textContent = 'N/A';
+                    console.log('[RENEWAL_FALLBACK] No renewal for this plan type');
+                }
             }
         }
 
