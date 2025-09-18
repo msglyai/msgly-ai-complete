@@ -47,9 +47,10 @@ CHANGELOG - server.js:
 40. MINIMAL FIX: Simplified file upload response handling to prevent "headers already sent" error
 41. CONTEXTS: Added contexts routes mounting for context management system
 42. UNIFIED GENERATION FIX: Connected /generate-unified endpoint to existing GPT-5 message generation system - REMOVED ALL MOCK DATA
+43. CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -81,6 +82,7 @@ CHANGELOG - server.js:
 // ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified response handling
 // ✅ CONTEXTS: Added context management system with plan-based limits
 // ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified to existing GPT-5 message generation - NO MORE MOCK DATA
+// ✅ CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality
 
 const express = require('express');
 const cors = require('cors');
@@ -1031,6 +1033,73 @@ app.use('/', require('./routes/billingRoutes'));
 // NEW: Mount contexts routes
 app.use('/', require('./routes/contextsRoutes'));
 
+// ==================== CONTEXT ADDON PURCHASE ENDPOINT ====================
+
+// NEW: Context addon purchase endpoint for extension Buy Extra slot functionality
+app.post('/context-addons/purchase', authenticateToken, async (req, res) => {
+    try {
+        logger.custom('ADDON', '=== CONTEXT ADDON PURCHASE REQUEST ===');
+        logger.info(`User ID: ${req.user.id}`);
+        logger.info(`User Email: ${req.user.email}`);
+        
+        const { addonType = 'context-slot', quantity = 1 } = req.body;
+        const user = req.user;
+        
+        logger.debug('Purchase request details:', {
+            addonType,
+            quantity,
+            userPackage: user.package_type,
+            userEmail: user.email
+        });
+        
+        // Use existing chargebeeService to create checkout
+        logger.info('Creating Chargebee checkout for context addon...');
+        const checkoutResult = await chargebeeService.createCheckout({
+            planId: 'Context-Addon-Monthly-USD-Monthly', // Exact ID from Chargebee
+            customerEmail: user.email,
+            customerName: user.display_name || user.email.split('@')[0],
+            successUrl: 'https://api.msgly.ai/dashboard?addon=success',
+            cancelUrl: 'https://api.msgly.ai/dashboard?addon=cancelled'
+        });
+        
+        logger.debug('Chargebee checkout result:', {
+            success: checkoutResult.success,
+            hasCheckoutUrl: !!checkoutResult.checkoutUrl,
+            error: checkoutResult.error
+        });
+        
+        if (checkoutResult.success) {
+            logger.success(`Context addon checkout created successfully for user ${user.id}`);
+            logger.info(`Checkout URL generated: ${checkoutResult.checkoutUrl?.substring(0, 50)}...`);
+            
+            res.json({
+                success: true,
+                data: {
+                    checkoutUrl: checkoutResult.checkoutUrl,
+                    addonType: addonType,
+                    price: 3.99,
+                    planId: 'Context-Addon-Monthly-USD-Monthly',
+                    billingModel: 'monthly'
+                }
+            });
+        } else {
+            logger.error('Context addon checkout creation failed:', checkoutResult.error);
+            res.status(400).json({
+                success: false,
+                error: checkoutResult.error || 'Failed to create checkout session'
+            });
+        }
+        
+    } catch (error) {
+        logger.error('Context addon purchase endpoint error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to initiate context addon purchase',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
 // ==================== FILE UPLOAD ROUTES ====================
 
 // MINIMAL FIX: Simplified File Upload Route - Remove complex response interception
@@ -1842,7 +1911,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -1886,7 +1955,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE'
                 }
             }
         });
@@ -1964,7 +2033,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE'
             };
         }
 
@@ -2064,7 +2133,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE'
             }
         });
     } catch (error) {
@@ -2116,7 +2185,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2833,7 +2902,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -2883,6 +2952,7 @@ app.use((req, res, next) => {
             'GET /test-chargebee (NEW: Test Chargebee connection)',
             'POST /chargebee-webhook (BILLING REFACTOR: Now in routes/billingRoutes.js)',
             'POST /create-checkout (BILLING REFACTOR: Now in routes/billingRoutes.js)',
+            'POST /context-addons/purchase (NEW: Context addon purchase for extension Buy Extra slot)',
             'GET /contexts (NEW: Context management - List saved contexts)',
             'POST /contexts (NEW: Context management - Save new context)',
             'PUT /contexts/:id (NEW: Context management - Update context)',
@@ -2955,9 +3025,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -2993,10 +3063,11 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified file upload response handling`);
             console.log(`[SUCCESS] ✅ CONTEXTS: Context management system with plan-based limits (Free: 1, Silver: 3, Gold: 6, Platinum: 10)`);
             console.log(`[SUCCESS] ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified endpoint to existing GPT-5 message generation system - NO MORE MOCK DATA`);
+            console.log(`[SUCCESS] ✅ CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
@@ -3015,6 +3086,14 @@ const startServer = async () => {
             console.log(`[UNIFIED GENERATION] ✅ Multi-Message Support: Generates multiple message types in single request using real GPT-5`);
             console.log(`[UNIFIED GENERATION] ✅ NO MORE MOCK DATA: All messages generated using proven working GPT pipeline`);
             console.log(`[UNIFIED GENERATION] ✅ Error Handling: Comprehensive error handling and credit release on failure`);
+            console.log(`[CONTEXT ADDON] ✅ POST /context-addons/purchase - NEW: Buy Extra slot functionality for extension`);
+            console.log(`[CONTEXT ADDON] ✅ CHARGEBEE INTEGRATION: Uses existing chargebeeService.createCheckout() method`);
+            console.log(`[CONTEXT ADDON] ✅ EXACT PLAN ID: Context-Addon-Monthly-USD-Monthly ($3.99/month)`);
+            console.log(`[CONTEXT ADDON] ✅ SUCCESS/CANCEL URLS: Dashboard redirect with status parameters`);
+            console.log(`[CONTEXT ADDON] ✅ ERROR HANDLING: Comprehensive error handling and user feedback`);
+            console.log(`[CONTEXT ADDON] ✅ AUTHENTICATION: Requires authenticateToken middleware`);
+            console.log(`[CONTEXT ADDON] ✅ LOGGING: Professional logging for debugging and monitoring`);
+            console.log(`[CONTEXT ADDON] ✅ READY FOR DEPLOYMENT: Fully integrated with existing payment flow`);
         });
         
     } catch (error) {
