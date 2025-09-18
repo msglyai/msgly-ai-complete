@@ -559,12 +559,52 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin-bottom: 1.5rem;
         }
 
-        /* NEW: Three-column row for Account/Subscription/Context */
-        .dashboard-row-three {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 1.2rem;
-            margin-bottom: 1.5rem;
+        /* NEW: Integrated Context Usage Styles */
+        .context-usage-integrated {
+            margin: 1.2rem 0;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(128, 57, 223, 0.15);
+        }
+
+        .context-usage-header {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .context-usage-number-integrated {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            text-shadow: 0 2px 4px rgba(128, 57, 223, 0.15);
+        }
+
+        .context-usage-label {
+            color: var(--dark-gray);
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .context-usage-subtitle {
+            color: var(--gray);
+            font-size: 0.85rem;
+            margin-bottom: 0.3rem;
+            font-weight: 500;
+        }
+
+        .context-usage-note {
+            color: var(--gray);
+            font-size: 0.75rem;
+            font-style: italic;
+        }
+
+        .addon-management-integrated {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--light-gray);
         }
 
         /* Recent Messages Section - Full Width */
@@ -1729,8 +1769,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             <!-- Dashboard Content -->
             <div id="dashboardContent" style="display: none;">
-                <!-- Top Row: Account Info, Subscription, and Context Storage -->
-                <div class="dashboard-row-three">
+                <!-- Top Row: Account Info and Enhanced Subscription -->
+                <div class="dashboard-row">
                     <!-- Enhanced Account Information -->
                     <div class="card">
                         <div class="card-header">
@@ -1791,7 +1831,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                     </div>
 
-                    <!-- Enhanced Subscription & Credits -->
+                    <!-- Enhanced Subscription & Credits with Context Usage -->
                     <div class="card">
                         <div class="card-header">
                             <div class="card-icon">
@@ -1821,6 +1861,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- NEW: Context Usage integrated into subscription card -->
+                        <div class="context-usage-integrated">
+                            <div class="context-usage-header">
+                                <span class="context-usage-number-integrated" id="contextUsageNumberIntegrated">0/1</span>
+                                <span class="context-usage-label">Contexts Used</span>
+                            </div>
+                            <div class="context-usage-subtitle" id="contextUsageSubtitle">1 base slots</div>
+                            <div class="context-usage-note" id="contextUsageNote">Upgrade plan or buy addons for more</div>
+                        </div>
                         
                         <div class="subscription-details">
                             <div class="detail-item">
@@ -1837,46 +1887,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <i class="fas fa-rocket"></i>
                             Upgrade Plan / Buy Credits
                         </a>
-                    </div>
 
-                    <!-- NEW: Context Storage Management -->
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <i class="fas fa-database"></i>
-                            </div>
-                            <h3 class="card-title">Context Storage</h3>
-                        </div>
-                        
-                        <div class="context-usage-display">
-                            <div class="context-usage-number" id="contextUsageNumber">--</div>
-                            <div class="context-usage-info">
-                                <div class="context-usage-text">Contexts Used</div>
-                                <div class="context-usage-details" id="contextUsageDetails">
-                                    <span id="contextBreakdown">Loading...</span><br>
-                                    <span id="contextLimitInfo">Loading...</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="context-progress-bar">
-                            <div class="context-progress-fill" id="contextProgressFill" style="width: 0%"></div>
-                        </div>
-                        
+                        <!-- NEW: Buy Context Addon Button -->
                         <button class="buy-addon-btn" onclick="purchaseContextAddon()">
                             <i class="fas fa-plus"></i>
                             Buy +1 Extra Context Slot - $3.99/month
                         </button>
                         
-                        <div class="addon-management" id="addonManagement" style="display: none;">
+                        <!-- NEW: Active Addons Management (hidden by default) -->
+                        <div class="addon-management-integrated" id="addonManagementIntegrated" style="display: none;">
                             <div class="addon-section-title">Active Context Addons</div>
-                            <div class="addon-list" id="addonList">
+                            <div class="addon-list" id="addonListIntegrated">
                                 <!-- Addons will be populated by JavaScript -->
                             </div>
-                        </div>
-                        
-                        <div class="empty-addons" id="emptyAddons">
-                            No active context addons
                         </div>
                     </div>
                 </div>
@@ -2102,47 +2125,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 addons = []
             } = usageData;
 
-            // Update usage number and details
-            document.getElementById('contextUsageNumber').textContent = `${used}/${totalLimit}`;
+            // Update integrated usage display
+            document.getElementById('contextUsageNumberIntegrated').textContent = `${used}/${totalLimit}`;
             
-            const contextBreakdown = document.getElementById('contextBreakdown');
-            const contextLimitInfo = document.getElementById('contextLimitInfo');
+            const contextUsageSubtitle = document.getElementById('contextUsageSubtitle');
+            const contextUsageNote = document.getElementById('contextUsageNote');
             
             if (addonSlots > 0) {
-                contextBreakdown.textContent = `${baseLimit} base + ${addonSlots} addon slots`;
-                contextLimitInfo.textContent = `Total: ${totalLimit} context slots`;
+                contextUsageSubtitle.textContent = `${baseLimit} base + ${addonSlots} addon = ${totalLimit} total slots`;
+                contextUsageNote.textContent = 'Purchase more addon slots for extra storage';
             } else {
-                contextBreakdown.textContent = `${baseLimit} base slots`;
-                contextLimitInfo.textContent = `Upgrade plan or buy addons for more`;
-            }
-
-            // Update progress bar
-            const progressFill = document.getElementById('contextProgressFill');
-            const usagePercentage = totalLimit > 0 ? (used / totalLimit) * 100 : 0;
-            
-            progressFill.style.width = `${usagePercentage}%`;
-            
-            // Change progress bar color based on usage
-            progressFill.className = 'context-progress-fill';
-            if (usagePercentage >= 90) {
-                progressFill.classList.add('danger');
-            } else if (usagePercentage >= 70) {
-                progressFill.classList.add('warning');
+                contextUsageSubtitle.textContent = `${baseLimit} base slots`;
+                contextUsageNote.textContent = 'Upgrade plan or buy addons for more';
             }
 
             // Update addon management section
-            const addonManagement = document.getElementById('addonManagement');
-            const emptyAddons = document.getElementById('emptyAddons');
-            const addonList = document.getElementById('addonList');
+            const addonManagementIntegrated = document.getElementById('addonManagementIntegrated');
+            const addonListIntegrated = document.getElementById('addonListIntegrated');
 
             if (addons.length > 0) {
-                addonManagement.style.display = 'block';
-                emptyAddons.style.display = 'none';
-                
-                addonList.innerHTML = addons.map(addon => createAddonListItem(addon)).join('');
+                addonManagementIntegrated.style.display = 'block';
+                addonListIntegrated.innerHTML = addons.map(addon => createAddonListItem(addon)).join('');
             } else {
-                addonManagement.style.display = 'none';
-                emptyAddons.style.display = 'block';
+                addonManagementIntegrated.style.display = 'none';
             }
         }
 
