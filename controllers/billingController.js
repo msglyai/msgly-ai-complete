@@ -7,11 +7,30 @@ const {
     getUserByEmail,
     getPendingRegistration,
     completePendingRegistration,
-    downgradeUserToFree
+    downgradeUserToFree,
+    // CONTEXT FIX: Add missing context slot functions
+    getContextAddonUsage,
+    createContextAddon,
+    updateUserContextSlots,
+    initializeContextSlots
 } = require('../utils/database');
 
 const { sendWelcomeEmail } = require('../mailer/mailer');
 const { CHARGEBEE_PLAN_MAPPING } = require('../config/billing');
+
+// CONTEXT ADDON FIX: Add Context addon to plan mapping
+const EXTENDED_PLAN_MAPPING = {
+    ...CHARGEBEE_PLAN_MAPPING,
+    // Add Context addon mapping
+    'Context-Addon-Monthly-USD-Monthly': {
+        planCode: 'context-addon',
+        addonType: 'context-slot',
+        billingModel: 'monthly',
+        extraContextSlots: 1,
+        price: 3.99,
+        displayName: 'Extra Context Slot'
+    }
+};
 
 // ENHANCED: CHARGEBEE WEBHOOK HANDLER FUNCTIONS - Now with automatic registration completion
 async function handleSubscriptionCreated(subscription, customer) {
@@ -29,41 +48,66 @@ async function handleSubscriptionCreated(subscription, customer) {
             return;
         }
         
-        // Map Chargebee plan to database plan
-        const planMapping = CHARGEBEE_PLAN_MAPPING[planId];
+        // Map Chargebee plan to database plan - USE EXTENDED MAPPING
+        const planMapping = EXTENDED_PLAN_MAPPING[planId];
         if (!planMapping) {
             console.error('[WEBHOOK] Unknown plan ID:', planId);
             return;
         }
         
-        let planCode = planMapping.planCode;
-        let renewableCredits = planMapping.renewableCredits || 0;
-        let payasyougoCredits = planMapping.payasyougoCredits || 0;
-        
-        // Update user subscription
-        await pool.query(`
-            UPDATE users 
-            SET 
-                plan_code = $1,
-                renewable_credits = $2,
-                payasyougo_credits = COALESCE(payasyougo_credits, 0) + $3,
-                subscription_starts_at = $4,
-                next_billing_date = $5,
-                chargebee_subscription_id = $6,
-                subscription_status = 'active',
-                updated_at = NOW()
-            WHERE id = $7
-        `, [
-            planCode,
-            renewableCredits,
-            payasyougoCredits,
-            new Date(subscription.started_at * 1000),
-            subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
-            subscription.id,
-            user.id
-        ]);
-        
-        console.log(`[WEBHOOK] User ${user.id} upgraded to ${planCode}`);
+        // CONTEXT ADDON FIX: Handle Context addons differently
+        if (planMapping.addonType === 'context-slot') {
+            console.log(`[WEBHOOK] Processing Context addon subscription for user ${user.id}`);
+            
+            // Add extra context slots instead of changing plan
+            try {
+                await updateUserContextSlots(user.id, planMapping.extraContextSlots);
+                
+                // Create addon record
+                await createContextAddon(user.id, {
+                    addonType: planMapping.addonType,
+                    extraSlots: planMapping.extraContextSlots,
+                    chargebeeSubscriptionId: subscription.id,
+                    price: planMapping.price,
+                    billingModel: planMapping.billingModel
+                });
+                
+                console.log(`[WEBHOOK] Context addon processed: ${planMapping.extraContextSlots} extra slots added to user ${user.id}`);
+                
+            } catch (contextError) {
+                console.error('[WEBHOOK] Context addon processing failed:', contextError);
+            }
+        } else {
+            // Regular plan subscription
+            let planCode = planMapping.planCode;
+            let renewableCredits = planMapping.renewableCredits || 0;
+            let payasyougoCredits = planMapping.payasyougoCredits || 0;
+            
+            // Update user subscription
+            await pool.query(`
+                UPDATE users 
+                SET 
+                    plan_code = $1,
+                    renewable_credits = $2,
+                    payasyougo_credits = COALESCE(payasyougo_credits, 0) + $3,
+                    subscription_starts_at = $4,
+                    next_billing_date = $5,
+                    chargebee_subscription_id = $6,
+                    subscription_status = 'active',
+                    updated_at = NOW()
+                WHERE id = $7
+            `, [
+                planCode,
+                renewableCredits,
+                payasyougoCredits,
+                new Date(subscription.started_at * 1000),
+                subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
+                subscription.id,
+                user.id
+            ]);
+            
+            console.log(`[WEBHOOK] User ${user.id} upgraded to ${planCode}`);
+        }
         
         // NEW: Check for pending registration and complete it automatically
         const pendingReg = await getPendingRegistration(user.id);
@@ -147,7 +191,7 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
-// âœ… CANCELLATION FIX: New webhook handler for subscription_cancellation_scheduled
+// Ã¢Å"â€¦ CANCELLATION FIX: New webhook handler for subscription_cancellation_scheduled
 async function handleSubscriptionCancellationScheduled(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_cancellation_scheduled');
@@ -180,7 +224,7 @@ async function handleSubscriptionCancellationScheduled(subscription, customer) {
     }
 }
 
-// âœ… CANCELLATION FIX: New webhook handler for subscription_cancelled
+// Ã¢Å"â€¦ CANCELLATION FIX: New webhook handler for subscription_cancelled
 async function handleSubscriptionCancelled(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_cancelled');
@@ -206,7 +250,7 @@ async function handleSubscriptionCancelled(subscription, customer) {
     }
 }
 
-// ðŸ"§ PAYG CRITICAL FIX: Enhanced invoice_generated handler with proper plan detection for both plan_item_price and charge_item_price
+// Ã°Å¸"Â§ PAYG CRITICAL FIX + CONTEXT ADDON FIX: Enhanced invoice_generated handler 
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
@@ -241,32 +285,39 @@ async function handleInvoiceGenerated(invoice, subscription) {
             const planId = planItem?.item_price_id;
             
             if (planId) {
-                const planMapping = CHARGEBEE_PLAN_MAPPING[planId];
-                if (planMapping && planMapping.billingModel === 'monthly') {
-                    // Reset renewable credits for monthly subscription
-                    await pool.query(`
-                        UPDATE users 
-                        SET 
-                            renewable_credits = $1,
-                            next_billing_date = $2,
-                            updated_at = NOW()
-                        WHERE id = $3
-                    `, [
-                        planMapping.renewableCredits,
-                        subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
-                        userData.id
-                    ]);
-                    
-                    console.log(`[WEBHOOK] Renewable credits reset for user ${userData.id}`);
+                const planMapping = EXTENDED_PLAN_MAPPING[planId];
+                if (planMapping) {
+                    // CONTEXT ADDON FIX: Handle Context addon renewals
+                    if (planMapping.addonType === 'context-slot') {
+                        console.log(`[WEBHOOK] Processing Context addon renewal for user ${userData.id}`);
+                        // Context addons don't need renewal processing - slots are persistent
+                        console.log(`[WEBHOOK] Context addon renewal processed (no action needed)`);
+                    } else if (planMapping.billingModel === 'monthly') {
+                        // Reset renewable credits for monthly subscription
+                        await pool.query(`
+                            UPDATE users 
+                            SET 
+                                renewable_credits = $1,
+                                next_billing_date = $2,
+                                updated_at = NOW()
+                            WHERE id = $3
+                        `, [
+                            planMapping.renewableCredits,
+                            subscription.next_billing_at ? new Date(subscription.next_billing_at * 1000) : null,
+                            userData.id
+                        ]);
+                        
+                        console.log(`[WEBHOOK] Renewable credits reset for user ${userData.id}`);
+                    }
                 }
             }
             
         } else if (invoice.recurring === false || !subscription) {
-            // CASE 2: One-time purchase (PAYG plans) - FIXED VERSION
-            console.log('[WEBHOOK] Processing PAYG one-time purchase');
+            // CASE 2: One-time purchase (PAYG plans + Context addons) - FIXED VERSION
+            console.log('[WEBHOOK] Processing one-time purchase');
             console.log('[WEBHOOK] Looking for customer with ID:', invoice.customer_id);
             
-            // PAYG FIX: Proper customer resolution for PAYG purchases
+            // PAYG FIX: Proper customer resolution for one-time purchases
             let user = null;
             
             // Method 1: Try to find user by chargebee_customer_id first
@@ -312,13 +363,13 @@ async function handleInvoiceGenerated(invoice, subscription) {
             }
             
             if (!user) {
-                console.error('[WEBHOOK] Cannot find user for PAYG purchase:', invoice.customer_id);
+                console.error('[WEBHOOK] Cannot find user for one-time purchase:', invoice.customer_id);
                 return;
             }
             
-            console.log(`[WEBHOOK] Processing PAYG purchase for user ${user.id} (${user.email})`);
+            console.log(`[WEBHOOK] Processing one-time purchase for user ${user.id} (${user.email})`);
             
-            // ðŸ"§ PAYG CRITICAL FIX: Enhanced plan detection for both plan_item_price and charge_item_price
+            // CONTEXT ADDON FIX: Enhanced plan detection for Context addons + PAYG plans
             const planLineItem = invoice.line_items?.find(item => {
                 // Handle both regular plans and PAYG charges
                 const isValidEntityType = (
@@ -326,7 +377,7 @@ async function handleInvoiceGenerated(invoice, subscription) {
                     item.entity_type === 'charge_item_price'   // PAYG/one-time charges
                 );
                 
-                const hasValidEntityId = item.entity_id && CHARGEBEE_PLAN_MAPPING[item.entity_id];
+                const hasValidEntityId = item.entity_id && EXTENDED_PLAN_MAPPING[item.entity_id];
                 
                 return isValidEntityType && hasValidEntityId;
             });
@@ -334,11 +385,37 @@ async function handleInvoiceGenerated(invoice, subscription) {
             const planId = planLineItem?.entity_id;  // Use entity_id instead of item_price_id
             
             if (planId) {
-                const planMapping = CHARGEBEE_PLAN_MAPPING[planId];
-                if (planMapping && planMapping.billingModel === 'one_time') {
+                const planMapping = EXTENDED_PLAN_MAPPING[planId];
+                
+                // CONTEXT ADDON FIX: Handle Context addon purchases
+                if (planMapping.addonType === 'context-slot') {
+                    console.log(`[WEBHOOK] Processing Context addon purchase for user ${user.id}`);
+                    
+                    try {
+                        // Add extra context slots
+                        await updateUserContextSlots(user.id, planMapping.extraContextSlots);
+                        
+                        // Create addon record
+                        await createContextAddon(user.id, {
+                            addonType: planMapping.addonType,
+                            extraSlots: planMapping.extraContextSlots,
+                            chargebeeCustomerId: invoice.customer_id,
+                            price: planMapping.price,
+                            billingModel: planMapping.billingModel,
+                            invoiceId: invoice.id
+                        });
+                        
+                        console.log(`[WEBHOOK] Context addon purchase processed: ${planMapping.extraContextSlots} extra slots added to user ${user.id}`);
+                        
+                    } catch (contextError) {
+                        console.error('[WEBHOOK] Context addon purchase processing failed:', contextError);
+                    }
+                    
+                } else if (planMapping.billingModel === 'one_time') {
+                    // Regular PAYG purchase
                     console.log(`[WEBHOOK] Adding ${planMapping.payasyougoCredits} PAYG credits to user ${user.id}`);
                     
-                    // ✅ PAYG FIX: Add credits only, never change plan_code
+                    // âœ… PAYG FIX: Add credits only, never change plan_code
                     const updateResult = await pool.query(`
                         UPDATE users 
                         SET 
@@ -359,53 +436,53 @@ async function handleInvoiceGenerated(invoice, subscription) {
                         console.log(`[WEBHOOK] New PAYG credits: ${updatedCredits.payasyougo_credits}`);
                         console.log(`[WEBHOOK] Renewable credits: ${updatedCredits.renewable_credits}`);
                     }
-                    
-                    // NEW: Check for pending registration and complete it automatically
-                    const pendingReg = await getPendingRegistration(user.id);
-                    if (pendingReg.success && pendingReg.data) {
-                        console.log('[WEBHOOK] Found pending registration, completing automatically...');
-                        
-                        const completionResult = await completePendingRegistration(user.id, pendingReg.data.linkedin_url);
-                        if (completionResult.success) {
-                            console.log('[WEBHOOK] Registration completed automatically after PAYG payment');
-                        } else {
-                            console.error('[WEBHOOK] Failed to complete pending registration:', completionResult.error);
-                        }
-                    }
-                    
-                    // NEW: Send welcome email for PAYG users (NON-BLOCKING)
-                    try {
-                        // Check if welcome email already sent
-                        const emailCheck = await pool.query(
-                            'SELECT welcome_email_sent FROM users WHERE id = $1',
-                            [user.id]
-                        );
-                        
-                        if (emailCheck.rows.length > 0 && !emailCheck.rows[0].welcome_email_sent) {
-                            const emailResult = await sendWelcomeEmail({
-                                toEmail: user.email,
-                                toName: user.display_name,
-                                userId: user.id
-                            });
-                            
-                            if (emailResult.ok) {
-                                // Mark as sent
-                                await pool.query(
-                                    'UPDATE users SET welcome_email_sent = true WHERE id = $1',
-                                    [user.id]
-                                );
-                                
-                                console.log(`[MAILER] PAYG welcome email sent successfully`);
-                            }
-                        }
-                    } catch (emailError) {
-                        console.error('[MAILER] Non-blocking PAYG email error:', emailError);
-                        // Don't fail the webhook - email is not critical
-                    }
-                    
-                } else {
-                    console.log(`[WEBHOOK] Plan found but not one_time billing model: ${planId}, billing: ${planMapping?.billingModel}`);
                 }
+                
+                // Common processing for all one-time purchases
+                
+                // NEW: Check for pending registration and complete it automatically
+                const pendingReg = await getPendingRegistration(user.id);
+                if (pendingReg.success && pendingReg.data) {
+                    console.log('[WEBHOOK] Found pending registration, completing automatically...');
+                    
+                    const completionResult = await completePendingRegistration(user.id, pendingReg.data.linkedin_url);
+                    if (completionResult.success) {
+                        console.log('[WEBHOOK] Registration completed automatically after purchase');
+                    } else {
+                        console.error('[WEBHOOK] Failed to complete pending registration:', completionResult.error);
+                    }
+                }
+                
+                // NEW: Send welcome email for one-time purchase users (NON-BLOCKING)
+                try {
+                    // Check if welcome email already sent
+                    const emailCheck = await pool.query(
+                        'SELECT welcome_email_sent FROM users WHERE id = $1',
+                        [user.id]
+                    );
+                    
+                    if (emailCheck.rows.length > 0 && !emailCheck.rows[0].welcome_email_sent) {
+                        const emailResult = await sendWelcomeEmail({
+                            toEmail: user.email,
+                            toName: user.display_name,
+                            userId: user.id
+                        });
+                        
+                        if (emailResult.ok) {
+                            // Mark as sent
+                            await pool.query(
+                                'UPDATE users SET welcome_email_sent = true WHERE id = $1',
+                                [user.id]
+                            );
+                            
+                            console.log(`[MAILER] Welcome email sent successfully for one-time purchase`);
+                        }
+                    }
+                } catch (emailError) {
+                    console.error('[MAILER] Non-blocking email error:', emailError);
+                    // Don't fail the webhook - email is not critical
+                }
+                
             } else {
                 console.log('[WEBHOOK] No matching plan found in line_items');
                 console.log('[WEBHOOK] Available line_items:', JSON.stringify(invoice.line_items?.map(item => ({
@@ -428,9 +505,9 @@ async function handlePaymentSucceeded(payment, invoice) {
         console.log('[WEBHOOK] Payment customer_id:', payment.customer_id);
         console.log('[WEBHOOK] Invoice ID:', invoice?.id);
         
-        // For PAYG purchases, sometimes payment_succeeded has better customer info
+        // For one-time purchases, sometimes payment_succeeded has better customer info
         if (payment.customer_id && invoice && invoice.recurring === false) {
-            console.log('[WEBHOOK] Payment succeeded for PAYG purchase, ensuring user update...');
+            console.log('[WEBHOOK] Payment succeeded for one-time purchase, ensuring user update...');
             
             // Find user by customer ID
             const user = await pool.query(`
@@ -447,23 +524,35 @@ async function handlePaymentSucceeded(payment, invoice) {
                 if (userData.payasyougo_credits === 0 || userData.payasyougo_credits === "0") {
                     console.log('[WEBHOOK] PAYG credits are 0, attempting recovery...');
                     
-                    // ðŸ"§ PAYG CRITICAL FIX: Use enhanced plan detection in recovery as well
+                    // CONTEXT ADDON FIX: Use enhanced plan detection in recovery as well
                     if (invoice.line_items) {
                         const planLineItem = invoice.line_items.find(item => {
                             const isValidEntityType = (
                                 item.entity_type === 'plan_item_price' ||
                                 item.entity_type === 'charge_item_price'
                             );
-                            const hasValidEntityId = item.entity_id && CHARGEBEE_PLAN_MAPPING[item.entity_id];
+                            const hasValidEntityId = item.entity_id && EXTENDED_PLAN_MAPPING[item.entity_id];
                             return isValidEntityType && hasValidEntityId;
                         });
                         
                         if (planLineItem) {
-                            const planMapping = CHARGEBEE_PLAN_MAPPING[planLineItem.entity_id];
-                            if (planMapping && planMapping.billingModel === 'one_time') {
+                            const planMapping = EXTENDED_PLAN_MAPPING[planLineItem.entity_id];
+                            
+                            // Handle Context addon recovery
+                            if (planMapping.addonType === 'context-slot') {
+                                console.log('[WEBHOOK] Recovery: Processing Context addon via payment_succeeded');
+                                
+                                try {
+                                    await updateUserContextSlots(userData.id, planMapping.extraContextSlots);
+                                    console.log('[WEBHOOK] Recovery: Context addon processed successfully');
+                                } catch (contextError) {
+                                    console.error('[WEBHOOK] Recovery: Context addon processing failed:', contextError);
+                                }
+                                
+                            } else if (planMapping.billingModel === 'one_time') {
                                 console.log('[WEBHOOK] Recovery: Adding PAYG credits via payment_succeeded');
                                 
-                                // ✅ PAYG FIX: Add credits only, never change plan_code (recovery)
+                                // âœ… PAYG FIX: Add credits only, never change plan_code (recovery)
                                 await pool.query(`
                                     UPDATE users 
                                     SET 
