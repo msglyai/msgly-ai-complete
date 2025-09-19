@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + ADMIN DASHBOARD
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -15,7 +15,7 @@
 // ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
 // 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
 // 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
-// 🔧 ADMIN DASHBOARD: Added is_admin field for internal admin dashboard access
+// 🔐 SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -290,6 +290,41 @@ const ensurePendingRegistrationsTable = async () => {
     }
 };
 
+// 🔐 NEW: Ensure admin_audit_log table exists for security tracking
+const ensureAdminAuditTable = async () => {
+    try {
+        console.log('[INIT] Creating admin_audit_log table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS admin_audit_log (
+                id SERIAL PRIMARY KEY,
+                action VARCHAR(100) NOT NULL,
+                performed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                target_email VARCHAR(255),
+                details JSONB DEFAULT '{}'::JSONB,
+                ip_address INET,
+                user_agent TEXT,
+                success BOOLEAN NOT NULL,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log(action, created_at);
+            CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_log(performed_by_user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at);
+        `);
+        
+        console.log('[SUCCESS] admin_audit_log table created');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure admin_audit_log table:', error);
+        throw error;
+    }
+};
+
 // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
 const fixPromptVersionColumn = async () => {
     try {
@@ -359,11 +394,403 @@ const initializeContextSlots = async () => {
     }
 };
 
+// 🔐 SECURE ADMIN MANAGEMENT FUNCTIONS
+
+// 🔐 Security: Audit logging function
+const logAdminAction = async (action, performedByUserId, targetUserId, targetEmail, details = {}, success = true, errorMessage = null, ipAddress = null, userAgent = null) => {
+    try {
+        await pool.query(`
+            INSERT INTO admin_audit_log (
+                action, performed_by_user_id, target_user_id, target_email, 
+                details, ip_address, user_agent, success, error_message
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [action, performedByUserId, targetUserId, targetEmail, JSON.stringify(details), ipAddress, userAgent, success, errorMessage]);
+    } catch (error) {
+        console.error('[AUDIT] Failed to log admin action:', error);
+    }
+};
+
+// 🔐 Security: Authorization middleware
+const requireAdminAuthorization = async (performingUserId) => {
+    try {
+        if (!performingUserId) {
+            throw new Error('No user ID provided for authorization');
+        }
+        
+        const result = await pool.query(
+            'SELECT id, email, is_admin FROM users WHERE id = $1',
+            [performingUserId]
+        );
+        
+        if (result.rows.length === 0) {
+            throw new Error('User not found');
+        }
+        
+        const user = result.rows[0];
+        if (!user.is_admin) {
+            throw new Error('Admin access required');
+        }
+        
+        return user;
+    } catch (error) {
+        console.error('[AUTH] Admin authorization failed:', error);
+        throw new Error('Unauthorized');
+    }
+};
+
+// 🔐 Security: Input sanitization
+const sanitizeEmail = (email) => {
+    if (!email || typeof email !== 'string') {
+        throw new Error('Invalid email format');
+    }
+    const sanitized = email.toLowerCase().trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitized)) {
+        throw new Error('Invalid email format');
+    }
+    return sanitized;
+};
+
+// 🔐 SECURE: Create admin user (requires authorization)
+const createAdminUser = async (email, performingUserId, password = null, displayName = null, auditInfo = {}) => {
+    let sanitizedEmail;
+    try {
+        // Security: Authorize the request
+        const performingUser = await requireAdminAuthorization(performingUserId);
+        
+        // Security: Sanitize input
+        sanitizedEmail = sanitizeEmail(email);
+        
+        console.log(`[ADMIN] Authorized admin ${performingUser.email} creating admin user: ${sanitizedEmail}`);
+        
+        // Check if user already exists
+        const existingUser = await pool.query(
+            'SELECT id, email, is_admin FROM users WHERE email = $1',
+            [sanitizedEmail]
+        );
+        
+        if (existingUser.rows.length > 0) {
+            const user = existingUser.rows[0];
+            if (user.is_admin) {
+                await logAdminAction('create_admin_user_already_exists', performingUserId, user.id, sanitizedEmail, { existing: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
+                return {
+                    success: true,
+                    message: 'User is already admin',
+                    user: { id: user.id, email: user.email, is_admin: user.is_admin }
+                };
+            } else {
+                // Promote existing user to admin
+                return await promoteUserToAdmin(sanitizedEmail, performingUserId, auditInfo);
+            }
+        }
+        
+        // Create new admin user
+        const result = await pool.query(`
+            INSERT INTO users (
+                email, 
+                display_name, 
+                password_hash, 
+                package_type, 
+                billing_model, 
+                plan_code,
+                renewable_credits, 
+                payasyougo_credits, 
+                credits_remaining,
+                plan_context_slots, 
+                extra_context_slots, 
+                total_context_slots,
+                subscription_starts_at, 
+                next_billing_date,
+                is_admin,
+                registration_completed
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
+            RETURNING id, email, display_name, is_admin
+        `, [
+            sanitizedEmail,
+            displayName || 'Admin User',
+            password, // Can be null for OAuth users
+            'free',
+            'monthly',
+            'free',
+            7, 0, 7, // Credits
+            1, 0, 1, // Context slots
+            new Date(),
+            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
+            true, // is_admin
+            true  // registration_completed
+        ]);
+        
+        const newUser = result.rows[0];
+        
+        // Security: Log the action
+        await logAdminAction('create_admin_user', performingUserId, newUser.id, sanitizedEmail, { created: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        console.log(`[ADMIN] ✅ Admin ${performingUser.email} created new admin user: ${sanitizedEmail} (ID: ${newUser.id})`);
+        
+        return {
+            success: true,
+            message: 'Admin user created successfully',
+            user: newUser
+        };
+        
+    } catch (error) {
+        console.error(`[ADMIN] Error creating admin user ${sanitizedEmail}:`, error);
+        
+        // Security: Log failed attempt
+        await logAdminAction('create_admin_user_failed', performingUserId, null, sanitizedEmail, { error: 'Creation failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        return {
+            success: false,
+            error: 'Failed to create admin user'
+        };
+    }
+};
+
+// 🔐 SECURE: Promote user to admin (requires authorization)
+const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
+    let sanitizedEmail;
+    try {
+        // Security: Authorize the request
+        const performingUser = await requireAdminAuthorization(performingUserId);
+        
+        // Security: Sanitize input
+        sanitizedEmail = sanitizeEmail(email);
+        
+        console.log(`[ADMIN] Authorized admin ${performingUser.email} promoting user to admin: ${sanitizedEmail}`);
+        
+        const result = await pool.query(`
+            UPDATE users 
+            SET is_admin = TRUE, updated_at = CURRENT_TIMESTAMP
+            WHERE email = $1
+            RETURNING id, email, display_name, is_admin
+        `, [sanitizedEmail]);
+        
+        if (result.rows.length === 0) {
+            await logAdminAction('promote_user_not_found', performingUserId, null, sanitizedEmail, { error: 'User not found' }, false, 'User not found', auditInfo.ipAddress, auditInfo.userAgent);
+            return {
+                success: false,
+                error: 'User not found'
+            };
+        }
+        
+        const user = result.rows[0];
+        
+        // Security: Log the action
+        await logAdminAction('promote_user_to_admin', performingUserId, user.id, sanitizedEmail, { promoted: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        console.log(`[ADMIN] ✅ Admin ${performingUser.email} promoted user to admin: ${sanitizedEmail} (ID: ${user.id})`);
+        
+        return {
+            success: true,
+            message: 'User promoted to admin successfully',
+            user: user
+        };
+        
+    } catch (error) {
+        console.error(`[ADMIN] Error promoting user to admin ${sanitizedEmail}:`, error);
+        
+        // Security: Log failed attempt
+        await logAdminAction('promote_user_failed', performingUserId, null, sanitizedEmail, { error: 'Promotion failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        return {
+            success: false,
+            error: 'Unauthorized or promotion failed'
+        };
+    }
+};
+
+// 🔐 SECURE: Remove admin rights (requires authorization)
+const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
+    let sanitizedEmail;
+    try {
+        // Security: Authorize the request
+        const performingUser = await requireAdminAuthorization(performingUserId);
+        
+        // Security: Sanitize input
+        sanitizedEmail = sanitizeEmail(email);
+        
+        // Security: Prevent self-demotion
+        if (performingUser.email === sanitizedEmail) {
+            await logAdminAction('remove_admin_self_attempt', performingUserId, performingUser.id, sanitizedEmail, { error: 'Self-demotion prevented' }, false, 'Cannot remove own admin rights', auditInfo.ipAddress, auditInfo.userAgent);
+            return {
+                success: false,
+                error: 'Cannot remove your own admin rights'
+            };
+        }
+        
+        console.log(`[ADMIN] Authorized admin ${performingUser.email} removing admin rights from: ${sanitizedEmail}`);
+        
+        const result = await pool.query(`
+            UPDATE users 
+            SET is_admin = FALSE, updated_at = CURRENT_TIMESTAMP
+            WHERE email = $1
+            RETURNING id, email, display_name, is_admin
+        `, [sanitizedEmail]);
+        
+        if (result.rows.length === 0) {
+            await logAdminAction('remove_admin_not_found', performingUserId, null, sanitizedEmail, { error: 'User not found' }, false, 'User not found', auditInfo.ipAddress, auditInfo.userAgent);
+            return {
+                success: false,
+                error: 'User not found'
+            };
+        }
+        
+        const user = result.rows[0];
+        
+        // Security: Log the action
+        await logAdminAction('remove_admin_rights', performingUserId, user.id, sanitizedEmail, { demoted: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        console.log(`[ADMIN] ✅ Admin ${performingUser.email} removed admin rights from: ${sanitizedEmail} (ID: ${user.id})`);
+        
+        return {
+            success: true,
+            message: 'Admin rights removed successfully',
+            user: user
+        };
+        
+    } catch (error) {
+        console.error(`[ADMIN] Error removing admin rights from ${sanitizedEmail}:`, error);
+        
+        // Security: Log failed attempt
+        await logAdminAction('remove_admin_failed', performingUserId, null, sanitizedEmail, { error: 'Removal failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        return {
+            success: false,
+            error: 'Unauthorized or removal failed'
+        };
+    }
+};
+
+// 🔐 SECURE: List admin users (requires authorization)
+const listAdminUsers = async (performingUserId, auditInfo = {}) => {
+    try {
+        // Security: Authorize the request
+        const performingUser = await requireAdminAuthorization(performingUserId);
+        
+        const result = await pool.query(`
+            SELECT id, email, display_name, is_admin, created_at, updated_at
+            FROM users 
+            WHERE is_admin = TRUE
+            ORDER BY created_at ASC
+        `);
+        
+        // Security: Log the action
+        await logAdminAction('list_admin_users', performingUserId, null, null, { count: result.rows.length }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        console.log(`[ADMIN] Admin ${performingUser.email} listed ${result.rows.length} admin users`);
+        
+        return {
+            success: true,
+            adminUsers: result.rows.map(user => ({
+                id: user.id,
+                email: user.email,
+                display_name: user.display_name,
+                created_at: user.created_at
+            }))
+        };
+        
+    } catch (error) {
+        console.error('[ADMIN] Error listing admin users:', error);
+        
+        // Security: Log failed attempt
+        await logAdminAction('list_admin_failed', performingUserId, null, null, { error: 'List failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
+        
+        return {
+            success: false,
+            error: 'Unauthorized'
+        };
+    }
+};
+
+// 🔐 SECURE: Manual admin setup function (requires environment variable)
+const setupInitialAdmin = async (requireConfirmation = true) => {
+    try {
+        const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
+        
+        if (!adminEmail) {
+            console.log('[ADMIN] No INITIAL_ADMIN_EMAIL environment variable set. Skipping initial admin setup.');
+            console.log('[ADMIN] To create an admin user, set INITIAL_ADMIN_EMAIL=email@example.com in your environment');
+            return { success: false, message: 'No admin email configured' };
+        }
+        
+        if (requireConfirmation) {
+            console.log(`[ADMIN] MANUAL SETUP REQUIRED: To create initial admin user ${adminEmail}:`);
+            console.log('[ADMIN] 1. Set ADMIN_SETUP_CONFIRMED=true in your environment');
+            console.log('[ADMIN] 2. Restart your application');
+            console.log('[ADMIN] 3. The admin user will be created automatically');
+            return { success: false, message: 'Manual confirmation required' };
+        }
+        
+        const confirmed = process.env.ADMIN_SETUP_CONFIRMED === 'true';
+        if (!confirmed) {
+            console.log(`[ADMIN] ADMIN_SETUP_CONFIRMED not set to 'true'. Skipping admin creation for ${adminEmail}`);
+            return { success: false, message: 'Setup not confirmed' };
+        }
+        
+        console.log(`[ADMIN] Creating initial admin user: ${adminEmail}`);
+        
+        // Check if user already exists
+        const existingUser = await pool.query(
+            'SELECT id, email, is_admin FROM users WHERE email = $1',
+            [adminEmail.toLowerCase().trim()]
+        );
+        
+        if (existingUser.rows.length > 0) {
+            const user = existingUser.rows[0];
+            if (user.is_admin) {
+                console.log(`[ADMIN] ✅ ${adminEmail} is already admin`);
+                return { success: true, message: 'User is already admin', user: user };
+            } else {
+                // Promote existing user (without authorization check for initial setup)
+                const result = await pool.query(`
+                    UPDATE users 
+                    SET is_admin = TRUE, updated_at = CURRENT_TIMESTAMP
+                    WHERE email = $1
+                    RETURNING id, email, display_name, is_admin
+                `, [adminEmail.toLowerCase().trim()]);
+                
+                const updatedUser = result.rows[0];
+                await logAdminAction('initial_admin_promotion', null, updatedUser.id, adminEmail, { initial_setup: true }, true);
+                console.log(`[ADMIN] ✅ Promoted existing user to admin: ${adminEmail}`);
+                return { success: true, message: 'User promoted to admin', user: updatedUser };
+            }
+        } else {
+            // Create new admin user (without authorization check for initial setup)
+            const result = await pool.query(`
+                INSERT INTO users (
+                    email, display_name, package_type, billing_model, plan_code,
+                    renewable_credits, payasyougo_credits, credits_remaining,
+                    plan_context_slots, extra_context_slots, total_context_slots,
+                    subscription_starts_at, next_billing_date, is_admin, registration_completed
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
+                RETURNING id, email, display_name, is_admin
+            `, [
+                adminEmail.toLowerCase().trim(),
+                'Initial Admin User',
+                'free', 'monthly', 'free',
+                7, 0, 7, // Credits
+                1, 0, 1, // Context slots
+                new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
+                true, true // is_admin, registration_completed
+            ]);
+            
+            const newUser = result.rows[0];
+            await logAdminAction('initial_admin_creation', null, newUser.id, adminEmail, { initial_setup: true }, true);
+            console.log(`[ADMIN] ✅ Created initial admin user: ${adminEmail} (ID: ${newUser.id})`);
+            return { success: true, message: 'Initial admin user created', user: newUser };
+        }
+        
+    } catch (error) {
+        console.error('[ADMIN] Error in initial admin setup:', error);
+        return { success: false, error: 'Initial admin setup failed' };
+    }
+};
+
 // ==================== DATABASE INITIALIZATION ====================
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + ADMIN DASHBOARD...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + SECURE ADMIN MANAGEMENT...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -404,7 +831,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔧 ADMIN DASHBOARD
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔐 ADMIN COLUMN
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -429,7 +856,7 @@ const initDB = async () => {
                 total_context_slots INTEGER DEFAULT 1,
                 contexts_count INTEGER DEFAULT 0,
                 
-                -- 🔧 ADMIN DASHBOARD: Admin access field
+                -- 🔐 NEW: Admin Management
                 is_admin BOOLEAN DEFAULT FALSE,
                 
                 -- NEW: Billing Cycle Management
@@ -651,11 +1078,14 @@ const initDB = async () => {
         
         // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
         await ensurePendingRegistrationsTable();
+        
+        // 🔐 NEW: ADMIN_AUDIT_LOG TABLE for security tracking
+        await ensureAdminAuditTable();
 
         // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
         await fixPromptVersionColumn();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔧 ADMIN DASHBOARD
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔐 ADMIN COLUMN
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -682,7 +1112,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_context_slots INTEGER DEFAULT 1',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0',
                 
-                // 🔧 ADMIN DASHBOARD: Add admin field
+                // 🔐 NEW: Admin Management column
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE',
                 
                 // ✅ CHARGEBEE FIX: Add missing Chargebee columns
@@ -695,7 +1125,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔧 ADMIN DASHBOARD');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔐 ADMIN COLUMN');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
@@ -710,9 +1140,9 @@ const initDB = async () => {
                     if (columnQuery.includes('total_context_slots')) {
                         console.log('🆕 CONTEXT SLOTS: Added total_context_slots column');
                     }
-                    // Log admin dashboard column addition
+                    // Log admin column addition
                     if (columnQuery.includes('is_admin')) {
-                        console.log('🔧 ADMIN DASHBOARD: Added is_admin column');
+                        console.log('🔐 ADMIN: Added is_admin column');
                     }
                     // Log Chargebee column additions
                     if (columnQuery.includes('chargebee_subscription_id')) {
@@ -844,7 +1274,10 @@ const initDB = async () => {
         // 🆕 NEW: Initialize context slots for existing users - FIXED VERSION
         await initializeContextSlots();
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES + 🔧 ADMIN DASHBOARD INDEXES
+        // 🔐 SECURE: Manual admin setup (requires environment variables)
+        await setupInitialAdmin();
+
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES + 🔐 ADMIN INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -863,8 +1296,9 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_users_context_usage ON users(plan_context_slots, extra_context_slots, total_context_slots);
                 CREATE INDEX IF NOT EXISTS idx_users_contexts_count ON users(contexts_count);
                 
-                -- 🔧 ADMIN DASHBOARD: Add admin index for fast admin queries
-                CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin) WHERE is_admin = TRUE;
+                -- 🔐 ADMIN: Add admin index for fast admin lookups
+                CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
+                CREATE INDEX IF NOT EXISTS idx_users_admin_email ON users(email, is_admin);
                 
                 -- ✅ CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_subscription_id ON users(chargebee_subscription_id);
@@ -906,8 +1340,13 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_message_type ON message_logs(message_type);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
+                
+                -- 🔐 ADMIN: Admin audit indexes for security tracking
+                CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log(action, created_at);
+                CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_log(performed_by_user_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔧 Admin dashboard indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔐 Admin security indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -923,7 +1362,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, REMOVED ALL VARCHAR LIMITATIONS, and 🔧 ADMIN DASHBOARD created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔐 SECURE ADMIN MANAGEMENT, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1012,8 +1451,8 @@ const getUserPlan = async (userId) => {
                 cancellationEffectiveDate: user.cancellation_effective_date,
                 previousPlanCode: user.previous_plan_code,
                 
-                // 🔧 ADMIN DASHBOARD: Include admin status
-                isAdmin: user.is_admin,
+                // 🔐 ADMIN: Include admin status
+                isAdmin: user.is_admin || false,
                 
                 // UI display data
                 creditsDisplay: `${totalCredits}/${Number(user.plan_renewable_credits) || 7} Credits`,
@@ -1871,13 +2310,14 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
             email, password_hash, package_type, billing_model, plan_code,
             renewable_credits, payasyougo_credits, credits_remaining,
             plan_context_slots, extra_context_slots, total_context_slots,
-            subscription_starts_at, next_billing_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *
+            subscription_starts_at, next_billing_date, is_admin
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *
     `, [
         email, passwordHash, packageType, billingModel, packageType,
         renewableCredits, 0, renewableCredits,
         contextSlots, 0, contextSlots,
-        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
+        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
+        false // is_admin defaults to false
     ]);
     
     return result.rows[0];
@@ -1916,15 +2356,16 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
             renewable_credits, payasyougo_credits, credits_remaining,
             plan_context_slots, extra_context_slots, total_context_slots,
             subscription_starts_at, next_billing_date,
-            linkedin_url, registration_completed
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *
+            linkedin_url, registration_completed, is_admin
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *
     `, [
         email, googleId, displayName, profilePicture, 
         packageType, billingModel, packageType,
         renewableCredits, 0, renewableCredits,
         contextSlots, 0, contextSlots,
         new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
-        linkedinUrl, registrationCompleted // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
+        linkedinUrl, registrationCompleted, // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
+        false // is_admin defaults to false
     ]);
     
     const user = result.rows[0];
@@ -2014,7 +2455,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔧 ADMIN DASHBOARD
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔐 SECURE ADMIN MANAGEMENT
 module.exports = {
     // Database connection
     pool,
@@ -2029,8 +2470,10 @@ module.exports = {
     ensureSavedContextsTable,
     ensureContextAddonTables, // ✅ NEW: Context addon tables function
     ensurePendingRegistrationsTable,
+    ensureAdminAuditTable, // 🔐 NEW: Admin audit table function
     fixPromptVersionColumn,
     initializeContextSlots, // 🆕 NEW: Initialize context slots function
+    setupInitialAdmin, // 🔐 NEW: Secure initial admin setup function
     
     // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
@@ -2051,6 +2494,14 @@ module.exports = {
     
     // ✅ CANCELLATION FIX: New cancellation management function
     downgradeUserToFree,
+    
+    // 🔐 NEW: SECURE Admin Management Functions
+    createAdminUser,
+    promoteUserToAdmin,
+    removeAdminRights,
+    listAdminUsers,
+    requireAdminAuthorization, // 🔐 NEW: Authorization middleware
+    logAdminAction, // 🔐 NEW: Audit logging function
     
     // ✅ NEW: Pending Registration Management
     storePendingRegistration,
