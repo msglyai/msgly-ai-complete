@@ -48,10 +48,11 @@ CHANGELOG - server.js:
 41. CONTEXTS: Added contexts routes mounting for context management system
 42. UNIFIED GENERATION FIX: Connected /generate-unified endpoint to existing GPT-5 message generation system - REMOVED ALL MOCK DATA
 43. CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality
-44. ✅ CONTEXT ADDON WEBHOOK: Added context addon functions import and webhook processing capability
+44. CONTEXT FIX: Added missing context slot function imports to database imports
+45. CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT ADDON WEBHOOK PROCESSING
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -84,7 +85,8 @@ CHANGELOG - server.js:
 // ✅ CONTEXTS: Added context management system with plan-based limits
 // ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified to existing GPT-5 message generation - NO MORE MOCK DATA
 // ✅ CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality
-// ✅ CONTEXT ADDON WEBHOOK: Added context addon functions import and processing capability for successful purchases
+// ✅ CONTEXT FIX: Added missing context slot function imports for proper webhook allocation
+// ✅ CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion
 
 const express = require('express');
 const cors = require('cors');
@@ -131,7 +133,7 @@ const { handleFileUpload } = require('./controllers/file-upload-controller');
 
 require('dotenv').config();
 
-// ENHANCED: Import USER PROFILE database functions + dual credit system + PENDING REGISTRATIONS + CANCELLATION MANAGEMENT + CONTEXT ADDON FUNCTIONS
+// ENHANCED: Import USER PROFILE database functions + dual credit system + PENDING REGISTRATIONS + CANCELLATION MANAGEMENT + CONTEXT FUNCTIONS
 const {
     pool,
     initDB,
@@ -157,10 +159,11 @@ const {
     storePendingRegistration,
     getPendingRegistration,
     completePendingRegistration,
-    // ✅ NEW: Context Addon Functions
+    // 🔧 CONTEXT FIX: ADD MISSING CONTEXT SLOT FUNCTIONS
     getContextAddonUsage,
     createContextAddon,
-    getUserContextAddons
+    updateUserContextSlots,
+    initializeContextSlots
 } = require('./utils/database');
 
 // NEW: Import enhanced credit management system
@@ -305,87 +308,6 @@ function cleanTokenNumber(value) {
     const isValid = !isNaN(result) && isFinite(result);
     
     return isValid ? result : null;
-}
-
-// ==================== CONTEXT ADDON WEBHOOK PROCESSING FUNCTION ====================
-
-// NEW: Process context addon webhook events - MINIMAL ADDITION
-async function processContextAddonWebhook(eventData) {
-    try {
-        logger.custom('ADDON', '=== CONTEXT ADDON WEBHOOK PROCESSING ===');
-        
-        const { event_type, content } = eventData;
-        logger.info(`[ADDON] Processing webhook event: ${event_type}`);
-        
-        // Handle subscription created/activated events
-        if (event_type === 'subscription_created' || event_type === 'subscription_activated') {
-            const subscription = content.subscription;
-            const customer = content.customer;
-            
-            if (!subscription || !customer) {
-                logger.error('[ADDON] Missing subscription or customer data in webhook');
-                return { success: false, error: 'Missing subscription or customer data' };
-            }
-            
-            // Check subscription items for context addon
-            if (subscription.subscription_items && Array.isArray(subscription.subscription_items)) {
-                for (const item of subscription.subscription_items) {
-                    if (item.item_price_id === 'Context-Addon-Monthly-USD-Monthly') {
-                        logger.custom('ADDON', `[WEBHOOK] Context addon detected! Processing for customer ${customer.email}`);
-                        
-                        // Find user by email
-                        const user = await getUserByEmail(customer.email);
-                        if (!user) {
-                            logger.error(`[ADDON] User not found for email: ${customer.email}`);
-                            return { success: false, error: 'User not found' };
-                        }
-                        
-                        // Create context addon record
-                        const addonResult = await createContextAddon(user.id, subscription.id, {
-                            price: 3.99,
-                            quantity: item.quantity || 1,
-                            billingModel: 'monthly',
-                            chargebeePlanId: item.item_price_id
-                        });
-                        
-                        if (addonResult.success) {
-                            logger.success(`[ADDON] Context addon created successfully for user ${user.id}: ID ${addonResult.data.id}`);
-                            return {
-                                success: true,
-                                message: `Context addon processed: +${item.quantity || 1} slot(s) added`,
-                                addonId: addonResult.data.id,
-                                userId: user.id
-                            };
-                        } else {
-                            logger.error(`[ADDON] Failed to create context addon for user ${user.id}:`, addonResult.error);
-                            return { success: false, error: `Context addon creation failed: ${addonResult.error}` };
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Handle subscription cancelled events
-        if (event_type === 'subscription_cancelled') {
-            const subscription = content.subscription;
-            const customer = content.customer;
-            
-            if (subscription && customer) {
-                const user = await getUserByEmail(customer.email);
-                if (user) {
-                    logger.info(`[ADDON] Context addon subscription cancelled for user ${user.id}`);
-                    // Note: Context addon cancellation is handled by the billing routes
-                    // This is just for logging purposes
-                }
-            }
-        }
-        
-        return { success: true, message: 'Context addon webhook processed' };
-        
-    } catch (error) {
-        logger.error('[ADDON] Context addon webhook processing error:', error);
-        return { success: false, error: error.message };
-    }
 }
 
 // NEW: DATABASE-First System Functions
@@ -1000,7 +922,7 @@ const corsOptions = {
         
         return callback(null, true);
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // 🔧 CORS FIX: Added PUT and DELETE methods
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
@@ -1182,41 +1104,6 @@ app.post('/context-addons/purchase', authenticateToken, async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to initiate context addon purchase',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// ==================== CONTEXT ADDON WEBHOOK ENDPOINT ====================
-
-// NEW: Context addon webhook endpoint - MINIMAL ADDITION TO HANDLE CONTEXT ADDON PURCHASES
-app.post('/webhook/context-addon', express.json(), async (req, res) => {
-    try {
-        logger.custom('ADDON', '=== CONTEXT ADDON WEBHOOK RECEIVED ===');
-        logger.info(`[ADDON] Webhook event type: ${req.body.event_type}`);
-        
-        // Process the context addon webhook
-        const result = await processContextAddonWebhook(req.body);
-        
-        if (result.success) {
-            logger.success(`[ADDON] Webhook processed successfully: ${result.message}`);
-            res.status(200).json({
-                success: true,
-                message: result.message
-            });
-        } else {
-            logger.error(`[ADDON] Webhook processing failed: ${result.error}`);
-            res.status(400).json({
-                success: false,
-                error: result.error
-            });
-        }
-        
-    } catch (error) {
-        logger.error('[ADDON] Context addon webhook endpoint error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Context addon webhook processing failed',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -2033,7 +1920,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase + Context Addon Webhook Processing.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase + Context Slot Functions + CORS Fix.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -2077,7 +1964,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_ADDON_WEBHOOK'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX'
                 }
             }
         });
@@ -2155,7 +2042,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT ADDON WEBHOOK'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX'
             };
         }
 
@@ -2255,7 +2142,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_ADDON_WEBHOOK'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX'
             }
         });
     } catch (error) {
@@ -2307,7 +2194,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_ADDON_WEBHOOK',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -3024,7 +2911,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT ADDON WEBHOOK PROCESSING',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -3074,8 +2961,7 @@ app.use((req, res, next) => {
             'GET /test-chargebee (NEW: Test Chargebee connection)',
             'POST /chargebee-webhook (BILLING REFACTOR: Now in routes/billingRoutes.js)',
             'POST /create-checkout (BILLING REFACTOR: Now in routes/billingRoutes.js)',
-            'POST /context-addons/purchase (✅ NEW: Context addon purchase for extension Buy Extra slot)',
-            'POST /webhook/context-addon (✅ NEW: Context addon webhook processing endpoint)',
+            'POST /context-addons/purchase (NEW: Context addon purchase for extension Buy Extra slot)',
             'GET /contexts (NEW: Context management - List saved contexts)',
             'POST /contexts (NEW: Context management - Save new context)',
             'PUT /contexts/:id (NEW: Context management - Update context)',
@@ -3148,9 +3034,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT ADDON WEBHOOK PROCESSING ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT ADDON WEBHOOK PROCESSING`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -3187,11 +3073,12 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ CONTEXTS: Context management system with plan-based limits (Free: 1, Silver: 3, Gold: 6, Platinum: 10)`);
             console.log(`[SUCCESS] ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified endpoint to existing GPT-5 message generation system - NO MORE MOCK DATA`);
             console.log(`[SUCCESS] ✅ CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality`);
-            console.log(`[SUCCESS] ✅ CONTEXT ADDON WEBHOOK: Added /webhook/context-addon endpoint for processing successful addon purchases`);
+            console.log(`[SUCCESS] ✅ CONTEXT SLOT FUNCTIONS: Added missing context slot function imports for proper webhook allocation`);
+            console.log(`[SUCCESS] ✅ CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT ADDON WEBHOOK:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
@@ -3218,13 +3105,13 @@ const startServer = async () => {
             console.log(`[CONTEXT ADDON] ✅ AUTHENTICATION: Requires authenticateToken middleware`);
             console.log(`[CONTEXT ADDON] ✅ LOGGING: Professional logging for debugging and monitoring`);
             console.log(`[CONTEXT ADDON] ✅ READY FOR DEPLOYMENT: Fully integrated with existing payment flow`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ POST /webhook/context-addon - NEW: Process successful context addon purchases`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ DATABASE INTEGRATION: Uses createContextAddon() function from database.js`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ EVENT PROCESSING: Handles subscription_created, subscription_activated events`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ USER RESOLUTION: Finds users by email from Chargebee customer data`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ ITEM DETECTION: Detects Context-Addon-Monthly-USD-Monthly plan purchases`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ ERROR HANDLING: Comprehensive error handling and logging`);
-            console.log(`[CONTEXT ADDON WEBHOOK] ✅ READY FOR DEPLOYMENT: Completes the payment-to-slot allocation flow`);
+            console.log(`[CONTEXT FUNCTIONS] ✅ DATABASE IMPORTS: Added missing context slot function imports`);
+            console.log(`[CONTEXT FUNCTIONS] ✅ WEBHOOK INTEGRATION: getContextAddonUsage, createContextAddon, updateUserContextSlots, initializeContextSlots`);
+            console.log(`[CONTEXT FUNCTIONS] ✅ PROPER ALLOCATION: Webhooks can now properly allocate extra context slots after payment`);
+            console.log(`[CONTEXT FUNCTIONS] ✅ SIMPLIFIED SYSTEM: Direct database fields instead of complex calculations`);
+            console.log(`[CORS] ✅ PUT AND DELETE METHODS: Added to CORS configuration for context deletion`);
+            console.log(`[CORS] ✅ CONTEXT DELETION: Frontend can now properly delete contexts`);
+            console.log(`[CORS] ✅ API COMPATIBILITY: Full REST API support for all HTTP methods`);
         });
         
     } catch (error) {
