@@ -122,6 +122,91 @@
             padding: 2rem;
         }
 
+        /* Error/Warning States */
+        .access-denied {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 3rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--error-red);
+        }
+
+        .access-denied i {
+            font-size: 4rem;
+            color: var(--error-red);
+            margin-bottom: 1.5rem;
+        }
+
+        .access-denied h2 {
+            color: var(--error-red);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .access-denied p {
+            color: var(--gray);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .debug-info {
+            background: var(--light-gray);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            text-align: left;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--dark-gray);
+        }
+
+        .debug-info h4 {
+            margin-bottom: 0.5rem;
+            color: var(--black);
+            font-family: inherit;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .btn-secondary {
+            background: var(--light-gray);
+            color: var(--dark-gray);
+            border: 1px solid #E5E7EB;
+        }
+
+        .btn-secondary:hover {
+            background: #F3F4F6;
+        }
+
         /* Filters */
         .filters-section {
             background: var(--white);
@@ -447,6 +532,11 @@
             opacity: 0.6;
         }
 
+        /* Hidden class */
+        .hidden {
+            display: none !important;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .admin-container {
@@ -469,6 +559,11 @@
 
             .filters-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
             }
         }
     </style>
@@ -499,8 +594,34 @@
         </div>
     </header>
 
-    <!-- Main Content -->
-    <div class="admin-container">
+    <!-- Access Denied Section (Hidden by default) -->
+    <div id="accessDenied" class="admin-container hidden">
+        <div class="access-denied">
+            <i class="fas fa-shield-alt"></i>
+            <h2>Admin Access Required</h2>
+            <p>You don't have permission to access this admin dashboard. This area is restricted to administrators only.</p>
+            
+            <div class="debug-info">
+                <h4>Debug Information:</h4>
+                <div id="debugUserInfo">Checking user permissions...</div>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="checkAdminStatus()">
+                    <i class="fas fa-sync-alt"></i> Check Admin Status
+                </button>
+                <a href="/dashboard" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                <button class="btn btn-secondary" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout & Login Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Content (Hidden by default) -->
+    <div id="dashboardContent" class="admin-container hidden">
         <!-- Filters Section -->
         <div class="filters-section">
             <div class="filters-grid">
@@ -812,6 +933,82 @@
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             initializeFilters();
+            checkAdminAccess();
+        });
+
+        // Check admin access first
+        async function checkAdminAccess() {
+            try {
+                console.log('Checking admin access...');
+                
+                // First check current user profile
+                const profileResponse = await fetch('/profile', {
+                    headers: apiHeaders
+                });
+                
+                if (profileResponse.ok) {
+                    const profileData = await profileResponse.json();
+                    const user = profileData.data.user;
+                    
+                    console.log('Current user:', user);
+                    
+                    // Update debug info
+                    updateDebugInfo(user);
+                    
+                    // Check admin API access
+                    const adminResponse = await fetch('/api/admin/analytics', {
+                        headers: apiHeaders
+                    });
+                    
+                    console.log('Admin API response status:', adminResponse.status);
+                    
+                    if (adminResponse.status === 403) {
+                        console.log('Admin access denied - showing access denied screen');
+                        showAccessDenied();
+                        return;
+                    }
+                    
+                    if (adminResponse.ok) {
+                        console.log('Admin access granted - loading dashboard');
+                        showDashboard();
+                        return;
+                    }
+                    
+                    throw new Error(`Admin API returned status ${adminResponse.status}`);
+                    
+                } else {
+                    throw new Error('Failed to get user profile');
+                }
+                
+            } catch (error) {
+                console.error('Error checking admin access:', error);
+                showAccessDeniedWithError(error.message);
+            }
+        }
+
+        // Show access denied screen
+        function showAccessDenied() {
+            document.getElementById('accessDenied').classList.remove('hidden');
+            document.getElementById('dashboardContent').classList.add('hidden');
+        }
+
+        // Show access denied with error
+        function showAccessDeniedWithError(errorMessage) {
+            document.getElementById('debugUserInfo').innerHTML = `
+                <strong>Error:</strong> ${errorMessage}<br>
+                <strong>Token exists:</strong> ${!!token}<br>
+                <strong>Token length:</strong> ${token ? token.length : 0}<br>
+                <strong>Timestamp:</strong> ${new Date().toISOString()}
+            `;
+            showAccessDenied();
+        }
+
+        // Show dashboard
+        function showDashboard() {
+            document.getElementById('accessDenied').classList.add('hidden');
+            document.getElementById('dashboardContent').classList.remove('hidden');
+            
+            // Initialize dashboard components
             loadDashboardData();
             initializeCharts();
             checkSystemHealth();
@@ -821,7 +1018,38 @@
                 loadDashboardData();
                 checkSystemHealth();
             }, 5 * 60 * 1000);
-        });
+        }
+
+        // Update debug info
+        function updateDebugInfo(user) {
+            const debugInfo = document.getElementById('debugUserInfo');
+            debugInfo.innerHTML = `
+                <strong>User ID:</strong> ${user.id}<br>
+                <strong>Email:</strong> ${user.email}<br>
+                <strong>Display Name:</strong> ${user.displayName || 'N/A'}<br>
+                <strong>Package Type:</strong> ${user.packageType || 'N/A'}<br>
+                <strong>Is Admin:</strong> ${user.isAdmin || 'Not set'}<br>
+                <strong>Token Present:</strong> ${!!token}<br>
+                <strong>Token Length:</strong> ${token ? token.length : 0} characters<br>
+                <strong>Timestamp:</strong> ${new Date().toISOString()}<br><br>
+                <strong>Next Steps:</strong><br>
+                1. Ask your admin to run: <code>UPDATE users SET is_admin = TRUE WHERE email = '${user.email}';</code><br>
+                2. Log out and log back in to get a new token<br>
+                3. Try accessing the admin dashboard again
+            `;
+        }
+
+        // Check admin status (manual check)
+        async function checkAdminStatus() {
+            document.getElementById('debugUserInfo').innerHTML = 'Checking admin status...';
+            await checkAdminAccess();
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        }
 
         // Initialize filters
         function initializeFilters() {
@@ -872,8 +1100,7 @@
 
                 if (!response.ok) {
                     if (response.status === 403) {
-                        alert('Admin access required');
-                        window.location.href = '/dashboard';
+                        showAccessDenied();
                         return;
                     }
                     throw new Error(`HTTP ${response.status}`);
