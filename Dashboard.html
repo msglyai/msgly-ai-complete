@@ -1731,7 +1731,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active — this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1980,7 +1980,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard — Coming Soon</h3>
+                            <h3>Analytics Dashboard – Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -1995,66 +1995,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let trafficLightStatus = 'loading';
         let analysisProgressInterval = null;
         let currentContextUsage = null;
-
-        // MOCK RECENT MESSAGES DATA - Replace with API call
-        const mockRecentMessages = [
-            {
-                id: 'msg_001',
-                targetProfile: {
-                    firstName: 'Sarah',
-                    lastName: 'Johnson',
-                    initials: 'SJ',
-                    role: 'Senior Product Manager',
-                    company: 'Tech Innovations Inc.'
-                },
-                message: 'Hi Sarah, I noticed your impressive work on product strategy at Tech Innovations. Your recent post about user-centered design really resonated with me...',
-                sentDate: '2024-01-15T10:30:00Z',
-                messageSent: true,
-                gotReply: false
-            },
-            {
-                id: 'msg_002',
-                targetProfile: {
-                    firstName: 'Michael',
-                    lastName: 'Chen',
-                    initials: 'MC',
-                    role: 'VP of Engineering',
-                    company: 'StartupXYZ'
-                },
-                message: 'Hello Michael, I came across your LinkedIn profile and was impressed by your engineering leadership at StartupXYZ...',
-                sentDate: '2024-01-14T14:15:00Z',
-                messageSent: true,
-                gotReply: true
-            },
-            {
-                id: 'msg_003',
-                targetProfile: {
-                    firstName: 'Emily',
-                    lastName: 'Rodriguez',
-                    initials: 'ER',
-                    role: 'Marketing Director',
-                    company: 'GrowthCorp'
-                },
-                message: 'Hi Emily, your marketing campaigns at GrowthCorp have been phenomenal! I particularly admired your recent B2B content strategy...',
-                sentDate: '2024-01-13T09:45:00Z',
-                messageSent: true,
-                gotReply: false
-            },
-            {
-                id: 'msg_004',
-                targetProfile: {
-                    firstName: 'David',
-                    lastName: 'Kumar',
-                    initials: 'DK',
-                    role: 'Data Science Lead',
-                    company: 'AI Solutions Ltd'
-                },
-                message: 'Hello David, I\'ve been following your work in machine learning at AI Solutions. Your insights on model interpretability are fascinating...',
-                sentDate: '2024-01-12T16:20:00Z',
-                messageSent: false,
-                gotReply: null
-            }
-        ];
 
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
@@ -2322,53 +2262,92 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.querySelector('.page-subtitle').textContent = 'Welcome to your AI-powered LinkedIn messaging center';
         }
 
-        // NEW: Recent Messages Functions
-        function loadRecentMessages() {
-            const recentMessagesGrid = document.getElementById('recentMessagesGrid');
-            const emptyRecentMessages = document.getElementById('emptyRecentMessages');
-            
-            // For now, use mock data
-            const recentMessages = mockRecentMessages.slice(0, 4); // Show only 4 recent messages
-            
-            if (recentMessages.length === 0) {
-                recentMessagesGrid.style.display = 'none';
-                emptyRecentMessages.style.display = 'block';
-                return;
+        // NEW: Helper function to clean message text
+        function cleanMessageText(messageText) {
+            if (!messageText) return '';
+            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
+            return cleanedText.replace(/^Subject:\s*/i, '').trim();
+        }
+
+        // UPDATED: Recent Messages Functions - Now uses real API data
+        async function loadRecentMessages() {
+            try {
+                const token = getAuthToken();
+                if (!token) return;
+
+                console.log('[RECENT_MESSAGES] Loading real data from API...');
+                
+                const response = await fetch('/messages/history', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const recentMessages = data.success ? (data.data || []).slice(0, 4) : [];
+
+                console.log('[RECENT_MESSAGES] Loaded', recentMessages.length, 'real messages');
+
+                const recentMessagesGrid = document.getElementById('recentMessagesGrid');
+                const emptyRecentMessages = document.getElementById('emptyRecentMessages');
+                
+                if (recentMessages.length === 0) {
+                    recentMessagesGrid.style.display = 'none';
+                    emptyRecentMessages.style.display = 'block';
+                    return;
+                }
+                
+                emptyRecentMessages.style.display = 'none';
+                recentMessagesGrid.style.display = 'grid';
+                
+                recentMessagesGrid.innerHTML = recentMessages.map(message => createRecentMessageCard(message)).join('');
+                
+            } catch (error) {
+                console.error('[RECENT_MESSAGES] Error loading messages:', error);
+                // Show empty state on error
+                document.getElementById('emptyRecentMessages').style.display = 'block';
+                document.getElementById('recentMessagesGrid').style.display = 'none';
             }
-            
-            emptyRecentMessages.style.display = 'none';
-            recentMessagesGrid.style.display = 'grid';
-            
-            recentMessagesGrid.innerHTML = recentMessages.map(message => createRecentMessageCard(message)).join('');
         }
 
         function createRecentMessageCard(message) {
-            const { targetProfile, message: messageText, sentDate, messageSent, gotReply } = message;
+            // Use cleaned message text
+            const messageText = cleanMessageText(message.message || '');
             
-            // FIXED: Display first name only (not "John D." but just "John")
-            const displayName = targetProfile.firstName;
+            // Display first name only
+            const displayName = message.targetProfile?.firstName || 'Unknown';
             
-            // Determine status
+            // Create initials from first name
+            const initials = displayName.substring(0, 2).toUpperCase();
+            
+            // Convert database status values to display status
+            const messageSent = message.sent === 'yes';
+            const gotReply = message.gotReply === 'yes';
+            
+            // Determine status badges
             let statusBadges = [];
-            if (messageSent === true) {
+            if (messageSent) {
                 statusBadges.push('<span class="status-badge status-sent"><i class="fas fa-check"></i> Sent</span>');
             }
-            if (gotReply === true) {
+            if (gotReply) {
                 statusBadges.push('<span class="status-badge status-replied"><i class="fas fa-reply"></i> Replied</span>');
             }
-            if (messageSent === true && gotReply !== true) {
+            if (messageSent && !gotReply) {
                 statusBadges.push('<span class="status-badge status-pending"><i class="fas fa-clock"></i> Pending</span>');
             }
             
             return `
                 <div class="recent-message-item">
-                    <div class="recent-msg-avatar">${targetProfile.initials}</div>
+                    <div class="recent-msg-avatar">${initials}</div>
                     <div class="recent-msg-content">
                         <div class="recent-msg-header">
                             <div class="recent-msg-name">${displayName}</div>
-                            <div class="recent-msg-date">${formatRecentMessageDate(sentDate)}</div>
+                            <div class="recent-msg-date">${formatRecentMessageDate(message.createdAt)}</div>
                         </div>
-                        <div class="recent-msg-role">${targetProfile.role}</div>
+                        <div class="recent-msg-role">${message.targetProfile?.role || 'Professional'}</div>
                         <div class="recent-msg-preview">${messageText}</div>
                         <div class="recent-msg-status">
                             ${statusBadges.join('')}
@@ -2618,7 +2597,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 document.getElementById('profileInitials').textContent = initials;
             }
 
-            // NEW: Load recent messages
+            // UPDATED: Load real recent messages
             loadRecentMessages();
 
             // Show dashboard content
