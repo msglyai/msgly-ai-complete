@@ -3,7 +3,7 @@
 // SECURITY: Uses existing requireAdmin middleware from auth.js
 
 const router = require('express').Router();
-const path = require('path'); // FIXED: Added missing path import
+const path = require('path'); // ✅ FIXED: Added missing path import
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
@@ -13,9 +13,17 @@ const serverStartTime = Date.now();
 
 // ==================== ADMIN DASHBOARD ROUTES ====================
 
-// Serve admin dashboard HTML
+// Serve admin dashboard HTML - ✅ FIXED: Now has proper path import
 router.get('/admin-dashboard', authenticateToken, requireAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'admin-dashboard.html'));
+    try {
+        res.sendFile(path.join(__dirname, '..', 'admin-dashboard.html'));
+    } catch (error) {
+        logger.error('Error serving admin dashboard:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to serve admin dashboard'
+        });
+    }
 });
 
 // ==================== ADMIN API ENDPOINTS ====================
