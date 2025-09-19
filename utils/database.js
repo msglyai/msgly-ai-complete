@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + ADMIN DASHBOARD
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -15,6 +15,7 @@
 // ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
 // 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
 // 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
+// 🔧 ADMIN DASHBOARD: Added is_admin field for internal admin dashboard access
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -362,7 +363,7 @@ const initializeContextSlots = async () => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + ADMIN DASHBOARD...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -403,7 +404,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔧 ADMIN DASHBOARD
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -427,6 +428,9 @@ const initDB = async () => {
                 extra_context_slots INTEGER DEFAULT 0,
                 total_context_slots INTEGER DEFAULT 1,
                 contexts_count INTEGER DEFAULT 0,
+                
+                -- 🔧 ADMIN DASHBOARD: Admin access field
+                is_admin BOOLEAN DEFAULT FALSE,
                 
                 -- NEW: Billing Cycle Management
                 subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -651,7 +655,7 @@ const initDB = async () => {
         // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
         await fixPromptVersionColumn();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔧 ADMIN DASHBOARD
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -678,6 +682,9 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_context_slots INTEGER DEFAULT 1',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0',
                 
+                // 🔧 ADMIN DASHBOARD: Add admin field
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE',
+                
                 // ✅ CHARGEBEE FIX: Add missing Chargebee columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100) UNIQUE',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)',
@@ -688,7 +695,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔧 ADMIN DASHBOARD');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
@@ -702,6 +709,10 @@ const initDB = async () => {
                     }
                     if (columnQuery.includes('total_context_slots')) {
                         console.log('🆕 CONTEXT SLOTS: Added total_context_slots column');
+                    }
+                    // Log admin dashboard column addition
+                    if (columnQuery.includes('is_admin')) {
+                        console.log('🔧 ADMIN DASHBOARD: Added is_admin column');
                     }
                     // Log Chargebee column additions
                     if (columnQuery.includes('chargebee_subscription_id')) {
@@ -833,7 +844,7 @@ const initDB = async () => {
         // 🆕 NEW: Initialize context slots for existing users - FIXED VERSION
         await initializeContextSlots();
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES + 🔧 ADMIN DASHBOARD INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -851,6 +862,9 @@ const initDB = async () => {
                 -- 🆕 CONTEXT SLOTS: Add context slot indexes for fast usage calculation
                 CREATE INDEX IF NOT EXISTS idx_users_context_usage ON users(plan_context_slots, extra_context_slots, total_context_slots);
                 CREATE INDEX IF NOT EXISTS idx_users_contexts_count ON users(contexts_count);
+                
+                -- 🔧 ADMIN DASHBOARD: Add admin index for fast admin queries
+                CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin) WHERE is_admin = TRUE;
                 
                 -- ✅ CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_subscription_id ON users(chargebee_subscription_id);
@@ -893,7 +907,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔧 Admin dashboard indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -909,7 +923,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, REMOVED ALL VARCHAR LIMITATIONS, and 🔧 ADMIN DASHBOARD created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -935,6 +949,7 @@ const getUserPlan = async (userId) => {
                 u.cancellation_scheduled_at,
                 u.cancellation_effective_date,
                 u.previous_plan_code,
+                u.is_admin,
                 p.plan_name,
                 p.billing_model,
                 p.price_cents,
@@ -996,6 +1011,9 @@ const getUserPlan = async (userId) => {
                 cancellationScheduledAt: user.cancellation_scheduled_at,
                 cancellationEffectiveDate: user.cancellation_effective_date,
                 previousPlanCode: user.previous_plan_code,
+                
+                // 🔧 ADMIN DASHBOARD: Include admin status
+                isAdmin: user.is_admin,
                 
                 // UI display data
                 creditsDisplay: `${totalCredits}/${Number(user.plan_renewable_credits) || 7} Credits`,
@@ -1996,7 +2014,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔧 ADMIN DASHBOARD
 module.exports = {
     // Database connection
     pool,
