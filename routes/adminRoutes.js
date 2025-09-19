@@ -3,6 +3,7 @@
 // SECURITY: Uses existing requireAdmin middleware from auth.js
 
 const router = require('express').Router();
+const path = require('path'); // FIXED: Added missing path import
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
