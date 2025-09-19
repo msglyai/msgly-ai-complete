@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Msgly AI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        :root {
+            --primary-purple: #8039DF;
+            --dark-purple: #3E0075;
+            --glow-purple: #9F4EFF;
+            --neon-purple: #7B2CBF;
+            --electric-purple: #6A1B9A;
+            --light-purple: #F5EDFF;
+            --accent-pink: #FF2370;
+            --success-green: #10B981;
+            --warning-orange: #F59E0B;
+            --error-red: #EF4444;
+            --black: #111827;
+            --charcoal: #1F2937;
+            --dark-gray: #374151;
+            --gray: #6B7280;
+            --light-gray: #F9FAFB;
+            --white: #FFFFFF;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
+            --glow-shadow: 0 0 30px rgba(128, 57, 223, 0.25);
+            --intense-glow: 0 0 45px rgba(128, 57, 223, 0.35);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--light-gray);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .admin-header {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .admin-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .admin-title i {
+            font-size: 2rem;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+        }
+
+        .admin-title h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .admin-title .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-left: 0.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .refresh-btn, .export-btn, .back-btn {
+            padding: 0.6rem 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--white);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .refresh-btn:hover, .export-btn:hover, .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .last-updated {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        /* Main Content */
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Filters */
+        .filters-section {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+
+        .filter-group select, .filter-group input {
+            padding: 0.6rem;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
+        }
+
+        .apply-filters-btn {
+            padding: 0.6rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            height: fit-content;
+        }
+
+        .apply-filters-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--glow-shadow);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-card.primary {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            color: var(--white);
+        }
+
+        .stat-card.warning {
+            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
+            color: var(--white);
+        }
+
+        .stat-card.error {
+            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
+            color: var(--white);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+        }
+
+        .stat-card:not(.primary):not(.success):not(.warning):not(.error) .stat-icon {
+            background: var(--light-purple);
+            color: var(--primary-purple);
+        }
+
+        .stat-content {
+            flex: 1;
+            margin-left: 1rem;
+        }
+
+        .stat-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card:not(.primary):not(.success):not(.warning):not(.error) .stat-title {
+            color: var(--gray);
+        }
+
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            opacity: 0.9;
+        }
+
+        .stat-card:not(.primary):not(.success):not(.warning):not(.error) .stat-change {
+            color: var(--gray);
+        }
+
+        .trend-up {
+            color: var(--success-green);
+        }
+
+        .trend-down {
+            color: var(--error-red);
+        }
+
+        /* Charts Section */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--light-gray);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .chart-period {
+            font-size: 0.8rem;
+            color: var(--gray);
+            background: var(--light-gray);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Tables */
+        .table-section {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .table-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .data-table th {
+            background: var(--light-gray);
+            color: var(--dark-gray);
+            font-weight: 600;
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 2px solid #E5E7EB;
+            white-space: nowrap;
+        }
+
+        .data-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #F3F4F6;
+        }
+
+        .data-table tr:hover {
+            background: var(--light-purple);
+        }
+
+        .status-badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-active {
+            background: #DCFCE7;
+            color: #166534;
+        }
+
+        .status-inactive {
+            background: #FEF2F2;
+            color: #991B1B;
+        }
+
+        .status-pending {
+            background: #FEF3C7;
+            color: #92400E;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            color: var(--gray);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error States */
+        .error-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--error-red);
+        }
+
+        .error-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .admin-container {
+                padding: 1rem;
+            }
+
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="header-content">
+            <div class="admin-title">
+                <i class="fas fa-chart-line"></i>
+                <div>
+                    <h1>Admin Dashboard</h1>
+                    <span class="subtitle">Internal Analytics & Monitoring</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="last-updated" id="lastUpdated">Last updated: --</span>
+                <button class="refresh-btn" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="export-btn" onclick="exportData()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <a href="/dashboard" class="back-btn">
+                    <i class="fas fa-arrow-left"></i> Back to App
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="admin-container">
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="timeRange">Time Range</label>
+                    <select id="timeRange">
+                        <option value="today">Today</option>
+                        <option value="7days" selected>Last 7 Days</option>
+                        <option value="30days">Last 30 Days</option>
+                        <option value="90days">Last 90 Days</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="customRange" style="display: none;">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="filter-group" id="customRangeEnd" style="display: none;">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="filter-group">
+                    <label for="userType">User Type</label>
+                    <select id="userType">
+                        <option value="all">All Users</option>
+                        <option value="free">Free Users</option>
+                        <option value="paid">Paid Users</option>
+                        <option value="admin">Admin Users</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <button class="apply-filters-btn" onclick="applyFilters()">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <!-- Total Users -->
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Total Users</div>
+                        <div class="stat-value" id="totalUsers">--</div>
+                        <div class="stat-change" id="totalUsersChange">
+                            <i class="fas fa-arrow-up"></i> --% vs previous period
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Users -->
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-user-plus"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">New Users</div>
+                        <div class="stat-value" id="newUsers">--</div>
+                        <div class="stat-change" id="newUsersChange">
+                            <i class="fas fa-arrow-up"></i> --% vs previous period
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paid Users -->
+            <div class="stat-card warning">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Paid Users</div>
+                        <div class="stat-value" id="paidUsers">--</div>
+                        <div class="stat-change" id="paidUsersChange">
+                            <i class="fas fa-arrow-up"></i> --% of total
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Completion -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Profile Completion</div>
+                        <div class="stat-value" id="profileCompletion">--%</div>
+                        <div class="stat-change" id="profileCompletionChange">
+                            <span id="completedProfiles">--</span> / <span id="totalProfileUsers">--</span> users
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Generated -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Messages Generated</div>
+                        <div class="stat-value" id="messagesGenerated">--</div>
+                        <div class="stat-change" id="messagesGeneratedChange">
+                            <i class="fas fa-arrow-up"></i> --% vs previous period
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Profiles Analyzed -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Profiles Analyzed</div>
+                        <div class="stat-value" id="profilesAnalyzed">--</div>
+                        <div class="stat-change" id="profilesAnalyzedChange">
+                            <i class="fas fa-arrow-up"></i> --% vs previous period
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Rate -->
+            <div class="stat-card error">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Error Rate</div>
+                        <div class="stat-value" id="errorRate">--%</div>
+                        <div class="stat-change" id="errorRateChange">
+                            <span id="errorCount">--</span> errors in period
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credit Usage -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-title">Credits Used</div>
+                        <div class="stat-value" id="creditsUsed">--</div>
+                        <div class="stat-change" id="creditsUsedChange">
+                            <i class="fas fa-arrow-up"></i> --% vs previous period
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <!-- User Growth Chart -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">User Growth Trend</h3>
+                    <span class="chart-period" id="userGrowthPeriod">Last 7 Days</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="userGrowthChart"></canvas>
+                </div>
+            </div>
+
+            <!-- User Types Distribution -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">User Distribution</h3>
+                    <span class="chart-period">Current</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="userDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Chart -->
+        <div class="chart-card" style="margin-bottom: 2rem;">
+            <div class="chart-header">
+                <h3 class="chart-title">Daily Activity</h3>
+                <span class="chart-period" id="activityPeriod">Last 7 Days</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="activityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Users Table -->
+        <div class="table-section">
+            <div class="table-header">
+                <h3 class="table-title">Recent Users</h3>
+                <button class="export-btn" onclick="exportUsers()">
+                    <i class="fas fa-download"></i> Export Users
+                </button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Plan</th>
+                            <th>Credits</th>
+                            <th>Profile</th>
+                            <th>Messages</th>
+                            <th>Joined</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentUsersTable">
+                        <tr>
+                            <td colspan="8" class="loading">
+                                <div class="spinner"></div>
+                                Loading users...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- System Health -->
+        <div class="table-section">
+            <div class="table-header">
+                <h3 class="table-title">System Health</h3>
+                <span class="chart-period">Live Status</span>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-title">Database</div>
+                            <div class="stat-value" id="dbStatus">--</div>
+                            <div class="stat-change" id="dbStatusDetails">Checking connection...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-title">API Response</div>
+                            <div class="stat-value" id="apiStatus">--</div>
+                            <div class="stat-change" id="apiStatusDetails">Checking response time...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-title">Uptime</div>
+                            <div class="stat-value" id="uptime">--</div>
+                            <div class="stat-change" id="uptimeDetails">Since last restart</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let userGrowthChart, userDistributionChart, activityChart;
+        let currentFilters = {
+            timeRange: '7days',
+            userType: 'all',
+            startDate: null,
+            endDate: null
+        };
+
+        // Authentication check
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+
+        // API Headers
+        const apiHeaders = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFilters();
+            loadDashboardData();
+            initializeCharts();
+            checkSystemHealth();
+            
+            // Auto-refresh every 5 minutes
+            setInterval(() => {
+                loadDashboardData();
+                checkSystemHealth();
+            }, 5 * 60 * 1000);
+        });
+
+        // Initialize filters
+        function initializeFilters() {
+            const timeRangeSelect = document.getElementById('timeRange');
+            timeRangeSelect.addEventListener('change', function() {
+                const customRange = document.getElementById('customRange');
+                const customRangeEnd = document.getElementById('customRangeEnd');
+                
+                if (this.value === 'custom') {
+                    customRange.style.display = 'block';
+                    customRangeEnd.style.display = 'block';
+                } else {
+                    customRange.style.display = 'none';
+                    customRangeEnd.style.display = 'none';
+                }
+            });
+        }
+
+        // Apply filters
+        function applyFilters() {
+            const timeRange = document.getElementById('timeRange').value;
+            const userType = document.getElementById('userType').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            currentFilters = {
+                timeRange,
+                userType,
+                startDate: timeRange === 'custom' ? startDate : null,
+                endDate: timeRange === 'custom' ? endDate : null
+            };
+
+            loadDashboardData();
+        }
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                showLoading();
+                
+                // Build query parameters
+                const params = new URLSearchParams(currentFilters);
+                
+                // Fetch analytics data
+                const response = await fetch(`/api/admin/analytics?${params}`, {
+                    headers: apiHeaders
+                });
+
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        alert('Admin access required');
+                        window.location.href = '/dashboard';
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStats(data.data);
+                    updateCharts(data.data);
+                    updateTables(data.data);
+                    updateLastUpdated();
+                } else {
+                    throw new Error(data.error || 'Failed to load data');
+                }
+                
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showError('Failed to load dashboard data: ' + error.message);
+            }
+        }
+
+        // Update statistics
+        function updateStats(data) {
+            const stats = data.stats;
+            
+            // Update all stat values
+            document.getElementById('totalUsers').textContent = stats.totalUsers.toLocaleString();
+            document.getElementById('newUsers').textContent = stats.newUsers.toLocaleString();
+            document.getElementById('paidUsers').textContent = stats.paidUsers.toLocaleString();
+            document.getElementById('messagesGenerated').textContent = stats.messagesGenerated.toLocaleString();
+            document.getElementById('profilesAnalyzed').textContent = stats.profilesAnalyzed.toLocaleString();
+            document.getElementById('creditsUsed').textContent = stats.creditsUsed.toLocaleString();
+            
+            // Profile completion
+            const completionRate = stats.totalUsers > 0 ? Math.round((stats.completedProfiles / stats.totalUsers) * 100) : 0;
+            document.getElementById('profileCompletion').textContent = completionRate + '%';
+            document.getElementById('completedProfiles').textContent = stats.completedProfiles.toLocaleString();
+            document.getElementById('totalProfileUsers').textContent = stats.totalUsers.toLocaleString();
+            
+            // Error rate
+            const errorRate = stats.totalRequests > 0 ? Math.round((stats.errorCount / stats.totalRequests) * 100) : 0;
+            document.getElementById('errorRate').textContent = errorRate + '%';
+            document.getElementById('errorCount').textContent = stats.errorCount.toLocaleString();
+            
+            // Update changes (if previous period data available)
+            if (stats.changes) {
+                updateStatChange('totalUsersChange', stats.changes.totalUsers);
+                updateStatChange('newUsersChange', stats.changes.newUsers);
+                updateStatChange('messagesGeneratedChange', stats.changes.messagesGenerated);
+                updateStatChange('profilesAnalyzedChange', stats.changes.profilesAnalyzed);
+                updateStatChange('creditsUsedChange', stats.changes.creditsUsed);
+                
+                // Paid users percentage
+                const paidPercentage = stats.totalUsers > 0 ? Math.round((stats.paidUsers / stats.totalUsers) * 100) : 0;
+                document.getElementById('paidUsersChange').innerHTML = `<i class="fas fa-percentage"></i> ${paidPercentage}% of total`;
+                
+                // Error rate change
+                const errorChangeText = stats.changes.errorRate >= 0 ? 
+                    `<i class="fas fa-arrow-up trend-up"></i> +${stats.changes.errorRate}% vs previous` :
+                    `<i class="fas fa-arrow-down trend-down"></i> ${stats.changes.errorRate}% vs previous`;
+                document.getElementById('errorRateChange').innerHTML = `<span id="errorCount">${stats.errorCount}</span> errors in period`;
+            }
+        }
+
+        // Update stat change indicator
+        function updateStatChange(elementId, changeValue) {
+            const element = document.getElementById(elementId);
+            if (changeValue >= 0) {
+                element.innerHTML = `<i class="fas fa-arrow-up trend-up"></i> +${changeValue}% vs previous period`;
+            } else {
+                element.innerHTML = `<i class="fas fa-arrow-down trend-down"></i> ${changeValue}% vs previous period`;
+            }
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            // User Growth Chart
+            const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+            userGrowthChart = new Chart(userGrowthCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'New Users',
+                        data: [],
+                        borderColor: '#8039DF',
+                        backgroundColor: 'rgba(128, 57, 223, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Total Users',
+                        data: [],
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // User Distribution Chart
+            const userDistCtx = document.getElementById('userDistributionChart').getContext('2d');
+            userDistributionChart = new Chart(userDistCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Free Users', 'Paid Users', 'Admin Users'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: [
+                            '#6B7280',
+                            '#8039DF',
+                            '#F59E0B'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+
+            // Activity Chart
+            const activityCtx = document.getElementById('activityChart').getContext('2d');
+            activityChart = new Chart(activityCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Messages Generated',
+                        data: [],
+                        backgroundColor: '#8039DF',
+                        borderRadius: 4
+                    }, {
+                        label: 'Profiles Analyzed',
+                        data: [],
+                        backgroundColor: '#10B981',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update charts with new data
+        function updateCharts(data) {
+            // Update user growth chart
+            userGrowthChart.data.labels = data.charts.userGrowth.labels;
+            userGrowthChart.data.datasets[0].data = data.charts.userGrowth.newUsers;
+            userGrowthChart.data.datasets[1].data = data.charts.userGrowth.totalUsers;
+            userGrowthChart.update();
+
+            // Update user distribution chart
+            userDistributionChart.data.datasets[0].data = [
+                data.charts.userDistribution.free,
+                data.charts.userDistribution.paid,
+                data.charts.userDistribution.admin
+            ];
+            userDistributionChart.update();
+
+            // Update activity chart
+            activityChart.data.labels = data.charts.activity.labels;
+            activityChart.data.datasets[0].data = data.charts.activity.messages;
+            activityChart.data.datasets[1].data = data.charts.activity.profiles;
+            activityChart.update();
+
+            // Update chart period labels
+            document.getElementById('userGrowthPeriod').textContent = getPeriodLabel();
+            document.getElementById('activityPeriod').textContent = getPeriodLabel();
+        }
+
+        // Update tables
+        function updateTables(data) {
+            const usersTableBody = document.getElementById('recentUsersTable');
+            usersTableBody.innerHTML = '';
+
+            if (data.recentUsers && data.recentUsers.length > 0) {
+                data.recentUsers.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="width: 32px; height: 32px; background: var(--primary-purple); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.8rem;">
+                                    ${user.display_name ? user.display_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600;">${user.display_name || 'N/A'}</div>
+                                    <div style="font-size: 0.8rem; color: var(--gray);">ID: ${user.id}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${user.email}</td>
+                        <td>
+                            <span class="status-badge ${user.subscription_plan === 'free' ? 'status-inactive' : 'status-active'}">
+                                ${user.subscription_plan || 'Free'}
+                            </span>
+                        </td>
+                        <td>${user.credits_remaining || 0}</td>
+                        <td>
+                            <span class="status-badge ${user.registration_completed ? 'status-active' : 'status-pending'}">
+                                ${user.registration_completed ? 'Complete' : 'Pending'}
+                            </span>
+                        </td>
+                        <td>${user.message_count || 0}</td>
+                        <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                        <td>
+                            <span class="status-badge ${user.is_admin ? 'status-active' : 'status-inactive'}">
+                                ${user.is_admin ? 'Admin' : 'User'}
+                            </span>
+                        </td>
+                    `;
+                    usersTableBody.appendChild(row);
+                });
+            } else {
+                usersTableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--gray);">No users found</td></tr>';
+            }
+        }
+
+        // Check system health
+        async function checkSystemHealth() {
+            try {
+                const startTime = Date.now();
+                const response = await fetch('/api/admin/health', {
+                    headers: apiHeaders
+                });
+                const responseTime = Date.now() - startTime;
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Database status
+                    document.getElementById('dbStatus').textContent = 'Healthy';
+                    document.getElementById('dbStatusDetails').textContent = `${data.data.dbConnectionCount || 0} active connections`;
+                    
+                    // API status
+                    document.getElementById('apiStatus').textContent = responseTime + 'ms';
+                    document.getElementById('apiStatusDetails').textContent = responseTime < 500 ? 'Good response time' : 'Slow response time';
+                    
+                    // Uptime
+                    document.getElementById('uptime').textContent = formatUptime(data.data.uptime || 0);
+                    document.getElementById('uptimeDetails').textContent = 'Since last restart';
+                } else {
+                    throw new Error('Health check failed');
+                }
+            } catch (error) {
+                console.error('Health check error:', error);
+                document.getElementById('dbStatus').textContent = 'Error';
+                document.getElementById('dbStatusDetails').textContent = 'Connection failed';
+                document.getElementById('apiStatus').textContent = 'Error';
+                document.getElementById('apiStatusDetails').textContent = 'Request failed';
+            }
+        }
+
+        // Utility functions
+        function getPeriodLabel() {
+            const range = currentFilters.timeRange;
+            switch (range) {
+                case 'today': return 'Today';
+                case '7days': return 'Last 7 Days';
+                case '30days': return 'Last 30 Days';
+                case '90days': return 'Last 90 Days';
+                case 'custom': return 'Custom Range';
+                default: return 'Last 7 Days';
+            }
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) return `${days}d ${hours}h`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        }
+
+        function updateLastUpdated() {
+            document.getElementById('lastUpdated').textContent = 
+                'Last updated: ' + new Date().toLocaleTimeString();
+        }
+
+        function showLoading() {
+            // Add loading states to stats
+            const statValues = document.querySelectorAll('.stat-value');
+            statValues.forEach(el => el.textContent = '--');
+        }
+
+        function showError(message) {
+            // Show error state in main content
+            console.error('Dashboard error:', message);
+            alert('Error: ' + message);
+        }
+
+        // Action functions
+        function refreshData() {
+            loadDashboardData();
+            checkSystemHealth();
+        }
+
+        function exportData() {
+            const params = new URLSearchParams(currentFilters);
+            window.open(`/api/admin/export?${params}`, '_blank');
+        }
+
+        function exportUsers() {
+            const params = new URLSearchParams(currentFilters);
+            window.open(`/api/admin/export-users?${params}`, '_blank');
+        }
+    </script>
+</body>
+</html>
