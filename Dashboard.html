@@ -1726,7 +1726,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="traffic-light-title">Your profile is not fully synced yet.</div>
                 </div>
                 <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active – this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
+                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
                 </div>
                 <button class="download-extension-btn" onclick="downloadChromeExtension()">
                     <i class="fab fa-chrome"></i>
@@ -1975,7 +1975,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         
                         <div class="analytics-placeholder">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Analytics Dashboard – Coming Soon</h3>
+                            <h3>Analytics Dashboard â€" Coming Soon</h3>
                             <p>Track your reply rates, message performance, and comprehensive analytics data coming soon!</p>
                         </div>
                     </div>
@@ -2011,6 +2011,68 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             } else if (upgradeStatus === 'error') {
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showUpgradeErrorNotification();
+            }
+        }
+
+        // NEW: Function to send welcome email for newly registered users
+        async function sendWelcomeEmailForNewUser(user) {
+            // Check if user needs welcome email (registration completed but email not sent)
+            const needsWelcomeEmail = user.registrationCompleted && !user.welcomeEmailSent;
+            
+            if (!needsWelcomeEmail) {
+                console.log('[EMAIL] User does not need welcome email:', {
+                    registrationCompleted: user.registrationCompleted,
+                    welcomeEmailSent: user.welcomeEmailSent
+                });
+                return;
+            }
+
+            // Check if we already sent email in this session (prevent multiple sends)
+            const sessionKey = `welcomeEmailSent_${user.id}`;
+            if (sessionStorage.getItem(sessionKey)) {
+                console.log('[EMAIL] Welcome email already sent in this session');
+                return;
+            }
+
+            console.log('[EMAIL] Sending welcome email for newly registered user:', user.email);
+
+            try {
+                const token = getAuthToken();
+                if (!token) return;
+
+                const response = await fetch('https://api.msgly.ai/send-welcome-email', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        email: user.email,
+                        displayName: user.displayName || user.email
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        console.log('[EMAIL] Welcome email sent successfully');
+                        
+                        // Mark as sent in session to prevent re-sending
+                        sessionStorage.setItem(sessionKey, 'true');
+                        
+                        // Show success notification
+                        showUpgradeSuccessNotification('Welcome email sent! Check your inbox for important getting started information.');
+                    } else {
+                        console.error('[EMAIL] Welcome email failed:', result.error);
+                    }
+                } else {
+                    console.error('[EMAIL] Welcome email request failed:', response.status);
+                }
+
+            } catch (error) {
+                console.error('[EMAIL] Error sending welcome email:', error);
+                // Don't show error to user - email is non-critical
             }
         }
 
@@ -2099,7 +2161,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="addon-item">
                     <div class="addon-info">
                         <div class="addon-name">+1 Extra Context Slot</div>
-                        <div class="addon-details">$3.99/month • Renews ${renewalDate}</div>
+                        <div class="addon-details">$3.99/month â€¢ Renews ${renewalDate}</div>
                     </div>
                     <div class="addon-actions">
                         <button class="cancel-addon-btn" onclick="cancelContextAddon('${addon.id}')">
@@ -2485,6 +2547,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 planInfo: planInfo
             });
 
+            // NEW: Check if user needs welcome email (AFTER user data is loaded)
+            sendWelcomeEmailForNewUser(user);
+
             // Update sidebar user info
             const displayName = extractFirstLastName(profile).firstName || user.displayName || user.email;
             document.getElementById('sidebarUserName').textContent = displayName;
@@ -2542,15 +2607,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = '✓ Fully Synced';
+                    profileSyncStatusEl.textContent = 'âœ" Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = '🔄 Processing...';
+                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = '🔴 Sync Required';
+                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
@@ -2709,7 +2774,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             if (payasyougoCredits > 0 && renewableCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} PAYG + ${renewableCredits.toFixed(2)} Monthly`;
-                renewalInfoEl.textContent = `PAYG credits never expire • Monthly credits renew`;
+                renewalInfoEl.textContent = `PAYG credits never expire â€¢ Monthly credits renew`;
             } else if (payasyougoCredits > 0) {
                 creditBreakdownEl.textContent = `${payasyougoCredits.toFixed(2)} Pay-as-you-go credits`;
                 renewalInfoEl.textContent = `Credits never expire`;
