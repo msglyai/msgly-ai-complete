@@ -1257,7 +1257,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
-                    document.getElementById('sidebarUserPlan').textContent = user.plan || 'Free Plan';
+                    
+                    // FIXED: Use correct field name and add plan name mapping
+                    const planCode = user.planCode || 'free';
+                    const planNames = {
+                        'free': 'Free Plan',
+                        'silver-monthly': 'Silver Monthly',
+                        'silver-payasyougo': 'Silver Pay-as-you-go',
+                        'gold-monthly': 'Gold Monthly', 
+                        'gold-payasyougo': 'Gold Pay-as-you-go',
+                        'platinum-monthly': 'Platinum Monthly',
+                        'platinum-payasyougo': 'Platinum Pay-as-you-go'
+                    };
+                    document.getElementById('sidebarUserPlan').textContent = planNames[planCode] || 'Unknown Plan';
                     
                     // Update avatar with initials
                     const displayName = user.displayName || user.email;
