@@ -309,6 +309,133 @@ async function sendWelcomeEmail({ toEmail, toName, userId }) {
     }
 }
 
+// 🚀 NEW: Admin Notification Email Function
+async function sendAdminNotification({ userEmail, userName, packageType, billingModel, linkedinUrl, userId }) {
+    console.log(`[MAILER] sendAdminNotification called for new user: ${userEmail} (User ID: ${userId})`);
+    
+    try {
+        // Admin notification details
+        const adminEmail = 'ziv@msgly.ai';
+        const adminName = 'Ziv';
+        
+        // Extract LinkedIn domain for privacy
+        const linkedinDomain = linkedinUrl ? new URL(linkedinUrl).hostname : 'Not provided';
+        
+        // Create timestamp
+        const timestamp = new Date().toLocaleString('en-US', {
+            timeZone: 'America/New_York',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // Create HTML email content
+        const htmlContent = `
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .header { background: #4a90e2; color: white; padding: 20px; text-align: center; }
+                .content { padding: 20px; }
+                .detail-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px; }
+                .success { color: #28a745; font-weight: bold; }
+                .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🎉 New User Registration - Msgly.AI</h1>
+            </div>
+            <div class="content">
+                <p class="success">A new user has successfully completed registration!</p>
+                
+                <div class="detail-box">
+                    <h3>👤 User Details</h3>
+                    <p><strong>Name:</strong> ${userName || 'Not provided'}</p>
+                    <p><strong>Email:</strong> ${userEmail}</p>
+                    <p><strong>User ID:</strong> ${userId}</p>
+                </div>
+                
+                <div class="detail-box">
+                    <h3>📋 Plan Details</h3>
+                    <p><strong>Package:</strong> ${packageType || 'Free'}</p>
+                    <p><strong>Billing:</strong> ${billingModel || 'Monthly'}</p>
+                </div>
+                
+                <div class="detail-box">
+                    <h3>🔗 Additional Info</h3>
+                    <p><strong>LinkedIn:</strong> ${linkedinDomain}</p>
+                    <p><strong>Registration Time:</strong> ${timestamp}</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated notification from Msgly.AI registration system.</p>
+                </div>
+            </div>
+        </body>
+        </html>`;
+        
+        // Create text content
+        const textContent = `
+        NEW USER REGISTRATION - Msgly.AI
+        
+        A new user has successfully completed registration!
+        
+        USER DETAILS:
+        - Name: ${userName || 'Not provided'}
+        - Email: ${userEmail}
+        - User ID: ${userId}
+        
+        PLAN DETAILS:
+        - Package: ${packageType || 'Free'}
+        - Billing: ${billingModel || 'Monthly'}
+        
+        ADDITIONAL INFO:
+        - LinkedIn: ${linkedinDomain}
+        - Registration Time: ${timestamp}
+        
+        This is an automated notification from Msgly.AI registration system.`;
+        
+        // Prepare email data
+        const emailData = {
+            toEmail: adminEmail,
+            toName: adminName,
+            subject: `🚀 New User Alert: ${userName || userEmail} joined Msgly.AI (${packageType || 'Free'})`,
+            htmlContent: htmlContent,
+            textContent: textContent
+        };
+        
+        // Send email with retry
+        console.log('[MAILER] Sending admin notification email...');
+        const result = await sendEmailWithRetry(emailData, 1);
+        
+        console.log(`[MAILER] Admin notification sent successfully via ${result.provider}`);
+        console.log(`[MAILER] Message ID: ${result.messageId}`);
+        
+        return {
+            ok: true,
+            provider: result.provider,
+            messageId: result.messageId,
+            adminEmail: adminEmail,
+            userEmail: userEmail,
+            userId: userId
+        };
+        
+    } catch (error) {
+        console.error('[MAILER] Admin notification failed:', error);
+        
+        return {
+            ok: false,
+            error: error.error || error.message || 'Unknown email error',
+            provider: error.provider || 'unknown',
+            userEmail: userEmail,
+            userId: userId
+        };
+    }
+}
+
 // Configuration check
 function checkConfiguration() {
     const hasAPIKey = !!MAILERSEND_API_KEY;
@@ -329,5 +456,6 @@ function checkConfiguration() {
 // Export functions
 module.exports = {
     sendWelcomeEmail,
+    sendAdminNotification, // 🚀 NEW: Added admin notification export
     checkConfiguration
 };
