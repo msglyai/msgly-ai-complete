@@ -15,7 +15,8 @@ const {
     initializeContextSlots
 } = require('../utils/database');
 
-const { sendWelcomeEmail } = require('../mailer/mailer');
+// ✅ ADMIN NOTIFICATIONS: Import both email functions
+const { sendWelcomeEmail, sendAdminNotification } = require('../mailer/mailer');
 const { CHARGEBEE_PLAN_MAPPING } = require('../config/billing');
 
 // CONTEXT ADDON FIX: Add Context addon to plan mapping
@@ -74,6 +75,28 @@ async function handleSubscriptionCreated(subscription, customer) {
                 
                 console.log(`[WEBHOOK] Context addon processed: ${planMapping.extraContextSlots} extra slots added to user ${user.id}`);
                 
+                // ✅ ADMIN NOTIFICATIONS: Context addon purchase notification
+                try {
+                    console.log(`[ADMIN] Sending admin notification for context addon purchase: ${user.email}`);
+                    
+                    const adminResult = await sendAdminNotification({
+                        userEmail: user.email,
+                        userName: user.display_name,
+                        packageType: `Context Addon (${planMapping.displayName})`,
+                        billingModel: planMapping.billingModel,
+                        linkedinUrl: user.linkedin_url,
+                        userId: user.id
+                    });
+                    
+                    if (adminResult.ok) {
+                        console.log(`[ADMIN] Context addon admin notification sent successfully: ${adminResult.messageId}`);
+                    } else {
+                        console.error(`[ADMIN] Context addon admin notification failed: ${adminResult.error}`);
+                    }
+                } catch (adminError) {
+                    console.error('[ADMIN] Non-blocking context addon admin notification error:', adminError);
+                }
+                
             } catch (contextError) {
                 console.error('[WEBHOOK] Context addon processing failed:', contextError);
             }
@@ -107,6 +130,28 @@ async function handleSubscriptionCreated(subscription, customer) {
             ]);
             
             console.log(`[WEBHOOK] User ${user.id} upgraded to ${planCode}`);
+
+            // ✅ ADMIN NOTIFICATIONS: Monthly subscription notification
+            try {
+                console.log(`[ADMIN] Sending admin notification for subscription: ${user.email}`);
+                
+                const adminResult = await sendAdminNotification({
+                    userEmail: user.email,
+                    userName: user.display_name,
+                    packageType: planMapping.displayName || planCode,
+                    billingModel: 'monthly',
+                    linkedinUrl: user.linkedin_url,
+                    userId: user.id
+                });
+                
+                if (adminResult.ok) {
+                    console.log(`[ADMIN] Subscription admin notification sent successfully: ${adminResult.messageId}`);
+                } else {
+                    console.error(`[ADMIN] Subscription admin notification failed: ${adminResult.error}`);
+                }
+            } catch (adminError) {
+                console.error('[ADMIN] Non-blocking subscription admin notification error:', adminError);
+            }
         }
         
         // NEW: Check for pending registration and complete it automatically
@@ -191,7 +236,7 @@ async function handleSubscriptionActivated(subscription, customer) {
     }
 }
 
-// Ã¢Å"â€¦ CANCELLATION FIX: New webhook handler for subscription_cancellation_scheduled
+// ✅ CANCELLATION FIX: New webhook handler for subscription_cancellation_scheduled
 async function handleSubscriptionCancellationScheduled(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_cancellation_scheduled');
@@ -224,7 +269,7 @@ async function handleSubscriptionCancellationScheduled(subscription, customer) {
     }
 }
 
-// Ã¢Å"â€¦ CANCELLATION FIX: New webhook handler for subscription_cancelled
+// ✅ CANCELLATION FIX: New webhook handler for subscription_cancelled
 async function handleSubscriptionCancelled(subscription, customer) {
     try {
         console.log('[WEBHOOK] Processing subscription_cancelled');
@@ -250,7 +295,7 @@ async function handleSubscriptionCancelled(subscription, customer) {
     }
 }
 
-// Ã°Å¸"Â§ PAYG CRITICAL FIX + CONTEXT ADDON FIX: Enhanced invoice_generated handler 
+// 🔧 PAYG CRITICAL FIX + CONTEXT ADDON FIX: Enhanced invoice_generated handler 
 async function handleInvoiceGenerated(invoice, subscription) {
     try {
         console.log('[WEBHOOK] Processing invoice_generated');
@@ -406,6 +451,28 @@ async function handleInvoiceGenerated(invoice, subscription) {
                         });
                         
                         console.log(`[WEBHOOK] Context addon purchase processed: ${planMapping.extraContextSlots} extra slots added to user ${user.id}`);
+
+                        // ✅ ADMIN NOTIFICATIONS: Context addon one-time purchase notification
+                        try {
+                            console.log(`[ADMIN] Sending admin notification for context addon one-time purchase: ${user.email}`);
+                            
+                            const adminResult = await sendAdminNotification({
+                                userEmail: user.email,
+                                userName: user.display_name,
+                                packageType: `Context Addon PAYG (${planMapping.displayName})`,
+                                billingModel: 'one-time',
+                                linkedinUrl: user.linkedin_url,
+                                userId: user.id
+                            });
+                            
+                            if (adminResult.ok) {
+                                console.log(`[ADMIN] Context addon PAYG admin notification sent successfully: ${adminResult.messageId}`);
+                            } else {
+                                console.error(`[ADMIN] Context addon PAYG admin notification failed: ${adminResult.error}`);
+                            }
+                        } catch (adminError) {
+                            console.error('[ADMIN] Non-blocking context addon PAYG admin notification error:', adminError);
+                        }
                         
                     } catch (contextError) {
                         console.error('[WEBHOOK] Context addon purchase processing failed:', contextError);
@@ -415,7 +482,7 @@ async function handleInvoiceGenerated(invoice, subscription) {
                     // Regular PAYG purchase
                     console.log(`[WEBHOOK] Adding ${planMapping.payasyougoCredits} PAYG credits to user ${user.id}`);
                     
-                    // âœ… PAYG FIX: Add credits only, never change plan_code
+                    // ✅ PAYG FIX: Add credits only, never change plan_code
                     const updateResult = await pool.query(`
                         UPDATE users 
                         SET 
@@ -435,6 +502,28 @@ async function handleInvoiceGenerated(invoice, subscription) {
                         console.log(`[WEBHOOK] PAYG credits added for user ${user.id}`);
                         console.log(`[WEBHOOK] New PAYG credits: ${updatedCredits.payasyougo_credits}`);
                         console.log(`[WEBHOOK] Renewable credits: ${updatedCredits.renewable_credits}`);
+
+                        // ✅ ADMIN NOTIFICATIONS: PAYG purchase notification
+                        try {
+                            console.log(`[ADMIN] Sending admin notification for PAYG purchase: ${user.email}`);
+                            
+                            const adminResult = await sendAdminNotification({
+                                userEmail: user.email,
+                                userName: user.display_name,
+                                packageType: `${planMapping.displayName || planId} PAYG`,
+                                billingModel: 'one-time',
+                                linkedinUrl: user.linkedin_url,
+                                userId: user.id
+                            });
+                            
+                            if (adminResult.ok) {
+                                console.log(`[ADMIN] PAYG admin notification sent successfully: ${adminResult.messageId}`);
+                            } else {
+                                console.error(`[ADMIN] PAYG admin notification failed: ${adminResult.error}`);
+                            }
+                        } catch (adminError) {
+                            console.error('[ADMIN] Non-blocking PAYG admin notification error:', adminError);
+                        }
                     }
                 }
                 
@@ -552,7 +641,7 @@ async function handlePaymentSucceeded(payment, invoice) {
                             } else if (planMapping.billingModel === 'one_time') {
                                 console.log('[WEBHOOK] Recovery: Adding PAYG credits via payment_succeeded');
                                 
-                                // âœ… PAYG FIX: Add credits only, never change plan_code (recovery)
+                                // ✅ PAYG FIX: Add credits only, never change plan_code (recovery)
                                 await pool.query(`
                                     UPDATE users 
                                     SET 
