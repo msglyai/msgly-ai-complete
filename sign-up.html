@@ -1253,7 +1253,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             if (token) {
                 userToken = token;
-                console.log('âœ… Received token from OAuth:', token);
+                console.log('✅ Received token from OAuth:', token);
                 
                 // Check if user registration is already complete
                 try {
@@ -1270,7 +1270,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         const user = data.data.user;
                         const syncStatus = data.data.syncStatus;
 
-                        console.log('âœ… User profile fetched for registration check');
+                        console.log('✅ User profile fetched for registration check');
                         console.log('   - Registration completed:', user.registrationCompleted);
                         console.log('   - LinkedIn URL:', !!user.linkedinUrl);
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
@@ -1280,7 +1280,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                                      !syncStatus.isIncomplete;
 
                         if (isRegistrationComplete) {
-                            console.log('âœ… User registration is complete - redirecting to dashboard');
+                            console.log('✅ User registration is complete - redirecting to dashboard');
                             
                             localStorage.setItem('authToken', token);
                             
@@ -1293,7 +1293,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             
                             return;
                         } else {
-                            console.log('ðŸ"§ User registration is incomplete - showing sign-up form');
+                            console.log('🔧 User registration is incomplete - showing sign-up form');
                         }
                     }
                 } catch (error) {
@@ -1535,10 +1535,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     throw new Error(result.error || 'Failed to complete registration');
                 }
                 
-                console.log('âœ… Registration completed successfully - registration_completed set to true');
+                console.log('✅ Registration completed successfully - registration_completed set to true');
                 
                 localStorage.setItem('authToken', userToken);
-                console.log('âœ… Token stored in localStorage:', userToken);
+                console.log('✅ Token stored in localStorage:', userToken);
                 
                 await new Promise(resolve => setTimeout(resolve, 6000));
                 
@@ -1546,7 +1546,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('redirectingState').style.display = 'block';
                 
-                console.log('âœ… Registration completed successfully! Redirecting to dashboard...');
+                console.log('✅ Registration completed successfully! Redirecting to dashboard...');
+                
+                // Set sessionStorage flag for GA4 complete_sign_up event
+                sessionStorage.setItem("signup_completed", "true");
                 
                 setTimeout(() => {
                     window.location.href = '/dashboard';
@@ -1575,12 +1578,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const storedToken = localStorage.getItem('authToken');
             
             if (!storedToken) {
-                console.error('âš ï¸ No token found in localStorage');
+                console.error('❌ No token found in localStorage');
                 alert('Authentication issue. Please try completing registration again.');
                 return;
             }
             
-            console.log('âœ… Redirecting to dashboard with stored token - registration_completed = true');
+            console.log('✅ Redirecting to dashboard with stored token - registration_completed = true');
             window.location.href = '/dashboard';
         }
     </script>
