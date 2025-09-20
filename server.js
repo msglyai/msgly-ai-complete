@@ -51,11 +51,11 @@ CHANGELOG - server.js:
 44. CONTEXT FIX: Added missing context slot function imports to database imports
 45. CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion
 46. ADMIN DASHBOARD: Added admin routes import and mounting for internal analytics dashboard
-47. EMAIL TIMING FIX: Removed email sending from registration endpoints - emails now sent when dashboard loads
-48. DASHBOARD EMAIL ENDPOINT: Added /send-welcome-email endpoint for dashboard-triggered email sending
+47. EMAIL FIX: Removed early welcome email sending from OAuth callback - emails now sent at proper registration completion
+48. ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new user registrations
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL TIMING FIX + DASHBOARD EMAIL ENDPOINT
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -91,8 +91,8 @@ CHANGELOG - server.js:
 // ✅ CONTEXT FIX: Added missing context slot function imports for proper webhook allocation
 // ✅ CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion
 // ✅ ADMIN DASHBOARD: Added admin routes for internal analytics dashboard with JWT authentication
-// ✅ EMAIL TIMING FIX: Removed email sending from registration endpoints - now triggered by dashboard
-// ✅ DASHBOARD EMAIL ENDPOINT: Added /send-welcome-email endpoint for dashboard-triggered email sending
+// ✅ EMAIL FIX: Removed early welcome email sending from OAuth callback - now properly timed
+// ✅ ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new registrations
 
 const express = require('express');
 const cors = require('cors');
@@ -128,7 +128,7 @@ const {
 // NEW: Import Chargebee service
 const { chargebeeService } = require('./services/chargebeeService');
 
-// ✅ EMAIL TIMING FIX: Import both email functions (still needed for dashboard endpoint)
+// ✅ EMAIL FIX + ADMIN NOTIFICATIONS: Import both email functions
 const { sendWelcomeEmail, sendAdminNotification } = require('./mailer/mailer');
 
 // NEW: Import billing configuration
@@ -1053,154 +1053,6 @@ app.use('/', require('./routes/contextsRoutes'));
 // ADMIN DASHBOARD: Mount admin routes
 app.use('/', adminRoutes);
 
-// ==================== DASHBOARD EMAIL ENDPOINT ====================
-
-// ✅ DASHBOARD EMAIL ENDPOINT: New endpoint for dashboard-triggered email sending
-app.post('/send-welcome-email', authenticateToken, async (req, res) => {
-    try {
-        logger.custom('DASHBOARD_EMAIL', '=== DASHBOARD TRIGGERED EMAIL SENDING ===');
-        logger.info(`User ID: ${req.user.id}`);
-        logger.info(`User Email: ${req.user.email}`);
-        
-        // Check if user has registration_completed = true but welcome_email_sent = false
-        const userCheck = await pool.query(`
-            SELECT 
-                id,
-                email,
-                display_name,
-                package_type,
-                billing_model,
-                linkedin_url,
-                registration_completed,
-                welcome_email_sent,
-                created_at
-            FROM users 
-            WHERE id = $1
-        `, [req.user.id]);
-        
-        if (userCheck.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
-        }
-        
-        const user = userCheck.rows[0];
-        
-        logger.debug('User email check:', {
-            registrationCompleted: user.registration_completed,
-            welcomeEmailSent: user.welcome_email_sent,
-            packageType: user.package_type
-        });
-        
-        // Only send if registration is completed but welcome email not sent
-        if (!user.registration_completed) {
-            logger.debug('Registration not completed yet, skipping email');
-            return res.json({
-                success: true,
-                message: 'Registration not completed yet',
-                emailSent: false,
-                reason: 'registration_not_completed'
-            });
-        }
-        
-        if (user.welcome_email_sent) {
-            logger.debug('Welcome email already sent, skipping');
-            return res.json({
-                success: true,
-                message: 'Welcome email already sent',
-                emailSent: false,
-                reason: 'email_already_sent'
-            });
-        }
-        
-        // Send welcome email
-        let welcomeEmailResult = { ok: false };
-        if (user.package_type === 'free') {
-            try {
-                logger.info(`[DASHBOARD_EMAIL] Sending welcome email for user: ${user.email}`);
-                
-                welcomeEmailResult = await sendWelcomeEmail({
-                    toEmail: user.email,
-                    toName: user.display_name,
-                    userId: user.id
-                });
-                
-                if (welcomeEmailResult.ok) {
-                    // Mark as sent
-                    await pool.query(
-                        'UPDATE users SET welcome_email_sent = true WHERE id = $1',
-                        [user.id]
-                    );
-                    
-                    logger.success(`[DASHBOARD_EMAIL] Welcome email sent successfully: ${welcomeEmailResult.messageId}`);
-                } else {
-                    logger.error(`[DASHBOARD_EMAIL] Welcome email failed: ${welcomeEmailResult.error}`);
-                }
-            } catch (emailError) {
-                logger.error('[DASHBOARD_EMAIL] Welcome email error:', emailError);
-                welcomeEmailResult = { ok: false, error: emailError.message };
-            }
-        } else {
-            logger.debug('[DASHBOARD_EMAIL] Skipping welcome email for paid users');
-            welcomeEmailResult = { ok: true, skipped: true, reason: 'paid_user' };
-        }
-
-        // Send admin notification
-        let adminEmailResult = { ok: false };
-        try {
-            logger.info(`[DASHBOARD_EMAIL] Sending admin notification for user: ${user.email}`);
-            
-            adminEmailResult = await sendAdminNotification({
-                userEmail: user.email,
-                userName: user.display_name,
-                packageType: user.package_type,
-                billingModel: user.billing_model || 'monthly',
-                linkedinUrl: user.linkedin_url,
-                userId: user.id
-            });
-            
-            if (adminEmailResult.ok) {
-                logger.success(`[DASHBOARD_EMAIL] Admin notification sent successfully: ${adminEmailResult.messageId}`);
-            } else {
-                logger.error(`[DASHBOARD_EMAIL] Admin notification failed: ${adminEmailResult.error}`);
-            }
-        } catch (adminError) {
-            logger.error('[DASHBOARD_EMAIL] Admin notification error:', adminError);
-            adminEmailResult = { ok: false, error: adminError.message };
-        }
-        
-        // Return success even if one email fails (non-blocking)
-        res.json({
-            success: true,
-            message: 'Dashboard email sending completed',
-            emailSent: true,
-            results: {
-                welcomeEmail: {
-                    sent: welcomeEmailResult.ok,
-                    messageId: welcomeEmailResult.messageId,
-                    error: welcomeEmailResult.error,
-                    skipped: welcomeEmailResult.skipped,
-                    reason: welcomeEmailResult.reason
-                },
-                adminNotification: {
-                    sent: adminEmailResult.ok,
-                    messageId: adminEmailResult.messageId,
-                    error: adminEmailResult.error
-                }
-            }
-        });
-        
-    } catch (error) {
-        logger.error('Dashboard email endpoint error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to send dashboard emails',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
 // ==================== CONTEXT ADDON PURCHASE ENDPOINT ====================
 
 // NEW: Context addon purchase endpoint for extension Buy Extra slot functionality
@@ -1631,7 +1483,7 @@ app.post('/store-pending-registration', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ EMAIL TIMING FIX ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
     logger.debug('Chrome Extension OAuth request received');
@@ -1725,8 +1577,28 @@ app.post('/auth/chrome-extension', async (req, res) => {
                 logger.success('AUTO-REGISTRATION: User auto-registered successfully');
                 logger.debug('AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
 
-                // ✅ EMAIL TIMING FIX: No more email sending here - will be triggered by dashboard
-                logger.debug('[EMAIL_TIMING_FIX] Skipping email sending - will be triggered by dashboard');
+                // ✅ ADMIN NOTIFICATIONS: Send admin notification for auto-registration
+                try {
+                    logger.info(`[ADMIN] Sending admin notification for auto-registered user: ${user.email}`);
+                    
+                    const adminResult = await sendAdminNotification({
+                        userEmail: user.email,
+                        userName: user.display_name,
+                        packageType: user.package_type,
+                        billingModel: user.billing_model,
+                        linkedinUrl: user.linkedin_url,
+                        userId: user.id
+                    });
+                    
+                    if (adminResult.ok) {
+                        logger.success(`[ADMIN] Admin notification sent successfully: ${adminResult.messageId}`);
+                    } else {
+                        logger.error(`[ADMIN] Admin notification failed: ${adminResult.error}`);
+                    }
+                } catch (adminError) {
+                    logger.error('[ADMIN] Non-blocking admin notification error:', adminError);
+                    // Don't fail the registration - admin notification is not critical
+                }
                 
             } else {
                 // ✅ FIXED: No LinkedIn URL - return SUCCESS with redirect instruction
@@ -1955,7 +1827,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// ✅ EMAIL TIMING FIX: Removed early welcome email sending from OAuth callback
+// ✅ EMAIL FIX: Removed early welcome email sending from OAuth callback
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
     async (req, res) => {
@@ -1981,8 +1853,7 @@ app.get('/auth/google/callback',
             logger.debug(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
             logger.debug(`   - Needs onboarding: ${needsOnboarding}`);
             
-            // ✅ EMAIL TIMING FIX: No more early email sending - will be triggered by dashboard
-            logger.debug('[EMAIL_TIMING_FIX] Skipping early email sending - will be triggered by dashboard');
+            // ✅ EMAIL FIX: Removed early welcome email sending - now properly timed in registration completion
             
             if (needsOnboarding) {
                 logger.debug(`Redirecting to sign-up for onboarding`);
@@ -2047,7 +1918,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase + Context Slot Functions + CORS Fix + Admin Dashboard + Email Timing Fix + Dashboard Email Endpoint.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase + Context Slot Functions + CORS Fix + Admin Dashboard + Email Fix + Admin Notifications.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -2091,7 +1962,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_TIMING_FIX_DASHBOARD_EMAIL_ENDPOINT'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS'
                 }
             }
         });
@@ -2169,7 +2040,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL TIMING FIX + DASHBOARD EMAIL ENDPOINT'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS'
             };
         }
 
@@ -2269,7 +2140,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_TIMING_FIX_DASHBOARD_EMAIL_ENDPOINT'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS'
             }
         });
     } catch (error) {
@@ -2321,7 +2192,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_TIMING_FIX_DASHBOARD_EMAIL_ENDPOINT',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -2331,7 +2202,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
     }
 });
 
-// ==================== COMPLETE REGISTRATION ENDPOINT (EMAIL TIMING FIX) ====================
+// ==================== COMPLETE REGISTRATION ENDPOINT (ENHANCED WITH ADMIN NOTIFICATIONS) ====================
 
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     try {
@@ -2528,10 +2399,61 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         }
         
         logger.success('VALIDATION STEP 4: registration_completed successfully set to true');
+        logger.custom('REG', 'EMAIL STEP: Checking if welcome email should be sent...');
+        logger.debug('Package type for email check:', packageType);
         
-        // ✅ EMAIL TIMING FIX: Remove email sending logic - will be triggered by dashboard
-        logger.custom('REG', 'EMAIL TIMING FIX: Skipping email sending - will be triggered by dashboard');
-        logger.debug('[EMAIL_TIMING_FIX] Emails will be sent when user lands on dashboard');
+        // EMAIL STEP: Send welcome email for free users (NON-BLOCKING)
+        if (packageType === 'free') {
+            try {
+                logger.info(`[REG] Sending welcome email for free user: ${req.user.email}`);
+                
+                const emailResult = await sendWelcomeEmail({
+                    toEmail: req.user.email,
+                    toName: req.user.display_name,
+                    userId: req.user.id
+                });
+                
+                if (emailResult.ok) {
+                    // Mark as sent
+                    await pool.query(
+                        'UPDATE users SET welcome_email_sent = true WHERE id = $1',
+                        [req.user.id]
+                    );
+                    
+                    logger.success(`[REG] Welcome email sent successfully: ${emailResult.messageId}`);
+                } else {
+                    logger.error(`[REG] Welcome email failed: ${emailResult.error}`);
+                }
+            } catch (emailError) {
+                logger.error('[REG] Non-blocking email error:', emailError);
+                // Don't fail the registration - email is not critical
+            }
+        } else {
+            logger.debug('EMAIL STEP: Skipping welcome email for paid users (will be sent via webhook)');
+        }
+
+        // ✅ ADMIN NOTIFICATIONS: Send admin notification for completed registration
+        try {
+            logger.info(`[ADMIN] Sending admin notification for completed registration: ${req.user.email}`);
+            
+            const adminResult = await sendAdminNotification({
+                userEmail: req.user.email,
+                userName: req.user.display_name,
+                packageType: packageType,
+                billingModel: 'monthly', // Default for manual registrations
+                linkedinUrl: cleanUrl,
+                userId: req.user.id
+            });
+            
+            if (adminResult.ok) {
+                logger.success(`[ADMIN] Admin notification sent successfully: ${adminResult.messageId}`);
+            } else {
+                logger.error(`[ADMIN] Admin notification failed: ${adminResult.error}`);
+            }
+        } catch (adminError) {
+            logger.error('[ADMIN] Non-blocking admin notification error:', adminError);
+            // Don't fail the registration - admin notification is not critical
+        }
         
         // SUCCESS RESPONSE
         logger.debug('SUCCESS RESPONSE: Preparing successful response...');
@@ -2556,7 +2478,6 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         logger.info(`  - LinkedIn URL: ${cleanUrl}`);
         logger.info(`  - Package: ${packageType}`);
         logger.info(`  - Registration completed: true`);
-        logger.info(`  - Emails will be sent by dashboard`);
         
         res.json(successResponse);
         
@@ -3011,7 +2932,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL TIMING FIX + DASHBOARD EMAIL ENDPOINT',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -3027,10 +2948,9 @@ app.use((req, res, next) => {
             'POST /register',
             'POST /login',
             'GET /auth/google',
-            'GET /auth/google/callback (✅ EMAIL TIMING FIX: No more early email sending)',
-            'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled)',
-            'POST /complete-registration (✅ EMAIL TIMING FIX: No email sending - triggered by dashboard)',
-            'POST /send-welcome-email (✅ NEW: Dashboard-triggered email endpoint)',
+            'GET /auth/google/callback (✅ EMAIL FIX: No more early email sending)',
+            'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled + ADMIN NOTIFICATIONS)',
+            'POST /complete-registration (✅ ENHANCED DEBUG LOGGING + WELCOME EMAIL for free users + ADMIN NOTIFICATIONS)',
             'POST /store-pending-registration (NEW: Store registration data before payment)',
             'POST /update-profile',
             'GET /profile',
@@ -3137,9 +3057,9 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL TIMING FIX + ✅ DASHBOARD EMAIL ENDPOINT ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL FIX + ✅ ADMIN NOTIFICATIONS ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + ADMIN DASHBOARD + EMAIL TIMING FIX + DASHBOARD EMAIL ENDPOINT`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API)`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
@@ -3179,12 +3099,12 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ CONTEXT SLOT FUNCTIONS: Added missing context slot function imports for proper webhook allocation`);
             console.log(`[SUCCESS] ✅ CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion`);
             console.log(`[SUCCESS] ✅ ADMIN DASHBOARD: Added internal analytics dashboard with JWT authentication and comprehensive metrics`);
-            console.log(`[SUCCESS] ✅ EMAIL TIMING FIX: Removed early email sending from registration endpoints - now triggered by dashboard`);
-            console.log(`[SUCCESS] ✅ DASHBOARD EMAIL ENDPOINT: Added /send-welcome-email endpoint for dashboard-triggered email sending`);
+            console.log(`[SUCCESS] ✅ EMAIL FIX: Removed early welcome email sending from OAuth callback - now properly timed at registration completion`);
+            console.log(`[SUCCESS] ✅ ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new user registrations`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL TIMING FIX + ✅ DASHBOARD EMAIL ENDPOINT:`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL FIX + ✅ ADMIN NOTIFICATIONS:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
@@ -3225,15 +3145,14 @@ const startServer = async () => {
             console.log(`[ADMIN DASHBOARD] ✅ EXPORT FUNCTIONALITY: CSV downloads for further analysis`);
             console.log(`[ADMIN DASHBOARD] ✅ SYSTEM HEALTH: Performance monitoring and error tracking`);
             console.log(`[ADMIN DASHBOARD] ✅ READY FOR DEPLOYMENT: Complete admin interface for internal use`);
-            console.log(`[EMAIL TIMING FIX] ✅ REMOVED EARLY EMAIL SENDING: Registration endpoints no longer send premature emails`);
-            console.log(`[EMAIL TIMING FIX] ✅ DASHBOARD TRIGGERED: Welcome emails now sent when user lands on dashboard`);
-            console.log(`[EMAIL TIMING FIX] ✅ PROPER TIMING: Emails arrive exactly when user starts using the platform`);
-            console.log(`[DASHBOARD EMAIL ENDPOINT] ✅ POST /send-welcome-email - NEW: Dashboard calls this to send emails`);
-            console.log(`[DASHBOARD EMAIL ENDPOINT] ✅ COMPREHENSIVE LOGIC: Checks registration status and prevents duplicate emails`);
-            console.log(`[DASHBOARD EMAIL ENDPOINT] ✅ DUAL EMAIL SENDING: Both welcome email and admin notification`);
-            console.log(`[DASHBOARD EMAIL ENDPOINT] ✅ NON-BLOCKING: Email failures don't disrupt user experience`);
-            console.log(`[DASHBOARD EMAIL ENDPOINT] ✅ AUTHENTICATION: Requires authenticateToken middleware`);
-            console.log(`[DASHBOARD EMAIL ENDPOINT] ✅ READY FOR DEPLOYMENT: Dashboard integration complete`);
+            console.log(`[EMAIL FIX] ✅ REMOVED EARLY EMAIL SENDING: OAuth callback no longer sends premature welcome emails`);
+            console.log(`[EMAIL FIX] ✅ PROPER TIMING: Welcome emails now sent only at registration completion for free users`);
+            console.log(`[EMAIL FIX] ✅ WEBHOOK EMAIL HANDLING: Paid users receive welcome emails via webhook after payment`);
+            console.log(`[ADMIN NOTIFICATIONS] ✅ ZIVMSGLY.AI ALERTS: Admin receives notification for every new user registration`);
+            console.log(`[ADMIN NOTIFICATIONS] ✅ COMPREHENSIVE DATA: Includes user details, plan, LinkedIn info, timestamp`);
+            console.log(`[ADMIN NOTIFICATIONS] ✅ NON-BLOCKING: Email failures don't disrupt registration flow`);
+            console.log(`[ADMIN NOTIFICATIONS] ✅ AUTO-REGISTRATION SUPPORT: Works for both manual and extension auto-registrations`);
+            console.log(`[ADMIN NOTIFICATIONS] ✅ WEBHOOK INTEGRATION: Notifications sent for webhook-completed registrations too`);
         });
         
     } catch (error) {
@@ -3259,4 +3178,3 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
-            '
