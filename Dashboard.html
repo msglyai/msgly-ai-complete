@@ -2607,15 +2607,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const profileSyncStatusEl = document.getElementById('profileSyncStatus');
             switch(trafficLightStatus) {
                 case 'green':
-                    profileSyncStatusEl.textContent = 'âœ" Fully Synced';
+                    profileSyncStatusEl.textContent = '✓ Fully Synced';
                     profileSyncStatusEl.style.color = 'var(--success-green)';
                     break;
                 case 'orange':
-                    profileSyncStatusEl.textContent = 'ðŸ"„ Processing...';
+                    profileSyncStatusEl.textContent = '🔄 Processing...';
                     profileSyncStatusEl.style.color = 'var(--warning-orange)';
                     break;
                 case 'red':
-                    profileSyncStatusEl.textContent = 'ðŸ"´ Sync Required';
+                    profileSyncStatusEl.textContent = '🔴 Sync Required';
                     profileSyncStatusEl.style.color = 'var(--error-red)';
                     break;
             }
