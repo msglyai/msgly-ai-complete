@@ -1185,7 +1185,7 @@ app.post('/admin-initiate-duo', async (req, res) => {
         req.session.adminEmail = email;
         
         // Create auth URL
-        const authUrl = duoClient.createAuthUrl(email, state);
+        const authUrl = await duoClient.createAuthUrl(email, state);
         
         logger.info(`Admin Duo auth initiated for: ${email}`);
         logger.debug(`Auth URL generated: ${authUrl.substring(0, 50)}...`);
