@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login - Msgly AI</title>
+    <title>Admin Login - Duo Security</title>
     <style>
         :root {
             --primary-purple: #8039DF;
@@ -13,10 +13,10 @@
             --light-gray: #F9FAFB;
             --gray: #6B7280;
             --dark-gray: #374151;
+            --red: #DC2626;
+            --green: #059669;
             --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
-            --error-red: #EF4444;
-            --success-green: #10B981;
         }
 
         * {
@@ -32,20 +32,21 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 1rem;
         }
 
         .login-container {
             background: var(--white);
             border-radius: 16px;
-            padding: 2rem;
+            padding: 2.5rem;
             box-shadow: var(--shadow-lg);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             text-align: center;
         }
 
         .logo {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 700;
             color: var(--primary-purple);
             margin-bottom: 0.5rem;
@@ -54,27 +55,27 @@
         .subtitle {
             color: var(--gray);
             margin-bottom: 2rem;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
         }
 
         .security-notice {
             background: var(--light-gray);
             border-radius: 8px;
-            padding: 1rem;
+            padding: 1.2rem;
             margin-bottom: 2rem;
             text-align: left;
             font-size: 0.85rem;
             color: var(--dark-gray);
+            border-left: 4px solid var(--primary-purple);
         }
 
         .security-notice h4 {
             color: var(--primary-purple);
             margin-bottom: 0.5rem;
             font-size: 0.9rem;
-        }
-
-        .login-form {
-            margin: 2rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .form-group {
@@ -82,23 +83,25 @@
             text-align: left;
         }
 
-        .form-group label {
+        .form-label {
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 600;
             color: var(--dark-gray);
+            font-size: 0.9rem;
         }
 
-        .form-group input {
+        .form-input {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #E5E7EB;
+            padding: 0.75rem 1rem;
+            border: 2px solid #E5E7EB;
             border-radius: 8px;
             font-size: 1rem;
-            transition: border-color 0.3s ease;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            background: var(--white);
         }
 
-        .form-group input:focus {
+        .form-input:focus {
             outline: none;
             border-color: var(--primary-purple);
             box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
@@ -106,38 +109,40 @@
 
         .login-btn {
             width: 100%;
-            padding: 0.75rem;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            background: var(--primary-purple);
             color: var(--white);
             border: none;
+            padding: 0.875rem 1.5rem;
             border-radius: 8px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
+            margin-bottom: 1rem;
         }
 
-        .login-btn:hover:not(:disabled) {
+        .login-btn:hover {
+            background: var(--dark-purple);
             transform: translateY(-1px);
-            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.3);
         }
 
         .login-btn:disabled {
-            opacity: 0.6;
+            background: var(--gray);
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
-        .spinner {
+        .loading-spinner {
+            display: none;
             width: 20px;
             height: 20px;
             border: 2px solid transparent;
             border-top: 2px solid var(--white);
             border-radius: 50%;
             animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
         }
 
         @keyframes spin {
@@ -145,42 +150,34 @@
             100% { transform: rotate(360deg); }
         }
 
-        .error {
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .alert-error {
             background: #FEF2F2;
-            color: var(--error-red);
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-            text-align: left;
-            border-left: 4px solid var(--error-red);
+            color: var(--red);
+            border: 1px solid #FECACA;
         }
 
-        .success {
-            background: #DCFCE7;
-            color: var(--success-green);
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-            text-align: left;
-            border-left: 4px solid var(--success-green);
+        .alert-success {
+            background: #ECFDF5;
+            color: var(--green);
+            border: 1px solid #BBF7D0;
         }
 
-        .info {
+        .alert-info {
             background: #EFF6FF;
             color: #1D4ED8;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-            text-align: left;
-            border-left: 4px solid #3B82F6;
+            border: 1px solid #BFDBFE;
         }
 
         .back-link {
             display: inline-block;
-            margin-top: 1rem;
+            margin-top: 1.5rem;
             color: var(--gray);
             text-decoration: none;
             font-size: 0.9rem;
@@ -193,21 +190,48 @@
 
         .footer-info {
             margin-top: 2rem;
-            padding-top: 1rem;
+            padding-top: 1.5rem;
             border-top: 1px solid #E5E7EB;
             font-size: 0.8rem;
             color: var(--gray);
+            line-height: 1.4;
         }
 
-        .hidden {
-            display: none !important;
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-ready {
+            background: var(--green);
+        }
+
+        .status-loading {
+            background: #F59E0B;
+            animation: pulse 2s infinite;
+        }
+
+        .status-error {
+            background: var(--red);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         /* Responsive */
         @media (max-width: 768px) {
             .login-container {
                 margin: 1rem;
-                padding: 1.5rem;
+                padding: 2rem;
+            }
+            
+            .logo {
+                font-size: 1.8rem;
             }
         }
     </style>
@@ -218,108 +242,87 @@
         <div class="subtitle">Admin Dashboard Access</div>
         
         <div class="security-notice">
-            <h4>🔒 Duo Universal Prompt</h4>
-            <p>This admin area is protected by Duo Security's Universal Prompt. You'll be redirected to complete two-factor authentication.</p>
+            <h4>
+                <span class="status-indicator status-ready"></span>
+                Duo Security Protection
+            </h4>
+            <p>This admin area is protected by enterprise-grade Duo Security two-factor authentication. Please enter your authorized email address to begin the verification process.</p>
         </div>
 
-        <div id="message-container"></div>
+        <div id="alert-container"></div>
         
-        <!-- Email Input Form -->
-        <div class="login-form" id="emailForm">
+        <form id="admin-login-form">
             <div class="form-group">
-                <label for="adminEmail">Admin Email Address</label>
-                <input type="email" id="adminEmail" name="adminEmail" placeholder="Enter your admin email" required>
+                <label for="email" class="form-label">Admin Email Address</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    class="form-input" 
+                    placeholder="your-admin-email@msgly.ai"
+                    required
+                    autocomplete="email"
+                >
             </div>
-            <button type="button" class="login-btn" id="loginBtn" onclick="startDuoAuth()">
-                <span id="btnText">Continue with Duo Security</span>
-                <span id="btnSpinner" class="spinner hidden"></span>
+            
+            <button type="submit" class="login-btn" id="login-btn">
+                <span class="loading-spinner" id="loading-spinner"></span>
+                <span id="btn-text">Continue with Duo Security</span>
             </button>
-        </div>
-
-        <!-- Processing State -->
-        <div class="hidden" id="processingState">
-            <div class="info">
-                <strong>Redirecting to Duo Security...</strong><br>
-                Please wait while we redirect you to complete two-factor authentication.
-            </div>
-            <div style="text-align: center; margin: 2rem 0;">
-                <div class="spinner" style="border-color: var(--light-gray); border-top-color: var(--primary-purple);"></div>
-            </div>
-        </div>
+        </form>
 
         <div class="footer-info">
             <p><strong>Authorized Personnel Only</strong></p>
-            <p>Contact your system administrator if you need access.</p>
+            <p>Only pre-approved administrator email addresses can access this system. If you're having trouble accessing the admin dashboard, please contact your system administrator.</p>
         </div>
 
         <a href="/dashboard" class="back-link">← Back to Main Dashboard</a>
     </div>
 
     <script>
-        // Check for messages in URL parameters
-        document.addEventListener('DOMContentLoaded', function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const error = urlParams.get('error');
-            const success = urlParams.get('success');
-            const info = urlParams.get('info');
+        // Check for URL parameters (error messages, etc.)
+        const urlParams = new URLSearchParams(window.location.search);
+        const error = urlParams.get('error');
+        const message = urlParams.get('message');
 
-            if (error) {
-                showMessage('error', decodeURIComponent(error));
-            } else if (success) {
-                showMessage('success', decodeURIComponent(success));
-            } else if (info) {
-                showMessage('info', decodeURIComponent(info));
-            }
-
-            // Focus email input
-            document.getElementById('adminEmail').focus();
-
-            // Handle Enter key
-            document.getElementById('adminEmail').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    startDuoAuth();
-                }
-            });
-        });
-
-        function showMessage(type, message) {
-            const container = document.getElementById('message-container');
-            container.innerHTML = `<div class="${type}">${message}</div>`;
+        // Show messages on page load
+        if (error) {
+            showAlert(getErrorMessage(error), 'error');
+        } else if (message) {
+            showAlert(getSuccessMessage(message), 'success');
         }
 
-        function setLoading(loading) {
-            const btn = document.getElementById('loginBtn');
-            const btnText = document.getElementById('btnText');
-            const btnSpinner = document.getElementById('btnSpinner');
-            const emailInput = document.getElementById('adminEmail');
-
-            btn.disabled = loading;
-            emailInput.disabled = loading;
-
-            if (loading) {
-                btnText.textContent = 'Please wait...';
-                btnSpinner.classList.remove('hidden');
-            } else {
-                btnText.textContent = 'Continue with Duo Security';
-                btnSpinner.classList.add('hidden');
-            }
-        }
-
-        async function startDuoAuth() {
-            const email = document.getElementById('adminEmail').value.trim();
+        // Form submission handler
+        document.getElementById('admin-login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value.trim();
             
             if (!email) {
-                showMessage('error', 'Please enter your admin email address.');
+                showAlert('Please enter your email address.', 'error');
                 return;
             }
 
             if (!isValidEmail(email)) {
-                showMessage('error', 'Please enter a valid email address.');
+                showAlert('Please enter a valid email address.', 'error');
                 return;
             }
 
-            setLoading(true);
-            showMessage('info', 'Verifying email and initiating Duo authentication...');
+            await initiateAdminLogin(email);
+        });
+
+        async function initiateAdminLogin(email) {
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const btnText = document.getElementById('btn-text');
+            const loginBtn = document.getElementById('login-btn');
+            
+            // Show loading state
+            loadingSpinner.style.display = 'inline-block';
+            btnText.textContent = 'Connecting to Duo Security...';
+            loginBtn.disabled = true;
+            
+            // Clear previous alerts
+            clearAlerts();
 
             try {
                 const response = await fetch('/admin-initiate-duo', {
@@ -327,31 +330,58 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ email }),
-                    credentials: 'include'
+                    body: JSON.stringify({ email: email })
                 });
 
                 const data = await response.json();
 
-                if (response.ok && data.success) {
-                    // Show processing state
-                    document.getElementById('emailForm').classList.add('hidden');
-                    document.getElementById('processingState').classList.remove('hidden');
-                    
-                    showMessage('success', 'Email verified! Redirecting to Duo Security...');
-                    
-                    // Redirect to Duo
-                    setTimeout(() => {
-                        window.location.href = data.authUrl;
-                    }, 1500);
+                if (data.success) {
+                    if (data.bypass) {
+                        // Emergency bypass mode
+                        showAlert('Emergency bypass mode enabled. Redirecting...', 'info');
+                        setTimeout(() => {
+                            window.location.href = data.redirectUrl || '/admin-dashboard';
+                        }, 1500);
+                    } else if (data.authUrl) {
+                        // Normal Duo flow
+                        showAlert('Redirecting to Duo Security for verification...', 'info');
+                        setTimeout(() => {
+                            window.location.href = data.authUrl;
+                        }, 1000);
+                    } else {
+                        throw new Error('Invalid response from server');
+                    }
                 } else {
-                    throw new Error(data.error || 'Authentication initiation failed');
+                    // Handle various error cases
+                    if (response.status === 403) {
+                        showAlert('Access denied. Your email address is not authorized for admin access.', 'error');
+                    } else if (response.status === 500) {
+                        showAlert('Duo Security service is currently unavailable. Please try again later.', 'error');
+                    } else {
+                        showAlert(data.userMessage || data.error || 'Authentication failed. Please try again.', 'error');
+                    }
                 }
             } catch (error) {
-                console.error('Duo initiation error:', error);
-                showMessage('error', error.message || 'Failed to initiate authentication. Please try again.');
-                setLoading(false);
+                console.error('Admin login error:', error);
+                showAlert('Network error. Please check your connection and try again.', 'error');
+            } finally {
+                // Reset loading state
+                loadingSpinner.style.display = 'none';
+                btnText.textContent = 'Continue with Duo Security';
+                loginBtn.disabled = false;
             }
+        }
+
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alert-container');
+            const alertClass = type === 'error' ? 'alert-error' : 
+                             type === 'success' ? 'alert-success' : 'alert-info';
+            
+            alertContainer.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+        }
+
+        function clearAlerts() {
+            document.getElementById('alert-container').innerHTML = '';
         }
 
         function isValidEmail(email) {
@@ -359,12 +389,36 @@
             return emailRegex.test(email);
         }
 
-        // Handle browser back button
-        window.addEventListener('popstate', function() {
-            // Reset form if user navigates back
-            document.getElementById('emailForm').classList.remove('hidden');
-            document.getElementById('processingState').classList.add('hidden');
-            setLoading(false);
+        function getErrorMessage(errorCode) {
+            const errorMessages = {
+                'invalid_state': 'Security validation failed. Please try again.',
+                'no_code': 'Authentication was incomplete. Please try again.',
+                'session_expired': 'Your session has expired. Please start over.',
+                'config_error': 'Duo Security configuration error. Please contact support.',
+                'exchange_failed': 'Authentication verification failed. Please try again.',
+                'access_denied': 'Access denied. You are not authorized for admin access.',
+                'callback_error': 'Authentication error occurred. Please try again.'
+            };
+            
+            return errorMessages[errorCode] || 'An authentication error occurred. Please try again.';
+        }
+
+        function getSuccessMessage(messageCode) {
+            const successMessages = {
+                'logged_out': 'You have been successfully logged out.'
+            };
+            
+            return successMessages[messageCode] || 'Operation completed successfully.';
+        }
+
+        // Auto-focus email input
+        document.getElementById('email').focus();
+
+        // Handle Enter key in email field
+        document.getElementById('email').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('admin-login-form').dispatchEvent(new Event('submit'));
+            }
         });
     </script>
 </body>
