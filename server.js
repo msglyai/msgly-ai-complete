@@ -119,7 +119,7 @@ const multer = require('multer');
 const logger = require('./utils/logger');
 
 // FIXED: Removed require() import for Duo Universal SDK - will use dynamic import() instead
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 // FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
