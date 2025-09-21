@@ -36,6 +36,69 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
+// NEW: Admin Guard - Replaces all previous admin auth for /admin* routes
+const adminGuard = (req, res, next) => {
+    console.log('[ADMIN_GUARD] Checking admin access for:', req.path);
+    
+    // Emergency bypass check
+    if (process.env.ADMIN_AUTH_DISABLED === 'true') {
+        console.log('[ADMIN_GUARD] Emergency bypass enabled - allowing access');
+        return next();
+    }
+    
+    // Check if user has valid admin session
+    if (!req.session || !req.session.adminAuth) {
+        console.log('[ADMIN_GUARD] No admin session found - redirecting to login');
+        return redirectToAdminLogin(req, res);
+    }
+    
+    // Validate admin session (basic validation for now)
+    if (!isAdminSessionValid(req.session.adminAuth)) {
+        console.log('[ADMIN_GUARD] Invalid admin session - clearing and redirecting');
+        req.session.adminAuth = null;
+        return redirectToAdminLogin(req, res);
+    }
+    
+    console.log('[ADMIN_GUARD] Valid admin session found for:', req.session.adminAuth.adminEmail);
+    next();
+};
+
+// Helper function to redirect to admin login
+function redirectToAdminLogin(req, res) {
+    // For API requests, return JSON error
+    if (req.path.startsWith('/api/')) {
+        return res.status(403).json({
+            success: false,
+            error: 'Admin authentication required',
+            redirectTo: '/admin-login'
+        });
+    }
+    
+    // For HTML requests, redirect to login
+    return res.redirect('/admin-login');
+}
+
+// Helper function to validate admin session
+function isAdminSessionValid(session) {
+    if (!session || !session.adminAuthenticated || !session.duoVerified) {
+        return false;
+    }
+    
+    // Check expiration
+    if (Date.now() > session.expiresAt) {
+        return false;
+    }
+    
+    // Verify email is still allowed
+    const allowedEmails = process.env.ADMIN_ALLOWED_EMAILS;
+    if (!allowedEmails) {
+        return false;
+    }
+    
+    const emailList = allowedEmails.split(',').map(email => email.trim().toLowerCase());
+    return emailList.includes(session.adminEmail.toLowerCase());
+}
+
 // Optional: Additional auth-related middleware can be added here in future
 const requireFeatureAccess = (featureName) => {
     return (req, res, next) => {
@@ -73,6 +136,7 @@ const requireAdmin = (req, res, next) => {
 module.exports = {
     initAuthMiddleware,
     authenticateToken,
+    adminGuard,
     requireFeatureAccess,
     requireAdmin
 };
