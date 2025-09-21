@@ -89,7 +89,7 @@
             gap: 1rem;
         }
 
-        .refresh-btn, .export-btn, .back-btn {
+        .refresh-btn, .export-btn, .back-btn, .logout-btn {
             padding: 0.6rem 1.2rem;
             border: 1px solid rgba(255, 255, 255, 0.2);
             background: rgba(255, 255, 255, 0.1);
@@ -105,9 +105,18 @@
             gap: 0.5rem;
         }
 
-        .refresh-btn:hover, .export-btn:hover, .back-btn:hover {
+        .refresh-btn:hover, .export-btn:hover, .back-btn:hover, .logout-btn:hover {
             background: rgba(255, 255, 255, 0.2);
             transform: translateY(-1px);
+        }
+
+        .logout-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
         }
 
         .last-updated {
@@ -576,7 +585,7 @@
                 <i class="fas fa-chart-line"></i>
                 <div>
                     <h1>Admin Dashboard</h1>
-                    <span class="subtitle">Internal Analytics & Monitoring</span>
+                    <span class="subtitle">Duo 2FA Protected Analytics</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -590,6 +599,9 @@
                 <a href="/dashboard" class="back-btn">
                     <i class="fas fa-arrow-left"></i> Back to App
                 </a>
+                <a href="/admin-logout" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </div>
         </div>
     </header>
@@ -598,23 +610,23 @@
     <div id="accessDenied" class="admin-container hidden">
         <div class="access-denied">
             <i class="fas fa-shield-alt"></i>
-            <h2>Admin Access Required</h2>
-            <p>You don't have permission to access this admin dashboard. This area is restricted to administrators only.</p>
+            <h2>Admin Session Required</h2>
+            <p>Your admin session has expired or you don't have permission to access this dashboard. Please authenticate with Duo Security to continue.</p>
             
             <div class="debug-info">
-                <h4>Debug Information:</h4>
-                <div id="debugUserInfo">Checking user permissions...</div>
+                <h4>Session Information:</h4>
+                <div id="debugInfo">Checking admin session...</div>
             </div>
             
             <div class="action-buttons">
-                <button class="btn btn-primary" onclick="checkAdminStatus()">
-                    <i class="fas fa-sync-alt"></i> Check Admin Status
-                </button>
+                <a href="/admin-login" class="btn btn-primary">
+                    <i class="fas fa-shield-alt"></i> Login with Duo 2FA
+                </a>
                 <a href="/dashboard" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
-                <button class="btn btn-secondary" onclick="logout()">
-                    <i class="fas fa-sign-out-alt"></i> Logout & Login Again
+                <button class="btn btn-secondary" onclick="refreshPage()">
+                    <i class="fas fa-sync-alt"></i> Refresh Page
                 </button>
             </div>
         </div>
@@ -918,89 +930,70 @@
             endDate: null
         };
 
-        // Authentication check
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = '/login';
-        }
-
-        // API Headers
-        const apiHeaders = {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+        // API configuration for session-based authentication
+        const apiConfig = {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include' // Include session cookies
         };
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Admin dashboard initializing...');
             initializeFilters();
             checkAdminAccess();
         });
 
-        // Check admin access first
+        // Check admin access with session authentication
         async function checkAdminAccess() {
             try {
-                console.log('Checking admin access...');
+                console.log('Checking admin session access...');
                 
-                // First check current user profile
-                const profileResponse = await fetch('/profile', {
-                    headers: apiHeaders
+                // Try to fetch admin analytics to verify session
+                const response = await fetch('/api/admin/analytics', {
+                    method: 'GET',
+                    ...apiConfig
                 });
                 
-                if (profileResponse.ok) {
-                    const profileData = await profileResponse.json();
-                    const user = profileData.data.user;
-                    
-                    console.log('Current user:', user);
-                    
-                    // Update debug info
-                    updateDebugInfo(user);
-                    
-                    // Check admin API access
-                    const adminResponse = await fetch('/api/admin/analytics', {
-                        headers: apiHeaders
-                    });
-                    
-                    console.log('Admin API response status:', adminResponse.status);
-                    
-                    if (adminResponse.status === 403) {
-                        console.log('Admin access denied - showing access denied screen');
-                        showAccessDenied();
-                        return;
-                    }
-                    
-                    if (adminResponse.ok) {
-                        console.log('Admin access granted - loading dashboard');
-                        showDashboard();
-                        return;
-                    }
-                    
-                    throw new Error(`Admin API returned status ${adminResponse.status}`);
-                    
-                } else {
-                    throw new Error('Failed to get user profile');
+                console.log('Admin session check response:', response.status);
+                
+                if (response.status === 401 || response.status === 403) {
+                    console.log('Admin session invalid or expired');
+                    showAccessDenied('Session expired or insufficient permissions');
+                    return;
                 }
                 
+                if (response.ok) {
+                    console.log('Admin session valid - showing dashboard');
+                    showDashboard();
+                    return;
+                }
+                
+                throw new Error(`Admin session check failed with status ${response.status}`);
+                
             } catch (error) {
-                console.error('Error checking admin access:', error);
-                showAccessDeniedWithError(error.message);
+                console.error('Error checking admin session:', error);
+                showAccessDenied(`Connection error: ${error.message}`);
             }
         }
 
         // Show access denied screen
-        function showAccessDenied() {
+        function showAccessDenied(reason = 'Session validation failed') {
             document.getElementById('accessDenied').classList.remove('hidden');
             document.getElementById('dashboardContent').classList.add('hidden');
-        }
-
-        // Show access denied with error
-        function showAccessDeniedWithError(errorMessage) {
-            document.getElementById('debugUserInfo').innerHTML = `
-                <strong>Error:</strong> ${errorMessage}<br>
-                <strong>Token exists:</strong> ${!!token}<br>
-                <strong>Token length:</strong> ${token ? token.length : 0}<br>
-                <strong>Timestamp:</strong> ${new Date().toISOString()}
+            
+            // Update debug info
+            document.getElementById('debugInfo').innerHTML = `
+                <strong>Error:</strong> ${reason}<br>
+                <strong>Session-based Auth:</strong> Enabled<br>
+                <strong>Authentication:</strong> Duo 2FA Required<br>
+                <strong>Timestamp:</strong> ${new Date().toISOString()}<br><br>
+                <strong>Next Steps:</strong><br>
+                1. Click "Login with Duo 2FA" to authenticate<br>
+                2. Complete Duo Security verification<br>
+                3. Return to this dashboard
             `;
-            showAccessDenied();
         }
 
         // Show dashboard
@@ -1018,37 +1011,6 @@
                 loadDashboardData();
                 checkSystemHealth();
             }, 5 * 60 * 1000);
-        }
-
-        // Update debug info
-        function updateDebugInfo(user) {
-            const debugInfo = document.getElementById('debugUserInfo');
-            debugInfo.innerHTML = `
-                <strong>User ID:</strong> ${user.id}<br>
-                <strong>Email:</strong> ${user.email}<br>
-                <strong>Display Name:</strong> ${user.displayName || 'N/A'}<br>
-                <strong>Package Type:</strong> ${user.packageType || 'N/A'}<br>
-                <strong>Is Admin:</strong> ${user.isAdmin || 'Not set'}<br>
-                <strong>Token Present:</strong> ${!!token}<br>
-                <strong>Token Length:</strong> ${token ? token.length : 0} characters<br>
-                <strong>Timestamp:</strong> ${new Date().toISOString()}<br><br>
-                <strong>Next Steps:</strong><br>
-                1. Ask your admin to run: <code>UPDATE users SET is_admin = TRUE WHERE email = '${user.email}';</code><br>
-                2. Log out and log back in to get a new token<br>
-                3. Try accessing the admin dashboard again
-            `;
-        }
-
-        // Check admin status (manual check)
-        async function checkAdminStatus() {
-            document.getElementById('debugUserInfo').innerHTML = 'Checking admin status...';
-            await checkAdminAccess();
-        }
-
-        // Logout function
-        function logout() {
-            localStorage.removeItem('token');
-            window.location.href = '/login';
         }
 
         // Initialize filters
@@ -1085,7 +1047,7 @@
             loadDashboardData();
         }
 
-        // Load dashboard data
+        // Load dashboard data with session authentication
         async function loadDashboardData() {
             try {
                 showLoading();
@@ -1093,17 +1055,20 @@
                 // Build query parameters
                 const params = new URLSearchParams(currentFilters);
                 
-                // Fetch analytics data
+                // Fetch analytics data with session auth
                 const response = await fetch(`/api/admin/analytics?${params}`, {
-                    headers: apiHeaders
+                    method: 'GET',
+                    ...apiConfig
                 });
 
+                if (response.status === 401 || response.status === 403) {
+                    console.log('Session expired during data load');
+                    showAccessDenied('Session expired while loading data');
+                    return;
+                }
+
                 if (!response.ok) {
-                    if (response.status === 403) {
-                        showAccessDenied();
-                        return;
-                    }
-                    throw new Error(`HTTP ${response.status}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 const data = await response.json();
@@ -1120,6 +1085,51 @@
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
                 showError('Failed to load dashboard data: ' + error.message);
+            }
+        }
+
+        // Check system health with session authentication
+        async function checkSystemHealth() {
+            try {
+                const startTime = Date.now();
+                const response = await fetch('/api/admin/health', {
+                    method: 'GET',
+                    ...apiConfig
+                });
+                const responseTime = Date.now() - startTime;
+
+                if (response.status === 401 || response.status === 403) {
+                    // Don't redirect on health check failures, just show error
+                    document.getElementById('dbStatus').textContent = 'Auth Error';
+                    document.getElementById('dbStatusDetails').textContent = 'Session expired';
+                    document.getElementById('apiStatus').textContent = 'Auth Error';
+                    document.getElementById('apiStatusDetails').textContent = 'Session expired';
+                    return;
+                }
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Database status
+                    document.getElementById('dbStatus').textContent = 'Healthy';
+                    document.getElementById('dbStatusDetails').textContent = `${data.data.database?.connections?.total_connections || 0} connections`;
+                    
+                    // API status
+                    document.getElementById('apiStatus').textContent = responseTime + 'ms';
+                    document.getElementById('apiStatusDetails').textContent = responseTime < 500 ? 'Good response time' : 'Slow response time';
+                    
+                    // Uptime
+                    document.getElementById('uptime').textContent = formatUptime(data.data.uptime || 0);
+                    document.getElementById('uptimeDetails').textContent = 'Since last restart';
+                } else {
+                    throw new Error('Health check failed');
+                }
+            } catch (error) {
+                console.error('Health check error:', error);
+                document.getElementById('dbStatus').textContent = 'Error';
+                document.getElementById('dbStatusDetails').textContent = 'Connection failed';
+                document.getElementById('apiStatus').textContent = 'Error';
+                document.getElementById('apiStatusDetails').textContent = 'Request failed';
             }
         }
 
@@ -1159,9 +1169,6 @@
                 document.getElementById('paidUsersChange').innerHTML = `<i class="fas fa-percentage"></i> ${paidPercentage}% of total`;
                 
                 // Error rate change
-                const errorChangeText = stats.changes.errorRate >= 0 ? 
-                    `<i class="fas fa-arrow-up trend-up"></i> +${stats.changes.errorRate}% vs previous` :
-                    `<i class="fas fa-arrow-down trend-down"></i> ${stats.changes.errorRate}% vs previous`;
                 document.getElementById('errorRateChange').innerHTML = `<span id="errorCount">${stats.errorCount}</span> errors in period`;
             }
         }
@@ -1335,8 +1342,8 @@
                         </td>
                         <td>${user.credits_remaining || 0}</td>
                         <td>
-                            <span class="status-badge ${user.registration_completed ? 'status-active' : 'status-pending'}">
-                                ${user.registration_completed ? 'Complete' : 'Pending'}
+                            <span class="status-badge ${user.profile_completed ? 'status-active' : 'status-pending'}">
+                                ${user.profile_completed ? 'Complete' : 'Pending'}
                             </span>
                         </td>
                         <td>${user.message_count || 0}</td>
@@ -1351,41 +1358,6 @@
                 });
             } else {
                 usersTableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--gray);">No users found</td></tr>';
-            }
-        }
-
-        // Check system health
-        async function checkSystemHealth() {
-            try {
-                const startTime = Date.now();
-                const response = await fetch('/api/admin/health', {
-                    headers: apiHeaders
-                });
-                const responseTime = Date.now() - startTime;
-
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Database status
-                    document.getElementById('dbStatus').textContent = 'Healthy';
-                    document.getElementById('dbStatusDetails').textContent = `${data.data.dbConnectionCount || 0} active connections`;
-                    
-                    // API status
-                    document.getElementById('apiStatus').textContent = responseTime + 'ms';
-                    document.getElementById('apiStatusDetails').textContent = responseTime < 500 ? 'Good response time' : 'Slow response time';
-                    
-                    // Uptime
-                    document.getElementById('uptime').textContent = formatUptime(data.data.uptime || 0);
-                    document.getElementById('uptimeDetails').textContent = 'Since last restart';
-                } else {
-                    throw new Error('Health check failed');
-                }
-            } catch (error) {
-                console.error('Health check error:', error);
-                document.getElementById('dbStatus').textContent = 'Error';
-                document.getElementById('dbStatusDetails').textContent = 'Connection failed';
-                document.getElementById('apiStatus').textContent = 'Error';
-                document.getElementById('apiStatusDetails').textContent = 'Request failed';
             }
         }
 
@@ -1424,9 +1396,12 @@
         }
 
         function showError(message) {
-            // Show error state in main content
             console.error('Dashboard error:', message);
             alert('Error: ' + message);
+        }
+
+        function refreshPage() {
+            window.location.reload();
         }
 
         // Action functions
