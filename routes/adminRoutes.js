@@ -1,10 +1,10 @@
 // routes/adminRoutes.js
 // Admin Dashboard Routes - Analytics and Management
-// SECURITY: Uses existing requireAdmin middleware from auth.js
+// SECURITY: Now uses adminGuard middleware for Duo 2FA protection
 
 const router = require('express').Router();
 const path = require('path'); // ✅ FIXED: Added missing path import
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { adminGuard } = require('../middleware/auth');
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
 
@@ -14,7 +14,7 @@ const serverStartTime = Date.now();
 // ==================== ADMIN DASHBOARD ROUTES ====================
 
 // Serve admin dashboard HTML - ✅ FIXED: Now has proper path import
-router.get('/admin-dashboard', authenticateToken, requireAdmin, (req, res) => {
+router.get('/admin-dashboard', adminGuard, (req, res) => {
     try {
         res.sendFile(path.join(__dirname, '..', 'admin-dashboard.html'));
     } catch (error) {
@@ -29,9 +29,9 @@ router.get('/admin-dashboard', authenticateToken, requireAdmin, (req, res) => {
 // ==================== ADMIN API ENDPOINTS ====================
 
 // Main analytics endpoint
-router.get('/api/admin/analytics', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/api/admin/analytics', adminGuard, async (req, res) => {
     try {
-        logger.debug('Admin analytics request from:', req.user.email);
+        logger.debug('Admin analytics request from:', req.session.adminAuth.adminEmail);
         
         const {
             timeRange = '7days',
@@ -90,7 +90,7 @@ router.get('/api/admin/analytics', authenticateToken, requireAdmin, async (req, 
 });
 
 // System health endpoint
-router.get('/api/admin/health', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/api/admin/health', adminGuard, async (req, res) => {
     try {
         // Test database connection
         const dbStart = Date.now();
@@ -134,7 +134,7 @@ router.get('/api/admin/health', authenticateToken, requireAdmin, async (req, res
 });
 
 // Export analytics data as CSV
-router.get('/api/admin/export', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/api/admin/export', adminGuard, async (req, res) => {
     try {
         const {
             timeRange = '7days',
@@ -176,7 +176,7 @@ router.get('/api/admin/export', authenticateToken, requireAdmin, async (req, res
 });
 
 // Export users data as CSV
-router.get('/api/admin/export-users', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/api/admin/export-users', adminGuard, async (req, res) => {
     try {
         const {
             timeRange = '7days',
