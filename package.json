@@ -34,7 +34,7 @@
     "nodemon": "^2.0.22"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": "20",
     "npm": ">=8.0.0"
   },
   "keywords": [
