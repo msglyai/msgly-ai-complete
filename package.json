@@ -9,6 +9,7 @@
     "migrate": "node database-migration.js"
   },
   "dependencies": {
+    "@duosecurity/duo_web": "^4.0.0",
     "axios": "^1.4.0",
     "bcrypt": "^5.1.0",
     "chargebee": "^2.32.0",
@@ -49,7 +50,8 @@
     "mailersend",
     "email",
     "file-upload",
-    "pdf-processing"
+    "pdf-processing",
+    "duo-2fa"
   ],
   "author": "Msgly.AI",
   "license": "MIT"
