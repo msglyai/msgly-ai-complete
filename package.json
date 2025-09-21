@@ -9,7 +9,7 @@
     "migrate": "node database-migration.js"
   },
   "dependencies": {
-    "@duosecurity/duo_web": "^4.0.0",
+    "@duosecurity/duo_universal": "^3.0.0",
     "axios": "^1.4.0",
     "bcrypt": "^5.1.0",
     "chargebee": "^2.32.0",
