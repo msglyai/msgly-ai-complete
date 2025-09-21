@@ -33,7 +33,7 @@ CHANGELOG - server.js:
 26. MESSAGES FIX: Added GET /messages/history endpoint for Messages page (43 lines added)
 27. PAYG FIX: Fixed customer resolution in handleInvoiceGenerated for PAYG purchases
 28. PAYG FIX: Added handlePaymentSucceeded as fallback webhook handler
-29. 📧 PAYG CRITICAL FIX: Fixed planLineItem detection to handle both plan_item_price and charge_item_price entity types with proper entity_id field usage
+29. 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection to handle both plan_item_price and charge_item_price entity types with proper entity_id field usage
 30. GOLD & PLATINUM: Added Gold-Monthly and Platinum-Monthly to CHARGEBEE_PLAN_MAPPING
 31. CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade to free plan
 32. MINIMAL PAYG ADDITION: Added Gold-PAYG-USD and Platinum-PAYG-USD to CHARGEBEE_PLAN_MAPPING
@@ -56,12 +56,11 @@ CHANGELOG - server.js:
 49. EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to dashboard load timing
 50. DUO ADMIN AUTH: Added Duo Universal SDK authentication for admin dashboard protection
 51. DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()
-52. 📧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
-53. 📧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
-54. 📧 DUO COOKIE FIX: Replaced session-based state storage with signed cookies for Railway compatibility
+52. 🔧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
+53. 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO COOKIE FIX
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -80,7 +79,7 @@ CHANGELOG - server.js:
 // ✅ PERSONAL INFO: Added endpoints for personal information CRUD operations
 // ✅ MANUAL EDITING: Added endpoints for manual user profile editing
 // ✅ PAYG CUSTOMER FIX: Fixed customer resolution for PAYG webhook processing
-// 📧 PAYG CRITICAL FIX: Fixed planLineItem detection for both plan_item_price and charge_item_price
+// 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection for both plan_item_price and charge_item_price
 // ✅ GOLD & PLATINUM: Added support for Gold and Platinum monthly plans
 // ✅ CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade
 // ✅ GOLD & PLATINUM PAYG: Added Gold-PAYG-USD and Platinum-PAYG-USD support
@@ -102,9 +101,8 @@ CHANGELOG - server.js:
 // ✅ EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to /send-welcome-email endpoint called by dashboard
 // ✅ DUO ADMIN 2FA: Added Duo Universal SDK authentication for admin dashboard security
 // ✅ DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()
-// 📧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
-// 📧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
-// 📧 DUO COOKIE FIX: Replaced session-based state storage with signed cookies for Railway compatibility
+// 🔧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
+// 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
 
 const express = require('express');
 const cors = require('cors');
@@ -117,7 +115,6 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
-const cookieParser = require('cookie-parser'); // 📧 DUO COOKIE FIX: Added cookie-parser
 
 // NEW: File upload dependencies
 const multer = require('multer');
@@ -126,7 +123,7 @@ const multer = require('multer');
 const logger = require('./utils/logger');
 
 // FIXED: Removed require() import for Duo Universal SDK - will use dynamic import() instead
-const crypto = require('node:crypto'); // 📧 DUO ADMIN FIX: Use explicit node: prefix for Node.js 18+ compatibility
+const crypto = require('node:crypto'); // 🔧 DUO ADMIN FIX: Use explicit node: prefix for Node.js 18+ compatibility
 
 // FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
@@ -181,7 +178,7 @@ const {
     storePendingRegistration,
     getPendingRegistration,
     completePendingRegistration,
-    // 📧 CONTEXT FIX: ADD MISSING CONTEXT SLOT FUNCTIONS
+    // 🔧 CONTEXT FIX: ADD MISSING CONTEXT SLOT FUNCTIONS
     getContextAddonUsage,
     createContextAddon,
     updateUserContextSlots,
@@ -315,7 +312,7 @@ function validateDuoConfig() {
 }
 
 function generateState() {
-    return require('node:crypto').randomBytes(32).toString('hex'); // 📧 DUO ADMIN FIX: Direct require in function scope
+    return require('node:crypto').randomBytes(32).toString('hex'); // 🔧 DUO ADMIN FIX: Direct require in function scope
 }
 
 function validateState(sessionState, returnedState) {
@@ -343,7 +340,7 @@ function generateAdminSession(email) {
         isAuthenticated: true,
         adminEmail: email,
         loginTime: new Date().toISOString(),
-        sessionId: require('node:crypto').randomUUID() // 📧 DUO ADMIN FIX: Direct require in function scope
+        sessionId: require('node:crypto').randomUUID() // 🔧 DUO ADMIN FIX: Direct require in function scope
     };
 }
 
@@ -1027,7 +1024,7 @@ const corsOptions = {
         
         return callback(null, true);
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // 📧 CORS FIX: Added PUT and DELETE methods
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // 🔧 CORS FIX: Added PUT and DELETE methods
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
@@ -1037,10 +1034,8 @@ app.use(cors(corsOptions));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser(process.env.SESSION_SECRET || 'msgly-session-secret-2024')); // 📧 DUO COOKIE FIX: Added cookie parser with secret
-app.set('trust proxy', true); // 📧 DUO COOKIE FIX: Trust Railway proxy for secure cookies
 
-// 📧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility
+// 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility
 app.use(session({
     secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
     resave: false,
@@ -1049,15 +1044,15 @@ app.use(session({
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // 📧 RAILWAY FIX: Allow cross-site cookies for Duo redirects
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // 🔧 RAILWAY FIX: Allow cross-site cookies for Duo redirects
     },
-    // 📧 RAILWAY SESSION FIX: Additional configuration for Railway compatibility
+    // 🔧 RAILWAY SESSION FIX: Additional configuration for Railway compatibility
     name: 'connect.sid',
-    rolling: true, // 📧 RAILWAY FIX: Extend session on each request
-    proxy: process.env.NODE_ENV === 'production', // 📧 RAILWAY FIX: Trust proxy in production
-    // 📧 RAILWAY SESSION FIX: Force session save to ensure persistence
+    rolling: true, // 🔧 RAILWAY FIX: Extend session on each request
+    proxy: process.env.NODE_ENV === 'production', // 🔧 RAILWAY FIX: Trust proxy in production
+    // 🔧 RAILWAY SESSION FIX: Force session save to ensure persistence
     saveUninitialized: false,
-    resave: true // 📧 RAILWAY FIX: Force session resave to ensure persistence
+    resave: true // 🔧 RAILWAY FIX: Force session resave to ensure persistence
 }));
 
 // Passport initialization
@@ -1198,30 +1193,24 @@ app.post('/admin-initiate-duo', async (req, res) => {
         
         // Generate state for CSRF protection
         const state = generateState();
+        req.session.duoState = state;
+        req.session.adminEmail = email;
         
-        // 📧 DUO COOKIE FIX: Store state and email in signed cookies instead of session
-        res.cookie('duoState', state, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 5 * 60 * 1000, // 5 minutes
-            signed: true
-        });
-
-        res.cookie('adminEmail', email, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', 
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 5 * 60 * 1000, // 5 minutes
-            signed: true
+        // 🔧 RAILWAY SESSION FIX: Force session save before redirect
+        req.session.save((err) => {
+            if (err) {
+                logger.error('Session save error:', err);
+            } else {
+                logger.debug('Session saved successfully with state:', state.substring(0, 10) + '...');
+            }
         });
         
-        // 📧 DUO ADMIN FIX: Create auth URL with await
+        // 🔧 DUO ADMIN FIX: Create auth URL with await
         const authUrl = await duoClient.createAuthUrl(email, state);
         
         logger.info(`Admin Duo auth initiated for: ${email}`);
         logger.debug(`Auth URL generated: ${authUrl.substring(0, 50)}...`);
-        logger.debug(`State stored in cookies: ${state.substring(0, 10)}...`);
+        logger.debug(`Session state stored: ${state.substring(0, 10)}...`);
         
         res.json({
             success: true,
@@ -1250,10 +1239,8 @@ app.get('/admin-duo-callback', async (req, res) => {
         }
         
         const { code, state: returnedState } = req.query;
-        
-        // 📧 DUO COOKIE FIX: Read state and email from signed cookies instead of session
-        const sessionState = req.signedCookies.duoState;
-        const adminEmail = req.signedCookies.adminEmail;
+        const sessionState = req.session.duoState;
+        const adminEmail = req.session.adminEmail;
         
         logger.debug('Callback validation:', {
             hasCode: !!code,
@@ -1271,8 +1258,8 @@ app.get('/admin-duo-callback', async (req, res) => {
             logger.error('State validation failed:', {
                 sessionState: sessionState?.substring(0, 20) + '...',
                 returnedState: returnedState?.substring(0, 20) + '...',
-                cookiesExist: !!req.signedCookies,
-                cookieKeys: Object.keys(req.signedCookies || {})
+                sessionExists: !!req.session,
+                sessionKeys: Object.keys(req.session || {})
             });
             return res.redirect('/admin-login?error=invalid_state');
         }
@@ -1283,7 +1270,7 @@ app.get('/admin-duo-callback', async (req, res) => {
         }
         
         if (!adminEmail) {
-            logger.error('No admin email in cookies');
+            logger.error('No admin email in session');
             return res.redirect('/admin-login?error=session_expired');
         }
         
@@ -1310,9 +1297,9 @@ app.get('/admin-duo-callback', async (req, res) => {
         // Create admin session
         req.session.adminAuth = generateAdminSession(adminEmail);
         
-        // 📧 DUO COOKIE FIX: Clear Duo cookies instead of session data
-        res.clearCookie('duoState');
-        res.clearCookie('adminEmail');
+        // Clean up temporary session data
+        delete req.session.duoState;
+        delete req.session.adminEmail;
         
         logger.success(`Admin authentication successful: ${adminEmail}`);
         
@@ -2217,7 +2204,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
 
         if (isRegistrationComplete && isInitialScrapingDone && extractionStatus === 'completed' && hasExperience) {
             trafficLightStatus = 'GREEN';
-            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase + Context Slot Functions + CORS Fix + Admin Dashboard + Email Fix + Admin Notifications + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO COOKIE FIX.';
+            statusMessage = 'Profile fully synced and ready! Enhanced DATABASE-FIRST TARGET + USER PROFILE mode active with dual credit system + GPT-5 integration + Chargebee payments + PAYG FIX + Gold & Platinum plans + Cancellation handling + Gold & Platinum PAYG + Billing refactor + Professional Logger + Messages DB Fix + Personal Info Save Fix + File Upload + Profile Data Extraction Fix + Minimal Profile Fix + Contexts + Unified Generation Real GPT Integration + Context Addon Purchase + Context Slot Functions + CORS Fix + Admin Dashboard + Email Fix + Admin Notifications + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX.';
             actionRequired = null;
         } else if (isRegistrationComplete && isInitialScrapingDone) {
             trafficLightStatus = 'ORANGE';
@@ -2261,7 +2248,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     userId: req.user.id,
                     authMethod: req.authMethod,
                     timestamp: new Date().toISOString(),
-                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS_EMAIL_TIMING_FIX_DUO_ADMIN_2FA_DUO_ES_MODULE_FIX_DUO_ADMIN_FIX_RAILWAY_SESSION_FIX_DUO_COOKIE_FIX'
+                    mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS_EMAIL_TIMING_FIX_DUO_ADMIN_2FA_DUO_ES_MODULE_FIX_DUO_ADMIN_FIX_RAILWAY_SESSION_FIX'
                 }
             }
         });
@@ -2340,7 +2327,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                 isCurrentlyProcessing: false,
                 reason: isIncomplete ? 
                     `Initial scraping: ${initialScrapingDone}, Status: ${extractionStatus}, Missing: ${missingFields.join(', ')}` : 
-                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO COOKIE FIX'
+                    'Profile complete and ready - DATABASE-FIRST TARGET + USER PROFILE mode with dual credits + AUTO-REGISTRATION + URL FIX + GPT-5 + CHARGEBEE + WEBHOOK REGISTRATION + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX'
             };
         }
 
@@ -2442,7 +2429,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     personalInfo: profile.personal_info || {}
                 } : null,
                 syncStatus: syncStatus,
-                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS_EMAIL_TIMING_FIX_DUO_ADMIN_2FA_DUO_ES_MODULE_FIX_DUO_ADMIN_FIX_RAILWAY_SESSION_FIX_DUO_COOKIE_FIX'
+                mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS_EMAIL_TIMING_FIX_DUO_ADMIN_2FA_DUO_ES_MODULE_FIX_DUO_ADMIN_FIX_RAILWAY_SESSION_FIX'
             }
         });
     } catch (error) {
@@ -2494,7 +2481,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
             extraction_error: status.extraction_error,
             initial_scraping_done: status.initial_scraping_done || false,
             is_currently_processing: false,
-            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS_EMAIL_TIMING_FIX_DUO_ADMIN_2FA_DUO_ES_MODULE_FIX_DUO_ADMIN_FIX_RAILWAY_SESSION_FIX_DUO_COOKIE_FIX',
+            processing_mode: 'DATABASE_FIRST_TARGET_USER_PROFILE_DUAL_CREDITS_AUTO_REG_URL_FIX_GPT5_CHARGEBEE_WEBHOOK_REGISTRATION_MSGLY_PROFILE_PERSONAL_INFO_MANUAL_EDITING_PAYG_FIX_GOLD_PLATINUM_CANCELLATION_GOLD_PLATINUM_PAYG_BILLING_REFACTOR_PROFESSIONAL_LOGGER_MESSAGES_DB_FIX_PERSONAL_INFO_SAVE_FIX_FILE_UPLOAD_PROFILE_DATA_EXTRACTION_FIX_MINIMAL_PROFILE_FIX_CONTEXTS_UNIFIED_GENERATION_REAL_GPT_CONTEXT_ADDON_PURCHASE_CONTEXT_SLOT_FUNCTIONS_CORS_FIX_ADMIN_DASHBOARD_EMAIL_FIX_ADMIN_NOTIFICATIONS_EMAIL_TIMING_FIX_DUO_ADMIN_2FA_DUO_ES_MODULE_FIX_DUO_ADMIN_FIX_RAILWAY_SESSION_FIX',
             message: getStatusMessage(status.extraction_status, status.initial_scraping_done)
         });
         
@@ -3320,7 +3307,7 @@ app.use((req, res, next) => {
         error: 'Route not found',
         path: req.path,
         method: req.method,
-        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO COOKIE FIX',
+        message: 'DATABASE-FIRST TARGET + USER PROFILE mode active with Dual Credit System + AUTO-REGISTRATION + RACE CONDITION PROTECTION + URL FIX + GPT-5 INTEGRATION + CHARGEBEE PAYMENTS + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX',
         availableRoutes: [
             'GET /',
             'GET /sign-up',
@@ -3379,9 +3366,9 @@ app.use((req, res, next) => {
             'GET /contexts/limits (NEW: Context management - Get plan limits)',
             'GET /admin-dashboard (NEW: Admin dashboard for internal analytics)',
             'GET /api/admin/analytics (NEW: Admin analytics API endpoints)',
-            'GET /admin-login (📧 FIXED: Duo 2FA admin login page with ES Module fix + Railway Session Fix + DUO COOKIE FIX)',
-            'POST /admin-initiate-duo (📧 FIXED: Duo 2FA initiation with ES Module fix and crypto scope fix + Railway Session Fix + DUO COOKIE FIX)',
-            'GET /admin-duo-callback (📧 FIXED: Duo 2FA callback handler with ES Module fix + Railway Session Fix + DUO COOKIE FIX)',
+            'GET /admin-login (🔧 FIXED: Duo 2FA admin login page with ES Module fix + Railway Session Fix)',
+            'POST /admin-initiate-duo (🔧 FIXED: Duo 2FA initiation with ES Module fix and crypto scope fix + Railway Session Fix)',
+            'GET /admin-duo-callback (🔧 FIXED: Duo 2FA callback handler with ES Module fix + Railway Session Fix)',
             'GET /admin-logout (NEW: Admin logout)'
         ]
     });
@@ -3399,7 +3386,7 @@ const startServer = async () => {
             process.exit(1);
         }
         
-        // 📧 DUO ES MODULE FIX: Initialize Duo Universal SDK with dynamic import
+        // 🔧 DUO ES MODULE FIX: Initialize Duo Universal SDK with dynamic import
         await initializeDuo();
         
         // NEW: Auto-create welcome_email_sent column if it doesn't exist
@@ -3453,11 +3440,11 @@ const startServer = async () => {
         }
         
         app.listen(PORT, '0.0.0.0', () => {
-            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 📧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL FIX + ✅ ADMIN NOTIFICATIONS + ✅ EMAIL TIMING FIX + ✅ DUO ADMIN 2FA + ✅ DUO ES MODULE FIX + 📧 DUO ADMIN FIX + 📧 RAILWAY SESSION FIX + 📧 DUO COOKIE FIX ACTIVE!');
+            logger.success('[ROCKET] Enhanced Msgly.AI Server - DUAL CREDIT SYSTEM + AUTO-REGISTRATION + RACE CONDITION FIX + URL MATCHING FIX + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND WELCOME EMAILS + WEBHOOK REGISTRATION COMPLETION + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT INTEGRATION + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL FIX + ✅ ADMIN NOTIFICATIONS + ✅ EMAIL TIMING FIX + ✅ DUO ADMIN 2FA + ✅ DUO ES MODULE FIX + 🔧 DUO ADMIN FIX + 🔧 RAILWAY SESSION FIX ACTIVE!');
             console.log(`[CHECK] Port: ${PORT}`);
-            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO COOKIE FIX`);
+            console.log(`[DB] Database: Enhanced PostgreSQL with TOKEN TRACKING + DUAL CREDIT SYSTEM + MESSAGE LOGGING + PENDING REGISTRATIONS + PERSONAL INFO + MANUAL EDITING + CANCELLATION TRACKING + MESSAGES CAMPAIGN TRACKING + FILE UPLOAD STORAGE + PROFILE DATA EXTRACTION + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX`);
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
-            console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API) + DUO 2FA (Admin) + RAILWAY SESSION PERSISTENCE + DUO COOKIE STATE MANAGEMENT`);
+            console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API) + DUO 2FA (Admin) + RAILWAY SESSION PERSISTENCE`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
             console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
             console.log(`[SUCCESS] ✅ RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
@@ -3478,7 +3465,7 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ PERSONAL INFO: Complete personal information CRUD system`);
             console.log(`[SUCCESS] ✅ MANUAL EDITING: Manual profile editing endpoints for all sections`);
             console.log(`[SUCCESS] ✅ MESSAGES HISTORY ENDPOINT: GET /messages/history for Messages page functionality`);
-            console.log(`[SUCCESS] 📧 PAYG CRITICAL FIX: Enhanced planLineItem detection for both plan_item_price and charge_item_price entity types`);
+            console.log(`[SUCCESS] 🔧 PAYG CRITICAL FIX: Enhanced planLineItem detection for both plan_item_price and charge_item_price entity types`);
             console.log(`[SUCCESS] ✅ GOLD & PLATINUM PLANS: Added Gold-Monthly (100 credits) and Platinum-Monthly (250 credits) plan support`);
             console.log(`[SUCCESS] ✅ CANCELLATION HANDLING: Automatic subscription cancellation processing and downgrade to free plan`);
             console.log(`[SUCCESS] ✅ GOLD & PLATINUM PAYG: Added Gold-PAYG-USD (100 credits) and Platinum-PAYG-USD (250 credits) one-time purchase support`);
@@ -3500,9 +3487,8 @@ const startServer = async () => {
             console.log(`[SUCCESS] ✅ EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to /send-welcome-email endpoint called by dashboard`);
             console.log(`[SUCCESS] ✅ DUO ADMIN 2FA: Enterprise-grade Duo Universal SDK authentication for admin dashboard protection`);
             console.log(`[SUCCESS] ✅ DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()`);
-            console.log(`[SUCCESS] 📧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue`);
-            console.log(`[SUCCESS] 📧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence`);
-            console.log(`[SUCCESS] 📧 DUO COOKIE FIX: Replaced session-based state storage with signed cookies for Railway compatibility`);
+            console.log(`[SUCCESS] 🔧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue`);
+            console.log(`[SUCCESS] 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence`);
             console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
             console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
             console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
@@ -3516,22 +3502,16 @@ const startServer = async () => {
             console.log(`[DUO ES MODULE FIX] ✅ ASYNC INITIALIZATION: Duo SDK initialized in startServer() function`);
             console.log(`[DUO ES MODULE FIX] ✅ ERROR HANDLING: Graceful fallback if Duo initialization fails`);
             console.log(`[DUO ES MODULE FIX] ✅ EMERGENCY BYPASS: Still works with ADMIN_AUTH_DISABLED=true`);
-            console.log(`[DUO ADMIN FIX] 📧 AWAIT CREATEAUTHURL: Fixed createAuthUrl to be awaited properly`);
-            console.log(`[DUO ADMIN FIX] 📧 CRYPTO SCOPE: Fixed crypto imports to use node: prefix and function-level requires`);
-            console.log(`[DUO ADMIN FIX] 📧 500 ERROR RESOLVED: Admin login now works without server crashes`);
-            console.log(`[RAILWAY SESSION FIX] 📧 ENHANCED SESSION CONFIG: Additional Railway compatibility settings for session persistence`);
-            console.log(`[RAILWAY SESSION FIX] 📧 CROSS-SITE COOKIES: sameSite 'none' in production for Duo redirects`);
-            console.log(`[RAILWAY SESSION FIX] 📧 SESSION ROLLING: Extend session on each request for better persistence`);
-            console.log(`[RAILWAY SESSION FIX] 📧 PROXY TRUST: Trust proxy in production Railway environment`);
-            console.log(`[RAILWAY SESSION FIX] 📧 FORCED SAVE: Force session save/resave to ensure state persistence between Duo auth flows`);
-            console.log(`[RAILWAY SESSION FIX] 📧 DEBUG LOGGING: Enhanced session state validation and error logging in Duo callback`);
-            console.log(`[DUO COOKIE FIX] 📧 SIGNED COOKIES: Replaced session-based state storage with signed cookies for Railway compatibility`);
-            console.log(`[DUO COOKIE FIX] 📧 CROSS-SITE SUPPORT: Cookies configured for cross-site redirects from Duo with proper security settings`);
-            console.log(`[DUO COOKIE FIX] 📧 RAILWAY PROXY TRUST: Added app.set('trust proxy', true) for secure cookie handling`);
-            console.log(`[DUO COOKIE FIX] 📧 COOKIE PARSER: Added cookie-parser middleware with secret for signed cookie support`);
-            console.log(`[DUO COOKIE FIX] 📧 AUTOMATIC CLEANUP: Cookies automatically cleared after successful authentication`);
-            console.log(`[DUO COOKIE FIX] 📧 5-MINUTE EXPIRY: Short-lived cookies for enhanced security (5-minute expiration)`);
-            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 📧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL FIX + ✅ ADMIN NOTIFICATIONS + ✅ EMAIL TIMING FIX + ✅ DUO ADMIN 2FA + ✅ DUO ES MODULE FIX + 📧 DUO ADMIN FIX + 📧 RAILWAY SESSION FIX + 📧 DUO COOKIE FIX:`);
+            console.log(`[DUO ADMIN FIX] 🔧 AWAIT CREATEAUTHURL: Fixed createAuthUrl to be awaited properly`);
+            console.log(`[DUO ADMIN FIX] 🔧 CRYPTO SCOPE: Fixed crypto imports to use node: prefix and function-level requires`);
+            console.log(`[DUO ADMIN FIX] 🔧 500 ERROR RESOLVED: Admin login now works without server crashes`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 ENHANCED SESSION CONFIG: Additional Railway compatibility settings for session persistence`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 CROSS-SITE COOKIES: sameSite 'none' in production for Duo redirects`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 SESSION ROLLING: Extend session on each request for better persistence`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 PROXY TRUST: Trust proxy in production Railway environment`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 FORCED SAVE: Force session save/resave to ensure state persistence between Duo auth flows`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 DEBUG LOGGING: Enhanced session state validation and error logging in Duo callback`);
+            console.log(`[SUCCESS] DATABASE-FIRST TARGET + USER PROFILE MODE WITH DUAL CREDITS + AUTO-REGISTRATION + RACE PROTECTION + URL FIX + GPT-5 + CHARGEBEE + MAILERSEND + WEBHOOK REGISTRATION FIX + MODULAR REFACTOR + MESSAGES ROUTE FIX + AUTHENTICATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + MESSAGES HISTORY ENDPOINT + 🔧 PAYG CRITICAL FIX + ✅ GOLD & PLATINUM PLANS + ✅ CANCELLATION HANDLING + ✅ GOLD & PLATINUM PAYG + ✅ BILLING REFACTOR + ✅ PROFESSIONAL LOGGER + ✅ MESSAGES DB FIX + ✅ PERSONAL INFO SAVE FIX + ✅ FILE UPLOAD + ✅ PROFILE DATA EXTRACTION FIX + ✅ MINIMAL PROFILE FIX + ✅ CONTEXTS + ✅ UNIFIED GENERATION REAL GPT + ✅ CONTEXT ADDON PURCHASE + ✅ CONTEXT SLOT FUNCTIONS + ✅ CORS FIX + ✅ ADMIN DASHBOARD + ✅ EMAIL FIX + ✅ ADMIN NOTIFICATIONS + ✅ EMAIL TIMING FIX + ✅ DUO ADMIN 2FA + ✅ DUO ES MODULE FIX + 🔧 DUO ADMIN FIX + 🔧 RAILWAY SESSION FIX:`);
             console.log(`[MESSAGES] ✅ GET /messages/history - Now reads actual sent_status, reply_status, and comments from database`);
             console.log(`[MESSAGES] ✅ PUT /messages/:id - New endpoint to update message status and comments`);
             console.log(`[MESSAGES] ✅ Database Integration - Full CRUD operations for message campaign tracking`);
@@ -3596,24 +3576,16 @@ const startServer = async () => {
             console.log(`[DUO ES MODULE FIX] ✅ NO MORE CRASHES: Server starts successfully with Duo Universal SDK`);
             console.log(`[DUO ES MODULE FIX] ✅ ASYNC INITIALIZATION: Duo initialized during server startup`);
             console.log(`[DUO ES MODULE FIX] ✅ ROBUST ERROR HANDLING: Graceful fallback if Duo fails to initialize`);
-            console.log(`[DUO ADMIN FIX] 📧 CREATEAUTHURL AWAIT: Fixed missing await on duoClient.createAuthUrl() call`);
-            console.log(`[DUO ADMIN FIX] 📧 CRYPTO SCOPE FIX: Fixed crypto module access with node: prefix and function-level requires`);
-            console.log(`[DUO ADMIN FIX] 📧 500 ERROR RESOLVED: Admin login endpoint now works without "crypto is not defined" error`);
-            console.log(`[DUO ADMIN FIX] 📧 PRODUCTION READY: Admin dashboard fully functional with fixed Duo authentication`);
-            console.log(`[RAILWAY SESSION FIX] 📧 SESSION PERSISTENCE: Enhanced session configuration for Railway deployment compatibility`);
-            console.log(`[RAILWAY SESSION FIX] 📧 DUO STATE PRESERVATION: Session state properly maintained between Duo auth initiation and callback`);
-            console.log(`[RAILWAY SESSION FIX] 📧 CROSS-SITE COMPATIBILITY: sameSite 'none' for production Duo redirects`);
-            console.log(`[RAILWAY SESSION FIX] 📧 FORCED SESSION SAVE: req.session.save() before Duo redirect to ensure state persistence`);
-            console.log(`[RAILWAY SESSION FIX] 📧 ENHANCED DEBUGGING: Comprehensive session state validation and error logging`);
-            console.log(`[RAILWAY SESSION FIX] 📧 PRODUCTION READY: Railway session management fully functional for Duo 2FA authentication`);
-            console.log(`[DUO COOKIE FIX] 📧 SIGNED COOKIES IMPLEMENTATION: Replaced req.session with res.cookie() and req.signedCookies for state storage`);
-            console.log(`[DUO COOKIE FIX] 📧 RAILWAY COMPATIBILITY: Signed cookies work reliably on Railway where sessions were failing`);
-            console.log(`[DUO COOKIE FIX] 📧 CROSS-SITE SECURITY: Cookies configured with httpOnly, secure, and sameSite for production safety`);
-            console.log(`[DUO COOKIE FIX] 📧 AUTOMATIC EXPIRY: 5-minute cookie expiration for enhanced security`);
-            console.log(`[DUO COOKIE FIX] 📧 STATE PERSISTENCE: duoState and adminEmail stored in signed cookies during authentication flow`);
-            console.log(`[DUO COOKIE FIX] 📧 CLEANUP: Cookies automatically cleared with res.clearCookie() after successful authentication`);
-            console.log(`[DUO COOKIE FIX] 📧 PROXY TRUST: app.set('trust proxy', true) enables secure cookie handling on Railway`);
-            console.log(`[DUO COOKIE FIX] 📧 PRODUCTION READY: Duo 2FA authentication fully functional on Railway with cookie-based state management`);
+            console.log(`[DUO ADMIN FIX] 🔧 CREATEAUTHURL AWAIT: Fixed missing await on duoClient.createAuthUrl() call`);
+            console.log(`[DUO ADMIN FIX] 🔧 CRYPTO SCOPE FIX: Fixed crypto module access with node: prefix and function-level requires`);
+            console.log(`[DUO ADMIN FIX] 🔧 500 ERROR RESOLVED: Admin login endpoint now works without "crypto is not defined" error`);
+            console.log(`[DUO ADMIN FIX] 🔧 PRODUCTION READY: Admin dashboard fully functional with fixed Duo authentication`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 SESSION PERSISTENCE: Enhanced session configuration for Railway deployment compatibility`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 DUO STATE PRESERVATION: Session state properly maintained between Duo auth initiation and callback`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 CROSS-SITE COMPATIBILITY: sameSite 'none' for production Duo redirects`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 FORCED SESSION SAVE: req.session.save() before Duo redirect to ensure state persistence`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 ENHANCED DEBUGGING: Comprehensive session state validation and error logging`);
+            console.log(`[RAILWAY SESSION FIX] 🔧 PRODUCTION READY: Railway session management fully functional for Duo 2FA authentication`);
         });
         
     } catch (error) {
