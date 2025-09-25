@@ -1673,9 +1673,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </div>
 
                 <div class="message-types-section">
-                    ${createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin')}
-                    ${createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus')}
-                    ${createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope')}
+                    ${messages.linkedin.length > 0 ? createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin') : ''}
+                    ${messages.connection.length > 0 ? createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus') : ''}
+                    ${messages.email.length > 0 ? createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope') : ''}
                 </div>
 
                 <div class="card-status-section">
@@ -1714,42 +1714,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function createMessageTypeBlock(type, label, messagesArray, iconClass) {
-            const hasMessages = messagesArray && messagesArray.length > 0;
-            
-            if (!hasMessages) {
-                // FIXED: Empty state now includes consistent button layout
-                return `
-                    <div class="message-type-block ${type}">
-                        <div class="message-type-header">
-                            <div class="message-type-label ${type}">
-                                <i class="${iconClass}"></i>
-                                ${label}
-                            </div>
-                            <div class="message-actions">
-                                <button class="edit-btn" onclick="editMessage('${type}', null)" disabled style="opacity: 0.5;">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
-                                <button class="copy-btn" onclick="alert('No message to copy')" disabled style="opacity: 0.5;">
-                                    <i class="fas fa-copy"></i> Copy
-                                </button>
-                            </div>
-                        </div>
-                        <div class="message-history-item">
-                            <div class="message-timestamp">
-                                <i class="fas fa-info-circle"></i>
-                                Status: Not generated
-                            </div>
-                            <div class="message-content-preview" style="font-style: italic; color: var(--gray);">
-                                No message generated yet
-                            </div>
-                        </div>
-                        <div style="text-align: center; margin-top: 0.8rem;">
-                            <button class="expand-btn" disabled style="opacity: 0.5;">
-                                <i class="fas fa-plus"></i> Generate Message
-                            </button>
-                        </div>
-                    </div>
-                `;
+            // Only create blocks for message types that have content
+            if (!messagesArray || messagesArray.length === 0) {
+                return '';
             }
 
             const latestMessage = messagesArray[0]; // Newest first due to sorting
