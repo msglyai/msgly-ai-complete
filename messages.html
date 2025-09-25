@@ -436,12 +436,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .message-card {
             background: var(--white);
-            border: 2px solid var(--light-gray);
+            border: 3px solid var(--light-gray);
             border-radius: 16px;
             padding: 1.5rem;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            box-shadow: var(--shadow);
         }
 
         .message-card:hover {
@@ -715,9 +716,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .message-preview {
-            font-size: 0.8rem;
-            color: var(--gray);
-            font-style: italic;
+            font-size: 0.85rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+            background: rgba(128, 57, 223, 0.03);
+            padding: 0.6rem;
+            border-radius: 6px;
+            border-left: 3px solid var(--primary-purple);
+        }
+
+        .message-preview.linkedin {
+            border-left-color: #0077B5;
+        }
+
+        .message-preview.connection {
+            border-left-color: var(--accent-pink);
+        }
+
+        .message-preview.email {
+            border-left-color: var(--warning-orange);
         }
 
         /* Status and Comments Section */
@@ -1654,6 +1672,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function createMessageTypeBlock(type, label, message, iconClass) {
             const messageText = message ? cleanMessageText(message.message || '') : '';
             const isEmpty = !message || !messageText;
+            const messagePreview = messageText ? messageText.substring(0, 50) + '...' : '';
+            const uniqueId = `${type}-${message ? message.id : 'empty'}`;
             
             return `
                 <div class="message-type-block ${type}">
@@ -1662,13 +1682,27 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <i class="${iconClass}"></i>
                             ${label}
                         </div>
-                        ${!isEmpty ? `<button class="copy-btn" onclick="copyMessage('${type}', ${message.id}, this)">
-                            <i class="fas fa-copy"></i> Copy
-                        </button>` : ''}
+                        ${!isEmpty ? `
+                        <div class="message-actions">
+                            <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
+                                <i class="fas fa-chevron-down"></i> Expand
+                            </button>
+                            <button class="edit-btn" onclick="editMessage('${type}', ${message.id})">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="copy-btn" onclick="copyMessage('${type}', ${message.id}, this)">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>` : ''}
                     </div>
-                    <div class="message-text ${isEmpty ? 'empty' : ''}">
-                        ${isEmpty ? 'No message generated yet' : messageText}
-                    </div>
+                    ${!isEmpty ? `
+                    <div class="message-preview">${messagePreview}</div>
+                    <div class="message-text" id="message-${uniqueId}">
+                        ${messageText}
+                    </div>` : `
+                    <div class="message-text empty">
+                        No message generated yet
+                    </div>`}
                 </div>
             `;
         }
@@ -1718,6 +1752,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
             
             return `<div class="email-not-available">Not searched</div>`;
+        }
+
+        // Toggle message expand/collapse functionality
+        function toggleMessageExpand(messageId, button) {
+            const messageElement = document.getElementById(`message-${messageId}`);
+            const isExpanded = messageElement.classList.contains('expanded');
+            
+            if (isExpanded) {
+                messageElement.classList.remove('expanded');
+                button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
+            } else {
+                messageElement.classList.add('expanded');
+                button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
+            }
+        }
+
+        // Edit message functionality (placeholder for future implementation)
+        function editMessage(type, messageId) {
+            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
+            console.log(`[EDIT] Edit requested for ${type} message ID: ${messageId}`);
         }
 
         // Copy message functionality
