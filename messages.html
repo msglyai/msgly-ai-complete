@@ -715,27 +715,53 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             display: block; /* Always show empty state */
         }
 
-        .message-preview {
+        .message-history-item {
+            margin-bottom: 0.8rem;
+            padding: 0.6rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .message-history-item.latest {
+            border-color: var(--primary-purple);
+            background: rgba(128, 57, 223, 0.05);
+        }
+
+        .message-history-item.collapsed {
+            background: var(--light-gray);
+            cursor: pointer;
+        }
+
+        .message-history-item.collapsed:hover {
+            background: rgba(128, 57, 223, 0.08);
+        }
+
+        .message-timestamp {
+            font-size: 0.7rem;
+            color: var(--gray);
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .message-content-preview {
             font-size: 0.85rem;
             color: var(--dark-gray);
             line-height: 1.4;
-            margin-bottom: 0.5rem;
-            background: rgba(128, 57, 223, 0.03);
-            padding: 0.6rem;
-            border-radius: 6px;
-            border-left: 3px solid var(--primary-purple);
         }
 
-        .message-preview.linkedin {
-            border-left-color: #0077B5;
-        }
-
-        .message-preview.connection {
-            border-left-color: var(--accent-pink);
-        }
-
-        .message-preview.email {
-            border-left-color: var(--warning-orange);
+        .message-version-count {
+            font-size: 0.75rem;
+            color: var(--primary-purple);
+            font-weight: 600;
+            margin-left: 0.5rem;
+            padding: 0.2rem 0.5rem;
+            background: rgba(128, 57, 223, 0.1);
+            border-radius: 10px;
         }
 
         /* Status and Comments Section */
@@ -1505,7 +1531,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Group messages by target profile
+        // Group messages by target profile - FIXED: Support multiple messages per type
         function groupMessagesByTarget() {
             groupedMessages = {};
             
@@ -1516,9 +1542,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     groupedMessages[targetKey] = {
                         target: message.targetProfile,
                         messages: {
-                            linkedin: null,
-                            connection: null,
-                            email: null
+                            linkedin: [],
+                            connection: [],
+                            email: []
                         },
                         // Use the first message's metadata for status/comments
                         id: message.id,
@@ -1531,17 +1557,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     };
                 }
                 
-                // Determine message type and assign
+                // FIXED: Push messages into arrays instead of overwriting
                 if (message.message_type === 'connection_request') {
-                    groupedMessages[targetKey].messages.connection = message;
+                    groupedMessages[targetKey].messages.connection.push(message);
                 } else if (message.message_type === 'cold_email') {
-                    groupedMessages[targetKey].messages.email = message;
+                    groupedMessages[targetKey].messages.email.push(message);
                 } else {
-                    groupedMessages[targetKey].messages.linkedin = message;
+                    groupedMessages[targetKey].messages.linkedin.push(message);
                 }
             });
             
-            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles');
+            // Sort messages within each type by creation date (newest first)
+            Object.values(groupedMessages).forEach(group => {
+                group.messages.linkedin.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.connection.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.email.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            });
+            
+            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
         }
 
         function applyFilters() {
@@ -1550,21 +1583,32 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             // Apply status filter
             filtered = filterMessagesByStatus(filtered);
             
-            // Apply search filter
+            // Apply search filter - UPDATED for message arrays
             if (currentSearchTerm) {
                 filtered = filtered.filter(group => {
                     const target = group.target;
                     const messages = group.messages;
                     
-                    return (
+                    // Search in target profile
+                    const targetMatch = (
                         (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                         (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                         (target.company && target.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                        (messages.linkedin && messages.linkedin.message && messages.linkedin.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                        (messages.connection && messages.connection.message && messages.connection.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                        (messages.email && messages.email.message && messages.email.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                         (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
                     );
+                    
+                    // Search in all message arrays
+                    const messageMatch = ['linkedin', 'connection', 'email'].some(type => {
+                        const messageArray = messages[type];
+                        if (Array.isArray(messageArray)) {
+                            return messageArray.some(msg => 
+                                msg.message && msg.message.toLowerCase().includes(currentSearchTerm.toLowerCase())
+                            );
+                        }
+                        return false;
+                    });
+                    
+                    return targetMatch || messageMatch;
                 });
             }
             
@@ -1669,11 +1713,70 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return card;
         }
 
-        function createMessageTypeBlock(type, label, message, iconClass) {
-            const messageText = message ? cleanMessageText(message.message || '') : '';
-            const isEmpty = !message || !messageText;
-            const messagePreview = messageText ? messageText.substring(0, 50) + '...' : '';
-            const uniqueId = `${type}-${message ? message.id : 'empty'}`;
+        function createMessageTypeBlock(type, label, messagesArray, iconClass) {
+            if (!messagesArray || messagesArray.length === 0) {
+                return `
+                    <div class="message-type-block ${type}">
+                        <div class="message-type-header">
+                            <div class="message-type-label ${type}">
+                                <i class="${iconClass}"></i>
+                                ${label}
+                            </div>
+                        </div>
+                        <div class="message-text empty">
+                            No message generated yet
+                        </div>
+                    </div>
+                `;
+            }
+
+            const latestMessage = messagesArray[0]; // Newest first due to sorting
+            const latestMessageText = cleanMessageText(latestMessage.message || '');
+            const latestPreview = latestMessageText.length > 80 ? latestMessageText.substring(0, 80) + '...' : latestMessageText;
+            const uniqueId = `${type}-${latestMessage.id}`;
+            const hasMultiple = messagesArray.length > 1;
+            
+            let historyHTML = '';
+            
+            // Show latest message
+            historyHTML += `
+                <div class="message-history-item latest">
+                    <div class="message-timestamp">
+                        <i class="fas fa-clock"></i>
+                        Latest: ${formatMessageDate(latestMessage.created_at)}
+                    </div>
+                    <div class="message-content-preview">${latestPreview}</div>
+                    <div class="message-text" id="message-${uniqueId}" style="display: none;">
+                        ${latestMessageText}
+                    </div>
+                </div>
+            `;
+            
+            // Show previous messages (collapsed by default)
+            if (hasMultiple) {
+                historyHTML += `<div class="message-history-previous" id="history-${uniqueId}" style="display: none;">`;
+                
+                messagesArray.slice(1).forEach((msg, index) => {
+                    const msgText = cleanMessageText(msg.message || '');
+                    const msgPreview = msgText.length > 60 ? msgText.substring(0, 60) + '...' : msgText;
+                    const msgUniqueId = `${type}-${msg.id}`;
+                    
+                    historyHTML += `
+                        <div class="message-history-item collapsed" onclick="toggleHistoryMessage('${msgUniqueId}', this)">
+                            <div class="message-timestamp">
+                                <i class="fas fa-history"></i>
+                                Previous: ${formatMessageDate(msg.created_at)}
+                            </div>
+                            <div class="message-content-preview">${msgPreview}</div>
+                            <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
+                                ${msgText}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                historyHTML += `</div>`;
+            }
             
             return `
                 <div class="message-type-block ${type}">
@@ -1681,28 +1784,27 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="message-type-label ${type}">
                             <i class="${iconClass}"></i>
                             ${label}
+                            ${hasMultiple ? `<span class="message-version-count">${messagesArray.length} versions</span>` : ''}
                         </div>
-                        ${!isEmpty ? `
                         <div class="message-actions">
-                            <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
-                                <i class="fas fa-chevron-down"></i> Expand
-                            </button>
-                            <button class="edit-btn" onclick="editMessage('${type}', ${message.id})">
+                            ${hasMultiple ? `
+                            <button class="expand-btn" onclick="toggleMessageHistory('${uniqueId}', this)">
+                                <i class="fas fa-history"></i> History
+                            </button>` : ''}
+                            <button class="edit-btn" onclick="editMessage('${type}', ${latestMessage.id})">
                                 <i class="fas fa-edit"></i> Edit
                             </button>
-                            <button class="copy-btn" onclick="copyMessage('${type}', ${message.id}, this)">
+                            <button class="copy-btn" onclick="copyMessage('${type}', ${latestMessage.id}, this)">
                                 <i class="fas fa-copy"></i> Copy
                             </button>
-                        </div>` : ''}
+                        </div>
                     </div>
-                    ${!isEmpty ? `
-                    <div class="message-preview">${messagePreview}</div>
-                    <div class="message-text" id="message-${uniqueId}">
-                        ${messageText}
-                    </div>` : `
-                    <div class="message-text empty">
-                        No message generated yet
-                    </div>`}
+                    ${historyHTML}
+                    <div style="text-align: center; margin-top: 0.8rem;">
+                        <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
+                            <i class="fas fa-chevron-down"></i> Expand
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -1754,6 +1856,76 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
+        // Format message date for display
+        function formatMessageDate(dateString) {
+            try {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffTime = now - date;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays === 0) {
+                    return date.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }) + ' (today)';
+                } else if (diffDays === 1) {
+                    return date.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }) + ' (yesterday)';
+                } else if (diffDays < 7) {
+                    return date.toLocaleDateString('en-US', { 
+                        weekday: 'short',
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    });
+                } else {
+                    return date.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                }
+            } catch (error) {
+                console.error('[DATE] Error formatting date:', error);
+                return 'Unknown date';
+            }
+        }
+
+        // Toggle message history visibility
+        function toggleMessageHistory(messageId, button) {
+            const historyElement = document.getElementById(`history-${messageId}`);
+            const isVisible = historyElement.style.display !== 'none';
+            
+            if (isVisible) {
+                historyElement.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-history"></i> History';
+            } else {
+                historyElement.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-history"></i> Hide History';
+            }
+        }
+
+        // Toggle individual historical message
+        function toggleHistoryMessage(messageId, element) {
+            const messageElement = document.getElementById(`message-${messageId}`);
+            const isExpanded = messageElement.style.display !== 'none';
+            
+            if (isExpanded) {
+                messageElement.style.display = 'none';
+                element.classList.add('collapsed');
+            } else {
+                messageElement.style.display = 'block';
+                element.classList.remove('collapsed');
+            }
+        }
+
         // Toggle message expand/collapse functionality
         function toggleMessageExpand(messageId, button) {
             const messageElement = document.getElementById(`message-${messageId}`);
@@ -1774,21 +1946,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             console.log(`[EDIT] Edit requested for ${type} message ID: ${messageId}`);
         }
 
-        // Copy message functionality
+        // Copy message functionality - UPDATED for message arrays
         async function copyMessage(type, messageId, button) {
             try {
-                // Find the message
-                const message = messagesData.find(m => m.id === messageId);
-                if (!message || !message.message) {
+                // Find the specific message by ID across all message groups
+                let targetMessage = null;
+                Object.values(groupedMessages).forEach(group => {
+                    ['linkedin', 'connection', 'email'].forEach(messageType => {
+                        const messages = group.messages[messageType];
+                        if (Array.isArray(messages)) {
+                            const found = messages.find(m => m.id === messageId);
+                            if (found) targetMessage = found;
+                        }
+                    });
+                });
+                
+                if (!targetMessage || !targetMessage.message) {
                     throw new Error('Message not found');
                 }
                 
-                const cleanMessage = cleanMessageText(message.message);
+                const cleanMessage = cleanMessageText(targetMessage.message);
                 
-                // Copy to clipboard
                 await navigator.clipboard.writeText(cleanMessage);
                 
-                // Show success feedback
                 const originalHTML = button.innerHTML;
                 button.innerHTML = '<i class="fas fa-check"></i> Copied!';
                 button.classList.add('copied');
@@ -1803,7 +1983,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             } catch (error) {
                 console.error('[COPY] Error copying message:', error);
                 
-                // Show error feedback
                 const originalHTML = button.innerHTML;
                 button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
                 
