@@ -1299,11 +1299,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="modal-title">Find & Verify Email</div>
             </div>
             <div class="modal-body">
-                This action will cost you 2 credits. Continue?
+                We'll search for this contact's email address. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
             </div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes</button>
+                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
             </div>
         </div>
     </div>
@@ -1319,6 +1319,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
                 <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Buy Credits</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="upgradeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Upgrade Required</div>
+            </div>
+            <div class="modal-body">
+                Email finder is available for Silver, Gold, and Platinum subscribers. Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
             </div>
         </div>
     </div>
@@ -1435,6 +1450,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let currentSearchTerm = '';
         let pendingChanges = new Map();
         let currentTargetId = null; // For email finder modal
+        let currentUserPlan = null; // Store user plan info
 
         // FIXED: Authentication check and data loading + user profile loading
         document.addEventListener('DOMContentLoaded', function() {
@@ -1491,6 +1507,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (data.success) {
                     // Update sidebar user info
                     const user = data.data.user;
+                    
+                    // Store plan info globally for email finder checks
+                    currentUserPlan = {
+                        planCode: user.planCode || 'free',
+                        totalCredits: user.totalCredits || 0,
+                        planName: user.planName || 'Free'
+                    };
                     
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
@@ -1842,7 +1865,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
             
             if (message.emailStatus === 'verified') {
-                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString() : '';
+                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : '';
                 return `<div class="email-verification">
                     <div class="email-address">${message.emailFound || 'N/A'}</div>
                     <div class="email-status verified">
@@ -1851,7 +1878,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
                 </div>`;
             } else if (message.emailStatus === 'not_found') {
-                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString() : '';
+                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : '';
                 return `<div class="email-verification">
                     <div class="email-address">—</div>
                     <div class="email-status not-found">
@@ -1864,9 +1895,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">—</div>`;
         }
 
-        // Email Finder modal functions
+        // Email Finder modal functions with plan checking
         function showEmailFinderModal(targetId) {
             currentTargetId = targetId;
+            
+            // Check if user is on free plan
+            if (currentUserPlan && currentUserPlan.planCode === 'free') {
+                console.log('[EMAIL_FINDER] Free user detected, showing upgrade modal');
+                document.getElementById('upgradeModal').classList.add('active');
+                return;
+            }
+            
+            // Check if user has enough credits (2 credits required)
+            if (currentUserPlan && currentUserPlan.totalCredits < 2) {
+                console.log('[EMAIL_FINDER] Insufficient credits, showing credits modal');
+                document.getElementById('insufficientCreditsModal').classList.add('active');
+                return;
+            }
+            
+            // Show regular email finder modal for paid users with credits
+            console.log('[EMAIL_FINDER] Showing email finder modal for paid user');
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
@@ -1881,6 +1929,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function closeInsufficientCreditsModal() {
             document.getElementById('insufficientCreditsModal').classList.remove('active');
+        }
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').classList.remove('active');
         }
 
         // Email Finder confirmation - This will be connected to API in next stage
@@ -2260,6 +2312,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             if (event.target.classList.contains('modal-overlay')) {
                 closeEmailModal();
                 closeInsufficientCreditsModal();
+                closeUpgradeModal();
             }
         });
 
