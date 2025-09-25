@@ -435,7 +435,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             border-color: var(--primary-purple);
         }
 
-        /* MESSAGES TABLE - Enhanced Design */
+        /* MESSAGES TABLE - Enhanced Design with Email Finder columns */
         .messages-card {
             background: var(--white);
             border-radius: 16px;
@@ -495,14 +495,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: rgba(128, 57, 223, 0.02);
         }
 
-        /* Column Widths - UPDATED for new Context column */
-        .col-message { width: 30%; }
-        .col-context { width: 20%; }
-        .col-target { width: 18%; }
-        .col-sent { width: 10%; }
-        .col-reply { width: 10%; }
-        .col-comment { width: 12%; }
-        .col-actions { width: 5%; }
+        /* Column Widths - UPDATED for Email Finder columns */
+        .col-message { width: 25%; }
+        .col-context { width: 18%; }
+        .col-target { width: 15%; }
+        .col-email-ask { width: 8%; }
+        .col-email-verify { width: 12%; }
+        .col-sent { width: 8%; }
+        .col-reply { width: 8%; }
+        .col-comment { width: 10%; }
+        .col-actions { width: 4%; }
 
         /* Message Content */
         .message-content {
@@ -547,7 +549,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             display: inline-block;
         }
 
-        /* NEW: Context Column Styles */
+        /* Context Column Styles */
         .context-content {
             max-width: 300px;
             font-size: 0.8rem;
@@ -598,6 +600,83 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .target-company {
             color: var(--gray);
+            font-size: 0.75rem;
+        }
+
+        /* EMAIL FINDER STYLES */
+        .email-ask-btn {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .email-ask-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+        }
+
+        .email-ask-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .email-ask-btn.loading {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .email-verification {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+        }
+
+        .email-address {
+            color: var(--dark-gray);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .email-status {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .email-status.verified {
+            color: var(--success-green);
+        }
+
+        .email-status.not-found {
+            color: var(--error-red);
+        }
+
+        .email-verified-date {
+            font-size: 0.7rem;
+            color: var(--gray);
+        }
+
+        .email-not-available {
+            color: var(--gray);
+            font-style: italic;
             font-size: 0.75rem;
         }
 
@@ -782,6 +861,100 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--primary-purple);
         }
 
+        /* MODAL STYLES - Email Finder Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(128, 57, 223, 0.1);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-body {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--dark-gray);
+            line-height: 1.5;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-btn.primary {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .modal-btn.primary:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+        }
+
+        .modal-btn.secondary {
+            background: var(--light-gray);
+            color: var(--dark-gray);
+            border: 2px solid var(--light-gray);
+        }
+
+        .modal-btn.secondary:hover {
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
+        }
+
         /* Loading & Empty States */
         .loading {
             display: flex;
@@ -827,7 +1000,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin: 0 auto;
         }
 
-        /* MOBILE CARDS VIEW - FIXED: No duplication */
+        /* MOBILE CARDS VIEW - Updated with Email Finder */
         .messages-cards {
             display: none;
         }
@@ -872,7 +1045,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin-bottom: 0.8rem;
         }
 
-        /* NEW: Context section for mobile */
+        /* Context section for mobile */
         .card-context-content {
             background: rgba(128, 57, 223, 0.05);
             padding: 0.8rem;
@@ -890,6 +1063,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 0.5rem;
+        }
+
+        /* Email Finder section for mobile */
+        .card-email-section {
+            background: rgba(128, 57, 223, 0.03);
+            border: 1px solid rgba(128, 57, 223, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .card-email-header {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-purple);
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-email-content {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
         }
 
         .card-status-row {
@@ -934,14 +1132,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             100% { transform: rotate(360deg); }
         }
 
-        /* Mobile Responsive */
+        /* Mobile Responsive - Updated for Email Finder */
         @media (max-width: 1024px) {
             .messages-table-wrapper {
                 overflow-x: auto;
             }
 
             .messages-table {
-                min-width: 1100px; /* Increased for Context column */
+                min-width: 1300px; /* Increased for Email Finder columns */
             }
         }
 
@@ -1007,6 +1205,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
             .toggle-switch.yes .toggle-slider {
                 transform: translateX(26px);
+            }
+
+            .modal {
+                max-width: 350px;
+                padding: 1.5rem;
             }
         }
     </style>
@@ -1089,6 +1292,37 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     </nav>
 
+    <!-- Email Finder Modals -->
+    <div class="modal-overlay" id="emailFinderModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Find & Verify Email</div>
+            </div>
+            <div class="modal-body">
+                This action will cost you 2 credits. Continue?
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="insufficientCreditsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Not Enough Credits</div>
+            </div>
+            <div class="modal-body">
+                You don't have enough credits to perform this action.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Buy Credits</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content Wrapper -->
     <div class="main-wrapper">
         <main class="main-content">
@@ -1163,6 +1397,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <th class="col-message">Message</th>
                             <th class="col-context">Context</th>
                             <th class="col-target">Target Profile</th>
+                            <th class="col-email-ask">Ask Email (powered by Snov)</th>
+                            <th class="col-email-verify">Verification (powered by Snov)</th>
                             <th class="col-sent">Sent</th>
                             <th class="col-reply">Reply</th>
                             <th class="col-comment">Comments</th>
@@ -1198,6 +1434,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let currentFilter = 'all';
         let currentSearchTerm = '';
         let pendingChanges = new Map();
+        let currentTargetId = null; // For email finder modal
 
         // FIXED: Authentication check and data loading + user profile loading
         document.addEventListener('DOMContentLoaded', function() {
@@ -1423,7 +1660,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('emptyState').style.display = 'none';
         }
 
-        // FIXED: Remove MSG_XXX IDs and add Context column
+        // Updated: Add Email Finder columns to table row
         function createTableRow(message) {
             const row = document.createElement('tr');
             
@@ -1456,6 +1693,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="target-role">${message.targetProfile.role || 'Professional'}</div>
                         <div class="target-company">${message.targetProfile.company || 'Company'}</div>
                     </div>
+                </td>
+                <td class="col-email-ask">
+                    ${createEmailAskButton(message)}
+                </td>
+                <td class="col-email-verify">
+                    ${createEmailVerificationDisplay(message)}
                 </td>
                 <td class="col-sent">
                     <div class="status-toggle">
@@ -1492,7 +1735,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return row;
         }
 
-        // FIXED: Mobile cards without duplication + Context section
+        // Updated: Mobile cards with Email Finder section
         function createMessageCard(message) {
             const card = document.createElement('div');
             card.className = 'message-card';
@@ -1525,6 +1768,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     ${context.length > 80 ? 
                         `<div class="context-expand" onclick="toggleCardContextExpand(${message.id})">Show more...</div>` : ''
                     }
+                </div>
+
+                <div class="card-email-section">
+                    <div class="card-email-header">
+                        <i class="fas fa-at"></i>
+                        Email Finder (powered by Snov.io)
+                    </div>
+                    <div class="card-email-content">
+                        ${createEmailAskButton(message)}
+                        ${createEmailVerificationDisplay(message, true)}
+                    </div>
                 </div>
                 
                 <div class="card-status-row">
@@ -1566,6 +1820,108 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </div>
             `;
             return card;
+        }
+
+        // Email Finder helper functions
+        function createEmailAskButton(message) {
+            // Check if email already exists
+            if (message.emailStatus === 'verified' || message.emailStatus === 'not_found') {
+                return `<button class="email-ask-btn" disabled title="Email already verified.">
+                    <i class="fas fa-check"></i> Done
+                </button>`;
+            }
+            
+            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${message.id})" title="Ask Email (2 credits)">
+                <i class="fas fa-search"></i> Ask Email
+            </button>`;
+        }
+
+        function createEmailVerificationDisplay(message, isMobile = false) {
+            if (!message.emailStatus) {
+                return `<div class="email-not-available">—</div>`;
+            }
+            
+            if (message.emailStatus === 'verified') {
+                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString() : '';
+                return `<div class="email-verification">
+                    <div class="email-address">${message.emailFound || 'N/A'}</div>
+                    <div class="email-status verified">
+                        <i class="fas fa-check-circle"></i> Verified
+                    </div>
+                    ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
+                </div>`;
+            } else if (message.emailStatus === 'not_found') {
+                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString() : '';
+                return `<div class="email-verification">
+                    <div class="email-address">—</div>
+                    <div class="email-status not-found">
+                        <i class="fas fa-times-circle"></i> Not Found
+                    </div>
+                    ${verifiedDate ? `<div class="email-verified-date">Checked: ${verifiedDate}</div>` : ''}
+                </div>`;
+            }
+            
+            return `<div class="email-not-available">—</div>`;
+        }
+
+        // Email Finder modal functions
+        function showEmailFinderModal(targetId) {
+            currentTargetId = targetId;
+            document.getElementById('emailFinderModal').classList.add('active');
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailFinderModal').classList.remove('active');
+            currentTargetId = null;
+        }
+
+        function showInsufficientCreditsModal() {
+            document.getElementById('insufficientCreditsModal').classList.add('active');
+        }
+
+        function closeInsufficientCreditsModal() {
+            document.getElementById('insufficientCreditsModal').classList.remove('active');
+        }
+
+        // Email Finder confirmation - This will be connected to API in next stage
+        async function confirmEmailFinder() {
+            if (!currentTargetId) return;
+            
+            closeEmailModal();
+            
+            console.log(`[EMAIL_FINDER] Starting email finder for target ${currentTargetId} (STUB MODE)`);
+            
+            // Find the button and show loading state
+            const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
+            buttons.forEach(btn => {
+                btn.classList.add('loading');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
+                btn.disabled = true;
+            });
+            
+            // Simulate API call delay
+            setTimeout(() => {
+                // STUB: Return fake success response
+                const fakeResult = {
+                    success: true,
+                    emailFound: 'dummy@example.com',
+                    emailStatus: 'verified',
+                    emailVerifiedAt: new Date().toISOString()
+                };
+                
+                // Update the message data
+                const message = messagesData.find(m => m.id === currentTargetId);
+                if (message) {
+                    message.emailFound = fakeResult.emailFound;
+                    message.emailStatus = fakeResult.emailStatus;
+                    message.emailVerifiedAt = fakeResult.emailVerifiedAt;
+                }
+                
+                // Re-render to show updated data
+                renderMessages();
+                
+                console.log(`[EMAIL_FINDER] Email finder completed for target ${currentTargetId} (STUB MODE)`);
+            }, 2000);
         }
 
         // NEW: Function to clean message text by removing MSG_XXX prefix
@@ -1898,6 +2254,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             localStorage.removeItem('authToken');
             window.location.href = '/login';
         }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                closeEmailModal();
+                closeInsufficientCreditsModal();
+            }
+        });
 
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(event) {
