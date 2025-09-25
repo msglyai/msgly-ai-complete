@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -15,7 +15,8 @@
 // ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
 // 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
 // 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
-// 🔐 SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
+// 🔒 SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
+// ✅ EMAIL FINDER: Added email finder columns to target_profiles table
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -290,7 +291,7 @@ const ensurePendingRegistrationsTable = async () => {
     }
 };
 
-// 🔐 NEW: Ensure admin_audit_log table exists for security tracking
+// 🔒 NEW: Ensure admin_audit_log table exists for security tracking
 const ensureAdminAuditTable = async () => {
     try {
         console.log('[INIT] Creating admin_audit_log table...');
@@ -394,9 +395,9 @@ const initializeContextSlots = async () => {
     }
 };
 
-// 🔐 SECURE ADMIN MANAGEMENT FUNCTIONS
+// 🔒 SECURE ADMIN MANAGEMENT FUNCTIONS
 
-// 🔐 Security: Audit logging function
+// 🔒 Security: Audit logging function
 const logAdminAction = async (action, performedByUserId, targetUserId, targetEmail, details = {}, success = true, errorMessage = null, ipAddress = null, userAgent = null) => {
     try {
         await pool.query(`
@@ -410,7 +411,7 @@ const logAdminAction = async (action, performedByUserId, targetUserId, targetEma
     }
 };
 
-// 🔐 Security: Authorization middleware
+// 🔒 Security: Authorization middleware
 const requireAdminAuthorization = async (performingUserId) => {
     try {
         if (!performingUserId) {
@@ -438,7 +439,7 @@ const requireAdminAuthorization = async (performingUserId) => {
     }
 };
 
-// 🔐 Security: Input sanitization
+// 🔒 Security: Input sanitization
 const sanitizeEmail = (email) => {
     if (!email || typeof email !== 'string') {
         throw new Error('Invalid email format');
@@ -451,7 +452,7 @@ const sanitizeEmail = (email) => {
     return sanitized;
 };
 
-// 🔐 SECURE: Create admin user (requires authorization)
+// 🔒 SECURE: Create admin user (requires authorization)
 const createAdminUser = async (email, performingUserId, password = null, displayName = null, auditInfo = {}) => {
     let sanitizedEmail;
     try {
@@ -546,7 +547,7 @@ const createAdminUser = async (email, performingUserId, password = null, display
     }
 };
 
-// 🔐 SECURE: Promote user to admin (requires authorization)
+// 🔒 SECURE: Promote user to admin (requires authorization)
 const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
     let sanitizedEmail;
     try {
@@ -599,7 +600,7 @@ const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
     }
 };
 
-// 🔐 SECURE: Remove admin rights (requires authorization)
+// 🔒 SECURE: Remove admin rights (requires authorization)
 const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
     let sanitizedEmail;
     try {
@@ -661,7 +662,7 @@ const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
     }
 };
 
-// 🔐 SECURE: List admin users (requires authorization)
+// 🔒 SECURE: List admin users (requires authorization)
 const listAdminUsers = async (performingUserId, auditInfo = {}) => {
     try {
         // Security: Authorize the request
@@ -702,7 +703,7 @@ const listAdminUsers = async (performingUserId, auditInfo = {}) => {
     }
 };
 
-// 🔐 SECURE: Manual admin setup function (requires environment variable)
+// 🔒 SECURE: Manual admin setup function (requires environment variable)
 const setupInitialAdmin = async (requireConfirmation = true) => {
     try {
         const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
@@ -790,7 +791,7 @@ const setupInitialAdmin = async (requireConfirmation = true) => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + SECURE ADMIN MANAGEMENT...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + SECURE ADMIN MANAGEMENT + EMAIL FINDER...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -831,7 +832,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔐 ADMIN COLUMN
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -856,7 +857,7 @@ const initDB = async () => {
                 total_context_slots INTEGER DEFAULT 1,
                 contexts_count INTEGER DEFAULT 0,
                 
-                -- 🔐 NEW: Admin Management
+                -- 🔒 NEW: Admin Management
                 is_admin BOOLEAN DEFAULT FALSE,
                 
                 -- NEW: Billing Cycle Management
@@ -1079,13 +1080,13 @@ const initDB = async () => {
         // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
         await ensurePendingRegistrationsTable();
         
-        // 🔐 NEW: ADMIN_AUDIT_LOG TABLE for security tracking
+        // 🔒 NEW: ADMIN_AUDIT_LOG TABLE for security tracking
         await ensureAdminAuditTable();
 
         // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
         await fixPromptVersionColumn();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔐 ADMIN COLUMN
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -1112,7 +1113,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_context_slots INTEGER DEFAULT 1',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0',
                 
-                // 🔐 NEW: Admin Management column
+                // 🔒 NEW: Admin Management column
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE',
                 
                 // ✅ CHARGEBEE FIX: Add missing Chargebee columns
@@ -1125,7 +1126,7 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔐 ADMIN COLUMN');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
@@ -1142,7 +1143,7 @@ const initDB = async () => {
                     }
                     // Log admin column addition
                     if (columnQuery.includes('is_admin')) {
-                        console.log('🔐 ADMIN: Added is_admin column');
+                        console.log('🔒 ADMIN: Added is_admin column');
                     }
                     // Log Chargebee column additions
                     if (columnQuery.includes('chargebee_subscription_id')) {
@@ -1265,6 +1266,32 @@ const initDB = async () => {
                     console.log(`GPT-5 column might already exist: ${err.message}`);
                 }
             }
+
+            // ✅ EMAIL FINDER: Add email finder columns to target_profiles table
+            const emailFinderColumns = [
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS email_found TEXT',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS email_status TEXT CHECK (email_status IN (\'verified\', \'not_found\', NULL))',
+                'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ'
+            ];
+
+            console.log('-- ✅ EMAIL FINDER: Adding email finder columns to target_profiles');
+
+            for (const columnQuery of emailFinderColumns) {
+                try {
+                    await pool.query(columnQuery);
+                    if (columnQuery.includes('email_found')) {
+                        console.log('✅ EMAIL FINDER: Added email_found column');
+                    }
+                    if (columnQuery.includes('email_status')) {
+                        console.log('✅ EMAIL FINDER: Added email_status column with constraints');
+                    }
+                    if (columnQuery.includes('email_verified_at')) {
+                        console.log('✅ EMAIL FINDER: Added email_verified_at column');
+                    }
+                } catch (err) {
+                    console.log(`Email finder column might already exist: ${err.message}`);
+                }
+            }
             
             console.log('Enhanced database columns updated successfully');
         } catch (err) {
@@ -1274,10 +1301,10 @@ const initDB = async () => {
         // 🆕 NEW: Initialize context slots for existing users - FIXED VERSION
         await initializeContextSlots();
 
-        // 🔐 SECURE: Manual admin setup (requires environment variables)
+        // 🔒 SECURE: Manual admin setup (requires environment variables)
         await setupInitialAdmin();
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES + 🔐 ADMIN INDEXES
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES + 🔒 ADMIN INDEXES + ✅ EMAIL FINDER INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -1296,7 +1323,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_users_context_usage ON users(plan_context_slots, extra_context_slots, total_context_slots);
                 CREATE INDEX IF NOT EXISTS idx_users_contexts_count ON users(contexts_count);
                 
-                -- 🔐 ADMIN: Add admin index for fast admin lookups
+                -- 🔒 ADMIN: Add admin index for fast admin lookups
                 CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
                 CREATE INDEX IF NOT EXISTS idx_users_admin_email ON users(email, is_admin);
                 
@@ -1321,6 +1348,10 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
                 
+                -- ✅ EMAIL FINDER: Add email finder indexes for fast lookups
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_email_status ON target_profiles(email_status);
+                CREATE INDEX IF NOT EXISTS idx_target_profiles_email_verified_at ON target_profiles(email_verified_at);
+                
                 -- ✅ NEW: Saved contexts indexes for fast user context lookups
                 CREATE INDEX IF NOT EXISTS idx_saved_contexts_user_id ON saved_contexts(user_id);
                 CREATE INDEX IF NOT EXISTS idx_saved_contexts_created_at ON saved_contexts(created_at);
@@ -1341,12 +1372,12 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
                 
-                -- 🔐 ADMIN: Admin audit indexes for security tracking
+                -- 🔒 ADMIN: Admin audit indexes for security tracking
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log(action, created_at);
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_log(performed_by_user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔐 Admin security indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔒 Admin security indexes + ✅ Email finder indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -1362,7 +1393,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔐 SECURE ADMIN MANAGEMENT, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔒 SECURE ADMIN MANAGEMENT, EMAIL FINDER, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1451,7 +1482,7 @@ const getUserPlan = async (userId) => {
                 cancellationEffectiveDate: user.cancellation_effective_date,
                 previousPlanCode: user.previous_plan_code,
                 
-                // 🔐 ADMIN: Include admin status
+                // 🔒 ADMIN: Include admin status
                 isAdmin: user.is_admin || false,
                 
                 // UI display data
@@ -2455,7 +2486,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔐 SECURE ADMIN MANAGEMENT
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔒 SECURE ADMIN MANAGEMENT + ✅ EMAIL FINDER
 module.exports = {
     // Database connection
     pool,
@@ -2470,10 +2501,10 @@ module.exports = {
     ensureSavedContextsTable,
     ensureContextAddonTables, // ✅ NEW: Context addon tables function
     ensurePendingRegistrationsTable,
-    ensureAdminAuditTable, // 🔐 NEW: Admin audit table function
+    ensureAdminAuditTable, // 🔒 NEW: Admin audit table function
     fixPromptVersionColumn,
     initializeContextSlots, // 🆕 NEW: Initialize context slots function
-    setupInitialAdmin, // 🔐 NEW: Secure initial admin setup function
+    setupInitialAdmin, // 🔒 NEW: Secure initial admin setup function
     
     // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
@@ -2495,13 +2526,13 @@ module.exports = {
     // ✅ CANCELLATION FIX: New cancellation management function
     downgradeUserToFree,
     
-    // 🔐 NEW: SECURE Admin Management Functions
+    // 🔒 NEW: SECURE Admin Management Functions
     createAdminUser,
     promoteUserToAdmin,
     removeAdminRights,
     listAdminUsers,
-    requireAdminAuthorization, // 🔐 NEW: Authorization middleware
-    logAdminAction, // 🔐 NEW: Audit logging function
+    requireAdminAuthorization, // 🔒 NEW: Authorization middleware
+    logAdminAction, // 🔒 NEW: Audit logging function
     
     // ✅ NEW: Pending Registration Management
     storePendingRegistration,
