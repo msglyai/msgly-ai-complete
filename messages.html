@@ -373,35 +373,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 600;
         }
 
-        /* Response Rate Tooltip */
-        .stat-item.response-rate {
-            cursor: help;
-        }
-
-        .stat-item.response-rate::after {
-            content: "Percentage of sent messages that received replies";
-            position: absolute;
-            bottom: -40px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--black);
-            color: var(--white);
-            padding: 0.5rem;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            z-index: 1000;
-        }
-
-        .stat-item.response-rate:hover::after {
-            opacity: 1;
-            visibility: visible;
-            bottom: -35px;
-        }
-
         .messages-filters {
             display: flex;
             gap: 0.8rem;
@@ -435,8 +406,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             border-color: var(--primary-purple);
         }
 
-        /* MESSAGES TABLE - Enhanced Design with Email Finder columns */
-        .messages-card {
+        /* CARD-BASED LAYOUT */
+        .messages-cards-container {
             background: var(--white);
             border-radius: 16px;
             padding: 1.5rem;
@@ -446,7 +417,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             overflow: hidden;
         }
 
-        .messages-card::before {
+        .messages-cards-container::before {
             content: '';
             position: absolute;
             top: 0;
@@ -456,167 +427,132 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
         }
 
-        .messages-table-wrapper {
-            overflow-x: auto;
-            border-radius: 12px;
-            border: 1px solid var(--light-gray);
+        .messages-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .message-card {
             background: var(--white);
-        }
-
-        .messages-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85rem;
-        }
-
-        .messages-table th {
-            background: linear-gradient(135deg, var(--light-purple) 0%, rgba(128, 57, 223, 0.08) 100%);
-            color: var(--dark-gray);
-            font-weight: 700;
-            padding: 1rem 0.75rem;
-            text-align: left;
-            border-bottom: 2px solid var(--primary-purple);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .messages-table td {
-            padding: 1rem 0.75rem;
-            border-bottom: 1px solid var(--light-gray);
-            vertical-align: top;
-        }
-
-        .messages-table tbody tr {
+            border: 2px solid var(--light-gray);
+            border-radius: 16px;
+            padding: 1.5rem;
             transition: all 0.3s ease;
-        }
-
-        .messages-table tbody tr:hover {
-            background: rgba(128, 57, 223, 0.02);
-        }
-
-        /* Column Widths - UPDATED for Email Finder columns */
-        .col-message { width: 25%; }
-        .col-context { width: 18%; }
-        .col-target { width: 15%; }
-        .col-email-ask { width: 8%; }
-        .col-email-verify { width: 12%; }
-        .col-sent { width: 8%; }
-        .col-reply { width: 8%; }
-        .col-comment { width: 10%; }
-        .col-actions { width: 4%; }
-
-        /* Message Content */
-        .message-content {
-            max-width: 400px;
-        }
-
-        .message-text {
-            line-height: 1.4;
-            color: var(--dark-gray);
-        }
-
-        .message-text.truncated {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            position: relative;
             overflow: hidden;
         }
 
-        .message-expand {
-            color: var(--primary-purple);
-            cursor: pointer;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-top: 0.5rem;
-            display: inline-block;
-            transition: all 0.3s ease;
+        .message-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-purple);
         }
 
-        .message-expand:hover {
-            color: var(--dark-purple);
-            text-decoration: underline;
+        .message-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
-        .message-id {
-            font-size: 0.7rem;
-            color: var(--gray);
-            font-weight: 600;
-            background: var(--light-gray);
-            padding: 0.2rem 0.5rem;
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-            display: inline-block;
+        .message-card:hover::before {
+            opacity: 1;
         }
 
-        /* Context Column Styles */
-        .context-content {
-            max-width: 300px;
-            font-size: 0.8rem;
-            line-height: 1.4;
-            color: var(--dark-gray);
-        }
-
-        .context-content.truncated {
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .context-expand {
-            color: var(--primary-purple);
-            cursor: pointer;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-top: 0.3rem;
-            display: inline-block;
-            transition: all 0.3s ease;
-        }
-
-        .context-expand:hover {
-            color: var(--dark-purple);
-            text-decoration: underline;
-        }
-
-        /* Target Profile - Show first name only */
-        .target-profile {
+        /* Target Profile Header */
+        .card-profile-header {
             display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
+            align-items: center;
+            gap: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-gray);
+            margin-bottom: 1.5rem;
         }
 
-        .target-name {
+        .profile-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--white);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .profile-name {
+            font-size: 1.3rem;
             font-weight: 700;
             color: var(--black);
+            margin-bottom: 0.3rem;
+        }
+
+        .profile-role {
             font-size: 0.9rem;
-        }
-
-        .target-role {
             color: var(--dark-gray);
-            font-size: 0.8rem;
             font-weight: 500;
+            margin-bottom: 0.2rem;
         }
 
-        .target-company {
+        .profile-company {
+            font-size: 0.8rem;
             color: var(--gray);
-            font-size: 0.75rem;
         }
 
-        /* EMAIL FINDER STYLES */
+        /* Email Finder Section */
+        .email-finder-section {
+            background: rgba(128, 57, 223, 0.03);
+            border: 1px solid rgba(128, 57, 223, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .email-finder-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-purple);
+        }
+
+        .email-finder-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
         .email-ask-btn {
             background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             color: var(--white);
             border: none;
             border-radius: 8px;
-            padding: 0.5rem 0.8rem;
-            font-size: 0.75rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.4rem;
             text-transform: uppercase;
             letter-spacing: 0.3px;
             box-shadow: var(--glow-shadow);
@@ -677,19 +613,131 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .email-not-available {
             color: var(--gray);
             font-style: italic;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
         }
 
-        /* STATUS TOGGLES - Modern iOS-style Design */
-        .status-toggle {
+        /* Message Types Section */
+        .message-types-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .message-type-block {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 12px;
+            background: rgba(128, 57, 223, 0.01);
+        }
+
+        .message-type-block.linkedin {
+            border-left: 4px solid #0077B5;
+        }
+
+        .message-type-block.connection {
+            border-left: 4px solid var(--accent-pink);
+        }
+
+        .message-type-block.email {
+            border-left: 4px solid var(--warning-orange);
+        }
+
+        .message-type-header {
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+        }
+
+        .message-type-label {
+            display: flex;
             align-items: center;
             gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+
+        .message-type-label i {
+            font-size: 1rem;
+        }
+
+        .message-type-label.linkedin { color: #0077B5; }
+        .message-type-label.connection { color: var(--accent-pink); }
+        .message-type-label.email { color: var(--warning-orange); }
+
+        .copy-btn {
+            background: var(--light-gray);
+            border: 1px solid var(--gray);
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--dark-gray);
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-purple);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        .copy-btn.copied {
+            background: var(--success-green);
+            color: var(--white);
+            border-color: var(--success-green);
+        }
+
+        .message-text {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--dark-gray);
+            background: rgba(128, 57, 223, 0.03);
+            padding: 0.8rem;
+            border-radius: 8px;
+            white-space: pre-wrap;
+        }
+
+        .message-text.empty {
+            color: var(--gray);
+            font-style: italic;
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        /* Status and Comments Section */
+        .card-status-section {
+            padding: 1rem;
+            background: rgba(128, 57, 223, 0.02);
+            border-radius: 12px;
+            border: 1px solid rgba(128, 57, 223, 0.08);
+        }
+
+        .status-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-item {
+            text-align: center;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
         }
 
         .toggle-switch {
-            position: relative;
             width: 60px;
             height: 28px;
             background: var(--light-gray);
@@ -697,6 +745,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             cursor: pointer;
             transition: all 0.3s ease;
             border: 2px solid transparent;
+            position: relative;
+            margin: 0 auto 0.5rem;
         }
 
         .toggle-switch.pending {
@@ -713,11 +763,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
             border-color: var(--error-red);
             box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
-        }
-
-        .toggle-switch.modified {
-            border-color: var(--warning-orange);
-            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
         }
 
         .toggle-slider {
@@ -758,8 +803,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
-            min-width: 50px;
-            text-align: center;
         }
 
         .toggle-switch.pending + .toggle-label {
@@ -774,7 +817,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--error-red);
         }
 
-        /* Comments Field */
         .comment-field {
             width: 100%;
             min-height: 60px;
@@ -794,35 +836,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
         }
 
-        .comment-field.modified {
-            border-color: var(--warning-orange);
-            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
-        }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            min-width: 80px;
-            align-items: center;
-        }
-
         .save-btn {
-            padding: 0.5rem 1rem;
+            width: 100%;
+            padding: 0.8rem;
             background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             color: var(--white);
             border: none;
             border-radius: 8px;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+            margin-top: 1rem;
             opacity: 0.6;
-            transform: scale(0.9);
-            box-shadow: var(--glow-shadow);
+            transform: scale(0.98);
         }
 
         .save-btn.modified {
@@ -845,23 +874,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: var(--success-green);
         }
 
-        .refresh-btn {
-            background: none;
-            border: none;
-            color: var(--gray);
-            cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            font-size: 1.1rem;
-        }
-
-        .refresh-btn:hover {
-            background: var(--light-purple);
-            color: var(--primary-purple);
-        }
-
-        /* MODAL STYLES - Email Finder Modals */
+        /* MODAL STYLES */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -1000,131 +1013,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin: 0 auto;
         }
 
-        /* MOBILE CARDS VIEW - Updated with Email Finder */
-        .messages-cards {
-            display: none;
-        }
-
-        .message-card {
-            background: var(--white);
-            border: 1px solid var(--light-gray);
-            border-radius: 12px;
-            padding: 1.2rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .message-card:hover {
-            box-shadow: var(--shadow);
-            transform: translateY(-1px);
-        }
-
-        .message-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 1rem;
-            gap: 1rem;
-        }
-
-        .card-target-profile {
-            flex: 1;
-        }
-
-        .card-message-content {
-            margin-bottom: 1rem;
-        }
-
-        .card-message-text {
-            background: var(--light-gray);
-            padding: 0.8rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            line-height: 1.4;
-            color: var(--dark-gray);
-            margin-bottom: 0.8rem;
-        }
-
-        /* Context section for mobile */
-        .card-context-content {
-            background: rgba(128, 57, 223, 0.05);
-            padding: 0.8rem;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            line-height: 1.4;
-            color: var(--dark-gray);
-            border-left: 3px solid var(--primary-purple);
-        }
-
-        .card-context-label {
-            font-size: 0.7rem;
-            color: var(--primary-purple);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Email Finder section for mobile */
-        .card-email-section {
-            background: rgba(128, 57, 223, 0.03);
-            border: 1px solid rgba(128, 57, 223, 0.1);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .card-email-header {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--primary-purple);
-            margin-bottom: 0.8rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .card-email-content {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .card-status-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1.2rem;
-        }
-
-        .card-status-item {
-            text-align: center;
-        }
-
-        .card-status-label {
-            font-size: 0.7rem;
+        .refresh-btn {
+            background: none;
+            border: none;
             color: var(--gray);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
         }
 
-        .card-comment {
-            margin-bottom: 1rem;
-        }
-
-        .card-comment label {
-            display: block;
-            font-size: 0.8rem;
-            color: var(--dark-gray);
-            font-weight: 600;
-            margin-bottom: 0.4rem;
-        }
-
-        .card-actions {
-            display: flex;
-            justify-content: flex-end;
+        .refresh-btn:hover {
+            background: var(--light-purple);
+            color: var(--primary-purple);
         }
 
         @keyframes spin {
@@ -1132,17 +1034,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             100% { transform: rotate(360deg); }
         }
 
-        /* Mobile Responsive - Updated for Email Finder */
-        @media (max-width: 1024px) {
-            .messages-table-wrapper {
-                overflow-x: auto;
-            }
-
-            .messages-table {
-                min-width: 1300px; /* Increased for Email Finder columns */
-            }
-        }
-
+        /* Mobile Responsive */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -1178,38 +1070,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 flex-wrap: wrap;
             }
 
-            .stat-item {
-                min-width: 80px;
-                padding: 0.6rem;
+            .messages-cards-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
             }
 
-            /* Switch to card view on mobile */
-            .messages-table-wrapper {
-                display: none;
-            }
-
-            .messages-cards {
-                display: block;
-            }
-
-            .toggle-switch {
-                width: 50px;
-                height: 24px;
-            }
-
-            .toggle-slider {
-                width: 18px;
-                height: 18px;
-                font-size: 0.6rem;
-            }
-
-            .toggle-switch.yes .toggle-slider {
-                transform: translateX(26px);
+            .status-row {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
             }
 
             .modal {
                 max-width: 350px;
                 padding: 1.5rem;
+            }
+        }
+
+        @media (min-width: 769px) and (max-width: 1200px) {
+            .messages-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1201px) {
+            .messages-cards-grid {
+                grid-template-columns: repeat(3, 1fr);
             }
         }
     </style>
@@ -1368,7 +1253,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="stat-number" id="repliedMessages">0</div>
                     <div class="stat-label">Replied</div>
                 </div>
-                <div class="stat-item response-rate">
+                <div class="stat-item">
                     <div class="stat-number" id="responseRate">0%</div>
                     <div class="stat-label">Response Rate</div>
                 </div>
@@ -1397,37 +1282,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </button>
         </div>
 
-        <div class="messages-card">
+        <div class="messages-cards-container">
             <!-- Loading State -->
             <div class="loading" id="loadingState">
                 <div class="spinner"></div>
                 <p>Loading messages...</p>
             </div>
 
-            <!-- Desktop Table View -->
-            <div class="messages-table-wrapper" id="messagesTableWrapper" style="display: none;">
-                <table class="messages-table">
-                    <thead>
-                        <tr>
-                            <th class="col-message">Message</th>
-                            <th class="col-context">Context</th>
-                            <th class="col-target">Target Profile</th>
-                            <th class="col-email-ask">Ask Email (powered by Snov)</th>
-                            <th class="col-email-verify">Verification (powered by Snov)</th>
-                            <th class="col-sent">Sent</th>
-                            <th class="col-reply">Reply</th>
-                            <th class="col-comment">Comments</th>
-                            <th class="col-actions">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="messagesTableBody">
-                        <!-- Messages will be populated here -->
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mobile Cards View -->
-            <div class="messages-cards" id="messagesCards">
+            <!-- Cards Grid -->
+            <div class="messages-cards-grid" id="messagesCardsGrid" style="display: none;">
                 <!-- Message cards will be populated here -->
             </div>
 
@@ -1446,25 +1309,25 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         // Global variables
         let messagesData = [];
         let filteredMessages = [];
+        let groupedMessages = {};
         let currentFilter = 'all';
         let currentSearchTerm = '';
         let pendingChanges = new Map();
-        let currentTargetId = null; // For email finder modal
-        let currentUserPlan = null; // Store user plan info
+        let currentTargetId = null; 
+        let currentUserPlan = null;
 
-        // FIXED: Authentication check and data loading + user profile loading
+        // Authentication check and data loading
         document.addEventListener('DOMContentLoaded', function() {
             if (!checkAuthentication()) {
-                return; // Redirect will happen in checkAuthentication
+                return;
             }
-            loadUserProfile(); // NEW: Load user profile for sidebar
+            loadUserProfile();
             loadMessagesData();
         });
 
         function checkAuthentication() {
             const token = getAuthToken();
             if (!token) {
-                // FIXED: Redirect to login instead of dashboard
                 window.location.href = '/login';
                 return false;
             }
@@ -1475,7 +1338,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return localStorage.getItem('authToken');
         }
 
-        // NEW: Load user profile for sidebar (FIXES LOADING ISSUE)
+        // Load user profile for sidebar
         async function loadUserProfile() {
             try {
                 const token = getAuthToken();
@@ -1505,10 +1368,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Update sidebar user info
                     const user = data.data.user;
                     
-                    // Store plan info globally for email finder checks
                     currentUserPlan = {
                         planCode: user.planCode || 'free',
                         totalCredits: user.totalCredits || 0,
@@ -1518,7 +1379,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
                     
-                    // FIXED: Use correct field name and add plan name mapping
                     const planCode = user.planCode || 'free';
                     const planNames = {
                         'free': 'Free Plan',
@@ -1531,7 +1391,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     };
                     document.getElementById('sidebarUserPlan').textContent = planNames[planCode] || 'Unknown Plan';
                     
-                    // Update avatar with initials
                     const displayName = user.displayName || user.email;
                     const initials = getInitials(displayName);
                     document.getElementById('sidebarUserAvatar').textContent = initials;
@@ -1543,7 +1402,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
             } catch (error) {
                 console.error('[PROFILE] Error loading user profile:', error);
-                // Fallback: show generic info
                 document.getElementById('sidebarUserName').textContent = 'User';
                 document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
                 document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
@@ -1551,7 +1409,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // NEW: Helper function to get initials
         function getInitials(name) {
             if (!name) return '??';
             
@@ -1563,23 +1420,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // REAL DATA: Authentication-aware data loading from API
+        // Load messages data from API
         async function loadMessagesData() {
             try {
-                // Show loading state
                 document.getElementById('loadingState').style.display = 'flex';
                 
-                // Check auth token
                 const token = getAuthToken();
                 if (!token) {
-                    // FIXED: Redirect to login instead of dashboard
                     window.location.href = '/login';
                     return;
                 }
                 
-                console.log('[MESSAGES] Loading real messages from API...');
+                console.log('[MESSAGES] Loading messages from API...');
                 
-                // REAL API CALL: Get messages from database
                 const response = await fetch('/messages/history', {
                     method: 'GET',
                     headers: {
@@ -1589,9 +1442,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 });
                 
                 if (response.status === 401) {
-                    // Token expired, redirect to login
                     localStorage.removeItem('authToken');
-                    // FIXED: Redirect to login instead of dashboard
                     window.location.href = '/login';
                     return;
                 }
@@ -1604,7 +1455,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 if (data.success) {
                     messagesData = data.data || [];
-                    console.log(`[MESSAGES] Loaded ${messagesData.length} real messages from database`);
+                    console.log(`[MESSAGES] Loaded ${messagesData.length} messages from database`);
+                    groupMessagesByTarget();
                 } else {
                     throw new Error(data.error || 'Failed to load messages');
                 }
@@ -1614,10 +1466,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             } catch (error) {
                 console.error('[MESSAGES] Error loading messages:', error);
                 
-                // Check if it's an authentication error
                 if (error.message && error.message.includes('401')) {
                     localStorage.removeItem('authToken');
-                    // FIXED: Redirect to login instead of dashboard
                     window.location.href = '/login';
                     return;
                 }
@@ -1626,20 +1476,67 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
+        // Group messages by target profile
+        function groupMessagesByTarget() {
+            groupedMessages = {};
+            
+            messagesData.forEach(message => {
+                const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
+                
+                if (!groupedMessages[targetKey]) {
+                    groupedMessages[targetKey] = {
+                        target: message.targetProfile,
+                        messages: {
+                            linkedin: null,
+                            connection: null,
+                            email: null
+                        },
+                        // Use the first message's metadata for status/comments
+                        id: message.id,
+                        sent: message.sent,
+                        gotReply: message.gotReply,
+                        comments: message.comments,
+                        emailFound: message.emailFound,
+                        emailStatus: message.emailStatus,
+                        emailVerifiedAt: message.emailVerifiedAt
+                    };
+                }
+                
+                // Determine message type and assign
+                if (message.message_type === 'connection_request') {
+                    groupedMessages[targetKey].messages.connection = message;
+                } else if (message.message_type === 'cold_email') {
+                    groupedMessages[targetKey].messages.email = message;
+                } else {
+                    groupedMessages[targetKey].messages.linkedin = message;
+                }
+            });
+            
+            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles');
+        }
+
         function applyFilters() {
+            let filtered = Object.values(groupedMessages);
+            
             // Apply status filter
-            let filtered = filterMessagesByStatus(messagesData);
+            filtered = filterMessagesByStatus(filtered);
             
             // Apply search filter
             if (currentSearchTerm) {
-                filtered = filtered.filter(message => 
-                    (message.message && message.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.context && message.context.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.target.firstName && message.target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.targetProfile.role && message.targetProfile.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.targetProfile.company && message.targetProfile.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                    (message.comments && message.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
-                );
+                filtered = filtered.filter(group => {
+                    const target = group.target;
+                    const messages = group.messages;
+                    
+                    return (
+                        (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.company && target.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (messages.linkedin && messages.linkedin.message && messages.linkedin.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (messages.connection && messages.connection.message && messages.connection.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (messages.email && messages.email.message && messages.email.message.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
+                    );
+                });
             }
             
             filteredMessages = filtered;
@@ -1653,267 +1550,231 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function renderMessages() {
-            const tableBody = document.getElementById('messagesTableBody');
-            const cardsContainer = document.getElementById('messagesCards');
+            const cardsGrid = document.getElementById('messagesCardsGrid');
             
             if (filteredMessages.length === 0) {
                 document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('messagesTableWrapper').style.display = 'none';
+                document.getElementById('messagesCardsGrid').style.display = 'none';
                 document.getElementById('emptyState').style.display = 'block';
                 return;
             }
             
-            // Clear existing content
-            tableBody.innerHTML = '';
-            cardsContainer.innerHTML = '';
+            cardsGrid.innerHTML = '';
             
-            filteredMessages.forEach(message => {
-                // Render table row
-                const tableRow = createTableRow(message);
-                tableBody.appendChild(tableRow);
-                
-                // Render mobile card
-                const messageCard = createMessageCard(message);
-                cardsContainer.appendChild(messageCard);
+            filteredMessages.forEach(messageGroup => {
+                const messageCard = createMessageCard(messageGroup);
+                cardsGrid.appendChild(messageCard);
             });
             
-            // Show content
             document.getElementById('loadingState').style.display = 'none';
-            document.getElementById('messagesTableWrapper').style.display = 'block';
+            document.getElementById('messagesCardsGrid').style.display = 'grid';
             document.getElementById('emptyState').style.display = 'none';
         }
 
-        // Updated: Add Email Finder columns to table row
-        function createTableRow(message) {
-            const row = document.createElement('tr');
-            
-            // Clean message text by removing MSG_XXX prefix
-            const cleanMessage = cleanMessageText(message.message || 'No message content');
-            const context = message.context || 'No context available';
-            
-            row.innerHTML = `
-                <td class="col-message">
-                    <div class="message-content">
-                        <div class="message-text ${cleanMessage.length > 150 ? 'truncated' : ''}" id="message-${message.id}">
-                            ${cleanMessage}
-                        </div>
-                        ${cleanMessage.length > 150 ? 
-                            `<div class="message-expand" onclick="toggleMessageExpand(${message.id})">Read more...</div>` : ''
-                        }
-                    </div>
-                </td>
-                <td class="col-context">
-                    <div class="context-content ${context.length > 100 ? 'truncated' : ''}" id="context-${message.id}">
-                        ${context}
-                    </div>
-                    ${context.length > 100 ? 
-                        `<div class="context-expand" onclick="toggleContextExpand(${message.id})">Show more...</div>` : ''
-                    }
-                </td>
-                <td class="col-target">
-                    <div class="target-profile">
-                        <div class="target-name">${message.targetProfile.firstName || 'Unknown'}</div>
-                        <div class="target-role">${message.targetProfile.role || 'Professional'}</div>
-                        <div class="target-company">${message.targetProfile.company || 'Company'}</div>
-                    </div>
-                </td>
-                <td class="col-email-ask">
-                    ${createEmailAskButton(message)}
-                </td>
-                <td class="col-email-verify">
-                    ${createEmailVerificationDisplay(message)}
-                </td>
-                <td class="col-sent">
-                    <div class="status-toggle">
-                        <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
-                            <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
-                        </div>
-                        <div class="toggle-label">${getStatusLabel(message.sent)}</div>
-                    </div>
-                </td>
-                <td class="col-reply">
-                    <div class="status-toggle">
-                        <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
-                            <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
-                        </div>
-                        <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
-                    </div>
-                </td>
-                <td class="col-comment">
-                    <textarea 
-                        class="comment-field" 
-                        placeholder="Add notes..."
-                        onchange="updateComment(${message.id}, this.value)"
-                        onkeyup="markFieldModified(${message.id})"
-                    >${message.comments || ''}</textarea>
-                </td>
-                <td class="col-actions">
-                    <div class="action-buttons">
-                        <button class="save-btn" id="save-${message.id}" onclick="saveMessage(${message.id})">
-                            <i class="fas fa-save"></i>
-                        </button>
-                    </div>
-                </td>
-            `;
-            return row;
-        }
-
-        // Updated: Mobile cards with Email Finder section
-        function createMessageCard(message) {
+        function createMessageCard(messageGroup) {
             const card = document.createElement('div');
             card.className = 'message-card';
+            card.setAttribute('data-target-id', messageGroup.id);
             
-            // Clean message text by removing MSG_XXX prefix
-            const cleanMessage = cleanMessageText(message.message || 'No message content');
-            const context = message.context || 'No context available';
+            const target = messageGroup.target;
+            const messages = messageGroup.messages;
+            const initials = getInitials(target.firstName || 'User');
             
             card.innerHTML = `
-                <div class="message-card-header">
-                    <div class="card-target-profile">
-                        <div class="target-name">${message.targetProfile.firstName || 'Unknown'}</div>
-                        <div class="target-role">${message.targetProfile.role || 'Professional'}</div>
-                        <div class="target-company">${message.targetProfile.company || 'Company'}</div>
+                <div class="card-profile-header">
+                    <div class="profile-avatar">${initials}</div>
+                    <div class="profile-info">
+                        <div class="profile-name">${target.firstName || 'Unknown'}</div>
+                        <div class="profile-role">${target.role || 'Professional'}</div>
+                        <div class="profile-company">${target.company || 'Company'}</div>
                     </div>
-                </div>
-                
-                <div class="card-message-content">
-                    <div class="card-message-text ${cleanMessage.length > 120 ? 'truncated' : ''}" id="card-message-${message.id}">
-                        ${cleanMessage}
-                    </div>
-                    ${cleanMessage.length > 120 ? 
-                        `<div class="message-expand" onclick="toggleCardMessageExpand(${message.id})">Read more...</div>` : ''
-                    }
-                    
-                    <div class="card-context-label">Context Used:</div>
-                    <div class="card-context-content ${context.length > 80 ? 'truncated' : ''}" id="card-context-${message.id}">
-                        ${context}
-                    </div>
-                    ${context.length > 80 ? 
-                        `<div class="context-expand" onclick="toggleCardContextExpand(${message.id})">Show more...</div>` : ''
-                    }
                 </div>
 
-                <div class="card-email-section">
-                    <div class="card-email-header">
+                <div class="email-finder-section">
+                    <div class="email-finder-header">
                         <i class="fas fa-at"></i>
                         Email Finder (powered by Snov.io)
                     </div>
-                    <div class="card-email-content">
-                        ${createEmailAskButton(message)}
-                        ${createEmailVerificationDisplay(message, true)}
+                    <div class="email-finder-content">
+                        ${createEmailAskButton(messageGroup)}
+                        ${createEmailVerificationDisplay(messageGroup)}
                     </div>
                 </div>
-                
-                <div class="card-status-row">
-                    <div class="card-status-item">
-                        <div class="card-status-label">Message Sent</div>
-                        <div class="status-toggle">
-                            <div class="toggle-switch ${message.sent}" onclick="toggleStatus(${message.id}, 'sent')">
-                                <div class="toggle-slider">${getStatusIcon(message.sent)}</div>
+
+                <div class="message-types-section">
+                    ${createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin')}
+                    ${createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus')}
+                    ${createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope')}
+                </div>
+
+                <div class="card-status-section">
+                    <div class="status-row">
+                        <div class="status-item">
+                            <div class="status-label">Message Sent</div>
+                            <div class="toggle-switch ${messageGroup.sent}" onclick="toggleStatus(${messageGroup.id}, 'sent')">
+                                <div class="toggle-slider">${getStatusIcon(messageGroup.sent)}</div>
                             </div>
-                            <div class="toggle-label">${getStatusLabel(message.sent)}</div>
+                            <div class="toggle-label">${getStatusLabel(messageGroup.sent)}</div>
+                        </div>
+                        
+                        <div class="status-item">
+                            <div class="status-label">Got Reply</div>
+                            <div class="toggle-switch ${messageGroup.gotReply}" onclick="toggleStatus(${messageGroup.id}, 'gotReply')">
+                                <div class="toggle-slider">${getStatusIcon(messageGroup.gotReply)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(messageGroup.gotReply)}</div>
                         </div>
                     </div>
                     
-                    <div class="card-status-item">
-                        <div class="card-status-label">Got Reply</div>
-                        <div class="status-toggle">
-                            <div class="toggle-switch ${message.gotReply}" onclick="toggleStatus(${message.id}, 'gotReply')">
-                                <div class="toggle-slider">${getStatusIcon(message.gotReply)}</div>
-                            </div>
-                            <div class="toggle-label">${getStatusLabel(message.gotReply)}</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card-comment">
-                    <label>Comments:</label>
                     <textarea 
                         class="comment-field" 
-                        placeholder="Add notes..."
-                        onchange="updateComment(${message.id}, this.value)"
-                        onkeyup="markFieldModified(${message.id})"
-                    >${message.comments || ''}</textarea>
-                </div>
-                
-                <div class="card-actions">
-                    <button class="save-btn" id="card-save-${message.id}" onclick="saveMessage(${message.id})">
-                        <i class="fas fa-save"></i> Save
+                        placeholder="Add notes about this contact..."
+                        onchange="updateComment(${messageGroup.id}, this.value)"
+                        onkeyup="markFieldModified(${messageGroup.id})"
+                    >${messageGroup.comments || ''}</textarea>
+                    
+                    <button class="save-btn" id="save-${messageGroup.id}" onclick="saveMessage(${messageGroup.id})">
+                        <i class="fas fa-save"></i> Save Changes
                     </button>
                 </div>
             `;
+            
             return card;
         }
 
-        // Email Finder helper functions
-        function createEmailAskButton(message) {
-            // Check if email already exists
-            if (message.emailStatus === 'verified' || message.emailStatus === 'not_found') {
-                return `<button class="email-ask-btn" disabled title="Email already verified.">
+        function createMessageTypeBlock(type, label, message, iconClass) {
+            const messageText = message ? cleanMessageText(message.message || '') : '';
+            const isEmpty = !message || !messageText;
+            
+            return `
+                <div class="message-type-block ${type}">
+                    <div class="message-type-header">
+                        <div class="message-type-label ${type}">
+                            <i class="${iconClass}"></i>
+                            ${label}
+                        </div>
+                        ${!isEmpty ? `<button class="copy-btn" onclick="copyMessage('${type}', ${message.id}, this)">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>` : ''}
+                    </div>
+                    <div class="message-text ${isEmpty ? 'empty' : ''}">
+                        ${isEmpty ? 'No message generated yet' : messageText}
+                    </div>
+                </div>
+            `;
+        }
+
+        function createEmailAskButton(messageGroup) {
+            if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
+                return `<button class="email-ask-btn" disabled title="Email already processed.">
                     <i class="fas fa-check"></i> Done
                 </button>`;
             }
             
-            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${message.id})" title="Ask Email (2 credits)">
+            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${messageGroup.id})" title="Ask Email (2 credits)">
                 <i class="fas fa-search"></i> Ask Email
             </button>`;
         }
 
-        function createEmailVerificationDisplay(message, isMobile = false) {
-            if (!message.emailStatus) {
-                return `<div class="email-not-available">—</div>`;
+        function createEmailVerificationDisplay(messageGroup) {
+            if (!messageGroup.emailStatus) {
+                return `<div class="email-not-available">Not searched</div>`;
             }
             
-            if (message.emailStatus === 'verified') {
-                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString('en-US', { 
+            if (messageGroup.emailStatus === 'verified') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
                     year: 'numeric', 
                     month: 'short', 
                     day: 'numeric' 
                 }) : '';
                 return `<div class="email-verification">
-                    <div class="email-address">${message.emailFound || 'N/A'}</div>
+                    <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
                     <div class="email-status verified">
                         <i class="fas fa-check-circle"></i> Verified
                     </div>
                     ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
                 </div>`;
-            } else if (message.emailStatus === 'not_found') {
-                const verifiedDate = message.emailVerifiedAt ? new Date(message.emailVerifiedAt).toLocaleDateString('en-US', { 
+            } else if (messageGroup.emailStatus === 'not_found') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
                     year: 'numeric', 
                     month: 'short', 
                     day: 'numeric' 
                 }) : '';
                 return `<div class="email-verification">
-                    <div class="email-address">—</div>
                     <div class="email-status not-found">
                         <i class="fas fa-times-circle"></i> Not Found
                     </div>
-                    ${verifiedDate ? `<div class="email-verified-date">Checked: ${verifiedDate}</div>` : ''}
+                    ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
                 </div>`;
             }
             
-            return `<div class="email-not-available">—</div>`;
+            return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // Email Finder modal functions with plan checking
+        // Copy message functionality
+        async function copyMessage(type, messageId, button) {
+            try {
+                // Find the message
+                const message = messagesData.find(m => m.id === messageId);
+                if (!message || !message.message) {
+                    throw new Error('Message not found');
+                }
+                
+                const cleanMessage = cleanMessageText(message.message);
+                
+                // Copy to clipboard
+                await navigator.clipboard.writeText(cleanMessage);
+                
+                // Show success feedback
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('copied');
+                }, 2000);
+                
+                console.log(`[COPY] ${type} message copied to clipboard`);
+                
+            } catch (error) {
+                console.error('[COPY] Error copying message:', error);
+                
+                // Show error feedback
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                }, 2000);
+            }
+        }
+
+        function cleanMessageText(messageText) {
+            if (!messageText) return '';
+            
+            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
+            const finalText = cleanedText.replace(/^Subject:\s*/i, '');
+            
+            return finalText.trim();
+        }
+
+        // Email Finder modal functions
         function showEmailFinderModal(targetId) {
             currentTargetId = targetId;
             
-            // Check if user is on free plan
             if (currentUserPlan && currentUserPlan.planCode === 'free') {
                 console.log('[EMAIL_FINDER] Free user detected, showing upgrade modal');
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
-            // Check if user has enough credits (2 credits required)
             if (currentUserPlan && currentUserPlan.totalCredits < 2) {
                 console.log('[EMAIL_FINDER] Insufficient credits, showing credits modal');
                 document.getElementById('insufficientCreditsModal').classList.add('active');
                 return;
             }
             
-            // Show regular email finder modal for paid users with credits
             console.log('[EMAIL_FINDER] Showing email finder modal for paid user');
             document.getElementById('emailFinderModal').classList.add('active');
         }
@@ -1921,10 +1782,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function closeEmailModal() {
             document.getElementById('emailFinderModal').classList.remove('active');
             currentTargetId = null;
-        }
-
-        function showInsufficientCreditsModal() {
-            document.getElementById('insufficientCreditsModal').classList.add('active');
         }
 
         function closeInsufficientCreditsModal() {
@@ -1935,7 +1792,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('upgradeModal').classList.remove('active');
         }
 
-        // Email Finder confirmation - This will be connected to API in next stage
         async function confirmEmailFinder() {
             if (!currentTargetId) return;
             
@@ -1943,7 +1799,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             console.log(`[EMAIL_FINDER] Starting email finder for target ${currentTargetId} (STUB MODE)`);
             
-            // Find the button and show loading state
             const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
@@ -1951,9 +1806,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 btn.disabled = true;
             });
             
-            // Simulate API call delay
             setTimeout(() => {
-                // STUB: Return fake success response
                 const fakeResult = {
                     success: true,
                     emailFound: 'dummy@example.com',
@@ -1961,32 +1814,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     emailVerifiedAt: new Date().toISOString()
                 };
                 
-                // Update the message data
-                const message = messagesData.find(m => m.id === currentTargetId);
-                if (message) {
-                    message.emailFound = fakeResult.emailFound;
-                    message.emailStatus = fakeResult.emailStatus;
-                    message.emailVerifiedAt = fakeResult.emailVerifiedAt;
-                }
+                // Update the grouped message data
+                Object.values(groupedMessages).forEach(group => {
+                    if (group.id === currentTargetId) {
+                        group.emailFound = fakeResult.emailFound;
+                        group.emailStatus = fakeResult.emailStatus;
+                        group.emailVerifiedAt = fakeResult.emailVerifiedAt;
+                    }
+                });
                 
-                // Re-render to show updated data
                 renderMessages();
                 
                 console.log(`[EMAIL_FINDER] Email finder completed for target ${currentTargetId} (STUB MODE)`);
             }, 2000);
-        }
-
-        // NEW: Function to clean message text by removing MSG_XXX prefix
-        function cleanMessageText(messageText) {
-            if (!messageText) return '';
-            
-            // Remove MSG_XXX pattern from the beginning of the message
-            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
-            
-            // Also remove Subject: prefix if it exists
-            const finalText = cleanedText.replace(/^Subject:\s*/i, '');
-            
-            return finalText.trim();
         }
 
         function getStatusIcon(status) {
@@ -2006,24 +1846,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function toggleStatus(messageId, field) {
-            const message = messagesData.find(m => m.id === messageId);
-            if (!message) return;
+            // Find the message group
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup) return;
             
-            // Cycle through: pending -> yes -> no -> pending
-            switch(message[field]) {
+            switch(messageGroup[field]) {
                 case 'pending':
-                    message[field] = 'yes';
+                    messageGroup[field] = 'yes';
                     break;
                 case 'yes':
-                    message[field] = 'no';
+                    messageGroup[field] = 'no';
                     break;
                 case 'no':
-                    message[field] = 'pending';
+                    messageGroup[field] = 'pending';
                     break;
             }
             
             markMessageModified(messageId);
-            updateToggleDisplay(messageId, field, message[field]);
+            updateToggleDisplay(messageId, field, messageGroup[field]);
             updateMessagesStats();
         }
 
@@ -2035,7 +1875,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             selectors.forEach(selector => {
                 const toggles = document.querySelectorAll(selector);
                 toggles.forEach(toggle => {
-                    toggle.className = `toggle-switch ${status} modified`;
+                    toggle.className = `toggle-switch ${status}`;
                     const slider = toggle.querySelector('.toggle-slider');
                     const label = toggle.nextElementSibling;
                     
@@ -2046,9 +1886,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function updateComment(messageId, value) {
-            const message = messagesData.find(m => m.id === messageId);
-            if (message) {
-                message.comments = value;
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (messageGroup) {
+                messageGroup.comments = value;
                 markMessageModified(messageId);
             }
         }
@@ -2065,34 +1905,30 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 pendingChanges.set(messageId, true);
             }
             
-            const saveButtons = document.querySelectorAll(`#save-${messageId}, #card-save-${messageId}`);
+            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
             saveButtons.forEach(btn => btn.classList.add('modified'));
         }
 
-        // REAL API: Authentication-aware save function
         async function saveMessage(messageId) {
-            const message = messagesData.find(m => m.id === messageId);
-            if (!message || !pendingChanges.has(messageId)) return;
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup || !pendingChanges.has(messageId)) return;
             
-            const saveButtons = document.querySelectorAll(`#save-${messageId}, #card-save-${messageId}`);
+            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
             
             try {
                 saveButtons.forEach(btn => {
                     btn.classList.add('saving');
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
                 });
                 
-                // Check authentication before making API call
                 const token = getAuthToken();
                 if (!token) {
-                    // FIXED: Redirect to login instead of dashboard
                     window.location.href = '/login';
                     return;
                 }
                 
                 console.log(`[MESSAGES] Saving message ${messageId} to database...`);
                 
-                // REAL API CALL: Update message in database
                 const response = await fetch(`/messages/${messageId}`, {
                     method: 'PUT',
                     headers: { 
@@ -2100,16 +1936,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        sent_status: message.sent,
-                        reply_status: message.gotReply,
-                        comments: message.comments
+                        sent_status: messageGroup.sent,
+                        reply_status: messageGroup.gotReply,
+                        comments: messageGroup.comments
                     })
                 });
                 
                 if (response.status === 401) {
-                    // Token expired, redirect to login
                     localStorage.removeItem('authToken');
-                    // FIXED: Redirect to login instead of dashboard
                     window.location.href = '/login';
                     return;
                 }
@@ -2127,21 +1961,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 saveButtons.forEach(btn => {
                     btn.classList.remove('saving', 'modified');
                     btn.classList.add('saved');
-                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
                 });
                 
                 pendingChanges.delete(messageId);
                 
-                const toggles = document.querySelectorAll(`[onclick*="${messageId}"]`);
-                toggles.forEach(toggle => toggle.classList.remove('modified'));
-                
-                const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
-                commentFields.forEach(field => field.classList.remove('modified'));
-                
                 setTimeout(() => {
                     saveButtons.forEach(btn => {
                         btn.classList.remove('saved');
-                        btn.innerHTML = '<i class="fas fa-save"></i>';
+                        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
                     });
                 }, 2000);
                 
@@ -2150,77 +1978,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             } catch (error) {
                 console.error('[MESSAGES] Error saving message:', error);
                 
-                // Check if it's an authentication error
                 if (error.message && error.message.includes('401')) {
                     localStorage.removeItem('authToken');
-                    // FIXED: Redirect to login instead of dashboard
                     window.location.href = '/login';
                     return;
                 }
                 
                 saveButtons.forEach(btn => {
                     btn.classList.remove('saving');
-                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
                 });
                 
                 setTimeout(() => {
                     saveButtons.forEach(btn => {
                         btn.classList.add('modified');
-                        btn.innerHTML = '<i class="fas fa-save"></i>';
+                        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
                     });
                 }, 3000);
-            }
-        }
-
-        function toggleMessageExpand(messageId) {
-            const messageEl = document.getElementById(`message-${messageId}`);
-            const expandBtn = messageEl.nextElementSibling;
-            
-            if (messageEl.classList.contains('truncated')) {
-                messageEl.classList.remove('truncated');
-                expandBtn.textContent = 'Show less';
-            } else {
-                messageEl.classList.add('truncated');
-                expandBtn.textContent = 'Read more...';
-            }
-        }
-
-        function toggleContextExpand(messageId) {
-            const contextEl = document.getElementById(`context-${messageId}`);
-            const expandBtn = contextEl.nextElementSibling;
-            
-            if (contextEl.classList.contains('truncated')) {
-                contextEl.classList.remove('truncated');
-                expandBtn.textContent = 'Show less';
-            } else {
-                contextEl.classList.add('truncated');
-                expandBtn.textContent = 'Show more...';
-            }
-        }
-
-        function toggleCardMessageExpand(messageId) {
-            const messageEl = document.getElementById(`card-message-${messageId}`);
-            const expandBtn = messageEl.nextElementSibling;
-            
-            if (messageEl.classList.contains('truncated')) {
-                messageEl.classList.remove('truncated');
-                expandBtn.textContent = 'Show less';
-            } else {
-                messageEl.classList.add('truncated');
-                expandBtn.textContent = 'Read more...';
-            }
-        }
-
-        function toggleCardContextExpand(messageId) {
-            const contextEl = document.getElementById(`card-context-${messageId}`);
-            const expandBtn = contextEl.nextElementSibling;
-            
-            if (contextEl.classList.contains('truncated')) {
-                contextEl.classList.remove('truncated');
-                expandBtn.textContent = 'Show less';
-            } else {
-                contextEl.classList.add('truncated');
-                expandBtn.textContent = 'Show more...';
             }
         }
 
@@ -2235,25 +2009,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             applyFilters();
         }
 
-        function filterMessagesByStatus(messages) {
+        function filterMessagesByStatus(messageGroups) {
             switch (currentFilter) {
                 case 'sent':
-                    return messages.filter(msg => msg.sent === 'yes');
+                    return messageGroups.filter(group => group.sent === 'yes');
                 case 'replied':
-                    return messages.filter(msg => msg.gotReply === 'yes');
+                    return messageGroups.filter(group => group.gotReply === 'yes');
                 case 'pending':
-                    return messages.filter(msg => msg.sent === 'yes' && msg.gotReply !== 'yes');
+                    return messageGroups.filter(group => group.sent === 'yes' && group.gotReply !== 'yes');
                 case 'all':
                 default:
-                    return messages;
+                    return messageGroups;
             }
         }
 
-        // REAL STATISTICS: Calculate from actual database data
         function updateMessagesStats() {
             const totalMessages = filteredMessages.length;
-            const sentMessages = filteredMessages.filter(msg => msg.sent === 'yes').length;
-            const repliedMessages = filteredMessages.filter(msg => msg.gotReply === 'yes').length;
+            const sentMessages = filteredMessages.filter(group => group.sent === 'yes').length;
+            const repliedMessages = filteredMessages.filter(group => group.gotReply === 'yes').length;
             const responseRate = sentMessages > 0 ? Math.round((repliedMessages / sentMessages) * 100) : 0;
             
             document.getElementById('totalMessages').textContent = totalMessages;
@@ -2278,28 +2051,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function showEmptyState() {
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('emptyState').style.display = 'block';
-            document.getElementById('messagesTableWrapper').style.display = 'none';
+            document.getElementById('messagesCardsGrid').style.display = 'none';
         }
 
-        // Sidebar navigation functions
+        // Navigation functions
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('active');
-        }
-
-        function showSection(section) {
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            event.target.closest('.nav-item').classList.add('active');
-
-            switch(section) {
-                case 'messages':
-                    // Already on messages page
-                    break;
-                default:
-                    alert(`${section.charAt(0).toUpperCase() + section.slice(1)} section coming soon!`);
-            }
         }
 
         function logout() {
