@@ -376,30 +376,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .messages-filters {
             display: flex;
             gap: 0.8rem;
-            margin-bottom: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .additional-filters {
-            display: flex;
-            gap: 0.8rem;
             margin-bottom: 2rem;
             flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .filter-section {
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-            margin-right: 1rem;
-        }
-
-        .filter-section-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin-right: 0.3rem;
         }
 
         .filter-btn {
@@ -428,6 +406,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             border-color: var(--primary-purple);
         }
 
+        /* CARD-BASED LAYOUT */
         .messages-cards-container {
             background: var(--white);
             border-radius: 16px;
@@ -446,53 +425,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             right: 0;
             height: 3px;
             background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
-        }
-
-        .cards-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .cards-count {
-            font-size: 0.9rem;
-            color: var(--gray);
-            font-weight: 500;
-        }
-
-        .load-more-section {
-            text-align: center;
-            margin-top: 2rem;
-            padding: 1.5rem;
-            border-top: 1px solid var(--light-gray);
-        }
-
-        .load-more-btn, .show-less-btn {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 12px;
-            padding: 0.8rem 2rem;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: var(--glow-shadow);
-        }
-
-        .load-more-btn:hover, .show-less-btn:hover {
-            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
-        }
-
-        .load-more-text {
-            margin-top: 0.5rem;
-            font-size: 0.8rem;
-            color: var(--gray);
         }
 
         .messages-cards-grid {
@@ -1261,6 +1193,577 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="sidebar-logo-text">
                     <div class="sidebar-logo-main">Msgly.AI</div>
                     <div class="sidebar-logo-sub">By Chopa AI LTD</div>
+                </div>
+            </a>
+            
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar" id="sidebarUserAvatar">??</div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
+                    <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
+                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main Menu</div>
+                <a href="https://api.msgly.ai/dashboard" class="nav-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span class="nav-item-text">Dashboard</span>
+                </a>
+                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="nav-item-text">Msgly Profile</span>
+                </a>
+                <a href="https://api.msgly.ai/messages" class="nav-item active">
+                    <i class="fas fa-envelope"></i>
+                    <span class="nav-item-text">Messages</span>
+                </a>
+                <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
+                    <i class="fas fa-chart-line"></i>
+                    <span class="nav-item-text">Analytics</span>
+                    <span class="nav-badge soon">Soon</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
+                    <i class="fas fa-credit-card"></i>
+                    <span class="nav-item-text">Billing</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Support</div>
+                <a href="#" class="nav-item" onclick="alert('Help Center coming soon!')">
+                    <i class="fas fa-question-circle"></i>
+                    <span class="nav-item-text">Help Center</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <a href="#" class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </a>
+        </div>
+    </nav>
+
+    <!-- Email Finder Modals -->
+    <div class="modal-overlay" id="emailFinderModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Find & Verify Email</div>
+            </div>
+            <div class="modal-body">
+                We'll search for this contact's email address. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="insufficientCreditsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Not Enough Credits</div>
+            </div>
+            <div class="modal-body">
+                You don't have enough credits to perform this action.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Buy Credits</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="upgradeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Upgrade Required</div>
+            </div>
+            <div class="modal-body">
+                Email finder is available for Silver, Gold, and Platinum subscribers. Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+        <main class="main-content">
+            <div class="container">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Messages</h1>
+                <p class="page-subtitle">Manage your LinkedIn outreach campaigns and track responses</p>
+            </div>
+        </div>
+
+        <div class="messages-controls">
+            <div class="search-box">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search messages, names, companies..." 
+                       id="searchInput" oninput="searchMessages(this.value)">
+            </div>
+            <div class="messages-stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalMessages">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="sentMessages">0</div>
+                    <div class="stat-label">Sent</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="repliedMessages">0</div>
+                    <div class="stat-label">Replied</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="responseRate">0%</div>
+                    <div class="stat-label">Response Rate</div>
+                </div>
+            </div>
+            <button class="refresh-btn" onclick="refreshMessages()" title="Refresh Messages">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <div class="messages-filters">
+            <button class="filter-btn active" onclick="filterMessages('all')">
+                <i class="fas fa-list"></i>
+                All
+            </button>
+            <button class="filter-btn" onclick="filterMessages('sent')">
+                <i class="fas fa-paper-plane"></i>
+                Sent
+            </button>
+            <button class="filter-btn" onclick="filterMessages('replied')">
+                <i class="fas fa-reply"></i>
+                Replied
+            </button>
+            <button class="filter-btn" onclick="filterMessages('pending')">
+                <i class="fas fa-clock"></i>
+                Pending
+            </button>
+        </div>
+
+        <div class="messages-cards-container">
+            <!-- Loading State -->
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <p>Loading messages...</p>
+            </div>
+
+            <!-- Cards Grid -->
+            <div class="messages-cards-grid" id="messagesCardsGrid" style="display: none;">
+                <!-- Message cards will be populated here -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <i class="fas fa-envelope-open"></i>
+                <h3>No Messages Found</h3>
+                <p>Generate your first LinkedIn message using the Chrome extension, then return here to track your outreach campaign.</p>
+            </div>
+        </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Global variables
+        let messagesData = [];
+        let filteredMessages = [];
+        let groupedMessages = {};
+        let currentFilter = 'all';
+        let currentSearchTerm = '';
+        let pendingChanges = new Map();
+        let currentTargetId = null; 
+        let currentUserPlan = null;
+
+        // Authentication check and data loading
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!checkAuthentication()) {
+                return;
+            }
+            loadUserProfile();
+            loadMessagesData();
+        });
+
+        function checkAuthentication() {
+            const token = getAuthToken();
+            if (!token) {
+                window.location.href = '/login';
+                return false;
+            }
+            return true;
+        }
+
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+
+        // Load user profile for sidebar
+        async function loadUserProfile() {
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const response = await fetch('/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const user = data.data.user;
+                    
+                    currentUserPlan = {
+                        planCode: user.planCode || 'free',
+                        totalCredits: user.totalCredits || 0,
+                        planName: user.planName || 'Free'
+                    };
+                    
+                    document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
+                    document.getElementById('sidebarUserEmail').textContent = user.email;
+                    
+                    const planCode = user.planCode || 'free';
+                    const planNames = {
+                        'free': 'Free Plan',
+                        'silver-monthly': 'Silver Monthly',
+                        'silver-payasyougo': 'Silver Pay-as-you-go',
+                        'gold-monthly': 'Gold Monthly', 
+                        'gold-payasyougo': 'Gold Pay-as-you-go',
+                        'platinum-monthly': 'Platinum Monthly',
+                        'platinum-payasyougo': 'Platinum Pay-as-you-go'
+                    };
+                    document.getElementById('sidebarUserPlan').textContent = planNames[planCode] || 'Unknown Plan';
+                    
+                    const displayName = user.displayName || user.email;
+                    const initials = getInitials(displayName);
+                    document.getElementById('sidebarUserAvatar').textContent = initials;
+                    
+                    console.log('[PROFILE] User profile loaded successfully');
+                } else {
+                    throw new Error(data.error || 'Failed to load profile');
+                }
+                
+            } catch (error) {
+                console.error('[PROFILE] Error loading user profile:', error);
+                document.getElementById('sidebarUserName').textContent = 'User';
+                document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
+                document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
+                document.getElementById('sidebarUserAvatar').textContent = 'U';
+            }
+        }
+
+        function getInitials(name) {
+            if (!name) return '??';
+            
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                return name.substring(0, 2).toUpperCase();
+            }
+        }
+
+        // Load messages data from API
+        async function loadMessagesData() {
+            try {
+                document.getElementById('loadingState').style.display = 'flex';
+                
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                console.log('[MESSAGES] Loading messages from API...');
+                
+                const response = await fetch('/messages/history', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messagesData = data.data || [];
+                    console.log(`[MESSAGES] Loaded ${messagesData.length} messages from database`);
+                    groupMessagesByTarget();
+                } else {
+                    throw new Error(data.error || 'Failed to load messages');
+                }
+                
+                applyFilters();
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error loading messages:', error);
+                
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                showEmptyState();
+            }
+        }
+
+        // Group messages by target profile - FIXED: Smart content-based message type detection
+        function groupMessagesByTarget() {
+            groupedMessages = {};
+            
+            messagesData.forEach(message => {
+                const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
+                
+                if (!groupedMessages[targetKey]) {
+                    groupedMessages[targetKey] = {
+                        target: message.targetProfile,
+                        messages: {
+                            linkedin: [],
+                            connection: [],
+                            email: []
+                        },
+                        // Use the first message's metadata for status/comments
+                        id: message.id,
+                        sent: message.sent,
+                        gotReply: message.gotReply,
+                        comments: message.comments,
+                        emailFound: message.emailFound,
+                        emailStatus: message.emailStatus,
+                        emailVerifiedAt: message.emailVerifiedAt
+                    };
+                }
+                
+                // Smart content-based detection since database has all 'message' type
+                const messageContent = (message.message || '').toLowerCase();
+                const messageType = detectMessageType(messageContent);
+                
+                console.log(`[DEBUG] Message ID ${message.id}: detected="${messageType}", content="${messageContent.substring(0, 50)}..."`);
+                
+                if (messageType === 'connection') {
+                    groupedMessages[targetKey].messages.connection.push(message);
+                    console.log(`[DEBUG] Classified as CONNECTION REQUEST`);
+                } else if (messageType === 'email') {
+                    groupedMessages[targetKey].messages.email.push(message);
+                    console.log(`[DEBUG] Classified as COLD EMAIL`);
+                } else {
+                    groupedMessages[targetKey].messages.linkedin.push(message);
+                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE`);
+                }
+            });
+            
+            // Sort messages within each type by creation date (newest first)
+            Object.values(groupedMessages).forEach(group => {
+                group.messages.linkedin.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.connection.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.email.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            });
+            
+            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
+            
+            // Debug: Log the classification results
+            Object.values(groupedMessages).forEach(group => {
+                console.log(`[DEBUG] ${group.target.firstName}: LinkedIn=${group.messages.linkedin.length}, Connection=${group.messages.connection.length}, Email=${group.messages.email.length}`);
+            });
+        }
+
+        // Smart message type detection based on content
+        function detectMessageType(messageContent) {
+            const content = messageContent.toLowerCase().trim();
+            
+            // Cold Email indicators (check first as they're most specific)
+            if (content.includes('subject:') || 
+                content.match(/^subject\s*[:]\s*/m) ||
+                content.includes('dear ') || 
+                content.includes('hope this email finds you') ||
+                content.includes('email') && content.includes('regarding')) {
+                return 'email';
+            }
+            
+            // Connection Request indicators
+            if (content.includes('connect') || 
+                content.includes('connection') ||
+                content.includes('network') ||
+                content.includes('would love to connect') ||
+                content.includes("i'd love to connect") ||
+                content.includes('add you to my network') ||
+                content.includes('build my network')) {
+                return 'connection';
+            }
+            
+            // Default to LinkedIn message
+            return 'linkedin';
+        }
+
+        function applyFilters() {
+            let filtered = Object.values(groupedMessages);
+            
+            // Apply status filter
+            filtered = filterMessagesByStatus(filtered);
+            
+            // Apply search filter - UPDATED for message arrays
+            if (currentSearchTerm) {
+                filtered = filtered.filter(group => {
+                    const target = group.target;
+                    const messages = group.messages;
+                    
+                    // Search in target profile
+                    const targetMatch = (
+                        (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.company && target.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
+                    );
+                    
+                    // Search in all message arrays
+                    const messageMatch = ['linkedin', 'connection', 'email'].some(type => {
+                        const messageArray = messages[type];
+                        if (Array.isArray(messageArray)) {
+                            return messageArray.some(msg => 
+                                msg.message && msg.message.toLowerCase().includes(currentSearchTerm.toLowerCase())
+                            );
+                        }
+                        return false;
+                    });
+                    
+                    return targetMatch || messageMatch;
+                });
+            }
+            
+            filteredMessages = filtered;
+            renderMessages();
+            updateMessagesStats();
+        }
+
+        function searchMessages(searchTerm) {
+            currentSearchTerm = searchTerm.trim();
+            applyFilters();
+        }
+
+        function renderMessages() {
+            const cardsGrid = document.getElementById('messagesCardsGrid');
+            
+            if (filteredMessages.length === 0) {
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('messagesCardsGrid').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+            
+            cardsGrid.innerHTML = '';
+            
+            filteredMessages.forEach(messageGroup => {
+                const messageCard = createMessageCard(messageGroup);
+                cardsGrid.appendChild(messageCard);
+            });
+            
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('messagesCardsGrid').style.display = 'grid';
+            document.getElementById('emptyState').style.display = 'none';
+        }
+
+        function createMessageCard(messageGroup) {
+            const card = document.createElement('div');
+            card.className = 'message-card';
+            card.setAttribute('data-target-id', messageGroup.id);
+            
+            const target = messageGroup.target;
+            const messages = messageGroup.messages;
+            
+            card.innerHTML = `
+                <div class="card-profile-header">
+                    <div class="profile-info">
+                        <div class="profile-name">${target.firstName || 'Unknown'}</div>
+                        <div class="profile-role">${target.role || 'Professional'}</div>
+                        <div class="profile-company">${target.company || 'Company'}</div>
+                    </div>
+                    <div class="email-finder-header-section">
+                        ${createEmailAskButton(messageGroup)}
+                        <div class="email-finder-description">Email Finder (powered by Snov.io)</div>
+                        ${createEmailVerificationDisplay(messageGroup)}
+                    </div>
+                </div>
+
+                <div class="message-types-section">
+                    ${messages.linkedin.length > 0 ? createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin') : ''}
+                    ${messages.connection.length > 0 ? createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus') : ''}
+                    ${messages.email.length > 0 ? createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope') : ''}
+                </div>
+
+                <div class="card-status-section">
+                    <div class="status-row">
+                        <div class="status-item">
+                            <div class="status-label">Message Sent</div>
+                            <div class="toggle-switch ${messageGroup.sent}" onclick="toggleStatus(${messageGroup.id}, 'sent')">
+                                <div class="toggle-slider">${getStatusIcon(messageGroup.sent)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(messageGroup.sent)}</div>
+                        </div>
+                        
+                        <div class="status-item">
+                            <div class="status-label">Got Reply</div>
+                            <div class="toggle-switch ${messageGroup.gotReply}" onclick="toggleStatus(${messageGroup.id}, 'gotReply')">
+                                <div class="toggle-slider">${getStatusIcon(messageGroup.gotReply)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(messageGroup.gotReply)}</div>
+                        </div>
+                    </div>
+                    
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add notes about this contact..."
+                        onchange="updateComment(${messageGroup.id}, this.value)"
+                        onkeyup="markFieldModified(${messageGroup.id})"
+                    >${messageGroup.comments || ''}</textarea>
+                    
+                    <button class="save-btn" id="save-${messageGroup.id}" onclick="saveMessage(${messageGroup.id})">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
             `;
             
             return card;
@@ -1280,14 +1783,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             let historyHTML = '';
             
-            // Show latest message - FIXED: Show only expanded content when expanded
+            // Show latest message
             historyHTML += `
                 <div class="message-history-item latest">
                     <div class="message-timestamp">
                         <i class="fas fa-clock"></i>
                         Latest: ${formatMessageDate(latestMessage.created_at)}
                     </div>
-                    <div class="message-content-preview" id="preview-${uniqueId}">${latestPreview}</div>
+                    <div class="message-content-preview">${latestPreview}</div>
                     <div class="message-text" id="message-${uniqueId}" style="display: none;">
                         ${latestMessageText}
                     </div>
@@ -1309,7 +1812,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <i class="fas fa-history"></i>
                                 Previous: ${formatMessageDate(msg.created_at)}
                             </div>
-                            <div class="message-content-preview" id="preview-${msgUniqueId}">${msgPreview}</div>
+                            <div class="message-content-preview">${msgPreview}</div>
                             <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
                                 ${msgText}
                             </div>
@@ -1398,21 +1901,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // Format message date for display - FIXED: Handle invalid dates
+        // Format message date for display
         function formatMessageDate(dateString) {
             try {
-                if (!dateString) {
-                    return 'Unknown date';
-                }
-                
                 const date = new Date(dateString);
-                
-                // Check if date is valid
-                if (isNaN(date.getTime())) {
-                    console.warn('[DATE] Invalid date string:', dateString);
-                    return 'Invalid date';
-                }
-                
                 const now = new Date();
                 const diffTime = now - date;
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -1465,29 +1957,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Toggle individual historical message - FIXED: Hide preview when expanded
+        // Toggle individual historical message
         function toggleHistoryMessage(messageId, element) {
             const messageElement = document.getElementById(`message-${messageId}`);
-            const previewElement = document.getElementById(`preview-${messageId}`);
             const isExpanded = messageElement.style.display !== 'none';
             
             if (isExpanded) {
-                // Collapse: Show preview, hide full message
                 messageElement.style.display = 'none';
-                if (previewElement) previewElement.style.display = 'block';
                 element.classList.add('collapsed');
             } else {
-                // Expand: Hide preview, show full message
                 messageElement.style.display = 'block';
-                if (previewElement) previewElement.style.display = 'none';
                 element.classList.remove('collapsed');
             }
         }
 
-        // FIXED: Toggle message expand/collapse functionality - Hide preview when expanded
+        // FIXED: Toggle message expand/collapse functionality
         function toggleMessageExpand(messageId, button) {
             const messageElement = document.getElementById(`message-${messageId}`);
-            const previewElement = document.getElementById(`preview-${messageId}`);
             
             if (!messageElement) {
                 console.error(`[EXPAND] Message element not found: message-${messageId}`);
@@ -1497,14 +1983,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const isExpanded = messageElement.style.display === 'block';
             
             if (isExpanded) {
-                // Collapse: Show preview, hide full message
                 messageElement.style.display = 'none';
-                if (previewElement) previewElement.style.display = 'block';
                 button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
             } else {
-                // Expand: Hide preview, show full message
                 messageElement.style.display = 'block';
-                if (previewElement) previewElement.style.display = 'none';
                 button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
             }
             
@@ -1837,7 +2319,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function updateMessagesStats() {
-            // Use all filtered messages for accurate statistics
             const totalMessages = filteredMessages.length;
             const sentMessages = filteredMessages.filter(group => group.sent === 'yes').length;
             const repliedMessages = filteredMessages.filter(group => group.gotReply === 'yes').length;
@@ -1853,9 +2334,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function refreshMessages() {
             console.log('[MESSAGES] Refreshing messages from database...');
-            
-            // Reset pagination state
-            showAllCards = false;
             
             const refreshBtn = document.querySelector('.refresh-btn i');
             refreshBtn.classList.add('fa-spin');
@@ -1906,797 +2384,3 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </script>
 </body>
 </html>
-            </a>
-            
-            <div class="sidebar-user">
-                <div class="sidebar-user-avatar" id="sidebarUserAvatar">??</div>
-                <div class="sidebar-user-info">
-                    <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
-                    <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
-                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="sidebar-nav">
-            <div class="nav-section">
-                <div class="nav-section-title">Main Menu</div>
-                <a href="https://api.msgly.ai/dashboard" class="nav-item">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span class="nav-item-text">Dashboard</span>
-                </a>
-                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
-                    <i class="fas fa-user-circle"></i>
-                    <span class="nav-item-text">Msgly Profile</span>
-                </a>
-                <a href="https://api.msgly.ai/messages" class="nav-item active">
-                    <i class="fas fa-envelope"></i>
-                    <span class="nav-item-text">Messages</span>
-                </a>
-                <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
-                    <i class="fas fa-chart-line"></i>
-                    <span class="nav-item-text">Analytics</span>
-                    <span class="nav-badge soon">Soon</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Account</div>
-                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
-                    <i class="fas fa-credit-card"></i>
-                    <span class="nav-item-text">Billing</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Support</div>
-                <a href="#" class="nav-item" onclick="alert('Help Center coming soon!')">
-                    <i class="fas fa-question-circle"></i>
-                    <span class="nav-item-text">Help Center</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="sidebar-footer">
-            <a href="#" class="logout-btn" onclick="logout()">
-                <i class="fas fa-sign-out-alt"></i>
-                Logout
-            </a>
-        </div>
-    </nav>
-
-    <!-- Email Finder Modals -->
-    <div class="modal-overlay" id="emailFinderModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">Find & Verify Email</div>
-            </div>
-            <div class="modal-body">
-                We'll search for this contact's email address. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="insufficientCreditsModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">Not Enough Credits</div>
-            </div>
-            <div class="modal-body">
-                You don't have enough credits to perform this action.
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Buy Credits</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="upgradeModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">Upgrade Required</div>
-            </div>
-            <div class="modal-body">
-                Email finder is available for Silver, Gold, and Platinum subscribers. Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content Wrapper -->
-    <div class="main-wrapper">
-        <main class="main-content">
-            <div class="container">
-        <div class="page-header">
-            <div>
-                <h1 class="page-title">Messages</h1>
-                <p class="page-subtitle">Manage your LinkedIn outreach campaigns and track responses</p>
-            </div>
-        </div>
-
-        <div class="messages-controls">
-            <div class="search-box">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" class="search-input" placeholder="Search messages, names, companies..." 
-                       id="searchInput" oninput="searchMessages(this.value)">
-            </div>
-            <div class="messages-stats">
-                <div class="stat-item">
-                    <div class="stat-number" id="totalMessages">0</div>
-                    <div class="stat-label">Total</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number" id="sentMessages">0</div>
-                    <div class="stat-label">Sent</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number" id="repliedMessages">0</div>
-                    <div class="stat-label">Replied</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number" id="responseRate">0%</div>
-                    <div class="stat-label">Response Rate</div>
-                </div>
-            </div>
-            <button class="refresh-btn" onclick="refreshMessages()" title="Refresh Messages">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-        </div>
-
-        <div class="messages-filters">
-            <button class="filter-btn active" onclick="filterMessages('all')">
-                <i class="fas fa-list"></i>
-                All
-            </button>
-            <button class="filter-btn" onclick="filterMessages('sent')">
-                <i class="fas fa-paper-plane"></i>
-                Sent
-            </button>
-            <button class="filter-btn" onclick="filterMessages('replied')">
-                <i class="fas fa-reply"></i>
-                Replied
-            </button>
-            <button class="filter-btn" onclick="filterMessages('pending')">
-                <i class="fas fa-clock"></i>
-                Pending
-            </button>
-        </div>
-
-        <div class="additional-filters">
-            <div class="filter-section">
-                <span class="filter-section-label">Message Type:</span>
-                <button class="filter-btn active" onclick="filterByMessageType('all')">All Types</button>
-                <button class="filter-btn" onclick="filterByMessageType('linkedin')">
-                    <i class="fab fa-linkedin"></i>
-                    LinkedIn
-                </button>
-                <button class="filter-btn" onclick="filterByMessageType('connection')">
-                    <i class="fas fa-user-plus"></i>
-                    Connection
-                </button>
-                <button class="filter-btn" onclick="filterByMessageType('email')">
-                    <i class="fas fa-envelope"></i>
-                    Email
-                </button>
-            </div>
-            
-            <div class="filter-section">
-                <span class="filter-section-label">Date Range:</span>
-                <button class="filter-btn active" onclick="filterByDate('all')">All Time</button>
-                <button class="filter-btn" onclick="filterByDate('7days')">Last 7 Days</button>
-                <button class="filter-btn" onclick="filterByDate('30days')">Last 30 Days</button>
-                <button class="filter-btn" onclick="filterByDate('3months')">Last 3 Months</button>
-                <button class="filter-btn" onclick="filterByDate('1year')">Last Year</button>
-            </div>
-        </div>
-
-        <div class="messages-cards-container">
-            <!-- Cards Header -->
-            <div class="cards-header">
-                <div class="cards-count" id="cardsCount">
-                    Showing 0 of 0 contacts
-                </div>
-            </div>
-
-            <!-- Loading State -->
-            <div class="loading" id="loadingState">
-                <div class="spinner"></div>
-                <p>Loading messages...</p>
-            </div>
-
-            <!-- Cards Grid -->
-            <div class="messages-cards-grid" id="messagesCardsGrid" style="display: none;">
-                <!-- Message cards will be populated here -->
-            </div>
-
-            <!-- Load More Section -->
-            <div class="load-more-section" id="loadMoreSection" style="display: none;">
-                <button class="load-more-btn" id="loadMoreBtn" onclick="toggleShowAll()">
-                    <i class="fas fa-chevron-down"></i> Show All Contacts
-                </button>
-                <div class="load-more-text" id="loadMoreText">
-                    Click to see all your message history
-                </div>
-            </div>
-
-            <!-- Empty State -->
-            <div class="empty-state" id="emptyState" style="display: none;">
-                <i class="fas fa-envelope-open"></i>
-                <h3>No Messages Found</h3>
-                <p>Generate your first LinkedIn message using the Chrome extension, then return here to track your outreach campaign.</p>
-            </div>
-        </div>
-            </div>
-        </main>
-    </div>
-
-    <script>
-        // Global variables
-        let messagesData = [];
-        let filteredMessages = [];
-        let groupedMessages = {};
-        let currentFilter = 'all';
-        let currentSearchTerm = '';
-        let pendingChanges = new Map();
-        let currentTargetId = null; 
-        let currentUserPlan = null;
-        let currentMessageTypeFilter = 'all';
-        let currentDateFilter = 'all';
-        let showAllCards = false;
-        let CARDS_PER_PAGE = 21;
-
-        // Authentication check and data loading
-        document.addEventListener('DOMContentLoaded', function() {
-            if (!checkAuthentication()) {
-                return;
-            }
-            loadUserProfile();
-            loadMessagesData();
-        });
-
-        function checkAuthentication() {
-            const token = getAuthToken();
-            if (!token) {
-                window.location.href = '/login';
-                return false;
-            }
-            return true;
-        }
-
-        function getAuthToken() {
-            return localStorage.getItem('authToken');
-        }
-
-        // Load user profile for sidebar
-        async function loadUserProfile() {
-            try {
-                const token = getAuthToken();
-                if (!token) {
-                    window.location.href = '/login';
-                    return;
-                }
-
-                const response = await fetch('/profile', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login';
-                    return;
-                }
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    const user = data.data.user;
-                    
-                    currentUserPlan = {
-                        planCode: user.planCode || 'free',
-                        totalCredits: user.totalCredits || 0,
-                        planName: user.planName || 'Free'
-                    };
-                    
-                    document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
-                    document.getElementById('sidebarUserEmail').textContent = user.email;
-                    
-                    const planCode = user.planCode || 'free';
-                    const planNames = {
-                        'free': 'Free Plan',
-                        'silver-monthly': 'Silver Monthly',
-                        'silver-payasyougo': 'Silver Pay-as-you-go',
-                        'gold-monthly': 'Gold Monthly', 
-                        'gold-payasyougo': 'Gold Pay-as-you-go',
-                        'platinum-monthly': 'Platinum Monthly',
-                        'platinum-payasyougo': 'Platinum Pay-as-you-go'
-                    };
-                    document.getElementById('sidebarUserPlan').textContent = planNames[planCode] || 'Unknown Plan';
-                    
-                    const displayName = user.displayName || user.email;
-                    const initials = getInitials(displayName);
-                    document.getElementById('sidebarUserAvatar').textContent = initials;
-                    
-                    console.log('[PROFILE] User profile loaded successfully');
-                } else {
-                    throw new Error(data.error || 'Failed to load profile');
-                }
-                
-            } catch (error) {
-                console.error('[PROFILE] Error loading user profile:', error);
-                document.getElementById('sidebarUserName').textContent = 'User';
-                document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
-                document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
-                document.getElementById('sidebarUserAvatar').textContent = 'U';
-            }
-        }
-
-        function getInitials(name) {
-            if (!name) return '??';
-            
-            const parts = name.split(' ');
-            if (parts.length >= 2) {
-                return (parts[0][0] + parts[1][0]).toUpperCase();
-            } else {
-                return name.substring(0, 2).toUpperCase();
-            }
-        }
-
-        // Load messages data from API
-        async function loadMessagesData() {
-            try {
-                document.getElementById('loadingState').style.display = 'flex';
-                
-                const token = getAuthToken();
-                if (!token) {
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                console.log('[MESSAGES] Loading messages from API...');
-                
-                const response = await fetch('/messages/history', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    messagesData = data.data || [];
-                    console.log(`[MESSAGES] Loaded ${messagesData.length} messages from database`);
-                    groupMessagesByTarget();
-                } else {
-                    throw new Error(data.error || 'Failed to load messages');
-                }
-                
-                applyFilters();
-                
-            } catch (error) {
-                console.error('[MESSAGES] Error loading messages:', error);
-                
-                if (error.message && error.message.includes('401')) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                showEmptyState();
-            }
-        }
-
-        // Group messages by target profile - FIXED: Smart content-based message type detection + Sort by latest message
-        function groupMessagesByTarget() {
-            groupedMessages = {};
-            
-            messagesData.forEach(message => {
-                const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
-                
-                if (!groupedMessages[targetKey]) {
-                    groupedMessages[targetKey] = {
-                        target: message.targetProfile,
-                        messages: {
-                            linkedin: [],
-                            connection: [],
-                            email: []
-                        },
-                        // Use the first message's metadata for status/comments
-                        id: message.id,
-                        sent: message.sent,
-                        gotReply: message.gotReply,
-                        comments: message.comments,
-                        emailFound: message.emailFound,
-                        emailStatus: message.emailStatus,
-                        emailVerifiedAt: message.emailVerifiedAt,
-                        latestMessageDate: new Date(message.created_at || 0)
-                    };
-                } else {
-                    // Update latest message date if this message is newer
-                    const messageDate = new Date(message.created_at || 0);
-                    if (messageDate > groupedMessages[targetKey].latestMessageDate) {
-                        groupedMessages[targetKey].latestMessageDate = messageDate;
-                    }
-                }
-                
-                // Smart content-based detection since database has all 'message' type
-                const messageContent = (message.message || '').toLowerCase();
-                const messageType = detectMessageType(messageContent);
-                
-                console.log(`[DEBUG] Message ID ${message.id}: detected="${messageType}", content="${messageContent.substring(0, 50)}..."`);
-                
-                if (messageType === 'connection') {
-                    groupedMessages[targetKey].messages.connection.push(message);
-                    console.log(`[DEBUG] Classified as CONNECTION REQUEST`);
-                } else if (messageType === 'email') {
-                    groupedMessages[targetKey].messages.email.push(message);
-                    console.log(`[DEBUG] Classified as COLD EMAIL`);
-                } else {
-                    groupedMessages[targetKey].messages.linkedin.push(message);
-                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE`);
-                }
-            });
-            
-            // Sort messages within each type by creation date (newest first)
-            Object.values(groupedMessages).forEach(group => {
-                group.messages.linkedin.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                group.messages.connection.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                group.messages.email.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            });
-            
-            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
-            
-            // Debug: Log the classification results
-            Object.values(groupedMessages).forEach(group => {
-                console.log(`[DEBUG] ${group.target.firstName}: LinkedIn=${group.messages.linkedin.length}, Connection=${group.messages.connection.length}, Email=${group.messages.email.length}`);
-            });
-        }
-
-        // Smart message type detection based on content - ENHANCED
-        function detectMessageType(messageContent) {
-            const content = messageContent.toLowerCase().trim();
-            
-            console.log(`[DETECT] Analyzing content: "${content.substring(0, 100)}..."`);
-            
-            // Cold Email indicators (check first as they're most specific)
-            if (content.includes('subject:') || 
-                content.match(/^subject\s*[:]\s*/m) ||
-                content.includes('dear ') || 
-                content.includes('hope this email finds you') ||
-                content.includes('hope this finds you') ||
-                (content.includes('email') && content.includes('regarding'))) {
-                console.log(`[DETECT] → COLD EMAIL (found email indicators)`);
-                return 'email';
-            }
-            
-            // Connection Request indicators - ENHANCED with more patterns
-            if (content.includes('connect') || 
-                content.includes('connection') ||
-                content.includes('network') ||
-                content.includes('would love to connect') ||
-                content.includes("i'd love to connect") ||
-                content.includes('add you to my network') ||
-                content.includes('build my network') ||
-                content.includes('join my network') ||
-                content.includes('expand my network') ||
-                content.includes('professional network') ||
-                // LinkedIn connection request specific phrases
-                content.includes('send you a connection') ||
-                content.includes('accept my connection') ||
-                content.includes('connection request') ||
-                // Common connection opener phrases
-                (content.includes('reach out') && content.includes('linkedin')) ||
-                (content.includes('found you') && content.includes('linkedin')) ||
-                (content.includes('saw your profile') && content.includes('linkedin')) ||
-                // Short connection messages (likely connection requests)
-                (content.length < 200 && (content.includes('hi ') || content.includes('hello ')) && 
-                 (content.includes('work') || content.includes('company') || content.includes('role') || content.includes('experience')))) {
-                console.log(`[DETECT] → CONNECTION REQUEST (found connection indicators)`);
-                return 'connection';
-            }
-            
-            // Default to LinkedIn message
-            console.log(`[DETECT] → LINKEDIN MESSAGE (default classification)`);
-            return 'linkedin';
-        }
-
-        function applyFilters() {
-            let filtered = Object.values(groupedMessages);
-            
-            // Apply status filter
-            filtered = filterMessagesByStatus(filtered);
-            
-            // Apply message type filter
-            filtered = filterByMessageTypeLogic(filtered);
-            
-            // Apply date filter
-            filtered = filterByDateLogic(filtered);
-            
-            // Apply search filter - UPDATED for message arrays
-            if (currentSearchTerm) {
-                filtered = filtered.filter(group => {
-                    const target = group.target;
-                    const messages = group.messages;
-                    
-                    // Search in target profile
-                    const targetMatch = (
-                        (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                        (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                        (target.company && target.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
-                        (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
-                    );
-                    
-                    // Search in all message arrays
-                    const messageMatch = ['linkedin', 'connection', 'email'].some(type => {
-                        const messageArray = messages[type];
-                        if (Array.isArray(messageArray)) {
-                            return messageArray.some(msg => 
-                                msg.message && msg.message.toLowerCase().includes(currentSearchTerm.toLowerCase())
-                            );
-                        }
-                        return false;
-                    });
-                    
-                    return targetMatch || messageMatch;
-                });
-            }
-            
-            filteredMessages = filtered;
-            renderMessages();
-            updateMessagesStats();
-        }
-
-        // Filter by message type
-        function filterByMessageType(type) {
-            currentMessageTypeFilter = type;
-            
-            // Update button states
-            document.querySelectorAll('.filter-section')[0].querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            applyFilters();
-        }
-
-        function filterByMessageTypeLogic(messageGroups) {
-            if (currentMessageTypeFilter === 'all') {
-                return messageGroups;
-            }
-            
-            return messageGroups.filter(group => {
-                const messages = group.messages;
-                switch (currentMessageTypeFilter) {
-                    case 'linkedin':
-                        return messages.linkedin && messages.linkedin.length > 0;
-                    case 'connection':
-                        return messages.connection && messages.connection.length > 0;
-                    case 'email':
-                        return messages.email && messages.email.length > 0;
-                    default:
-                        return true;
-                }
-            });
-        }
-
-        // Filter by date range
-        function filterByDate(range) {
-            currentDateFilter = range;
-            
-            // Update button states
-            document.querySelectorAll('.filter-section')[1].querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            applyFilters();
-        }
-
-        function filterByDateLogic(messageGroups) {
-            if (currentDateFilter === 'all') {
-                return messageGroups;
-            }
-            
-            const now = new Date();
-            let cutoffDate;
-            
-            switch (currentDateFilter) {
-                case '7days':
-                    cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    break;
-                case '30days':
-                    cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                    break;
-                case '3months':
-                    cutoffDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-                    break;
-                case '1year':
-                    cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-                    break;
-                default:
-                    return messageGroups;
-            }
-            
-            return messageGroups.filter(group => {
-                const messages = group.messages;
-                
-                // Check if any message in any type array is within the date range
-                return ['linkedin', 'connection', 'email'].some(type => {
-                    const messageArray = messages[type];
-                    if (Array.isArray(messageArray)) {
-                        return messageArray.some(msg => {
-                            if (!msg.created_at) return false;
-                            const messageDate = new Date(msg.created_at);
-                            return !isNaN(messageDate.getTime()) && messageDate >= cutoffDate;
-                        });
-                    }
-                    return false;
-                });
-            });
-        }
-
-        function searchMessages(searchTerm) {
-            currentSearchTerm = searchTerm.trim();
-            applyFilters();
-        }
-
-        function renderMessages() {
-            const cardsGrid = document.getElementById('messagesCardsGrid');
-            const loadMoreSection = document.getElementById('loadMoreSection');
-            const cardsCount = document.getElementById('cardsCount');
-            
-            if (filteredMessages.length === 0) {
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('messagesCardsGrid').style.display = 'none';
-                document.getElementById('emptyState').style.display = 'block';
-                loadMoreSection.style.display = 'none';
-                cardsCount.textContent = 'No contacts found';
-                return;
-            }
-            
-            // Sort by latest message date (newest first)
-            const sortedMessages = filteredMessages.sort((a, b) => {
-                const dateA = a.latestMessageDate || new Date(0);
-                const dateB = b.latestMessageDate || new Date(0);
-                return dateB - dateA;
-            });
-            
-            // Determine how many cards to show
-            const totalCards = sortedMessages.length;
-            const cardsToShow = showAllCards ? totalCards : Math.min(CARDS_PER_PAGE, totalCards);
-            const messagesToRender = sortedMessages.slice(0, cardsToShow);
-            
-            // Update cards count
-            if (showAllCards || totalCards <= CARDS_PER_PAGE) {
-                cardsCount.textContent = `Showing all ${totalCards} contacts`;
-                loadMoreSection.style.display = 'none';
-            } else {
-                cardsCount.textContent = `Showing ${cardsToShow} of ${totalCards} contacts`;
-                loadMoreSection.style.display = 'block';
-                
-                // Update load more button
-                const loadMoreBtn = document.getElementById('loadMoreBtn');
-                const loadMoreText = document.getElementById('loadMoreText');
-                const remaining = totalCards - cardsToShow;
-                
-                loadMoreBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Show All ${totalCards} Contacts`;
-                loadMoreText.textContent = `${remaining} more contacts available`;
-            }
-            
-            // Clear and populate grid
-            cardsGrid.innerHTML = '';
-            messagesToRender.forEach(messageGroup => {
-                const messageCard = createMessageCard(messageGroup);
-                cardsGrid.appendChild(messageCard);
-            });
-            
-            // Show/hide load more for "show less" functionality
-            if (showAllCards && totalCards > CARDS_PER_PAGE) {
-                loadMoreSection.style.display = 'block';
-                const loadMoreBtn = document.getElementById('loadMoreBtn');
-                const loadMoreText = document.getElementById('loadMoreText');
-                
-                loadMoreBtn.innerHTML = `<i class="fas fa-chevron-up"></i> Show Recent ${CARDS_PER_PAGE} Only`;
-                loadMoreBtn.className = 'show-less-btn';
-                loadMoreText.textContent = 'Click to show only recent contacts';
-            }
-            
-            document.getElementById('loadingState').style.display = 'none';
-            document.getElementById('messagesCardsGrid').style.display = 'grid';
-            document.getElementById('emptyState').style.display = 'none';
-            
-            console.log(`[RENDER] Showing ${cardsToShow} of ${totalCards} cards (showAll: ${showAllCards})`);
-        }
-
-        // Toggle between showing 21 cards and all cards
-        function toggleShowAll() {
-            showAllCards = !showAllCards;
-            console.log(`[PAGINATION] Toggled showAll to: ${showAllCards}`);
-            renderMessages();
-        }
-
-        function createMessageCard(messageGroup) {
-            const card = document.createElement('div');
-            card.className = 'message-card';
-            card.setAttribute('data-target-id', messageGroup.id);
-            
-            const target = messageGroup.target;
-            const messages = messageGroup.messages;
-            
-            card.innerHTML = `
-                <div class="card-profile-header">
-                    <div class="profile-info">
-                        <div class="profile-name">${target.firstName || 'Unknown'}</div>
-                        <div class="profile-role">${target.role || 'Professional'}</div>
-                        <div class="profile-company">${target.company || 'Company'}</div>
-                    </div>
-                    <div class="email-finder-header-section">
-                        ${createEmailAskButton(messageGroup)}
-                        <div class="email-finder-description">Email Finder (powered by Snov.io)</div>
-                        ${createEmailVerificationDisplay(messageGroup)}
-                    </div>
-                </div>
-
-                <div class="message-types-section">
-                    ${messages.linkedin.length > 0 ? createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin') : ''}
-                    ${messages.connection.length > 0 ? createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus') : ''}
-                    ${messages.email.length > 0 ? createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope') : ''}
-                </div>
-
-                <div class="card-status-section">
-                    <div class="status-row">
-                        <div class="status-item">
-                            <div class="status-label">Message Sent</div>
-                            <div class="toggle-switch ${messageGroup.sent}" onclick="toggleStatus(${messageGroup.id}, 'sent')">
-                                <div class="toggle-slider">${getStatusIcon(messageGroup.sent)}</div>
-                            </div>
-                            <div class="toggle-label">${getStatusLabel(messageGroup.sent)}</div>
-                        </div>
-                        
-                        <div class="status-item">
-                            <div class="status-label">Got Reply</div>
-                            <div class="toggle-switch ${messageGroup.gotReply}" onclick="toggleStatus(${messageGroup.id}, 'gotReply')">
-                                <div class="toggle-slider">${getStatusIcon(messageGroup.gotReply)}</div>
-                            </div>
-                            <div class="toggle-label">${getStatusLabel(messageGroup.gotReply)}</div>
-                        </div>
-                    </div>
-                    
-                    <textarea 
-                        class="comment-field" 
-                        placeholder="Add notes about this contact..."
-                        onchange="updateComment(${messageGroup.id}, this.value)"
-                        onkeyup="markFieldModified(${messageGroup.id})"
-                    >${messageGroup.comments || ''}</textarea>
-                    
-                    <button class="save-btn" id="save-${messageGroup.id}" onclick="saveMessage(${messageGroup.id})">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
-                </div>
