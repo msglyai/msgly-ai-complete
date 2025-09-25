@@ -1552,7 +1552,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Group messages by target profile - FIXED: Handle actual database values
+        // Group messages by target profile - FIXED: Smart content-based message type detection
         function groupMessagesByTarget() {
             groupedMessages = {};
             
@@ -1578,21 +1578,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     };
                 }
                 
-                // FIXED: Handle actual database values and provide fallback detection
-                const messageType = (message.message_type || '').toLowerCase().trim();
+                // Smart content-based detection since database has all 'message' type
+                const messageContent = (message.message || '').toLowerCase();
+                const messageType = detectMessageType(messageContent);
                 
-                console.log(`[DEBUG] Message ID ${message.id}: type="${messageType}", content="${(message.message || '').substring(0, 50)}..."`);
+                console.log(`[DEBUG] Message ID ${message.id}: detected="${messageType}", content="${messageContent.substring(0, 50)}..."`);
                 
-                if (messageType === 'connection_request' || messageType === 'connection') {
+                if (messageType === 'connection') {
                     groupedMessages[targetKey].messages.connection.push(message);
                     console.log(`[DEBUG] Classified as CONNECTION REQUEST`);
-                } else if (messageType === 'cold_email' || messageType === 'email') {
+                } else if (messageType === 'email') {
                     groupedMessages[targetKey].messages.email.push(message);
                     console.log(`[DEBUG] Classified as COLD EMAIL`);
                 } else {
-                    // Default to LinkedIn message for 'message', 'linkedin_message', or null/undefined
                     groupedMessages[targetKey].messages.linkedin.push(message);
-                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE (default)`);
+                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE`);
                 }
             });
             
@@ -1609,6 +1609,34 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             Object.values(groupedMessages).forEach(group => {
                 console.log(`[DEBUG] ${group.target.firstName}: LinkedIn=${group.messages.linkedin.length}, Connection=${group.messages.connection.length}, Email=${group.messages.email.length}`);
             });
+        }
+
+        // Smart message type detection based on content
+        function detectMessageType(messageContent) {
+            const content = messageContent.toLowerCase().trim();
+            
+            // Cold Email indicators (check first as they're most specific)
+            if (content.includes('subject:') || 
+                content.match(/^subject\s*[:]\s*/m) ||
+                content.includes('dear ') || 
+                content.includes('hope this email finds you') ||
+                content.includes('email') && content.includes('regarding')) {
+                return 'email';
+            }
+            
+            // Connection Request indicators
+            if (content.includes('connect') || 
+                content.includes('connection') ||
+                content.includes('network') ||
+                content.includes('would love to connect') ||
+                content.includes("i'd love to connect") ||
+                content.includes('add you to my network') ||
+                content.includes('build my network')) {
+                return 'connection';
+            }
+            
+            // Default to LinkedIn message
+            return 'linkedin';
         }
 
         function applyFilters() {
@@ -1943,18 +1971,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Toggle message expand/collapse functionality
+        // FIXED: Toggle message expand/collapse functionality
         function toggleMessageExpand(messageId, button) {
             const messageElement = document.getElementById(`message-${messageId}`);
-            const isExpanded = messageElement.classList.contains('expanded');
+            
+            if (!messageElement) {
+                console.error(`[EXPAND] Message element not found: message-${messageId}`);
+                return;
+            }
+            
+            const isExpanded = messageElement.style.display === 'block';
             
             if (isExpanded) {
-                messageElement.classList.remove('expanded');
+                messageElement.style.display = 'none';
                 button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
             } else {
-                messageElement.classList.add('expanded');
+                messageElement.style.display = 'block';
                 button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
             }
+            
+            console.log(`[EXPAND] Toggled message ${messageId}: ${isExpanded ? 'collapsed' : 'expanded'}`);
         }
 
         // Edit message functionality (placeholder for future implementation)
