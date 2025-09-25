@@ -1,2147 +1,2386 @@
-// ==================== 🆕 SIMPLIFIED CONTEXT SLOT MANAGEMENT FUNCTIONS ====================
-
-// 🆕 Get user's context addon slots and usage - SIMPLIFIED: Direct field access
-const getContextAddonUsage = async (userId) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                plan_context_slots,
-                extra_context_slots,
-                total_context_slots,
-                contexts_count,
-                plan_code
-            FROM users 
-            WHERE id = $1
-        `, [userId]);
-        
-        if (result.rows.length === 0) {
-            throw new Error('User not found');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5CNT3VV9');</script>
+<!-- End Google Tag Manager -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - Msgly AI</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-purple: #8039DF;
+            --dark-purple: #3E0075;
+            --glow-purple: #9F4EFF;
+            --neon-purple: #7B2CBF;
+            --electric-purple: #6A1B9A;
+            --light-purple: #F5EDFF;
+            --accent-pink: #FF2370;
+            --success-green: #10B981;
+            --warning-orange: #F59E0B;
+            --error-red: #EF4444;
+            --black: #111827;
+            --charcoal: #1F2937;
+            --dark-gray: #374151;
+            --gray: #6B7280;
+            --light-gray: #F9FAFB;
+            --white: #FFFFFF;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
+            --glow-shadow: 0 0 30px rgba(128, 57, 223, 0.25);
+            --intense-glow: 0 0 45px rgba(128, 57, 223, 0.35);
+            --neon-glow: 0 0 60px rgba(128, 57, 223, 0.25);
         }
-        
-        const user = result.rows[0];
-        
-        return {
-            success: true,
-            data: {
-                used: user.contexts_count || 0,
-                baseLimit: user.plan_context_slots || 1,
-                addonSlots: user.extra_context_slots || 0,
-                totalLimit: user.total_context_slots || 1,
-                planCode: user.plan_code
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--light-gray);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* Side Navigation */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar-header {
+            padding: 2rem 1.5rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: var(--white);
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-logo i {
+            font-size: 2rem;
+            margin-right: 12px;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+        }
+
+        .sidebar-logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-logo-main {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .sidebar-logo-sub {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .sidebar-user-avatar {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .sidebar-user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .sidebar-user-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-user-email {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-user-plan {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-nav {
+            padding: 1.5rem 0;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            padding: 0 1.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--white);
+            box-shadow: inset 4px 0 0 var(--white);
+        }
+
+        .nav-item i {
+            width: 20px;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+
+        .nav-item-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .nav-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-badge.new {
+            background: var(--accent-pink);
+            color: var(--white);
+        }
+
+        .nav-badge.soon {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: var(--white);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        /* Mobile Sidebar Toggle */
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background: var(--primary-purple);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+
+        /* Main Content */
+        .main-wrapper {
+            flex: 1;
+            margin-left: 280px;
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content {
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .page-subtitle {
+            color: var(--gray);
+            font-size: 1rem;
+            margin-top: 0.4rem;
+        }
+
+        .messages-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 3rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 25px;
+            font-size: 0.9rem;
+            background: var(--white);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 15px rgba(128, 57, 223, 0.15);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray);
+            font-size: 1.1rem;
+        }
+
+        .messages-stats {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0.8rem 1.2rem;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            min-width: 100px;
+            position: relative;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .messages-filters {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 0.6rem 1rem;
+            border: 2px solid var(--light-gray);
+            background: var(--white);
+            color: var(--gray);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        /* CARD-BASED LAYOUT */
+        .messages-cards-container {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(128, 57, 223, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .messages-cards-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+        }
+
+        .messages-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .message-card {
+            background: var(--white);
+            border: 3px solid var(--light-gray);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .message-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-purple);
+        }
+
+        .message-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .message-card:hover::before {
+            opacity: 1;
+        }
+
+        /* Target Profile Header */
+        .card-profile-header {
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-gray);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .profile-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 0.4rem;
+        }
+
+        .profile-role {
+            font-size: 1rem;
+            color: var(--dark-gray);
+            font-weight: 500;
+            margin-bottom: 0.3rem;
+        }
+
+        .profile-company {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .email-finder-header-section {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .email-finder-description {
+            font-size: 0.7rem;
+            color: var(--primary-purple);
+            font-weight: 500;
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        /* Email Finder Section */
+        .email-finder-section {
+            background: rgba(128, 57, 223, 0.03);
+            border: 1px solid rgba(128, 57, 223, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .email-finder-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-purple);
+        }
+
+        .email-finder-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .email-ask-btn {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .email-ask-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+        }
+
+        .email-ask-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .email-ask-btn.loading {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .email-verification {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+        }
+
+        .email-address {
+            color: var(--dark-gray);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .email-status {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .email-status.verified {
+            color: var(--success-green);
+        }
+
+        .email-status.not-found {
+            color: var(--error-red);
+        }
+
+        .email-verified-date {
+            font-size: 0.7rem;
+            color: var(--gray);
+        }
+
+        .email-not-available {
+            color: var(--gray);
+            font-style: italic;
+            font-size: 0.8rem;
+        }
+
+        /* Message Types Section */
+        .message-types-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .message-type-block {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 12px;
+            background: rgba(128, 57, 223, 0.01);
+        }
+
+        .message-type-block.linkedin {
+            border-left: 4px solid #0077B5;
+        }
+
+        .message-type-block.connection {
+            border-left: 4px solid var(--accent-pink);
+        }
+
+        .message-type-block.email {
+            border-left: 4px solid var(--warning-orange);
+        }
+
+        .message-type-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+        }
+
+        .message-type-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+
+        .message-type-label i {
+            font-size: 1rem;
+        }
+
+        .message-type-label.linkedin { color: #0077B5; }
+        .message-type-label.connection { color: var(--accent-pink); }
+        .message-type-label.email { color: var(--warning-orange); }
+
+        .message-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .expand-btn, .edit-btn, .copy-btn {
+            background: var(--light-gray);
+            border: 1px solid var(--gray);
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--dark-gray);
+        }
+
+        .expand-btn:hover {
+            background: #0077B5;
+            color: var(--white);
+            border-color: #0077B5;
+        }
+
+        .edit-btn:hover {
+            background: var(--warning-orange);
+            color: var(--white);
+            border-color: var(--warning-orange);
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-purple);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        .copy-btn.copied {
+            background: var(--success-green);
+            color: var(--white);
+            border-color: var(--success-green);
+        }
+
+        .message-text {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--dark-gray);
+            background: rgba(128, 57, 223, 0.03);
+            padding: 0.8rem;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            display: none; /* Hidden by default - will be shown when expanded */
+        }
+
+        .message-text.expanded {
+            display: block;
+        }
+
+        .message-text.empty {
+            color: var(--gray);
+            font-style: italic;
+            text-align: center;
+            padding: 1.5rem;
+            display: block; /* Always show empty state */
+        }
+
+        .message-history-item {
+            margin-bottom: 0.8rem;
+            padding: 0.6rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .message-history-item.latest {
+            border-color: var(--primary-purple);
+            background: rgba(128, 57, 223, 0.05);
+        }
+
+        .message-history-item.collapsed {
+            background: var(--light-gray);
+            cursor: pointer;
+        }
+
+        .message-history-item.collapsed:hover {
+            background: rgba(128, 57, 223, 0.08);
+        }
+
+        .message-timestamp {
+            font-size: 0.7rem;
+            color: var(--gray);
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .message-content-preview {
+            font-size: 0.85rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+        }
+
+        .message-version-count {
+            font-size: 0.75rem;
+            color: var(--primary-purple);
+            font-weight: 600;
+            margin-left: 0.5rem;
+            padding: 0.2rem 0.5rem;
+            background: rgba(128, 57, 223, 0.1);
+            border-radius: 10px;
+        }
+
+        /* Status and Comments Section */
+        .card-status-section {
+            padding: 1rem;
+            background: rgba(128, 57, 223, 0.02);
+            border-radius: 12px;
+            border: 1px solid rgba(128, 57, 223, 0.08);
+        }
+
+        .status-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-item {
+            text-align: center;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .toggle-switch {
+            width: 60px;
+            height: 28px;
+            background: var(--light-gray);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            margin: 0 auto 0.5rem;
+        }
+
+        .toggle-switch.pending {
+            background: var(--light-gray);
+        }
+
+        .toggle-switch.yes {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            border-color: var(--success-green);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .toggle-switch.no {
+            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
+            border-color: var(--error-red);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: var(--white);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-switch.pending .toggle-slider {
+            background: var(--gray);
+            color: var(--white);
+        }
+
+        .toggle-switch.yes .toggle-slider {
+            transform: translateX(32px);
+            background: var(--white);
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no .toggle-slider {
+            background: var(--white);
+            color: var(--error-red);
+        }
+
+        .toggle-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .toggle-switch.pending + .toggle-label {
+            color: var(--gray);
+        }
+
+        .toggle-switch.yes + .toggle-label {
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no + .toggle-label {
+            color: var(--error-red);
+        }
+
+        .comment-field {
+            width: 100%;
+            min-height: 60px;
+            max-height: 120px;
+            padding: 0.8rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        .comment-field:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 0.8rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 1rem;
+            opacity: 0.6;
+            transform: scale(0.98);
+        }
+
+        .save-btn.modified {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+        }
+
+        .save-btn:hover.modified {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px) scale(1);
+        }
+
+        .save-btn.saving {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .save-btn.saved {
+            background: var(--success-green);
+        }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(128, 57, 223, 0.1);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-body {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--dark-gray);
+            line-height: 1.5;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-btn.primary {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            box-shadow: var(--glow-shadow);
+        }
+
+        .modal-btn.primary:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+        }
+
+        .modal-btn.secondary {
+            background: var(--light-gray);
+            color: var(--dark-gray);
+            border: 2px solid var(--light-gray);
+        }
+
+        .modal-btn.secondary:hover {
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
+        }
+
+        /* Loading & Empty States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 300px;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary-purple);
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.6rem;
+            color: var(--dark-gray);
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+        }
+
+        .refresh-btn:hover {
+            background: var(--light-purple);
+            color: var(--primary-purple);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
             }
-        };
-        
-    } catch (error) {
-        console.error('Error getting context addon usage:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
 
-// 🆕 Create context addon subscription - SIMPLIFIED: Direct field increment
-const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails = {}) => {
-    try {
-        const client = await pool.connect();
-        
-        try {
-            await client.query('BEGIN');
-            
-            // Create addon record
-            const addonResult = await client.query(`
-                INSERT INTO user_context_addons (
-                    user_id,
-                    chargebee_subscription_id,
-                    addon_quantity,
-                    monthly_price,
-                    billing_period_start,
-                    billing_period_end,
-                    next_billing_date,
-                    status,
-                    chargebee_status
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                RETURNING *
-            `, [
-                userId,
-                chargebeeSubscriptionId,
-                addonDetails.quantity || 1,
-                addonDetails.price || 3.99,
-                addonDetails.periodStart || new Date(),
-                addonDetails.periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                addonDetails.nextBillingDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                'active',
-                addonDetails.chargebeeStatus || 'active'
-            ]);
-            
-            // 🆕 SIMPLIFIED: Increment extra_context_slots directly
-            await client.query(`
-                UPDATE users 
-                SET extra_context_slots = extra_context_slots + $1,
-                    total_context_slots = plan_context_slots + extra_context_slots + $1,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-            `, [addonDetails.quantity || 1, userId]);
-            
-            await client.query('COMMIT');
-            
-            console.log(`[CONTEXT_ADDON] Created addon subscription for user ${userId}: ${chargebeeSubscriptionId}`);
-            
-            return {
-                success: true,
-                data: addonResult.rows[0]
-            };
-            
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
-    } catch (error) {
-        console.error('Error creating context addon:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// 🆕 Get user's active context addons
-const getUserContextAddons = async (userId) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                id,
-                chargebee_subscription_id,
-                addon_quantity,
-                monthly_price,
-                next_billing_date,
-                status,
-                created_at
-            FROM user_context_addons 
-            WHERE user_id = $1 AND status = 'active'
-            ORDER BY created_at DESC
-        `, [userId]);
-        
-        return {
-            success: true,
-            data: result.rows
-        };
-    } catch (error) {
-        console.error('Error getting user context addons:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// 🆕 Update user context slots when plan changes (like credit functions)
-const updateUserContextSlots = async (userId, newPlanCode) => {
-    try {
-        // Plan to context slots mapping
-        const planContextSlots = {
-            'free': 1,
-            'silver-monthly': 3,
-            'gold-monthly': 6,
-            'platinum-monthly': 10,
-            'silver-payasyougo': 1,
-            'gold-payasyougo': 1,
-            'platinum-payasyougo': 1
-        };
-        
-        const newBaseSlots = planContextSlots[newPlanCode] || 1;
-        
-        const result = await pool.query(`
-            UPDATE users 
-            SET plan_context_slots = $1,
-                total_context_slots = $1 + COALESCE(extra_context_slots, 0),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-            RETURNING plan_context_slots, extra_context_slots, total_context_slots
-        `, [newBaseSlots, userId]);
-        
-        if (result.rows.length === 0) {
-            throw new Error('User not found');
-        }
-        
-        const slots = result.rows[0];
-        
-        return {
-            success: true,
-            baseSlots: Number(slots.plan_context_slots),
-            extraSlots: Number(slots.extra_context_slots),
-            totalSlots: Number(slots.total_context_slots)
-        };
-    } catch (error) {
-        console.error('Error updating user context slots:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// 🆕 Remove context addon (decrement slots)
-const removeContextAddon = async (userId, addonId) => {
-    try {
-        const client = await pool.connect();
-        
-        try {
-            await client.query('BEGIN');
-            
-            // Get addon details
-            const addonResult = await client.query(`
-                SELECT addon_quantity FROM user_context_addons 
-                WHERE id = $1 AND user_id = $2
-            `, [addonId, userId]);
-            
-            if (addonResult.rows.length === 0) {
-                throw new Error('Addon not found');
+            .sidebar.active {
+                transform: translateX(0);
             }
-            
-            const addonQuantity = addonResult.rows[0].addon_quantity || 1;
-            
-            // Cancel addon
-            await client.query(`
-                UPDATE user_context_addons 
-                SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1
-            `, [addonId]);
-            
-            // 🆕 SIMPLIFIED: Decrement extra_context_slots directly
-            await client.query(`
-                UPDATE users 
-                SET extra_context_slots = GREATEST(0, extra_context_slots - $1),
-                    total_context_slots = plan_context_slots + GREATEST(0, extra_context_slots - $1),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-            `, [addonQuantity, userId]);
-            
-            await client.query('COMMIT');
-            
-            return {
-                success: true,
-                removedSlots: addonQuantity
-            };
-            
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
-    } catch (error) {
-        console.error('Error removing context addon:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
 
-// ==================== PENDING REGISTRATIONS FUNCTIONS ====================
-
-// ✅ NEW: Store pending registration before payment
-const storePendingRegistration = async (userId, linkedinUrl, packageType) => {
-    try {
-        // Remove any existing pending registrations for this user
-        await pool.query(
-            'DELETE FROM pending_registrations WHERE user_id = $1',
-            [userId]
-        );
-        
-        // Store new pending registration
-        const result = await pool.query(`
-            INSERT INTO pending_registrations (
-                user_id, linkedin_url, package_type, terms_accepted
-            ) VALUES ($1, $2, $3, $4) 
-            RETURNING *
-        `, [userId, linkedinUrl, packageType, true]);
-        
-        console.log(`[PENDING_REG] Stored pending registration for user ${userId}: ${packageType}`);
-        
-        return {
-            success: true,
-            data: result.rows[0]
-        };
-    } catch (error) {
-        console.error('Error storing pending registration:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// ✅ NEW: Get pending registration for user
-const getPendingRegistration = async (userId) => {
-    try {
-        const result = await pool.query(`
-            SELECT * FROM pending_registrations 
-            WHERE user_id = $1 AND completed_at IS NULL AND expired_at > CURRENT_TIMESTAMP
-            ORDER BY created_at DESC
-            LIMIT 1
-        `, [userId]);
-        
-        if (result.rows.length === 0) {
-            return {
-                success: false,
-                error: 'No pending registration found'
-            };
-        }
-        
-        return {
-            success: true,
-            data: result.rows[0]
-        };
-    } catch (error) {
-        console.error('Error getting pending registration:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// ✅ NEW: Complete pending registration (called by webhook)
-const completePendingRegistration = async (userId) => {
-    try {
-        const client = await pool.connect();
-        
-        try {
-            await client.query('BEGIN');
-            
-            // Get pending registration
-            const pendingResult = await client.query(`
-                SELECT * FROM pending_registrations 
-                WHERE user_id = $1 AND completed_at IS NULL AND expired_at > CURRENT_TIMESTAMP
-                ORDER BY created_at DESC
-                LIMIT 1
-            `, [userId]);
-            
-            if (pendingResult.rows.length === 0) {
-                await client.query('ROLLBACK');
-                return {
-                    success: false,
-                    error: 'No pending registration found'
-                };
+            .sidebar-toggle {
+                display: block;
             }
-            
-            const pendingReg = pendingResult.rows[0];
-            
-            // Update user with LinkedIn URL and mark registration complete
-            await client.query(`
-                UPDATE users 
-                SET linkedin_url = $1, 
-                    registration_completed = true,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-            `, [pendingReg.linkedin_url, userId]);
-            
-            // Mark pending registration as completed
-            await client.query(`
-                UPDATE pending_registrations 
-                SET completed_at = CURRENT_TIMESTAMP
-                WHERE id = $1
-            `, [pendingReg.id]);
-            
-            await client.query('COMMIT');
-            
-            console.log(`[PENDING_REG] Completed registration for user ${userId} with LinkedIn URL: ${pendingReg.linkedin_url}`);
-            
-            return {
-                success: true,
-                data: {
-                    linkedinUrl: pendingReg.linkedin_url,
-                    packageType: pendingReg.package_type,
-                    registrationCompleted: true
-                }
-            };
-            
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
-    } catch (error) {
-        console.error('Error completing pending registration:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
 
-// ==================== DATA PROCESSING HELPER FUNCTIONS ====================
+            .main-wrapper {
+                margin-left: 0;
+            }
 
-// JSON validation and sanitization
-const sanitizeForJSON = (data) => {
-    if (data === null || data === undefined) {
-        return null;
-    }
-    
-    if (typeof data === 'string') {
-        try {
-            const parsed = JSON.parse(data);
-            return parsed;
-        } catch (e) {
-            return data;
-        }
-    }
-    
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeForJSON(item)).filter(item => item !== null);
-    }
-    
-    if (typeof data === 'object') {
-        const sanitized = {};
-        for (const [key, value] of Object.entries(data)) {
-            const sanitizedValue = sanitizeForJSON(value);
-            if (sanitizedValue !== null) {
-                sanitized[key] = sanitizedValue;
+            .main-content {
+                padding: 1rem;
+                margin-top: 4rem;
+            }
+
+            .messages-controls {
+                flex-direction: column;
+            }
+
+            .search-box {
+                min-width: auto;
+            }
+
+            .messages-stats {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .messages-cards-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .status-row {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .modal {
+                max-width: 350px;
+                padding: 1.5rem;
             }
         }
-        return sanitized;
-    }
-    
-    return data;
-};
 
-// Ensure arrays are properly formatted for PostgreSQL JSONB
-const ensureValidJSONArray = (data) => {
-    try {
-        if (!data) {
-            return [];
-        }
-        
-        if (Array.isArray(data)) {
-            const sanitized = data.map(item => sanitizeForJSON(item)).filter(item => item !== null);
-            const testString = JSON.stringify(sanitized);
-            JSON.parse(testString);
-            return sanitized;
-        }
-        
-        if (typeof data === 'string') {
-            try {
-                const parsed = JSON.parse(data);
-                if (Array.isArray(parsed)) {
-                    return ensureValidJSONArray(parsed);
-                }
-                return [parsed];
-            } catch (e) {
-                return [];
+        @media (min-width: 769px) and (max-width: 1200px) {
+            .messages-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
-        
-        if (typeof data === 'object') {
-            return [sanitizeForJSON(data)];
-        }
-        
-        return [];
-    } catch (error) {
-        console.error('Error ensuring valid JSON array:', error);
-        return [];
-    }
-};
 
-// Helper function to parse LinkedIn numbers
-const parseLinkedInNumber = (str) => {
-    if (!str) return null;
-    if (typeof str === 'number') return str;
-    
-    try {
-        const cleanStr = str.toString().toLowerCase().trim();
-        
-        if (cleanStr.includes('m')) {
-            const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
-            return num ? Math.round(num * 1000000) : null;
-        }
-        if (cleanStr.includes('k')) {
-            const num = parseFloat(cleanStr.match(/[\d.]+/)?.[0]);
-            return num ? Math.round(num * 1000) : null;
-        }
-        
-        const numbers = cleanStr.match(/[\d,]+/);
-        if (numbers) {
-            const cleanNumber = numbers[0].replace(/,/g, '');
-            return parseInt(cleanNumber, 10) || null;
-        }
-        return null;
-    } catch (error) {
-        console.error('Error parsing LinkedIn number:', str, error);
-        return null;
-    }
-};
-
-// USER PROFILE ONLY: Process Gemini data (keeps working)
-const processGeminiData = (geminiResponse, cleanProfileUrl) => {
-    try {
-        const aiData = geminiResponse.data;
-        const profile = aiData.profile || {};
-        const engagement = aiData.engagement || {};
-        
-        const processedData = {
-            linkedinUrl: cleanProfileUrl,
-            url: cleanProfileUrl,
-            
-            // Basic Info
-            fullName: profile.name || '',
-            firstName: profile.firstName || (profile.name ? profile.name.split(' ')[0] : ''),
-            lastName: profile.lastName || (profile.name ? profile.name.split(' ').slice(1).join(' ') : ''),
-            headline: profile.headline || '',
-            currentJobTitle: profile.currentRole || '',
-            about: profile.about || '',
-            location: profile.location || '',
-            
-            // Company Info
-            currentCompany: profile.currentCompany || '',
-            currentCompanyName: profile.currentCompany || '',
-            
-            // Metrics
-            connectionsCount: parseLinkedInNumber(profile.connectionsCount),
-            followersCount: parseLinkedInNumber(profile.followersCount),
-            mutualConnectionsCount: parseLinkedInNumber(profile.mutualConnections) || 0,
-            
-            // Enhanced engagement fields
-            totalLikes: parseLinkedInNumber(engagement.totalLikes) || 0,
-            totalComments: parseLinkedInNumber(engagement.totalComments) || 0,
-            totalShares: parseLinkedInNumber(engagement.totalShares) || 0,
-            averageLikes: parseFloat(engagement.averageLikes) || 0,
-            
-            // Complex data arrays
-            experience: ensureValidJSONArray(aiData.experience || []),
-            education: ensureValidJSONArray(aiData.education || []),
-            skills: ensureValidJSONArray(aiData.skills || []),
-            certifications: ensureValidJSONArray(aiData.certifications || []),
-            awards: ensureValidJSONArray(aiData.awards || []),
-            activity: ensureValidJSONArray(aiData.activity || []),
-            volunteerExperience: ensureValidJSONArray(aiData.volunteer || []),
-            followingCompanies: ensureValidJSONArray(aiData.followingCompanies || []),
-            followingPeople: ensureValidJSONArray(aiData.followingPeople || []),
-            followingHashtags: ensureValidJSONArray(aiData.followingHashtags || []),
-            followingNewsletters: ensureValidJSONArray(aiData.followingNewsletters || []),
-            interestsIndustries: ensureValidJSONArray(aiData.interestsIndustries || []),
-            interestsTopics: ensureValidJSONArray(aiData.interestsTopics || []),
-            groups: ensureValidJSONArray(aiData.groups || []),
-            featured: ensureValidJSONArray(aiData.featured || []),
-            services: ensureValidJSONArray(aiData.services || []),
-            engagementData: sanitizeForJSON(engagement),
-            creatorInfo: sanitizeForJSON(aiData.creator || {}),
-            businessInfo: sanitizeForJSON(aiData.business || {}),
-            
-            // Raw Gemini data storage
-            geminiRawData: sanitizeForJSON(geminiResponse),
-            geminiProcessedAt: new Date(),
-            geminiTokenUsage: geminiResponse.metadata?.tokenUsage || {},
-            
-            // Metadata
-            timestamp: new Date(),
-            dataSource: 'html_scraping_gemini',
-            hasExperience: aiData.experience && Array.isArray(aiData.experience) && aiData.experience.length > 0
-        };
-        
-        return processedData;
-        
-    } catch (error) {
-        console.error('Error processing Gemini data for USER profile:', error);
-        throw new Error(`Gemini data processing failed: ${error.message}`);
-    }
-};
-
-// ==================== USER MANAGEMENT FUNCTIONS ====================
-
-const createUser = async (email, passwordHash, packageType = 'free', billingModel = 'monthly') => {
-    // Get credits from plans table
-    const planResult = await pool.query(
-        'SELECT renewable_credits FROM plans WHERE plan_code = $1',
-        [packageType]
-    );
-    
-    const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
-    
-    // 🆕 Get context slots for plan
-    const planContextSlots = {
-        'free': 1,
-        'silver-monthly': 3,
-        'gold-monthly': 6,
-        'platinum-monthly': 10,
-        'silver-payasyougo': 1,
-        'gold-payasyougo': 1,
-        'platinum-payasyougo': 1
-    };
-    
-    const contextSlots = planContextSlots[packageType] || 1;
-    
-    const result = await pool.query(`
-        INSERT INTO users (
-            email, password_hash, package_type, billing_model, plan_code,
-            renewable_credits, payasyougo_credits, credits_remaining,
-            plan_context_slots, extra_context_slots, total_context_slots,
-            subscription_starts_at, next_billing_date, is_admin
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *
-    `, [
-        email, passwordHash, packageType, billingModel, packageType,
-        renewableCredits, 0, renewableCredits,
-        contextSlots, 0, contextSlots,
-        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
-        false // is_admin defaults to false
-    ]);
-    
-    return result.rows[0];
-};
-
-// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser with LinkedIn URL support
-const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly', linkedinUrl = null) => {
-    // Get credits from plans table
-    const planResult = await pool.query(
-        'SELECT renewable_credits FROM plans WHERE plan_code = $1',
-        [packageType]
-    );
-    
-    const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
-    
-    // 🆕 Get context slots for plan
-    const planContextSlots = {
-        'free': 1,
-        'silver-monthly': 3,
-        'gold-monthly': 6,
-        'platinum-monthly': 10,
-        'silver-payasyougo': 1,
-        'gold-payasyougo': 1,
-        'platinum-payasyougo': 1
-    };
-    
-    const contextSlots = planContextSlots[packageType] || 1;
-    
-    // ✅ AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
-    const registrationCompleted = !!linkedinUrl;
-    
-    const result = await pool.query(`
-        INSERT INTO users (
-            email, google_id, display_name, profile_picture, 
-            package_type, billing_model, plan_code,
-            renewable_credits, payasyougo_credits, credits_remaining,
-            plan_context_slots, extra_context_slots, total_context_slots,
-            subscription_starts_at, next_billing_date,
-            linkedin_url, registration_completed, is_admin
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *
-    `, [
-        email, googleId, displayName, profilePicture, 
-        packageType, billingModel, packageType,
-        renewableCredits, 0, renewableCredits,
-        contextSlots, 0, contextSlots,
-        new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
-        linkedinUrl, registrationCompleted, // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
-        false // is_admin defaults to false
-    ]);
-    
-    const user = result.rows[0];
-    
-    return user;
-};
-
-const linkGoogleAccount = async (userId, googleId) => {
-    const result = await pool.query(
-        'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-        [googleId, userId]
-    );
-    return result.rows[0];
-};
-
-const getUserByEmail = async (email) => {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    return result.rows[0];
-};
-
-const getUserById = async (userId) => {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    return result.rows[0];
-};
-
-// USER PROFILE: Create user profile (UNCHANGED - still working)
-const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
-    try {
-        await pool.query(
-            'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER
-// Sophisticated credit management with renewable + pay-as-you-go credits
-// FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
-// FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
-// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
-// ✅ URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
-// ✅ GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
-// ✅ FIXED: Added message_type column for connection/intro message differentiation
-// ✅ MESSAGE TYPE FIX: Fixed message type detection and insertion logic
-// ✅ CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
-// ✅ REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
-// ✅ MESSAGES FIX: Added campaign tracking fields to message_logs table
-// ✅ PROMPT VERSION FIX: Increased prompt_version column size from VARCHAR(50) to VARCHAR(255)
-// ✅ CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
-// ✅ CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
-// ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
-// 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
-// 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
-// 🔒 SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
-// ✅ EMAIL FINDER: Added email finder columns to target_profiles table
-
-const { Pool } = require('pg');
-require('dotenv').config();
-
-// Database connection pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
-
-// NEW: Clean up duplicate URLs in target_profiles table
-const cleanupDuplicateTargetProfiles = async () => {
-    try {
-        console.log('[CLEANUP] Starting duplicate target profiles cleanup...');
-        
-        // Find duplicates (keep the earliest one)
-        const duplicatesQuery = `
-            DELETE FROM target_profiles 
-            WHERE id NOT IN (
-                SELECT MIN(id) 
-                FROM target_profiles 
-                GROUP BY linkedin_url, user_id
-            )
-        `;
-        
-        const result = await pool.query(duplicatesQuery);
-        console.log(`[CLEANUP] Removed ${result.rowCount} duplicate target profiles`);
-        
-        return result.rowCount;
-    } catch (error) {
-        console.error('[CLEANUP] Error cleaning up duplicates:', error);
-        return 0;
-    }
-};
-
-// NEW: Ensure target_profiles table exists with proper UNIQUE constraint
-const ensureTargetProfilesTable = async () => {
-    try {
-        console.log('[INIT] Creating target_profiles table...');
-        
-        // Create target_profiles table if it doesn't exist
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS target_profiles (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                linkedin_url TEXT NOT NULL,
-                data_json JSONB,
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                total_tokens INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        // Clean up any existing duplicates before adding constraint
-        await cleanupDuplicateTargetProfiles();
-        
-        // Add UNIQUE constraint - FIXED: Correct error message
-        try {
-            await pool.query(`
-                ALTER TABLE target_profiles 
-                ADD CONSTRAINT target_profiles_linkedin_url_unique 
-                UNIQUE (linkedin_url);
-            `);
-            console.log('[SUCCESS] Added UNIQUE constraint to target_profiles');
-        } catch (err) {
-            if (err.code === '42P07') {
-                console.log('[INFO] UNIQUE constraint already exists on target_profiles');
-            } else {
-                console.log('[ERROR] UNIQUE constraint creation failed:', err.message);
+        @media (min-width: 1201px) {
+            .messages-cards-grid {
+                grid-template-columns: repeat(3, 1fr);
             }
         }
-        
-        // Create index for better performance
-        try {
-            await pool.query(`
-                CREATE INDEX IF NOT EXISTS idx_target_profiles_linkedin_url 
-                ON target_profiles(linkedin_url);
-            `);
-            console.log('[SUCCESS] Created index on target_profiles.linkedin_url');
-        } catch (err) {
-            console.log('[INFO] Index might already exist:', err.message);
-        }
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to ensure target_profiles table:', error);
-        throw error;
-    }
-};
+    </style>
+</head>
+<body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5CNT3VV9"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+    <!-- Mobile Sidebar Toggle -->
+    <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
 
-// ✅ NEW: Ensure saved_contexts table exists
-const ensureSavedContextsTable = async () => {
-    try {
-        console.log('[INIT] Creating saved_contexts table...');
-        
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS saved_contexts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                context_name VARCHAR(100) NOT NULL,
-                context_text TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                
-                UNIQUE(user_id, context_name)
-            );
-        `);
-        
-        try {
-            await pool.query(`
-                CREATE INDEX IF NOT EXISTS idx_saved_contexts_user_id 
-                ON saved_contexts(user_id);
-                CREATE INDEX IF NOT EXISTS idx_saved_contexts_created_at 
-                ON saved_contexts(created_at);
-            `);
-            console.log('[SUCCESS] Created saved_contexts indexes');
-        } catch (err) {
-            console.log('[INFO] Saved contexts indexes might already exist:', err.message);
-        }
-        
-        console.log('[SUCCESS] saved_contexts table ensured');
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to ensure saved_contexts table:', error);
-        throw error;
-    }
-};
+    <!-- Side Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="https://api.msgly.ai/dashboard" class="sidebar-logo">
+                <i class="fas fa-comments"></i>
+                <div class="sidebar-logo-text">
+                    <div class="sidebar-logo-main">Msgly.AI</div>
+                    <div class="sidebar-logo-sub">By Chopa AI LTD</div>
+                </div>
+            </a>
+            
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar" id="sidebarUserAvatar">??</div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
+                    <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
+                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
+                </div>
+            </div>
+        </div>
 
-// ✅ NEW: Ensure context addon tables exist
-const ensureContextAddonTables = async () => {
-    try {
-        console.log('[INIT] Creating context addon system tables...');
-        
-        // 1. Create user_context_addons table
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS user_context_addons (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                chargebee_subscription_id VARCHAR(255) UNIQUE,
-                chargebee_addon_id VARCHAR(255) DEFAULT 'extra-context-slot',
-                addon_quantity INTEGER DEFAULT 1,
-                monthly_price DECIMAL(8,2) DEFAULT 3.99,
-                
-                -- Billing cycle tracking
-                billing_period_start DATE NOT NULL,
-                billing_period_end DATE NOT NULL,
-                next_billing_date DATE NOT NULL,
-                
-                -- Status management
-                status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'expired', 'grace_period')),
-                chargebee_status VARCHAR(50),
-                expires_at TIMESTAMP NULL,
-                
-                -- Audit fields
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                
-                CONSTRAINT unique_chargebee_subscription UNIQUE (chargebee_subscription_id)
-            );
-        `);
+        <div class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main Menu</div>
+                <a href="https://api.msgly.ai/dashboard" class="nav-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span class="nav-item-text">Dashboard</span>
+                </a>
+                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="nav-item-text">Msgly Profile</span>
+                </a>
+                <a href="https://api.msgly.ai/messages" class="nav-item active">
+                    <i class="fas fa-envelope"></i>
+                    <span class="nav-item-text">Messages</span>
+                </a>
+                <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
+                    <i class="fas fa-chart-line"></i>
+                    <span class="nav-item-text">Analytics</span>
+                    <span class="nav-badge soon">Soon</span>
+                </a>
+            </div>
 
-        // 2. Create context_slot_events table
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS context_slot_events (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                event_type VARCHAR(30) NOT NULL CHECK (event_type IN ('addon_purchased', 'addon_renewed', 'addon_expired', 'context_saved', 'context_deleted')),
-                addon_id INTEGER NULL REFERENCES user_context_addons(id) ON DELETE SET NULL,
-                base_limit INTEGER NOT NULL,
-                active_extra_slots INTEGER NOT NULL,
-                total_limit INTEGER NOT NULL,
-                current_usage INTEGER NOT NULL,
-                metadata JSONB NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
+                    <i class="fas fa-credit-card"></i>
+                    <span class="nav-item-text">Billing</span>
+                </a>
+            </div>
 
-        // 3. Add missing columns
-        try {
-            await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0;`);
-            await pool.query(`ALTER TABLE saved_contexts ADD COLUMN IF NOT EXISTS context_preview VARCHAR(150);`);
-        } catch (err) {
-            console.log('[INFO] Addon columns might already exist');
-        }
+            <div class="nav-section">
+                <div class="nav-section-title">Support</div>
+                <a href="#" class="nav-item" onclick="alert('Help Center coming soon!')">
+                    <i class="fas fa-question-circle"></i>
+                    <span class="nav-item-text">Help Center</span>
+                </a>
+            </div>
+        </div>
 
-        // 4. Create indexes
-        await pool.query(`
-            CREATE INDEX IF NOT EXISTS idx_user_active_addons ON user_context_addons(user_id, status, next_billing_date);
-            CREATE INDEX IF NOT EXISTS idx_billing_due ON user_context_addons(next_billing_date, status);
-            CREATE INDEX IF NOT EXISTS idx_chargebee_subscription ON user_context_addons(chargebee_subscription_id);
-            CREATE INDEX IF NOT EXISTS idx_user_events ON context_slot_events(user_id, created_at);
-            CREATE INDEX IF NOT EXISTS idx_event_type ON context_slot_events(event_type, created_at);
-        `);
+        <div class="sidebar-footer">
+            <a href="#" class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </a>
+        </div>
+    </nav>
 
-        // 5. Create trigger function for contexts_count
-        await pool.query(`
-            CREATE OR REPLACE FUNCTION update_contexts_count()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                IF TG_OP = 'INSERT' THEN
-                    UPDATE users SET contexts_count = contexts_count + 1 WHERE id = NEW.user_id;
-                    RETURN NEW;
-                ELSIF TG_OP = 'DELETE' THEN
-                    UPDATE users SET contexts_count = contexts_count - 1 WHERE id = OLD.user_id;
-                    RETURN OLD;
-                END IF;
-                RETURN NULL;
-            END;
-            $$ LANGUAGE plpgsql;
-        `);
+    <!-- Email Finder Modals -->
+    <div class="modal-overlay" id="emailFinderModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Find & Verify Email</div>
+            </div>
+            <div class="modal-body">
+                We'll search for this contact's email address. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
+            </div>
+        </div>
+    </div>
 
-        // 6. Create trigger
-        await pool.query(`
-            DROP TRIGGER IF EXISTS contexts_count_trigger ON saved_contexts;
-            CREATE TRIGGER contexts_count_trigger
-                AFTER INSERT OR DELETE ON saved_contexts
-                FOR EACH ROW EXECUTE FUNCTION update_contexts_count();
-        `);
+    <div class="modal-overlay" id="insufficientCreditsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Not Enough Credits</div>
+            </div>
+            <div class="modal-body">
+                You don't have enough credits to perform this action.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Buy Credits</button>
+            </div>
+        </div>
+    </div>
 
-        // 7. Initialize contexts_count for existing users
-        await pool.query(`
-            UPDATE users SET contexts_count = (
-                SELECT COUNT(*) FROM saved_contexts WHERE saved_contexts.user_id = users.id
-            ) WHERE contexts_count IS NULL OR contexts_count = 0;
-        `);
+    <div class="modal-overlay" id="upgradeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Upgrade Required</div>
+            </div>
+            <div class="modal-body">
+                Email finder is available for Silver, Gold, and Platinum subscribers. Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
+            </div>
+        </div>
+    </div>
 
-        console.log('[SUCCESS] Context addon system tables created');
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to ensure context addon tables:', error);
-        throw error;
-    }
-};
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+        <main class="main-content">
+            <div class="container">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Messages</h1>
+                <p class="page-subtitle">Manage your LinkedIn outreach campaigns and track responses</p>
+            </div>
+        </div>
 
-// ✅ NEW: Ensure pending_registrations table exists
-const ensurePendingRegistrationsTable = async () => {
-    try {
-        console.log('[INIT] Creating pending_registrations table...');
-        
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS pending_registrations (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                linkedin_url TEXT NOT NULL,
-                package_type VARCHAR(50) NOT NULL,
-                terms_accepted BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP,
-                expired_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
-            );
-        `);
-        
-        // Create indexes for fast lookup
-        try {
-            await pool.query(`
-                CREATE INDEX IF NOT EXISTS idx_pending_registrations_user_id 
-                ON pending_registrations(user_id);
-                CREATE INDEX IF NOT EXISTS idx_pending_registrations_created_at 
-                ON pending_registrations(created_at);
-            `);
-            console.log('[SUCCESS] Created pending_registrations indexes');
-        } catch (err) {
-            console.log('[INFO] Pending registrations indexes might already exist:', err.message);
-        }
-        
-        console.log('[SUCCESS] pending_registrations table ensured');
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to ensure pending_registrations table:', error);
-        throw error;
-    }
-};
+        <div class="messages-controls">
+            <div class="search-box">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search messages, names, companies..." 
+                       id="searchInput" oninput="searchMessages(this.value)">
+            </div>
+            <div class="messages-stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalMessages">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="sentMessages">0</div>
+                    <div class="stat-label">Sent</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="repliedMessages">0</div>
+                    <div class="stat-label">Replied</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="responseRate">0%</div>
+                    <div class="stat-label">Response Rate</div>
+                </div>
+            </div>
+            <button class="refresh-btn" onclick="refreshMessages()" title="Refresh Messages">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
 
-// 🔒 NEW: Ensure admin_audit_log table exists for security tracking
-const ensureAdminAuditTable = async () => {
-    try {
-        console.log('[INIT] Creating admin_audit_log table...');
-        
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS admin_audit_log (
-                id SERIAL PRIMARY KEY,
-                action VARCHAR(100) NOT NULL,
-                performed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                target_email VARCHAR(255),
-                details JSONB DEFAULT '{}'::JSONB,
-                ip_address INET,
-                user_agent TEXT,
-                success BOOLEAN NOT NULL,
-                error_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        await pool.query(`
-            CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log(action, created_at);
-            CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_log(performed_by_user_id, created_at);
-            CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at);
-        `);
-        
-        console.log('[SUCCESS] admin_audit_log table created');
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to ensure admin_audit_log table:', error);
-        throw error;
-    }
-};
+        <div class="messages-filters">
+            <button class="filter-btn active" onclick="filterMessages('all')">
+                <i class="fas fa-list"></i>
+                All
+            </button>
+            <button class="filter-btn" onclick="filterMessages('sent')">
+                <i class="fas fa-paper-plane"></i>
+                Sent
+            </button>
+            <button class="filter-btn" onclick="filterMessages('replied')">
+                <i class="fas fa-reply"></i>
+                Replied
+            </button>
+            <button class="filter-btn" onclick="filterMessages('pending')">
+                <i class="fas fa-clock"></i>
+                Pending
+            </button>
+        </div>
 
-// ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
-const fixPromptVersionColumn = async () => {
-    try {
-        console.log('[INIT] Updating prompt_version column size...');
-        await pool.query(`
-            ALTER TABLE message_logs 
-            ALTER COLUMN prompt_version TYPE VARCHAR(255);
-        `);
-        console.log('[SUCCESS] ✅ prompt_version column updated to VARCHAR(255)');
-    } catch (error) {
-        console.log('[INFO] Column update may have failed:', error.message);
-    }
-};
+        <div class="messages-cards-container">
+            <!-- Loading State -->
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <p>Loading messages...</p>
+            </div>
 
-// 🆕 NEW: Initialize existing users with proper context slots based on their plans - FIXED: Handle both plan_code AND package_type
-const initializeContextSlots = async () => {
-    try {
-        console.log('[INIT] Initializing context slots for existing users...');
-        
-        // 🔧 FIXED: Use comprehensive CTE approach to handle both field names
-        const result = await pool.query(`
-            WITH plan_mapping AS (
-                SELECT id, 
-                       COALESCE(plan_code, package_type, 'free') as effective_plan,
-                       CASE 
-                           WHEN COALESCE(plan_code, package_type, 'free') = 'silver-monthly' THEN 3
-                           WHEN COALESCE(plan_code, package_type, 'free') = 'gold-monthly' THEN 6
-                           WHEN COALESCE(plan_code, package_type, 'free') = 'platinum-monthly' THEN 10
-                           WHEN COALESCE(plan_code, package_type, 'free') LIKE '%-payasyougo' THEN 1
-                           ELSE 1  -- free and unknown plans default to 1
-                       END as correct_base_slots
-                FROM users
-            )
-            UPDATE users 
-            SET plan_context_slots = plan_mapping.correct_base_slots,
-                total_context_slots = plan_mapping.correct_base_slots + COALESCE(users.extra_context_slots, 0),
-                updated_at = CURRENT_TIMESTAMP
-            FROM plan_mapping 
-            WHERE users.id = plan_mapping.id
-            AND (users.plan_context_slots IS NULL 
-                 OR users.plan_context_slots != plan_mapping.correct_base_slots 
-                 OR users.plan_context_slots = 1) -- Force update even existing 1s to ensure correct values
-        `);
-        
-        console.log(`[INIT] ✅ Updated ${result.rowCount} users with correct context slots`);
-        
-        // 🔧 VERIFICATION: Log the results for verification
-        const verification = await pool.query(`
-            SELECT 
-                COALESCE(plan_code, package_type, 'unknown') as effective_plan,
-                plan_context_slots,
-                COUNT(*) as user_count
-            FROM users 
-            GROUP BY effective_plan, plan_context_slots
-            ORDER BY effective_plan, plan_context_slots
-        `);
-        
-        console.log('[INIT] Context slots verification results:');
-        verification.rows.forEach(row => {
-            console.log(`  ${row.effective_plan}: ${row.plan_context_slots} slots (${row.user_count} users)`);
+            <!-- Cards Grid -->
+            <div class="messages-cards-grid" id="messagesCardsGrid" style="display: none;">
+                <!-- Message cards will be populated here -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <i class="fas fa-envelope-open"></i>
+                <h3>No Messages Found</h3>
+                <p>Generate your first LinkedIn message using the Chrome extension, then return here to track your outreach campaign.</p>
+            </div>
+        </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Global variables
+        let messagesData = [];
+        let filteredMessages = [];
+        let groupedMessages = {};
+        let currentFilter = 'all';
+        let currentSearchTerm = '';
+        let pendingChanges = new Map();
+        let currentTargetId = null; 
+        let currentUserPlan = null;
+
+        // Authentication check and data loading
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!checkAuthentication()) {
+                return;
+            }
+            loadUserProfile();
+            loadMessagesData();
         });
-        
-        console.log('[SUCCESS] ✅ Context slots initialization completed successfully');
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to initialize context slots:', error);
-    }
-};
 
-// ✅ NEW: Fix message types for existing messages
-const fixExistingMessageTypes = async () => {
-    try {
-        console.log('[INIT] Fixing message types for existing messages...');
-        
-        // Update connection request messages
-        const connectionResult = await pool.query(`
-            UPDATE message_logs 
-            SET message_type = 'connection_request' 
-            WHERE message_type = 'message' 
-            AND (
-                LOWER(generated_message) LIKE '%connect%' 
-                OR LOWER(generated_message) LIKE '%connection%'
-                OR LOWER(generated_message) LIKE '%network%'
-                OR LOWER(generated_message) LIKE '%linkedin%'
-            )
-        `);
-        
-        // Update cold email messages
-        const emailResult = await pool.query(`
-            UPDATE message_logs 
-            SET message_type = 'cold_email' 
-            WHERE message_type = 'message' 
-            AND (
-                LOWER(generated_message) LIKE 'subject:%' 
-                OR LOWER(generated_message) LIKE '%dear %'
-                OR LOWER(generated_message) LIKE '%email%'
-                OR LOWER(generated_message) LIKE '%regards%'
-                OR LOWER(generated_message) LIKE '%sincerely%'
-            )
-        `);
-        
-        // Keep remaining as linkedin_message
-        const linkedinResult = await pool.query(`
-            UPDATE message_logs 
-            SET message_type = 'linkedin_message' 
-            WHERE message_type = 'message'
-        `);
-        
-        console.log(`[SUCCESS] Fixed message types: ${connectionResult.rowCount} connection requests, ${emailResult.rowCount} cold emails, ${linkedinResult.rowCount} LinkedIn messages`);
-        
-    } catch (error) {
-        console.error('[ERROR] Failed to fix existing message types:', error);
-    }
-};
-
-// 🔒 SECURE ADMIN MANAGEMENT FUNCTIONS
-
-// 🔒 Security: Audit logging function
-const logAdminAction = async (action, performedByUserId, targetUserId, targetEmail, details = {}, success = true, errorMessage = null, ipAddress = null, userAgent = null) => {
-    try {
-        await pool.query(`
-            INSERT INTO admin_audit_log (
-                action, performed_by_user_id, target_user_id, target_email, 
-                details, ip_address, user_agent, success, error_message
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [action, performedByUserId, targetUserId, targetEmail, JSON.stringify(details), ipAddress, userAgent, success, errorMessage]);
-    } catch (error) {
-        console.error('[AUDIT] Failed to log admin action:', error);
-    }
-};
-
-// 🔒 Security: Authorization middleware
-const requireAdminAuthorization = async (performingUserId) => {
-    try {
-        if (!performingUserId) {
-            throw new Error('No user ID provided for authorization');
-        }
-        
-        const result = await pool.query(
-            'SELECT id, email, is_admin FROM users WHERE id = $1',
-            [performingUserId]
-        );
-        
-        if (result.rows.length === 0) {
-            throw new Error('User not found');
-        }
-        
-        const user = result.rows[0];
-        if (!user.is_admin) {
-            throw new Error('Admin access required');
-        }
-        
-        return user;
-    } catch (error) {
-        console.error('[AUTH] Admin authorization failed:', error);
-        throw new Error('Unauthorized');
-    }
-};
-
-// 🔒 Security: Input sanitization
-const sanitizeEmail = (email) => {
-    if (!email || typeof email !== 'string') {
-        throw new Error('Invalid email format');
-    }
-    const sanitized = email.toLowerCase().trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(sanitized)) {
-        throw new Error('Invalid email format');
-    }
-    return sanitized;
-};
-
-// 🔒 SECURE: Create admin user (requires authorization)
-const createAdminUser = async (email, performingUserId, password = null, displayName = null, auditInfo = {}) => {
-    let sanitizedEmail;
-    try {
-        // Security: Authorize the request
-        const performingUser = await requireAdminAuthorization(performingUserId);
-        
-        // Security: Sanitize input
-        sanitizedEmail = sanitizeEmail(email);
-        
-        console.log(`[ADMIN] Authorized admin ${performingUser.email} creating admin user: ${sanitizedEmail}`);
-        
-        // Check if user already exists
-        const existingUser = await pool.query(
-            'SELECT id, email, is_admin FROM users WHERE email = $1',
-            [sanitizedEmail]
-        );
-        
-        if (existingUser.rows.length > 0) {
-            const user = existingUser.rows[0];
-            if (user.is_admin) {
-                await logAdminAction('create_admin_user_already_exists', performingUserId, user.id, sanitizedEmail, { existing: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
-                return {
-                    success: true,
-                    message: 'User is already admin',
-                    user: { id: user.id, email: user.email, is_admin: user.is_admin }
-                };
-            } else {
-                // Promote existing user to admin
-                return await promoteUserToAdmin(sanitizedEmail, performingUserId, auditInfo);
+        function checkAuthentication() {
+            const token = getAuthToken();
+            if (!token) {
+                window.location.href = '/login';
+                return false;
             }
+            return true;
         }
-        
-        // Create new admin user
-        const result = await pool.query(`
-            INSERT INTO users (
-                email, 
-                display_name, 
-                password_hash, 
-                package_type, 
-                billing_model, 
-                plan_code,
-                renewable_credits, 
-                payasyougo_credits, 
-                credits_remaining,
-                plan_context_slots, 
-                extra_context_slots, 
-                total_context_slots,
-                subscription_starts_at, 
-                next_billing_date,
-                is_admin,
-                registration_completed
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
-            RETURNING id, email, display_name, is_admin
-        `, [
-            sanitizedEmail,
-            displayName || 'Admin User',
-            password, // Can be null for OAuth users
-            'free',
-            'monthly',
-            'free',
-            7, 0, 7, // Credits
-            1, 0, 1, // Context slots
-            new Date(),
-            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
-            true, // is_admin
-            true  // registration_completed
-        ]);
-        
-        const newUser = result.rows[0];
-        
-        // Security: Log the action
-        await logAdminAction('create_admin_user', performingUserId, newUser.id, sanitizedEmail, { created: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        console.log(`[ADMIN] ✅ Admin ${performingUser.email} created new admin user: ${sanitizedEmail} (ID: ${newUser.id})`);
-        
-        return {
-            success: true,
-            message: 'Admin user created successfully',
-            user: newUser
-        };
-        
-    } catch (error) {
-        console.error(`[ADMIN] Error creating admin user ${sanitizedEmail}:`, error);
-        
-        // Security: Log failed attempt
-        await logAdminAction('create_admin_user_failed', performingUserId, null, sanitizedEmail, { error: 'Creation failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        return {
-            success: false,
-            error: 'Failed to create admin user'
-        };
-    }
-};
 
-// 🔒 SECURE: Promote user to admin (requires authorization)
-const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
-    let sanitizedEmail;
-    try {
-        // Security: Authorize the request
-        const performingUser = await requireAdminAuthorization(performingUserId);
-        
-        // Security: Sanitize input
-        sanitizedEmail = sanitizeEmail(email);
-        
-        console.log(`[ADMIN] Authorized admin ${performingUser.email} promoting user to admin: ${sanitizedEmail}`);
-        
-        const result = await pool.query(`
-            UPDATE users 
-            SET is_admin = TRUE, updated_at = CURRENT_TIMESTAMP
-            WHERE email = $1
-            RETURNING id, email, display_name, is_admin
-        `, [sanitizedEmail]);
-        
-        if (result.rows.length === 0) {
-            await logAdminAction('promote_user_not_found', performingUserId, null, sanitizedEmail, { error: 'User not found' }, false, 'User not found', auditInfo.ipAddress, auditInfo.userAgent);
-            return {
-                success: false,
-                error: 'User not found'
-            };
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
         }
-        
-        const user = result.rows[0];
-        
-        // Security: Log the action
-        await logAdminAction('promote_user_to_admin', performingUserId, user.id, sanitizedEmail, { promoted: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        console.log(`[ADMIN] ✅ Admin ${performingUser.email} promoted user to admin: ${sanitizedEmail} (ID: ${user.id})`);
-        
-        return {
-            success: true,
-            message: 'User promoted to admin successfully',
-            user: user
-        };
-        
-    } catch (error) {
-        console.error(`[ADMIN] Error promoting user to admin ${sanitizedEmail}:`, error);
-        
-        // Security: Log failed attempt
-        await logAdminAction('promote_user_failed', performingUserId, null, sanitizedEmail, { error: 'Promotion failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        return {
-            success: false,
-            error: 'Unauthorized or promotion failed'
-        };
-    }
-};
 
-// 🔒 SECURE: Remove admin rights (requires authorization)
-const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
-    let sanitizedEmail;
-    try {
-        // Security: Authorize the request
-        const performingUser = await requireAdminAuthorization(performingUserId);
-        
-        // Security: Sanitize input
-        sanitizedEmail = sanitizeEmail(email);
-        
-        // Security: Prevent self-demotion
-        if (performingUser.email === sanitizedEmail) {
-            await logAdminAction('remove_admin_self_attempt', performingUserId, performingUser.id, sanitizedEmail, { error: 'Self-demotion prevented' }, false, 'Cannot remove own admin rights', auditInfo.ipAddress, auditInfo.userAgent);
-            return {
-                success: false,
-                error: 'Cannot remove your own admin rights'
-            };
-        }
-        
-        console.log(`[ADMIN] Authorized admin ${performingUser.email} removing admin rights from: ${sanitizedEmail}`);
-        
-        const result = await pool.query(`
-            UPDATE users 
-            SET is_admin = FALSE, updated_at = CURRENT_TIMESTAMP
-            WHERE email = $1
-            RETURNING id, email, display_name, is_admin
-        `, [sanitizedEmail]);
-        
-        if (result.rows.length === 0) {
-            await logAdminAction('remove_admin_not_found', performingUserId, null, sanitizedEmail, { error: 'User not found' }, false, 'User not found', auditInfo.ipAddress, auditInfo.userAgent);
-            return {
-                success: false,
-                error: 'User not found'
-            };
-        }
-        
-        const user = result.rows[0];
-        
-        // Security: Log the action
-        await logAdminAction('remove_admin_rights', performingUserId, user.id, sanitizedEmail, { demoted: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        console.log(`[ADMIN] ✅ Admin ${performingUser.email} removed admin rights from: ${sanitizedEmail} (ID: ${user.id})`);
-        
-        return {
-            success: true,
-            message: 'Admin rights removed successfully',
-            user: user
-        };
-        
-    } catch (error) {
-        console.error(`[ADMIN] Error removing admin rights from ${sanitizedEmail}:`, error);
-        
-        // Security: Log failed attempt
-        await logAdminAction('remove_admin_failed', performingUserId, null, sanitizedEmail, { error: 'Removal failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        return {
-            success: false,
-            error: 'Unauthorized or removal failed'
-        };
-    }
-};
+        // Load user profile for sidebar
+        async function loadUserProfile() {
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
 
-// 🔒 SECURE: List admin users (requires authorization)
-const listAdminUsers = async (performingUserId, auditInfo = {}) => {
-    try {
-        // Security: Authorize the request
-        const performingUser = await requireAdminAuthorization(performingUserId);
-        
-        const result = await pool.query(`
-            SELECT id, email, display_name, is_admin, created_at, updated_at
-            FROM users 
-            WHERE is_admin = TRUE
-            ORDER BY created_at ASC
-        `);
-        
-        // Security: Log the action
-        await logAdminAction('list_admin_users', performingUserId, null, null, { count: result.rows.length }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        console.log(`[ADMIN] Admin ${performingUser.email} listed ${result.rows.length} admin users`);
-        
-        return {
-            success: true,
-            adminUsers: result.rows.map(user => ({
-                id: user.id,
-                email: user.email,
-                display_name: user.display_name,
-                created_at: user.created_at
-            }))
-        };
-        
-    } catch (error) {
-        console.error('[ADMIN] Error listing admin users:', error);
-        
-        // Security: Log failed attempt
-        await logAdminAction('list_admin_failed', performingUserId, null, null, { error: 'List failed' }, false, error.message, auditInfo.ipAddress, auditInfo.userAgent);
-        
-        return {
-            success: false,
-            error: 'Unauthorized'
-        };
-    }
-};
+                const response = await fetch('/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
 
-// 🔒 SECURE: Manual admin setup function (requires environment variable)
-const setupInitialAdmin = async (requireConfirmation = true) => {
-    try {
-        const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
-        
-        if (!adminEmail) {
-            console.log('[ADMIN] No INITIAL_ADMIN_EMAIL environment variable set. Skipping initial admin setup.');
-            console.log('[ADMIN] To create an admin user, set INITIAL_ADMIN_EMAIL=email@example.com in your environment');
-            return { success: false, message: 'No admin email configured' };
-        }
-        
-        if (requireConfirmation) {
-            console.log(`[ADMIN] MANUAL SETUP REQUIRED: To create initial admin user ${adminEmail}:`);
-            console.log('[ADMIN] 1. Set ADMIN_SETUP_CONFIRMED=true in your environment');
-            console.log('[ADMIN] 2. Restart your application');
-            console.log('[ADMIN] 3. The admin user will be created automatically');
-            return { success: false, message: 'Manual confirmation required' };
-        }
-        
-        const confirmed = process.env.ADMIN_SETUP_CONFIRMED === 'true';
-        if (!confirmed) {
-            console.log(`[ADMIN] ADMIN_SETUP_CONFIRMED not set to 'true'. Skipping admin creation for ${adminEmail}`);
-            return { success: false, message: 'Setup not confirmed' };
-        }
-        
-        console.log(`[ADMIN] Creating initial admin user: ${adminEmail}`);
-        
-        // Check if user already exists
-        const existingUser = await pool.query(
-            'SELECT id, email, is_admin FROM users WHERE email = $1',
-            [adminEmail.toLowerCase().trim()]
-        );
-        
-        if (existingUser.rows.length > 0) {
-            const user = existingUser.rows[0];
-            if (user.is_admin) {
-                console.log(`[ADMIN] ✅ ${adminEmail} is already admin`);
-                return { success: true, message: 'User is already admin', user: user };
-            } else {
-                // Promote existing user (without authorization check for initial setup)
-                const result = await pool.query(`
-                    UPDATE users 
-                    SET is_admin = TRUE, updated_at = CURRENT_TIMESTAMP
-                    WHERE email = $1
-                    RETURNING id, email, display_name, is_admin
-                `, [adminEmail.toLowerCase().trim()]);
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
                 
-                const updatedUser = result.rows[0];
-                await logAdminAction('initial_admin_promotion', null, updatedUser.id, adminEmail, { initial_setup: true }, true);
-                console.log(`[ADMIN] ✅ Promoted existing user to admin: ${adminEmail}`);
-                return { success: true, message: 'User promoted to admin', user: updatedUser };
+                if (data.success) {
+                    const user = data.data.user;
+                    
+                    currentUserPlan = {
+                        planCode: user.planCode || 'free',
+                        totalCredits: user.totalCredits || 0,
+                        planName: user.planName || 'Free'
+                    };
+                    
+                    document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
+                    document.getElementById('sidebarUserEmail').textContent = user.email;
+                    
+                    const planCode = user.planCode || 'free';
+                    const planNames = {
+                        'free': 'Free Plan',
+                        'silver-monthly': 'Silver Monthly',
+                        'silver-payasyougo': 'Silver Pay-as-you-go',
+                        'gold-monthly': 'Gold Monthly', 
+                        'gold-payasyougo': 'Gold Pay-as-you-go',
+                        'platinum-monthly': 'Platinum Monthly',
+                        'platinum-payasyougo': 'Platinum Pay-as-you-go'
+                    };
+                    document.getElementById('sidebarUserPlan').textContent = planNames[planCode] || 'Unknown Plan';
+                    
+                    const displayName = user.displayName || user.email;
+                    const initials = getInitials(displayName);
+                    document.getElementById('sidebarUserAvatar').textContent = initials;
+                    
+                    console.log('[PROFILE] User profile loaded successfully');
+                } else {
+                    throw new Error(data.error || 'Failed to load profile');
+                }
+                
+            } catch (error) {
+                console.error('[PROFILE] Error loading user profile:', error);
+                document.getElementById('sidebarUserName').textContent = 'User';
+                document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
+                document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
+                document.getElementById('sidebarUserAvatar').textContent = 'U';
             }
-        } else {
-            // Create new admin user (without authorization check for initial setup)
-            const result = await pool.query(`
-                INSERT INTO users (
-                    email, display_name, package_type, billing_model, plan_code,
-                    renewable_credits, payasyougo_credits, credits_remaining,
-                    plan_context_slots, extra_context_slots, total_context_slots,
-                    subscription_starts_at, next_billing_date, is_admin, registration_completed
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
-                RETURNING id, email, display_name, is_admin
-            `, [
-                adminEmail.toLowerCase().trim(),
-                'Initial Admin User',
-                'free', 'monthly', 'free',
-                7, 0, 7, // Credits
-                1, 0, 1, // Context slots
-                new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
-                true, true // is_admin, registration_completed
-            ]);
-            
-            const newUser = result.rows[0];
-            await logAdminAction('initial_admin_creation', null, newUser.id, adminEmail, { initial_setup: true }, true);
-            console.log(`[ADMIN] ✅ Created initial admin user: ${adminEmail} (ID: ${newUser.id})`);
-            return { success: true, message: 'Initial admin user created', user: newUser };
         }
-        
-    } catch (error) {
-        console.error('[ADMIN] Error in initial admin setup:', error);
-        return { success: false, error: 'Initial admin setup failed' };
-    }
-};
 
-// ✅ NEW: Message log creation with IMPROVED message type detection
-const createMessageLog = async (userId, messageData) => {
-    try {
-        // IMPROVED: Enhanced message type detection with better patterns
-        const detectMessageType = (message) => {
-            const content = (message || '').toLowerCase().trim();
+        function getInitials(name) {
+            if (!name) return '??';
             
-            // Cold email detection (more comprehensive)
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                return name.substring(0, 2).toUpperCase();
+            }
+        }
+
+        // Load messages data from API
+        async function loadMessagesData() {
+            try {
+                document.getElementById('loadingState').style.display = 'flex';
+                
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                console.log('[MESSAGES] Loading messages from API...');
+                
+                const response = await fetch('/messages/history', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messagesData = data.data || [];
+                    console.log(`[MESSAGES] Loaded ${messagesData.length} messages from database`);
+                    groupMessagesByTarget();
+                } else {
+                    throw new Error(data.error || 'Failed to load messages');
+                }
+                
+                applyFilters();
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error loading messages:', error);
+                
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                showEmptyState();
+            }
+        }
+
+        // Group messages by target profile - FIXED: Smart content-based message type detection
+        function groupMessagesByTarget() {
+            groupedMessages = {};
+            
+            messagesData.forEach(message => {
+                const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
+                
+                if (!groupedMessages[targetKey]) {
+                    groupedMessages[targetKey] = {
+                        target: message.targetProfile,
+                        messages: {
+                            linkedin: [],
+                            connection: [],
+                            email: []
+                        },
+                        // Use the first message's metadata for status/comments
+                        id: message.id,
+                        sent: message.sent,
+                        gotReply: message.gotReply,
+                        comments: message.comments,
+                        emailFound: message.emailFound,
+                        emailStatus: message.emailStatus,
+                        emailVerifiedAt: message.emailVerifiedAt
+                    };
+                }
+                
+                // Smart content-based detection since database has all 'message' type
+                const messageContent = (message.message || '').toLowerCase();
+                const messageType = detectMessageType(messageContent);
+                
+                console.log(`[DEBUG] Message ID ${message.id}: detected="${messageType}", content="${messageContent.substring(0, 50)}..."`);
+                
+                if (messageType === 'connection') {
+                    groupedMessages[targetKey].messages.connection.push(message);
+                    console.log(`[DEBUG] Classified as CONNECTION REQUEST`);
+                } else if (messageType === 'email') {
+                    groupedMessages[targetKey].messages.email.push(message);
+                    console.log(`[DEBUG] Classified as COLD EMAIL`);
+                } else {
+                    groupedMessages[targetKey].messages.linkedin.push(message);
+                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE`);
+                }
+            });
+            
+            // Sort messages within each type by creation date (newest first)
+            Object.values(groupedMessages).forEach(group => {
+                group.messages.linkedin.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.connection.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.email.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            });
+            
+            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
+            
+            // Debug: Log the classification results
+            Object.values(groupedMessages).forEach(group => {
+                console.log(`[DEBUG] ${group.target.firstName}: LinkedIn=${group.messages.linkedin.length}, Connection=${group.messages.connection.length}, Email=${group.messages.email.length}`);
+            });
+        }
+
+        // Smart message type detection based on content
+        function detectMessageType(messageContent) {
+            const content = messageContent.toLowerCase().trim();
+            
+            // Cold Email indicators (check first as they're most specific)
             if (content.includes('subject:') || 
-                content.match(/^subject\s*:/i) ||
+                content.match(/^subject\s*[:]\s*/m) ||
                 content.includes('dear ') || 
-                content.includes('regards') || 
-                content.includes('sincerely') ||
-                content.includes('best regards') ||
-                content.includes('kind regards') ||
-                content.includes('yours truly') ||
-                content.match(/@\w+\.\w+/)) { // email pattern
-                return 'cold_email';
+                content.includes('hope this email finds you') ||
+                content.includes('email') && content.includes('regarding')) {
+                return 'email';
             }
             
-            // Connection request detection (more specific patterns)
+            // Connection Request indicators
             if (content.includes('connect') || 
-                content.includes('connection') || 
+                content.includes('connection') ||
                 content.includes('network') ||
                 content.includes('would love to connect') ||
-                content.includes('love to connect') ||
+                content.includes("i'd love to connect") ||
                 content.includes('add you to my network') ||
-                content.includes('connect with you') ||
-                content.includes('sending you a connection')) {
-                return 'connection_request';
+                content.includes('build my network')) {
+                return 'connection';
             }
             
             // Default to LinkedIn message
-            return 'linkedin_message';
-        };
-        
-        const messageType = detectMessageType(messageData.generated_message);
-        
-        const result = await pool.query(`
-            INSERT INTO message_logs (
-                user_id, target_name, target_url, target_profile_url,
-                generated_message, message_context, credits_used,
-                context_text, target_first_name, target_title, target_company,
-                model_name, prompt_version, input_tokens, output_tokens, 
-                total_tokens, latency_ms, data_json, message_type,
-                sent_status, reply_status, comments
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-            RETURNING *
-        `, [
-            userId,
-            messageData.target_name,
-            messageData.target_url,
-            messageData.target_profile_url,
-            messageData.generated_message,
-            messageData.message_context,
-            messageData.credits_used || 1,
-            messageData.context_text,
-            messageData.target_first_name,
-            messageData.target_title,
-            messageData.target_company,
-            messageData.model_name,
-            messageData.prompt_version,
-            messageData.input_tokens,
-            messageData.output_tokens,
-            messageData.total_tokens,
-            messageData.latency_ms,
-            messageData.data_json ? JSON.stringify(messageData.data_json) : null,
-            messageType, // ✅ IMPROVED: Better message type detection
-            messageData.sent_status || 'pending',
-            messageData.reply_status || 'pending',
-            messageData.comments
-        ]);
-        
-        console.log(`[MESSAGE_LOG] Created ${messageType} message log for user ${userId}`);
-        
-        return {
-            success: true,
-            data: result.rows[0]
-        };
-        
-    } catch (error) {
-        console.error('Error creating message log:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
+            return 'linkedin';
+        }
 
-// ✅ NEW: Format email message for display (separate subject and body)
-const formatEmailMessage = (message) => {
-    if (!message) return { subject: '', body: '' };
-    
-    const content = message.trim();
-    
-    // Check if message has "Subject:" format
-    const subjectMatch = content.match(/^subject:\s*(.+?)[\r\n]+(.*)/is);
-    if (subjectMatch) {
-        return {
-            subject: subjectMatch[1].trim(),
-            body: subjectMatch[2].trim()
-        };
-    }
-    
-    // If no clear subject line, treat whole message as body
-    return {
-        subject: 'Professional Outreach',
-        body: content
-    };
-};
+        function applyFilters() {
+            let filtered = Object.values(groupedMessages);
+            
+            // Apply status filter
+            filtered = filterMessagesByStatus(filtered);
+            
+            // Apply search filter - UPDATED for message arrays
+            if (currentSearchTerm) {
+                filtered = filtered.filter(group => {
+                    const target = group.target;
+                    const messages = group.messages;
+                    
+                    // Search in target profile
+                    const targetMatch = (
+                        (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.company && target.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
+                    );
+                    
+                    // Search in all message arrays
+                    const messageMatch = ['linkedin', 'connection', 'email'].some(type => {
+                        const messageArray = messages[type];
+                        if (Array.isArray(messageArray)) {
+                            return messageArray.some(msg => 
+                                msg.message && msg.message.toLowerCase().includes(currentSearchTerm.toLowerCase())
+                            );
+                        }
+                        return false;
+                    });
+                    
+                    return targetMatch || messageMatch;
+                });
+            }
+            
+            filteredMessages = filtered;
+            renderMessages();
+            updateMessagesStats();
+        }
 
-// ✅ NEW: Get formatted messages for display
-const getFormattedMessages = async (userId) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                ml.*,
-                tp.email_found,
-                tp.email_status,
-                tp.email_verified_at
-            FROM message_logs ml
-            LEFT JOIN target_profiles tp ON ml.target_profile_url = tp.linkedin_url
-            WHERE ml.user_id = $1
-            ORDER BY ml.created_at DESC
-        `, [userId]);
-        
-        // Format messages with proper email structure
-        const formattedMessages = result.rows.map(message => {
-            if (message.message_type === 'cold_email') {
-                const emailFormat = formatEmailMessage(message.generated_message);
-                return {
-                    ...message,
-                    email_subject: emailFormat.subject,
-                    email_body: emailFormat.body,
-                    formatted_message: `Subject: ${emailFormat.subject}\n\n${emailFormat.body}`
+        function searchMessages(searchTerm) {
+            currentSearchTerm = searchTerm.trim();
+            applyFilters();
+        }
+
+        function renderMessages() {
+            const cardsGrid = document.getElementById('messagesCardsGrid');
+            
+            if (filteredMessages.length === 0) {
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('messagesCardsGrid').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+            
+            cardsGrid.innerHTML = '';
+            
+            filteredMessages.forEach(messageGroup => {
+                const messageCard = createMessageCard(messageGroup);
+                cardsGrid.appendChild(messageCard);
+            });
+            
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('messagesCardsGrid').style.display = 'grid';
+            document.getElementById('emptyState').style.display = 'none';
+        }
+
+        function createMessageCard(messageGroup) {
+            const card = document.createElement('div');
+            card.className = 'message-card';
+            card.setAttribute('data-target-id', messageGroup.id);
+            
+            const target = messageGroup.target;
+            const messages = messageGroup.messages;
+            
+            card.innerHTML = `
+                <div class="card-profile-header">
+                    <div class="profile-info">
+                        <div class="profile-name">${target.firstName || 'Unknown'}</div>
+                        <div class="profile-role">${target.role || 'Professional'}</div>
+                        <div class="profile-company">${target.company || 'Company'}</div>
+                    </div>
+                    <div class="email-finder-header-section">
+                        ${createEmailAskButton(messageGroup)}
+                        <div class="email-finder-description">Email Finder (powered by Snov.io)</div>
+                        ${createEmailVerificationDisplay(messageGroup)}
+                    </div>
+                </div>
+
+                <div class="message-types-section">
+                    ${messages.linkedin.length > 0 ? createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin') : ''}
+                    ${messages.connection.length > 0 ? createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus') : ''}
+                    ${messages.email.length > 0 ? createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope') : ''}
+                </div>
+
+                <div class="card-status-section">
+                    <div class="status-row">
+                        <div class="status-item">
+                            <div class="status-label">Message Sent</div>
+                            <div class="toggle-switch ${messageGroup.sent}" onclick="toggleStatus(${messageGroup.id}, 'sent')">
+                                <div class="toggle-slider">${getStatusIcon(messageGroup.sent)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(messageGroup.sent)}</div>
+                        </div>
+                        
+                        <div class="status-item">
+                            <div class="status-label">Got Reply</div>
+                            <div class="toggle-switch ${messageGroup.gotReply}" onclick="toggleStatus(${messageGroup.id}, 'gotReply')">
+                                <div class="toggle-slider">${getStatusIcon(messageGroup.gotReply)}</div>
+                            </div>
+                            <div class="toggle-label">${getStatusLabel(messageGroup.gotReply)}</div>
+                        </div>
+                    </div>
+                    
+                    <textarea 
+                        class="comment-field" 
+                        placeholder="Add notes about this contact..."
+                        onchange="updateComment(${messageGroup.id}, this.value)"
+                        onkeyup="markFieldModified(${messageGroup.id})"
+                    >${messageGroup.comments || ''}</textarea>
+                    
+                    <button class="save-btn" id="save-${messageGroup.id}" onclick="saveMessage(${messageGroup.id})">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function createMessageTypeBlock(type, label, messagesArray, iconClass) {
+            // Only create blocks for message types that have content
+            if (!messagesArray || messagesArray.length === 0) {
+                return '';
+            }
+
+            const latestMessage = messagesArray[0]; // Newest first due to sorting
+            const latestMessageText = cleanMessageText(latestMessage.message || '');
+            const latestPreview = latestMessageText.length > 80 ? latestMessageText.substring(0, 80) + '...' : latestMessageText;
+            const uniqueId = `${type}-${latestMessage.id}`;
+            const hasMultiple = messagesArray.length > 1;
+            
+            let historyHTML = '';
+            
+            // Show latest message
+            historyHTML += `
+                <div class="message-history-item latest">
+                    <div class="message-timestamp">
+                        <i class="fas fa-clock"></i>
+                        Latest: ${formatMessageDate(latestMessage.created_at)}
+                    </div>
+                    <div class="message-content-preview">${latestPreview}</div>
+                    <div class="message-text" id="message-${uniqueId}" style="display: none;">
+                        ${latestMessageText}
+                    </div>
+                </div>
+            `;
+            
+            // Show previous messages (collapsed by default)
+            if (hasMultiple) {
+                historyHTML += `<div class="message-history-previous" id="history-${uniqueId}" style="display: none;">`;
+                
+                messagesArray.slice(1).forEach((msg, index) => {
+                    const msgText = cleanMessageText(msg.message || '');
+                    const msgPreview = msgText.length > 60 ? msgText.substring(0, 60) + '...' : msgText;
+                    const msgUniqueId = `${type}-${msg.id}`;
+                    
+                    historyHTML += `
+                        <div class="message-history-item collapsed" onclick="toggleHistoryMessage('${msgUniqueId}', this)">
+                            <div class="message-timestamp">
+                                <i class="fas fa-history"></i>
+                                Previous: ${formatMessageDate(msg.created_at)}
+                            </div>
+                            <div class="message-content-preview">${msgPreview}</div>
+                            <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
+                                ${msgText}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                historyHTML += `</div>`;
+            }
+            
+            return `
+                <div class="message-type-block ${type}">
+                    <div class="message-type-header">
+                        <div class="message-type-label ${type}">
+                            <i class="${iconClass}"></i>
+                            ${label}
+                        </div>
+                        <div class="message-actions">
+                            <button class="edit-btn" onclick="editMessage('${type}', ${latestMessage.id})">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="copy-btn" onclick="copyMessage('${type}', ${latestMessage.id}, this)">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                    ${historyHTML}
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.8rem;">
+                        ${hasMultiple ? `
+                        <button class="expand-btn" onclick="toggleMessageHistory('${uniqueId}', this)">
+                            <i class="fas fa-history"></i> History
+                        </button>` : ''}
+                        <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
+                            <i class="fas fa-chevron-down"></i> Expand
+                        </button>
+                        ${hasMultiple ? `<span class="message-version-count">${messagesArray.length} versions</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function createEmailAskButton(messageGroup) {
+            if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
+                return `<button class="email-ask-btn" disabled title="Email already processed.">
+                    <i class="fas fa-check"></i> Done
+                </button>`;
+            }
+            
+            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${messageGroup.id})" title="Ask Email (2 credits)">
+                <i class="fas fa-search"></i> Ask Email
+            </button>`;
+        }
+
+        function createEmailVerificationDisplay(messageGroup) {
+            if (!messageGroup.emailStatus) {
+                return `<div class="email-not-available">Not searched</div>`;
+            }
+            
+            if (messageGroup.emailStatus === 'verified') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : '';
+                return `<div class="email-verification">
+                    <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                    <div class="email-status verified">
+                        <i class="fas fa-check-circle"></i> Verified
+                    </div>
+                    ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
+                </div>`;
+            } else if (messageGroup.emailStatus === 'not_found') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : '';
+                return `<div class="email-verification">
+                    <div class="email-status not-found">
+                        <i class="fas fa-times-circle"></i> Not Found
+                    </div>
+                    ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                </div>`;
+            }
+            
+            return `<div class="email-not-available">Not searched</div>`;
+        }
+
+        // Format message date for display
+        function formatMessageDate(dateString) {
+            try {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffTime = now - date;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays === 0) {
+                    return date.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }) + ' (today)';
+                } else if (diffDays === 1) {
+                    return date.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }) + ' (yesterday)';
+                } else if (diffDays < 7) {
+                    return date.toLocaleDateString('en-US', { 
+                        weekday: 'short',
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    });
+                } else {
+                    return date.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                }
+            } catch (error) {
+                console.error('[DATE] Error formatting date:', error);
+                return 'Unknown date';
+            }
+        }
+
+        // Toggle message history visibility
+        function toggleMessageHistory(messageId, button) {
+            const historyElement = document.getElementById(`history-${messageId}`);
+            const isVisible = historyElement.style.display !== 'none';
+            
+            if (isVisible) {
+                historyElement.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-history"></i> History';
+            } else {
+                historyElement.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-history"></i> Hide History';
+            }
+        }
+
+        // Toggle individual historical message
+        function toggleHistoryMessage(messageId, element) {
+            const messageElement = document.getElementById(`message-${messageId}`);
+            const isExpanded = messageElement.style.display !== 'none';
+            
+            if (isExpanded) {
+                messageElement.style.display = 'none';
+                element.classList.add('collapsed');
+            } else {
+                messageElement.style.display = 'block';
+                element.classList.remove('collapsed');
+            }
+        }
+
+        // FIXED: Toggle message expand/collapse functionality
+        function toggleMessageExpand(messageId, button) {
+            const messageElement = document.getElementById(`message-${messageId}`);
+            
+            if (!messageElement) {
+                console.error(`[EXPAND] Message element not found: message-${messageId}`);
+                return;
+            }
+            
+            const isExpanded = messageElement.style.display === 'block';
+            
+            if (isExpanded) {
+                messageElement.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
+            } else {
+                messageElement.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
+            }
+            
+            console.log(`[EXPAND] Toggled message ${messageId}: ${isExpanded ? 'collapsed' : 'expanded'}`);
+        }
+
+        // Edit message functionality (placeholder for future implementation)
+        function editMessage(type, messageId) {
+            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
+            console.log(`[EDIT] Edit requested for ${type} message ID: ${messageId}`);
+        }
+
+        // Copy message functionality - UPDATED for message arrays
+        async function copyMessage(type, messageId, button) {
+            try {
+                // Find the specific message by ID across all message groups
+                let targetMessage = null;
+                Object.values(groupedMessages).forEach(group => {
+                    ['linkedin', 'connection', 'email'].forEach(messageType => {
+                        const messages = group.messages[messageType];
+                        if (Array.isArray(messages)) {
+                            const found = messages.find(m => m.id === messageId);
+                            if (found) targetMessage = found;
+                        }
+                    });
+                });
+                
+                if (!targetMessage || !targetMessage.message) {
+                    throw new Error('Message not found');
+                }
+                
+                const cleanMessage = cleanMessageText(targetMessage.message);
+                
+                await navigator.clipboard.writeText(cleanMessage);
+                
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('copied');
+                }, 2000);
+                
+                console.log(`[COPY] ${type} message copied to clipboard`);
+                
+            } catch (error) {
+                console.error('[COPY] Error copying message:', error);
+                
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                }, 2000);
+            }
+        }
+
+        function cleanMessageText(messageText) {
+            if (!messageText) return '';
+            
+            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
+            const finalText = cleanedText.replace(/^Subject:\s*/i, '');
+            
+            return finalText.trim();
+        }
+
+        // Email Finder modal functions
+        function showEmailFinderModal(targetId) {
+            currentTargetId = targetId;
+            
+            if (currentUserPlan && currentUserPlan.planCode === 'free') {
+                console.log('[EMAIL_FINDER] Free user detected, showing upgrade modal');
+                document.getElementById('upgradeModal').classList.add('active');
+                return;
+            }
+            
+            if (currentUserPlan && currentUserPlan.totalCredits < 2) {
+                console.log('[EMAIL_FINDER] Insufficient credits, showing credits modal');
+                document.getElementById('insufficientCreditsModal').classList.add('active');
+                return;
+            }
+            
+            console.log('[EMAIL_FINDER] Showing email finder modal for paid user');
+            document.getElementById('emailFinderModal').classList.add('active');
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailFinderModal').classList.remove('active');
+            currentTargetId = null;
+        }
+
+        function closeInsufficientCreditsModal() {
+            document.getElementById('insufficientCreditsModal').classList.remove('active');
+        }
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').classList.remove('active');
+        }
+
+        async function confirmEmailFinder() {
+            if (!currentTargetId) return;
+            
+            closeEmailModal();
+            
+            console.log(`[EMAIL_FINDER] Starting email finder for target ${currentTargetId} (STUB MODE)`);
+            
+            const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
+            buttons.forEach(btn => {
+                btn.classList.add('loading');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
+                btn.disabled = true;
+            });
+            
+            setTimeout(() => {
+                const fakeResult = {
+                    success: true,
+                    emailFound: 'dummy@example.com',
+                    emailStatus: 'verified',
+                    emailVerifiedAt: new Date().toISOString()
                 };
+                
+                // Update the grouped message data
+                Object.values(groupedMessages).forEach(group => {
+                    if (group.id === currentTargetId) {
+                        group.emailFound = fakeResult.emailFound;
+                        group.emailStatus = fakeResult.emailStatus;
+                        group.emailVerifiedAt = fakeResult.emailVerifiedAt;
+                    }
+                });
+                
+                renderMessages();
+                
+                console.log(`[EMAIL_FINDER] Email finder completed for target ${currentTargetId} (STUB MODE)`);
+            }, 2000);
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'yes': return '✓';
+                case 'no': return '✗';
+                default: return '?';
             }
-            return {
-                ...message,
-                formatted_message: message.generated_message
-            };
+        }
+
+        function getStatusLabel(status) {
+            switch(status) {
+                case 'yes': return 'Yes';
+                case 'no': return 'No';
+                default: return 'Pending';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            // Find the message group
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup) return;
+            
+            switch(messageGroup[field]) {
+                case 'pending':
+                    messageGroup[field] = 'yes';
+                    break;
+                case 'yes':
+                    messageGroup[field] = 'no';
+                    break;
+                case 'no':
+                    messageGroup[field] = 'pending';
+                    break;
+            }
+            
+            markMessageModified(messageId);
+            updateToggleDisplay(messageId, field, messageGroup[field]);
+            updateMessagesStats();
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            const selectors = [
+                `[onclick="toggleStatus(${messageId}, '${field}')"]`,
+            ];
+            
+            selectors.forEach(selector => {
+                const toggles = document.querySelectorAll(selector);
+                toggles.forEach(toggle => {
+                    toggle.className = `toggle-switch ${status}`;
+                    const slider = toggle.querySelector('.toggle-slider');
+                    const label = toggle.nextElementSibling;
+                    
+                    if (slider) slider.textContent = getStatusIcon(status);
+                    if (label) label.textContent = getStatusLabel(status);
+                });
+            });
+        }
+
+        function updateComment(messageId, value) {
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (messageGroup) {
+                messageGroup.comments = value;
+                markMessageModified(messageId);
+            }
+        }
+
+        function markFieldModified(messageId) {
+            markMessageModified(messageId);
+            
+            const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
+            commentFields.forEach(field => field.classList.add('modified'));
+        }
+
+        function markMessageModified(messageId) {
+            if (!pendingChanges.has(messageId)) {
+                pendingChanges.set(messageId, true);
+            }
+            
+            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
+            saveButtons.forEach(btn => btn.classList.add('modified'));
+        }
+
+        async function saveMessage(messageId) {
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup || !pendingChanges.has(messageId)) return;
+            
+            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
+            
+            try {
+                saveButtons.forEach(btn => {
+                    btn.classList.add('saving');
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                });
+                
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                console.log(`[MESSAGES] Saving message ${messageId} to database...`);
+                
+                const response = await fetch(`/messages/${messageId}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sent_status: messageGroup.sent,
+                        reply_status: messageGroup.gotReply,
+                        comments: messageGroup.comments
+                    })
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to save message');
+                }
+                
+                saveButtons.forEach(btn => {
+                    btn.classList.remove('saving', 'modified');
+                    btn.classList.add('saved');
+                    btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
+                });
+                
+                pendingChanges.delete(messageId);
+                
+                setTimeout(() => {
+                    saveButtons.forEach(btn => {
+                        btn.classList.remove('saved');
+                        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+                    });
+                }, 2000);
+                
+                console.log(`[MESSAGES] Message ${messageId} saved successfully to database`);
+                
+            } catch (error) {
+                console.error('[MESSAGES] Error saving message:', error);
+                
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                saveButtons.forEach(btn => {
+                    btn.classList.remove('saving');
+                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                });
+                
+                setTimeout(() => {
+                    saveButtons.forEach(btn => {
+                        btn.classList.add('modified');
+                        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+                    });
+                }, 3000);
+            }
+        }
+
+        function filterMessages(status) {
+            currentFilter = status;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            applyFilters();
+        }
+
+        function filterMessagesByStatus(messageGroups) {
+            switch (currentFilter) {
+                case 'sent':
+                    return messageGroups.filter(group => group.sent === 'yes');
+                case 'replied':
+                    return messageGroups.filter(group => group.gotReply === 'yes');
+                case 'pending':
+                    return messageGroups.filter(group => group.sent === 'yes' && group.gotReply !== 'yes');
+                case 'all':
+                default:
+                    return messageGroups;
+            }
+        }
+
+        function updateMessagesStats() {
+            const totalMessages = filteredMessages.length;
+            const sentMessages = filteredMessages.filter(group => group.sent === 'yes').length;
+            const repliedMessages = filteredMessages.filter(group => group.gotReply === 'yes').length;
+            const responseRate = sentMessages > 0 ? Math.round((repliedMessages / sentMessages) * 100) : 0;
+            
+            document.getElementById('totalMessages').textContent = totalMessages;
+            document.getElementById('sentMessages').textContent = sentMessages;
+            document.getElementById('repliedMessages').textContent = repliedMessages;
+            document.getElementById('responseRate').textContent = `${responseRate}%`;
+            
+            console.log(`[MESSAGES] Updated stats: Total=${totalMessages}, Sent=${sentMessages}, Replied=${repliedMessages}, Rate=${responseRate}%`);
+        }
+
+        function refreshMessages() {
+            console.log('[MESSAGES] Refreshing messages from database...');
+            
+            const refreshBtn = document.querySelector('.refresh-btn i');
+            refreshBtn.classList.add('fa-spin');
+            
+            loadMessagesData().finally(() => {
+                refreshBtn.classList.remove('fa-spin');
+            });
+        }
+
+        function showEmptyState() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('messagesCardsGrid').style.display = 'none';
+        }
+
+        // Navigation functions
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('active');
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                closeEmailModal();
+                closeInsufficientCreditsModal();
+                closeUpgradeModal();
+            }
         });
-        
-        return {
-            success: true,
-            data: formattedMessages
-        };
-        
-    } catch (error) {
-        console.error('Error getting formatted messages:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
 
-// ==================== DATABASE INITIALIZATION ====================
-
-const initDB = async () => {
-    try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + SECURE ADMIN MANAGEMENT + EMAIL FINDER...');
-
-        // PLANS TABLE - FIXED: Drop and recreate with correct schema
-        await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
-        
-        await pool.query(`
-            CREATE TABLE plans (
-                id SERIAL PRIMARY KEY,
-                plan_code VARCHAR(50) UNIQUE NOT NULL,
-                plan_name VARCHAR(100) NOT NULL,
-                billing_model VARCHAR(20) NOT NULL,
-                price_cents INTEGER NOT NULL,
-                currency VARCHAR(3) DEFAULT 'USD',
-                renewable_credits INTEGER NOT NULL,
-                is_pay_as_you_go BOOLEAN DEFAULT FALSE,
-                description TEXT,
-                features JSONB DEFAULT '[]'::JSONB,
-                active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // INSERT REAL PLAN DATA (from sign-up.html)
-        await pool.query(`
-            INSERT INTO plans (plan_code, plan_name, billing_model, price_cents, renewable_credits, is_pay_as_you_go, description) 
-            VALUES 
-                ('free', 'Free', 'monthly', 0, 7, FALSE, 'Free plan with 7 monthly renewable credits'),
-                ('silver-monthly', 'Silver Monthly', 'monthly', 1390, 30, FALSE, 'Silver monthly plan with 30 renewable credits'),
-                ('silver-payasyougo', 'Silver Pay-as-you-go', 'one_time', 1700, 30, TRUE, 'Silver one-time purchase of 30 non-expiring credits'),
-                ('gold-monthly', 'Gold Monthly', 'monthly', 3200, 100, FALSE, 'Gold monthly plan with 100 renewable credits'),
-                ('gold-payasyougo', 'Gold Pay-as-you-go', 'one_time', 3900, 100, TRUE, 'Gold one-time purchase of 100 non-expiring credits'),
-                ('platinum-monthly', 'Platinum Monthly', 'monthly', 6387, 250, FALSE, 'Platinum monthly plan with 250 renewable credits'),
-                ('platinum-payasyougo', 'Platinum Pay-as-you-go', 'one_time', 7800, 250, TRUE, 'Platinum one-time purchase of 250 non-expiring credits')
-            ON CONFLICT (plan_code) DO UPDATE SET
-                plan_name = EXCLUDED.plan_name,
-                price_cents = EXCLUDED.price_cents,
-                renewable_credits = EXCLUDED.renewable_credits,
-                updated_at = CURRENT_TIMESTAMP;
-        `);
-
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255),
-                google_id VARCHAR(255) UNIQUE,
-                display_name VARCHAR(255),
-                profile_picture TEXT,
-                first_name VARCHAR(100),
-                last_name VARCHAR(100),
-                package_type VARCHAR(50) DEFAULT 'free',
-                billing_model VARCHAR(50) DEFAULT 'monthly',
-                
-                -- NEW: Dual Credit System
-                plan_code VARCHAR(50) DEFAULT 'free' REFERENCES plans(plan_code),
-                renewable_credits INTEGER DEFAULT 7,
-                payasyougo_credits INTEGER DEFAULT 0,
-                
-                -- 🆕 NEW: Direct Context Slot Fields (like credit system)
-                plan_context_slots INTEGER DEFAULT 1,
-                extra_context_slots INTEGER DEFAULT 0,
-                total_context_slots INTEGER DEFAULT 1,
-                contexts_count INTEGER DEFAULT 0,
-                
-                -- 🔒 NEW: Admin Management
-                is_admin BOOLEAN DEFAULT FALSE,
-                
-                -- NEW: Billing Cycle Management
-                subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                next_billing_date TIMESTAMP,
-                
-                -- ✅ CHARGEBEE FIX: Add missing Chargebee columns
-                chargebee_subscription_id VARCHAR(100) UNIQUE,
-                chargebee_customer_id VARCHAR(100),
-                
-                -- Legacy field (will be calculated from dual credits)
-                credits_remaining INTEGER DEFAULT 7,
-                
-                subscription_status VARCHAR(50) DEFAULT 'active',
-                linkedin_url TEXT,
-                profile_data JSONB,
-                extraction_status VARCHAR(50) DEFAULT 'not_started',
-                error_message TEXT,
-                registration_completed BOOLEAN DEFAULT false,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // USER_PROFILES TABLE - FIXED: Changed profile_image_url VARCHAR(500) to TEXT
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS user_profiles (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-                
-                -- Initial scraping completion flag
-                initial_scraping_done BOOLEAN DEFAULT false,
-                
-                -- Basic Profile Information
-                linkedin_url TEXT,
-                linkedin_id TEXT,
-                linkedin_num_id BIGINT,
-                input_url TEXT,
-                url TEXT,
-                full_name TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                headline TEXT,
-                current_job_title TEXT,
-                about TEXT,
-                summary TEXT,
-                
-                -- Location Information
-                location TEXT,
-                city TEXT,
-                state TEXT,
-                country TEXT,
-                country_code TEXT,
-                
-                -- Professional Information
-                industry TEXT,
-                current_company TEXT,
-                current_company_name TEXT,
-                current_company_id TEXT,
-                current_company_company_id TEXT,
-                current_position TEXT,
-                
-                -- Enhanced Metrics
-                connections_count INTEGER,
-                followers_count INTEGER,
-                mutual_connections_count INTEGER DEFAULT 0,
-                connections INTEGER,
-                followers INTEGER,
-                recommendations_count INTEGER,
-                total_likes INTEGER DEFAULT 0,
-                total_comments INTEGER DEFAULT 0,
-                total_shares INTEGER DEFAULT 0,
-                average_likes DECIMAL(10,2) DEFAULT 0,
-                
-                -- Media - FIXED: Changed profile_image_url VARCHAR(500) to TEXT
-                profile_picture TEXT,
-                profile_image_url TEXT,
-                avatar TEXT,
-                banner_image TEXT,
-                background_image_url TEXT,
-                
-                -- Identifiers
-                public_identifier VARCHAR(255),
-                
-                -- Complex Data Arrays (ALL JSONB)
-                experience JSONB DEFAULT '[]'::JSONB,
-                education JSONB DEFAULT '[]'::JSONB,
-                educations_details JSONB DEFAULT '[]'::JSONB,
-                skills JSONB DEFAULT '[]'::JSONB,
-                skills_with_endorsements JSONB DEFAULT '[]'::JSONB,
-                languages JSONB DEFAULT '[]'::JSONB,
-                certifications JSONB DEFAULT '[]'::JSONB,
-                courses JSONB DEFAULT '[]'::JSONB,
-                projects JSONB DEFAULT '[]'::JSONB,
-                publications JSONB DEFAULT '[]'::JSONB,
-                patents JSONB DEFAULT '[]'::JSONB,
-                volunteer_experience JSONB DEFAULT '[]'::JSONB,
-                volunteering JSONB DEFAULT '[]'::JSONB,
-                honors_and_awards JSONB DEFAULT '[]'::JSONB,
-                awards JSONB DEFAULT '[]'::JSONB,
-                organizations JSONB DEFAULT '[]'::JSONB,
-                recommendations JSONB DEFAULT '[]'::JSONB,
-                recommendations_given JSONB DEFAULT '[]'::JSONB,
-                recommendations_received JSONB DEFAULT '[]'::JSONB,
-                posts JSONB DEFAULT '[]'::JSONB,
-                activity JSONB DEFAULT '[]'::JSONB,
-                articles JSONB DEFAULT '[]'::JSONB,
-                people_also_viewed JSONB DEFAULT '[]'::JSONB,
-                engagement_data JSONB DEFAULT '{}'::JSONB,
-                
-                -- Additional fields for complete LinkedIn data
-                following_companies JSONB DEFAULT '[]'::JSONB,
-                following_people JSONB DEFAULT '[]'::JSONB,
-                following_hashtags JSONB DEFAULT '[]'::JSONB,
-                following_newsletters JSONB DEFAULT '[]'::JSONB,
-                interests_industries JSONB DEFAULT '[]'::JSONB,
-                interests_topics JSONB DEFAULT '[]'::JSONB,
-                groups JSONB DEFAULT '[]'::JSONB,
-                featured JSONB DEFAULT '[]'::JSONB,
-                creator_info JSONB DEFAULT '{}'::JSONB,
-                services JSONB DEFAULT '[]'::JSONB,
-                business_info JSONB DEFAULT '{}'::JSONB,
-                
-                -- RAW GEMINI DATA STORAGE FOR GPT 5 NANO
-                gemini_raw_data JSONB,
-                gemini_processed_at TIMESTAMP,
-                gemini_token_usage JSONB DEFAULT '{}'::JSONB,
-                
-                -- TOKEN TRACKING COLUMNS
-                raw_gpt_response TEXT,
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                total_tokens INTEGER,
-                processing_time_ms INTEGER,
-                api_request_id TEXT,
-                response_status TEXT DEFAULT 'success',
-                
-                -- Metadata
-                timestamp TIMESTAMP,
-                data_source VARCHAR(100),
-                data_extraction_status VARCHAR(50) DEFAULT 'pending',
-                extraction_attempted_at TIMESTAMP,
-                extraction_completed_at TIMESTAMP,
-                extraction_error TEXT,
-                extraction_retry_count INTEGER DEFAULT 0,
-                profile_analyzed BOOLEAN DEFAULT false,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                
-                CONSTRAINT user_profiles_user_id_key UNIQUE (user_id)
-            );
-        `);
-
-        // ENHANCED MESSAGE_LOGS TABLE - ✅ GPT-5 INTEGRATION: Added comprehensive logging columns + CAMPAIGN TRACKING
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS message_logs (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                
-                -- Basic message data
-                target_name VARCHAR(255),
-                target_url TEXT,
-                target_profile_url TEXT,
-                generated_message TEXT,
-                message_context TEXT,
-                credits_used INTEGER DEFAULT 1,
-                
-                -- ✅ NEW: GPT-5 Integration columns
-                context_text TEXT,
-                target_first_name VARCHAR(255),
-                target_title VARCHAR(500),
-                target_company VARCHAR(500),
-                model_name VARCHAR(100),
-                prompt_version VARCHAR(255),
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                total_tokens INTEGER,
-                latency_ms INTEGER,
-                data_json JSONB,
-                
-                -- ✅ FIXED: Message type with proper detection
-                message_type VARCHAR(50) DEFAULT 'linkedin_message' CHECK (message_type IN ('linkedin_message', 'connection_request', 'cold_email')),
-                
-                -- ✅ NEW: Campaign tracking fields for Messages page
-                sent_status VARCHAR(20) DEFAULT 'pending',
-                reply_status VARCHAR(20) DEFAULT 'pending',
-                comments TEXT,
-                sent_date TIMESTAMP,
-                reply_date TIMESTAMP,
-                
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // CREDITS_TRANSACTIONS TABLE - FIXED: Drop and recreate with correct schema
-        await pool.query(`DROP TABLE IF EXISTS credits_transactions CASCADE;`);
-        
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS credits_transactions (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                operation_type VARCHAR(50),
-                amount DECIMAL(10,2),
-                status VARCHAR(20),
-                hold_id VARCHAR(100),
-                operation_data JSONB,
-                operation_result JSONB,
-                processing_time_ms INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP
-            );
-        `);
-
-        // NEW: TARGET_PROFILES TABLE with proper UNIQUE constraint
-        await ensureTargetProfilesTable();
-        
-        // ✅ NEW: SAVED_CONTEXTS TABLE for context management
-        await ensureSavedContextsTable();
-        
-        // ✅ NEW: CONTEXT ADDON TABLES for extra slot subscriptions
-        await ensureContextAddonTables();
-        
-        // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
-        await ensurePendingRegistrationsTable();
-        
-        // 🔒 NEW: ADMIN_AUDIT_LOG TABLE for security tracking
-        await ensureAdminAuditTable();
-
-        // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
-        await fixPromptVersionColumn();
-
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN
-        try {
-            const enhancedUserColumns = [
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_url TEXT',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_data JSONB',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS extraction_status VARCHAR(50) DEFAULT \'not_started\'',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS error_message TEXT',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_completed BOOLEAN DEFAULT false',
-                
-                // NEW: Dual Credit System columns
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50) DEFAULT \'free\'',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS renewable_credits INTEGER DEFAULT 7',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS payasyougo_credits INTEGER DEFAULT 0',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP',
-                
-                // 🆕 NEW: Context Slot System columns (like credit system)
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_context_slots INTEGER DEFAULT 1',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_context_slots INTEGER DEFAULT 0',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_context_slots INTEGER DEFAULT 1',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0',
-                
-                // 🔒 NEW: Admin Management column
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE',
-                
-                // ✅ CHARGEBEE FIX: Add missing Chargebee columns
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100) UNIQUE',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)',
-                
-                // ✅ CANCELLATION FIX: Add cancellation tracking columns
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_scheduled_at TIMESTAMP',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_effective_date TIMESTAMP',
-                'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
-            ];
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const toggle = document.querySelector('.sidebar-toggle');
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN');
-            
-            for (const columnQuery of enhancedUserColumns) {
-                try {
-                    await pool.query(columnQuery);
-                    // Log context slot column additions
-                    if (columnQuery.includes('plan_context_slots')) {
-                        console.log('🆕 CONTEXT SLOTS: Added plan_context_slots column');
-                    }
-                    if (columnQuery.includes('extra_context_slots')) {
-                        console.log('🆕 CONTEXT SLOTS: Added extra_context_slots column');
-                    }
-                    if (columnQuery.includes('total_context_slots')) {
-                        console.log('🆕 CONTEXT SLOTS: Added total_context_slots column');
-                    }
-                    // Log admin column addition
-                    if (columnQuery.includes('is_admin')) {
-                        console.log('🔒 ADMIN: Added is_admin column');
-                    }
-                    // Log Chargebee column additions
-                    if (columnQuery.includes('chargebee_subscription_id')) {
-                        console.log('✅ CHARGEBEE FIX: Added chargebee_subscription_id column');
-                    }
-                    if (columnQuery.includes('chargebee_customer_id')) {
-                        console.log('✅ CHARGEBEE FIX: Added chargebee_customer_id column');
-                    }
-                    // Log cancellation column additions
-                    if (columnQuery.includes('cancellation_scheduled_at')) {
-                        console.log('✅ CANCELLATION FIX: Added cancellation_scheduled_at column');
-                    }
-                    if (columnQuery.includes('cancellation_effective_date')) {
-                        console.log('✅ CANCELLATION FIX: Added cancellation_effective_date column');
-                    }
-                    if (columnQuery.includes('previous_plan_code')) {
-                        console.log('✅ CANCELLATION FIX: Added previous_plan_code column');
-                    }
-                } catch (err) {
-                    console.log(`Column might already exist: ${err.message}`);
-                }
+            if (window.innerWidth <= 768 && 
+                !sidebar.contains(event.target) && 
+                !toggle.contains(event.target) && 
+                sidebar.classList.contains('active')) {
+                sidebar.classList.remove('active');
             }
-
-            // FIXED: Update existing VARCHAR(500) columns to TEXT
-            try {
-                await pool.query(`ALTER TABLE users ALTER COLUMN profile_picture TYPE TEXT;`);
-                console.log('Updated users.profile_picture to TEXT');
-            } catch (err) {
-                console.log(`Profile picture column update: ${err.message}`);
-            }
-
-            try {
-                await pool.query(`ALTER TABLE user_profiles ALTER COLUMN profile_image_url TYPE TEXT;`);
-                console.log('Updated user_profiles.profile_image_url to TEXT');
-            } catch (err) {
-                console.log(`Profile image URL column update: ${err.message}`);
-            }
-
-            try {
-                await pool.query(`ALTER TABLE message_logs ALTER COLUMN target_url TYPE TEXT;`);
-                console.log('Updated message_logs.target_url to TEXT');
-            } catch (err) {
-                console.log(`Target URL column update: ${err.message}`);
-            }
-            
-            // Make password_hash nullable
-            try {
-                await pool.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`);
-            } catch (err) {
-                console.log(`Password hash column already nullable: ${err.message}`);
-            }
-
-            // Add enhanced fields to user_profiles only
-            const enhancedProfileColumns = [
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS initial_scraping_done BOOLEAN DEFAULT false',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS current_job_title TEXT',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_likes INTEGER DEFAULT 0',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_comments INTEGER DEFAULT 0',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS total_shares INTEGER DEFAULT 0',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS average_likes DECIMAL(10,2) DEFAULT 0',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS awards JSONB DEFAULT \'[]\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS engagement_data JSONB DEFAULT \'{}\'::JSONB',
-                'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS mutual_connections_count INTEGER DEFAULT 0'
-            ];
-
-            for (const columnQuery of enhancedProfileColumns) {
-                try {
-                    await pool.query(columnQuery);
-                } catch (err) {
-                    console.log(`Column might already exist: ${err.message}`);
-                }
-            }
-
-            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX + CAMPAIGN TRACKING
-            const gpt5MessageColumns = [
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_profile_url TEXT',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS context_text TEXT',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_first_name VARCHAR(255)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_title VARCHAR(500)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_company VARCHAR(500)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS model_name VARCHAR(100)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS prompt_version VARCHAR(255)',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS input_tokens INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS output_tokens INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS total_tokens INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS latency_ms INTEGER',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS data_json JSONB',
-                
-                // ✅ NEW: Campaign tracking fields for Messages page
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sent_status VARCHAR(20) DEFAULT \'pending\'',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS reply_status VARCHAR(20) DEFAULT \'pending\'',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS comments TEXT',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sent_date TIMESTAMP',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS reply_date TIMESTAMP'
-            ];
-
-            console.log('-- ✅ NEW: GPT-5 Message Logging columns + CAMPAIGN TRACKING');
-            
-            for (const columnQuery of gpt5MessageColumns) {
-                try {
-                    await pool.query(columnQuery);
-                    // Log successful addition of campaign tracking columns
-                    if (columnQuery.includes('sent_status')) {
-                        console.log('✅ MESSAGES FIX: Added sent_status column for campaign tracking');
-                    }
-                    if (columnQuery.includes('reply_status')) {
-                        console.log('✅ MESSAGES FIX: Added reply_status column for campaign tracking');
-                    }
-                    if (columnQuery.includes('comments')) {
-                        console.log('✅ MESSAGES FIX: Added comments column for campaign tracking');
-                    }
-                } catch (err) {
-                    console.log(`GPT-5 column might already exist: ${err.message}`);
-                }
-            }
-
-            // ✅ MESSAGE TYPE FIX: Update message_type column to use proper constraint
-            try {
-                // First add the column if it doesn't exist
-                await pool.query(`ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS message_type VARCHAR(50) DEFAULT 'linkedin_message';`);
-                console.log('✅ MESSAGE TYPE FIX: Added message_type column');
-                
-                // Then add the constraint
-                await pool.query(`
-                    ALTER TABLE message_logs DROP CONSTRAINT IF EXISTS message_logs_message_type_check;
-                    ALTER TABLE message_logs ADD CONSTRAINT message_logs_message_type_check 
-                    CHECK (message_type IN ('linkedin_message', 'connection_request', 'cold_email'));
+        });
+    </script>
+</body>
+</html>
