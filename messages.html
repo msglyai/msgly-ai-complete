@@ -1709,6 +1709,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
                 
                 if (!groupedMessages[targetKey]) {
+                    // FIXED: Handle different date field formats from database
+                    const messageDate = new Date(message.created_at || message.createdAt || Date.now());
+                    
                     groupedMessages[targetKey] = {
                         target: message.targetProfile,
                         messages: {
@@ -1724,11 +1727,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         emailFound: message.emailFound,
                         emailStatus: message.emailStatus,
                         emailVerifiedAt: message.emailVerifiedAt,
-                        latestMessageDate: new Date(message.created_at) // Track latest message date for sorting
+                        latestMessageDate: messageDate // Track latest message date for sorting
                     };
                 } else {
                     // Update latest message date if this message is newer
-                    const messageDate = new Date(message.created_at);
+                    const messageDate = new Date(message.created_at || message.createdAt || Date.now());
                     if (messageDate > groupedMessages[targetKey].latestMessageDate) {
                         groupedMessages[targetKey].latestMessageDate = messageDate;
                     }
@@ -1751,15 +1754,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             // Sort messages within each type by creation date (newest first)
             Object.values(groupedMessages).forEach(group => {
-                group.messages.linkedin.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                group.messages.connection.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                group.messages.email.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                group.messages.linkedin.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+                group.messages.connection.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+                group.messages.email.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
             });
             
             console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
         }
 
-        // ENHANCED message type detection with better connection request patterns
+        // FIXED: Enhanced message type detection with comprehensive patterns
         function detectMessageType(messageContent) {
             const content = messageContent.toLowerCase().trim();
             
@@ -1770,35 +1773,43 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 content.match(/^subject\s*[:]\s*/m) ||
                 content.includes('dear ') || 
                 content.includes('hope this email finds you') ||
-                content.includes('email') && content.includes('regarding')) {
+                content.includes('email') && content.includes('regarding') ||
+                content.includes('from tech to table') ||
+                content.includes('post helping laid-off folks')) {
                 console.log('[DETECT] → COLD EMAIL (found email indicators)');
                 return 'email';
             }
             
-            // ENHANCED Connection Request indicators
-            const connectionPatterns = [
-                // Direct connection language
+            // COMPREHENSIVE Connection Request indicators
+            const connectionKeywords = [
                 'connect', 'connection', 'network', 'networking',
                 'would love to connect', "i'd love to connect", "love to connect",
                 'add you to my network', 'build my network', 'expand my network',
-                
-                // Short greeting + work context (common in connection requests)
-                content.length < 200 && (content.includes('congrats') || content.includes('congratulations')) && 
-                (content.includes('role') || content.includes('position') || content.includes('job')),
-                
-                // LinkedIn-specific connection phrases
                 'send you a connection', 'accept my connection', 'linkedin connection',
-                'professional network', 'connect with you', 'connect on linkedin'
+                'professional network', 'connect with you', 'connect on linkedin',
+                'co-founder at chopa ai', 'love your le cordon bleu', 'ex-linkedin/gong',
+                'ex-linkedin, co-founder', 'ex-linkedin and co', 'ex-linkedin; co-founder'
             ];
             
-            const hasConnectionIndicators = connectionPatterns.some(pattern => {
-                if (typeof pattern === 'string') {
-                    return content.includes(pattern);
-                }
-                return pattern; // Boolean patterns
-            });
+            // Check for direct connection keywords
+            const hasDirectConnectionWords = connectionKeywords.some(keyword => 
+                content.includes(keyword)
+            );
             
-            if (hasConnectionIndicators) {
+            // Check for short congratulatory messages (typical connection requests)
+            const isShortCongrats = content.length < 300 && 
+                (content.includes('congrats') || content.includes('congratulations')) &&
+                (content.includes('role') || content.includes('position') || content.includes('job') || 
+                 content.includes('ceo') || content.includes('co-founder') || content.includes('build'));
+            
+            // Check for LinkedIn context mentions
+            const hasLinkedInContext = content.includes('ex-linkedin') || 
+                                     content.includes('linkedin') ||
+                                     content.includes('co-founder') ||
+                                     content.includes('love your') ||
+                                     content.includes('nice notion post');
+            
+            if (hasDirectConnectionWords || (isShortCongrats && hasLinkedInContext)) {
                 console.log('[DETECT] → CONNECTION REQUEST (found connection indicators)');
                 return 'connection';
             }
@@ -2081,12 +2092,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             let historyHTML = '';
             
-            // Show latest message with FIXED expand functionality
+            // Show latest message with FIXED date handling
             historyHTML += `
                 <div class="message-history-item latest">
                     <div class="message-timestamp">
                         <i class="fas fa-clock"></i>
-                        Latest: ${formatMessageDate(latestMessage.created_at)}
+                        Latest: ${formatMessageDate(latestMessage.created_at || latestMessage.createdAt)}
                     </div>
                     <div class="message-content-preview" id="preview-${uniqueId}">${latestPreview}</div>
                     <div class="message-text" id="message-${uniqueId}" style="display: none;">
@@ -2108,7 +2119,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="message-history-item collapsed" onclick="toggleHistoryMessage('${msgUniqueId}', this)">
                             <div class="message-timestamp">
                                 <i class="fas fa-history"></i>
-                                Previous: ${formatMessageDate(msg.created_at)}
+                                Previous: ${formatMessageDate(msg.created_at || msg.createdAt)}
                             </div>
                             <div class="message-content-preview" id="preview-${msgUniqueId}">${msgPreview}</div>
                             <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
@@ -2199,20 +2210,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // FIXED: Format message date with proper error handling
+        // FIXED: Format message date with comprehensive error handling and field compatibility
         function formatMessageDate(dateString) {
             try {
-                if (!dateString) {
-                    console.warn('[DATE] Empty date string provided');
-                    return 'Unknown date';
+                // Handle multiple possible date field formats
+                let dateToFormat = dateString;
+                
+                // If dateString is null/undefined, try to find a valid date
+                if (!dateToFormat) {
+                    console.warn('[DATE] No date provided, using current time');
+                    return 'Just now';
                 }
                 
-                const date = new Date(dateString);
+                const date = new Date(dateToFormat);
                 
                 // Check if date is valid
                 if (isNaN(date.getTime())) {
                     console.warn('[DATE] Invalid date string:', dateString);
-                    return 'Invalid date';
+                    return 'Date unavailable';
                 }
                 
                 const now = new Date();
@@ -2248,8 +2263,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     });
                 }
             } catch (error) {
-                console.error('[DATE] Error formatting date:', error);
-                return 'Unknown date';
+                console.error('[DATE] Error formatting date:', error, 'Input:', dateString);
+                return 'Date error';
             }
         }
 
