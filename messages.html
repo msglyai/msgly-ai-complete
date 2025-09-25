@@ -1552,7 +1552,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Group messages by target profile - FIXED: Support multiple messages per type
+        // Group messages by target profile - FIXED: Handle actual database values
         function groupMessagesByTarget() {
             groupedMessages = {};
             
@@ -1578,13 +1578,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     };
                 }
                 
-                // FIXED: Push messages into arrays instead of overwriting
-                if (message.message_type === 'connection_request') {
+                // FIXED: Handle actual database values and provide fallback detection
+                const messageType = (message.message_type || '').toLowerCase().trim();
+                
+                console.log(`[DEBUG] Message ID ${message.id}: type="${messageType}", content="${(message.message || '').substring(0, 50)}..."`);
+                
+                if (messageType === 'connection_request' || messageType === 'connection') {
                     groupedMessages[targetKey].messages.connection.push(message);
-                } else if (message.message_type === 'cold_email') {
+                    console.log(`[DEBUG] Classified as CONNECTION REQUEST`);
+                } else if (messageType === 'cold_email' || messageType === 'email') {
                     groupedMessages[targetKey].messages.email.push(message);
+                    console.log(`[DEBUG] Classified as COLD EMAIL`);
                 } else {
+                    // Default to LinkedIn message for 'message', 'linkedin_message', or null/undefined
                     groupedMessages[targetKey].messages.linkedin.push(message);
+                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE (default)`);
                 }
             });
             
@@ -1596,6 +1604,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             });
             
             console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
+            
+            // Debug: Log the classification results
+            Object.values(groupedMessages).forEach(group => {
+                console.log(`[DEBUG] ${group.target.firstName}: LinkedIn=${group.messages.linkedin.length}, Connection=${group.messages.connection.length}, Email=${group.messages.email.length}`);
+            });
         }
 
         function applyFilters() {
