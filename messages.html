@@ -376,7 +376,28 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .messages-filters {
             display: flex;
             gap: 0.8rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .filter-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.8rem;
             flex-wrap: wrap;
         }
 
@@ -425,6 +446,49 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             right: 0;
             height: 3px;
             background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+        }
+
+        .pagination-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--light-gray);
+        }
+
+        .showing-info {
+            font-size: 0.9rem;
+            color: var(--dark-gray);
+            font-weight: 500;
+        }
+
+        .load-more-btn {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .load-more-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+        }
+
+        .load-more-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .messages-cards-grid {
@@ -721,7 +785,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             padding: 0.8rem;
             border-radius: 8px;
             white-space: pre-wrap;
-            display: none; /* Hidden by default - will be shown when expanded */
+            display: none;
         }
 
         .message-text.expanded {
@@ -733,7 +797,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-style: italic;
             text-align: center;
             padding: 1.5rem;
-            display: block; /* Always show empty state */
+            display: block;
+        }
+
+        .message-preview {
+            font-size: 0.85rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+            display: block;
+        }
+
+        .message-preview.hidden {
+            display: none;
         }
 
         .message-history-item {
@@ -1160,6 +1235,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 max-width: 350px;
                 padding: 1.5rem;
             }
+
+            .filter-buttons {
+                justify-content: center;
+            }
         }
 
         @media (min-width: 769px) and (max-width: 1200px) {
@@ -1339,23 +1418,80 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </button>
         </div>
 
+        <!-- ENHANCED FILTER SYSTEM -->
         <div class="messages-filters">
-            <button class="filter-btn active" onclick="filterMessages('all')">
-                <i class="fas fa-list"></i>
-                All
-            </button>
-            <button class="filter-btn" onclick="filterMessages('sent')">
-                <i class="fas fa-paper-plane"></i>
-                Sent
-            </button>
-            <button class="filter-btn" onclick="filterMessages('replied')">
-                <i class="fas fa-reply"></i>
-                Replied
-            </button>
-            <button class="filter-btn" onclick="filterMessages('pending')">
-                <i class="fas fa-clock"></i>
-                Pending
-            </button>
+            <!-- Status Filter -->
+            <div class="filter-section">
+                <div class="filter-label">Status</div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterByStatus('all')">
+                        <i class="fas fa-list"></i>
+                        All
+                    </button>
+                    <button class="filter-btn" onclick="filterByStatus('sent')">
+                        <i class="fas fa-paper-plane"></i>
+                        Sent
+                    </button>
+                    <button class="filter-btn" onclick="filterByStatus('replied')">
+                        <i class="fas fa-reply"></i>
+                        Replied
+                    </button>
+                    <button class="filter-btn" onclick="filterByStatus('pending')">
+                        <i class="fas fa-clock"></i>
+                        Pending
+                    </button>
+                </div>
+            </div>
+
+            <!-- Message Type Filter -->
+            <div class="filter-section">
+                <div class="filter-label">Message Type</div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterByMessageType('all')" id="typeFilterAll">
+                        <i class="fas fa-th-large"></i>
+                        All Types
+                    </button>
+                    <button class="filter-btn" onclick="filterByMessageType('linkedin')" id="typeFilterLinkedin">
+                        <i class="fab fa-linkedin"></i>
+                        LinkedIn
+                    </button>
+                    <button class="filter-btn" onclick="filterByMessageType('connection')" id="typeFilterConnection">
+                        <i class="fas fa-user-plus"></i>
+                        Connection
+                    </button>
+                    <button class="filter-btn" onclick="filterByMessageType('email')" id="typeFilterEmail">
+                        <i class="fas fa-envelope"></i>
+                        Email
+                    </button>
+                </div>
+            </div>
+
+            <!-- Date Range Filter -->
+            <div class="filter-section">
+                <div class="filter-label">Date Range</div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterByDateRange('all')" id="dateFilterAll">
+                        <i class="fas fa-calendar"></i>
+                        All Time
+                    </button>
+                    <button class="filter-btn" onclick="filterByDateRange('7days')" id="dateFilter7days">
+                        <i class="fas fa-calendar-week"></i>
+                        Last 7 Days
+                    </button>
+                    <button class="filter-btn" onclick="filterByDateRange('30days')" id="dateFilter30days">
+                        <i class="fas fa-calendar-alt"></i>
+                        30 Days
+                    </button>
+                    <button class="filter-btn" onclick="filterByDateRange('3months')" id="dateFilter3months">
+                        <i class="fas fa-calendar-day"></i>
+                        3 Months
+                    </button>
+                    <button class="filter-btn" onclick="filterByDateRange('1year')" id="dateFilter1year">
+                        <i class="fas fa-calendar-times"></i>
+                        1 Year
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="messages-cards-container">
@@ -1363,6 +1499,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <div class="loading" id="loadingState">
                 <div class="spinner"></div>
                 <p>Loading messages...</p>
+            </div>
+
+            <!-- Pagination Info -->
+            <div class="pagination-info" id="paginationInfo" style="display: none;">
+                <div class="showing-info" id="showingInfo">Showing 21 of X newest messages</div>
+                <button class="load-more-btn" id="loadMoreBtn" onclick="toggleShowAll()">
+                    <i class="fas fa-eye"></i>
+                    Show All Messages
+                </button>
             </div>
 
             <!-- Cards Grid -->
@@ -1386,11 +1531,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let messagesData = [];
         let filteredMessages = [];
         let groupedMessages = {};
-        let currentFilter = 'all';
+        let currentStatusFilter = 'all';
+        let currentMessageTypeFilter = 'all';
+        let currentDateRangeFilter = 'all';
         let currentSearchTerm = '';
         let pendingChanges = new Map();
         let currentTargetId = null; 
         let currentUserPlan = null;
+        let showingLimited = true; // NEW: Track if we're showing limited results
+        let CARDS_LIMIT = 21; // NEW: Number of cards to show initially
 
         // Authentication check and data loading
         document.addEventListener('DOMContentLoaded', function() {
@@ -1552,7 +1701,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Group messages by target profile - FIXED: Smart content-based message type detection
+        // Group messages by target profile with ENHANCED CONNECTION REQUEST DETECTION
         function groupMessagesByTarget() {
             groupedMessages = {};
             
@@ -1574,25 +1723,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         comments: message.comments,
                         emailFound: message.emailFound,
                         emailStatus: message.emailStatus,
-                        emailVerifiedAt: message.emailVerifiedAt
+                        emailVerifiedAt: message.emailVerifiedAt,
+                        latestMessageDate: new Date(message.created_at) // Track latest message date for sorting
                     };
+                } else {
+                    // Update latest message date if this message is newer
+                    const messageDate = new Date(message.created_at);
+                    if (messageDate > groupedMessages[targetKey].latestMessageDate) {
+                        groupedMessages[targetKey].latestMessageDate = messageDate;
+                    }
                 }
                 
-                // Smart content-based detection since database has all 'message' type
+                // ENHANCED content-based message type detection
                 const messageContent = (message.message || '').toLowerCase();
                 const messageType = detectMessageType(messageContent);
                 
-                console.log(`[DEBUG] Message ID ${message.id}: detected="${messageType}", content="${messageContent.substring(0, 50)}..."`);
+                console.log(`[DETECT] Message ID ${message.id}: "${messageType.toUpperCase()}" - Content: "${messageContent.substring(0, 50)}..."`);
                 
                 if (messageType === 'connection') {
                     groupedMessages[targetKey].messages.connection.push(message);
-                    console.log(`[DEBUG] Classified as CONNECTION REQUEST`);
                 } else if (messageType === 'email') {
                     groupedMessages[targetKey].messages.email.push(message);
-                    console.log(`[DEBUG] Classified as COLD EMAIL`);
                 } else {
                     groupedMessages[targetKey].messages.linkedin.push(message);
-                    console.log(`[DEBUG] Classified as LINKEDIN MESSAGE`);
                 }
             });
             
@@ -1604,16 +1757,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             });
             
             console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
-            
-            // Debug: Log the classification results
-            Object.values(groupedMessages).forEach(group => {
-                console.log(`[DEBUG] ${group.target.firstName}: LinkedIn=${group.messages.linkedin.length}, Connection=${group.messages.connection.length}, Email=${group.messages.email.length}`);
-            });
         }
 
-        // Smart message type detection based on content
+        // ENHANCED message type detection with better connection request patterns
         function detectMessageType(messageContent) {
             const content = messageContent.toLowerCase().trim();
+            
+            console.log(`[DETECT] Analyzing content: "${content.substring(0, 60)}..."`);
             
             // Cold Email indicators (check first as they're most specific)
             if (content.includes('subject:') || 
@@ -1621,31 +1771,57 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 content.includes('dear ') || 
                 content.includes('hope this email finds you') ||
                 content.includes('email') && content.includes('regarding')) {
+                console.log('[DETECT] → COLD EMAIL (found email indicators)');
                 return 'email';
             }
             
-            // Connection Request indicators
-            if (content.includes('connect') || 
-                content.includes('connection') ||
-                content.includes('network') ||
-                content.includes('would love to connect') ||
-                content.includes("i'd love to connect") ||
-                content.includes('add you to my network') ||
-                content.includes('build my network')) {
+            // ENHANCED Connection Request indicators
+            const connectionPatterns = [
+                // Direct connection language
+                'connect', 'connection', 'network', 'networking',
+                'would love to connect', "i'd love to connect", "love to connect",
+                'add you to my network', 'build my network', 'expand my network',
+                
+                // Short greeting + work context (common in connection requests)
+                content.length < 200 && (content.includes('congrats') || content.includes('congratulations')) && 
+                (content.includes('role') || content.includes('position') || content.includes('job')),
+                
+                // LinkedIn-specific connection phrases
+                'send you a connection', 'accept my connection', 'linkedin connection',
+                'professional network', 'connect with you', 'connect on linkedin'
+            ];
+            
+            const hasConnectionIndicators = connectionPatterns.some(pattern => {
+                if (typeof pattern === 'string') {
+                    return content.includes(pattern);
+                }
+                return pattern; // Boolean patterns
+            });
+            
+            if (hasConnectionIndicators) {
+                console.log('[DETECT] → CONNECTION REQUEST (found connection indicators)');
                 return 'connection';
             }
             
             // Default to LinkedIn message
+            console.log('[DETECT] → LINKEDIN MESSAGE (default)');
             return 'linkedin';
         }
 
+        // NEW: Filter functions with date range support
         function applyFilters() {
             let filtered = Object.values(groupedMessages);
             
             // Apply status filter
             filtered = filterMessagesByStatus(filtered);
             
-            // Apply search filter - UPDATED for message arrays
+            // Apply message type filter
+            filtered = filterMessagesByType(filtered);
+            
+            // Apply date range filter
+            filtered = filterMessagesByDateRange(filtered);
+            
+            // Apply search filter
             if (currentSearchTerm) {
                 filtered = filtered.filter(group => {
                     const target = group.target;
@@ -1674,9 +1850,64 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 });
             }
             
+            // Sort by latest message date (newest first)
+            filtered.sort((a, b) => b.latestMessageDate - a.latestMessageDate);
+            
             filteredMessages = filtered;
             renderMessages();
             updateMessagesStats();
+        }
+
+        // NEW: Message type filtering
+        function filterMessagesByType(messageGroups) {
+            if (currentMessageTypeFilter === 'all') {
+                return messageGroups;
+            }
+            
+            return messageGroups.filter(group => {
+                const messages = group.messages;
+                switch (currentMessageTypeFilter) {
+                    case 'linkedin':
+                        return messages.linkedin && messages.linkedin.length > 0;
+                    case 'connection':
+                        return messages.connection && messages.connection.length > 0;
+                    case 'email':
+                        return messages.email && messages.email.length > 0;
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        // NEW: Date range filtering
+        function filterMessagesByDateRange(messageGroups) {
+            if (currentDateRangeFilter === 'all') {
+                return messageGroups;
+            }
+            
+            const now = new Date();
+            let cutoffDate;
+            
+            switch (currentDateRangeFilter) {
+                case '7days':
+                    cutoffDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                    break;
+                case '30days':
+                    cutoffDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+                    break;
+                case '3months':
+                    cutoffDate = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
+                    break;
+                case '1year':
+                    cutoffDate = new Date(now.getTime() - (365 * 24 * 60 * 60 * 1000));
+                    break;
+                default:
+                    return messageGroups;
+            }
+            
+            return messageGroups.filter(group => {
+                return group.latestMessageDate >= cutoffDate;
+            });
         }
 
         function searchMessages(searchTerm) {
@@ -1684,22 +1915,90 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             applyFilters();
         }
 
+        // NEW: Individual filter functions for UI
+        function filterByStatus(status) {
+            currentStatusFilter = status;
+            
+            // Update UI
+            document.querySelectorAll('.filter-section:first-child .filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            applyFilters();
+        }
+
+        function filterByMessageType(type) {
+            currentMessageTypeFilter = type;
+            
+            // Update UI
+            document.querySelectorAll('.filter-section:nth-child(2) .filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            applyFilters();
+        }
+
+        function filterByDateRange(range) {
+            currentDateRangeFilter = range;
+            
+            // Update UI
+            document.querySelectorAll('.filter-section:nth-child(3) .filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            applyFilters();
+        }
+
+        // NEW: Pagination control
+        function toggleShowAll() {
+            showingLimited = !showingLimited;
+            renderMessages();
+        }
+
         function renderMessages() {
             const cardsGrid = document.getElementById('messagesCardsGrid');
+            const paginationInfo = document.getElementById('paginationInfo');
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            const showingInfo = document.getElementById('showingInfo');
             
             if (filteredMessages.length === 0) {
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('messagesCardsGrid').style.display = 'none';
                 document.getElementById('emptyState').style.display = 'block';
+                paginationInfo.style.display = 'none';
                 return;
+            }
+            
+            // Determine how many messages to show
+            let messagesToShow = filteredMessages;
+            if (showingLimited && filteredMessages.length > CARDS_LIMIT) {
+                messagesToShow = filteredMessages.slice(0, CARDS_LIMIT);
             }
             
             cardsGrid.innerHTML = '';
             
-            filteredMessages.forEach(messageGroup => {
+            messagesToShow.forEach(messageGroup => {
                 const messageCard = createMessageCard(messageGroup);
                 cardsGrid.appendChild(messageCard);
             });
+            
+            // Update pagination info
+            if (filteredMessages.length > CARDS_LIMIT) {
+                paginationInfo.style.display = 'flex';
+                
+                if (showingLimited) {
+                    showingInfo.textContent = `Showing ${CARDS_LIMIT} of ${filteredMessages.length} newest messages`;
+                    loadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Messages';
+                } else {
+                    showingInfo.textContent = `Showing all ${filteredMessages.length} messages`;
+                    loadMoreBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Show Recent Only';
+                }
+            } else {
+                paginationInfo.style.display = 'none';
+            }
             
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('messagesCardsGrid').style.display = 'grid';
@@ -1770,12 +2069,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function createMessageTypeBlock(type, label, messagesArray, iconClass) {
-            // Only create blocks for message types that have content
             if (!messagesArray || messagesArray.length === 0) {
                 return '';
             }
 
-            const latestMessage = messagesArray[0]; // Newest first due to sorting
+            const latestMessage = messagesArray[0];
             const latestMessageText = cleanMessageText(latestMessage.message || '');
             const latestPreview = latestMessageText.length > 80 ? latestMessageText.substring(0, 80) + '...' : latestMessageText;
             const uniqueId = `${type}-${latestMessage.id}`;
@@ -1783,14 +2081,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             let historyHTML = '';
             
-            // Show latest message
+            // Show latest message with FIXED expand functionality
             historyHTML += `
                 <div class="message-history-item latest">
                     <div class="message-timestamp">
                         <i class="fas fa-clock"></i>
                         Latest: ${formatMessageDate(latestMessage.created_at)}
                     </div>
-                    <div class="message-content-preview">${latestPreview}</div>
+                    <div class="message-content-preview" id="preview-${uniqueId}">${latestPreview}</div>
                     <div class="message-text" id="message-${uniqueId}" style="display: none;">
                         ${latestMessageText}
                     </div>
@@ -1812,7 +2110,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <i class="fas fa-history"></i>
                                 Previous: ${formatMessageDate(msg.created_at)}
                             </div>
-                            <div class="message-content-preview">${msgPreview}</div>
+                            <div class="message-content-preview" id="preview-${msgUniqueId}">${msgPreview}</div>
                             <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
                                 ${msgText}
                             </div>
@@ -1901,10 +2199,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // Format message date for display
+        // FIXED: Format message date with proper error handling
         function formatMessageDate(dateString) {
             try {
+                if (!dateString) {
+                    console.warn('[DATE] Empty date string provided');
+                    return 'Unknown date';
+                }
+                
                 const date = new Date(dateString);
+                
+                // Check if date is valid
+                if (isNaN(date.getTime())) {
+                    console.warn('[DATE] Invalid date string:', dateString);
+                    return 'Invalid date';
+                }
+                
                 const now = new Date();
                 const diffTime = now - date;
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -1960,33 +2270,41 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         // Toggle individual historical message
         function toggleHistoryMessage(messageId, element) {
             const messageElement = document.getElementById(`message-${messageId}`);
+            const previewElement = document.getElementById(`preview-${messageId}`);
             const isExpanded = messageElement.style.display !== 'none';
             
             if (isExpanded) {
                 messageElement.style.display = 'none';
+                previewElement.style.display = 'block';
                 element.classList.add('collapsed');
             } else {
                 messageElement.style.display = 'block';
+                previewElement.style.display = 'none';
                 element.classList.remove('collapsed');
             }
         }
 
-        // FIXED: Toggle message expand/collapse functionality
+        // FIXED: Toggle message expand/collapse with preview hide/show
         function toggleMessageExpand(messageId, button) {
             const messageElement = document.getElementById(`message-${messageId}`);
+            const previewElement = document.getElementById(`preview-${messageId}`);
             
-            if (!messageElement) {
-                console.error(`[EXPAND] Message element not found: message-${messageId}`);
+            if (!messageElement || !previewElement) {
+                console.error(`[EXPAND] Elements not found for message: ${messageId}`);
                 return;
             }
             
             const isExpanded = messageElement.style.display === 'block';
             
             if (isExpanded) {
+                // Collapse: hide full message, show preview
                 messageElement.style.display = 'none';
+                previewElement.style.display = 'block';
                 button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
             } else {
+                // Expand: show full message, hide preview
                 messageElement.style.display = 'block';
+                previewElement.style.display = 'none';
                 button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
             }
             
@@ -1999,7 +2317,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             console.log(`[EDIT] Edit requested for ${type} message ID: ${messageId}`);
         }
 
-        // Copy message functionality - UPDATED for message arrays
+        // Copy message functionality
         async function copyMessage(type, messageId, button) {
             try {
                 // Find the specific message by ID across all message groups
@@ -2293,19 +2611,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        function filterMessages(status) {
-            currentFilter = status;
-            
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            applyFilters();
-        }
-
         function filterMessagesByStatus(messageGroups) {
-            switch (currentFilter) {
+            switch (currentStatusFilter) {
                 case 'sent':
                     return messageGroups.filter(group => group.sent === 'yes');
                 case 'replied':
@@ -2347,6 +2654,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('emptyState').style.display = 'block';
             document.getElementById('messagesCardsGrid').style.display = 'none';
+            document.getElementById('paginationInfo').style.display = 'none';
         }
 
         // Navigation functions
