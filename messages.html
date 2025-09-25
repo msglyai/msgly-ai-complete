@@ -1701,7 +1701,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Group messages by target profile with ENHANCED CONNECTION REQUEST DETECTION
+        // Group messages by target profile - FIXED: Use database message_type directly
         function groupMessagesByTarget() {
             groupedMessages = {};
             
@@ -1737,11 +1737,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     }
                 }
                 
-                // ENHANCED content-based message type detection
-                const messageContent = (message.message || '').toLowerCase();
-                const messageType = detectMessageType(messageContent);
+                // FIXED: Use database message_type directly instead of content analysis
+                const messageType = getMessageTypeFromDatabase(message.message_type || message.messageType);
                 
-                console.log(`[DETECT] Message ID ${message.id}: "${messageType.toUpperCase()}" - Content: "${messageContent.substring(0, 50)}..."`);
+                console.log(`[DB_TYPE] Message ID ${message.id}: "${messageType.toUpperCase()}" from database field: "${message.message_type || message.messageType}"`);
                 
                 if (messageType === 'connection') {
                     groupedMessages[targetKey].messages.connection.push(message);
@@ -1762,50 +1761,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
         }
 
-        // BALANCED: More precise message type detection 
-        function detectMessageType(messageContent) {
-            const content = messageContent.toLowerCase().trim();
-            
-            console.log(`[DETECT] Analyzing content: "${content.substring(0, 60)}..."`);
-            
-            // Cold Email indicators (check first as they're most specific)
-            if (content.includes('subject:') || 
-                content.match(/^subject\s*[:]\s*/m) ||
-                content.includes('dear ') || 
-                content.includes('hope this email finds you') ||
-                content.includes('email') && content.includes('regarding') ||
-                content.includes('from tech to table') ||
-                content.includes('post helping laid-off folks')) {
-                console.log('[DETECT] → COLD EMAIL (found email indicators)');
-                return 'email';
+        // FIXED: Map database message_type values to UI categories
+        function getMessageTypeFromDatabase(dbMessageType) {
+            if (!dbMessageType) {
+                return 'linkedin'; // Default fallback
             }
             
-            // PRECISE Connection Request detection - must have explicit connection language
-            const explicitConnectionWords = [
-                'would love to connect', "i'd love to connect", "love to connect",
-                'send you a connection', 'accept my connection', 'linkedin connection',
-                'connect with you', 'connect on linkedin', 'add you to my network',
-                'build my network', 'expand my network', 'professional network'
-            ];
+            const dbType = dbMessageType.toLowerCase();
             
-            // Check for explicit connection requests
-            const hasExplicitConnection = explicitConnectionWords.some(phrase => 
-                content.includes(phrase)
-            );
-            
-            // Special case: Very short messages with connection context
-            const isVeryShortConnectionRequest = content.length < 150 && 
-                (content.includes('ex-linkedin') && content.includes('co-founder')) &&
-                (content.includes('love your') || content.includes('leap'));
-            
-            if (hasExplicitConnection || isVeryShortConnectionRequest) {
-                console.log('[DETECT] → CONNECTION REQUEST (found explicit connection language)');
+            // Map database values to UI categories
+            if (dbType.includes('connection') || dbType === 'connection_request') {
                 return 'connection';
+            } else if (dbType.includes('email') || dbType === 'cold_email') {
+                return 'email';
+            } else {
+                return 'linkedin'; // Default: linkedin_message, message, etc.
             }
-            
-            // Default to LinkedIn message (includes congratulatory messages without explicit connection requests)
-            console.log('[DETECT] → LINKEDIN MESSAGE (default - no explicit connection request)');
-            return 'linkedin';
         }
 
         // NEW: Filter functions with date range support
