@@ -1714,7 +1714,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function createMessageTypeBlock(type, label, messagesArray, iconClass) {
-            if (!messagesArray || messagesArray.length === 0) {
+            const hasMessages = messagesArray && messagesArray.length > 0;
+            
+            if (!hasMessages) {
+                // FIXED: Empty state now includes consistent button layout
                 return `
                     <div class="message-type-block ${type}">
                         <div class="message-type-header">
@@ -1722,9 +1725,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <i class="${iconClass}"></i>
                                 ${label}
                             </div>
+                            <div class="message-actions">
+                                <button class="edit-btn" onclick="editMessage('${type}', null)" disabled style="opacity: 0.5;">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="copy-btn" onclick="alert('No message to copy')" disabled style="opacity: 0.5;">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
                         </div>
-                        <div class="message-text empty">
-                            No message generated yet
+                        <div class="message-history-item">
+                            <div class="message-timestamp">
+                                <i class="fas fa-info-circle"></i>
+                                Status: Not generated
+                            </div>
+                            <div class="message-content-preview" style="font-style: italic; color: var(--gray);">
+                                No message generated yet
+                            </div>
+                        </div>
+                        <div style="text-align: center; margin-top: 0.8rem;">
+                            <button class="expand-btn" disabled style="opacity: 0.5;">
+                                <i class="fas fa-plus"></i> Generate Message
+                            </button>
                         </div>
                     </div>
                 `;
@@ -1784,13 +1806,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="message-type-label ${type}">
                             <i class="${iconClass}"></i>
                             ${label}
-                            ${hasMultiple ? `<span class="message-version-count">${messagesArray.length} versions</span>` : ''}
                         </div>
                         <div class="message-actions">
-                            ${hasMultiple ? `
-                            <button class="expand-btn" onclick="toggleMessageHistory('${uniqueId}', this)">
-                                <i class="fas fa-history"></i> History
-                            </button>` : ''}
                             <button class="edit-btn" onclick="editMessage('${type}', ${latestMessage.id})">
                                 <i class="fas fa-edit"></i> Edit
                             </button>
@@ -1800,10 +1817,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                     </div>
                     ${historyHTML}
-                    <div style="text-align: center; margin-top: 0.8rem;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.8rem;">
+                        ${hasMultiple ? `
+                        <button class="expand-btn" onclick="toggleMessageHistory('${uniqueId}', this)">
+                            <i class="fas fa-history"></i> History
+                        </button>` : ''}
                         <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
                             <i class="fas fa-chevron-down"></i> Expand
                         </button>
+                        ${hasMultiple ? `<span class="message-version-count">${messagesArray.length} versions</span>` : ''}
                     </div>
                 </div>
             `;
