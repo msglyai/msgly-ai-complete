@@ -491,6 +491,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             box-shadow: none;
         }
 
+        /* Bottom pagination styling */
+        .bottom-pagination {
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem 1rem;
+            border-top: 1px solid var(--light-gray);
+            margin-top: 2rem;
+        }
+
+        .bottom-pagination .load-more-btn {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            min-width: 200px;
+            justify-content: center;
+        }
+
         .messages-cards-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -1594,6 +1610,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <h3>No Messages Found</h3>
                 <p>Generate your first LinkedIn message using the Chrome extension, then return here to track your outreach campaign.</p>
             </div>
+
+            <!-- Bottom Show All Button -->
+            <div class="bottom-pagination" id="bottomPagination" style="display: none;">
+                <button class="load-more-btn" id="bottomLoadMoreBtn" onclick="toggleShowAll()">
+                    <i class="fas fa-eye"></i>
+                    Show All Messages
+                </button>
+            </div>
         </div>
             </div>
         </main>
@@ -2067,7 +2091,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function renderMessages() {
             const cardsGrid = document.getElementById('messagesCardsGrid');
             const paginationInfo = document.getElementById('paginationInfo');
+            const bottomPagination = document.getElementById('bottomPagination');
             const loadMoreBtn = document.getElementById('loadMoreBtn');
+            const bottomLoadMoreBtn = document.getElementById('bottomLoadMoreBtn');
             const showingInfo = document.getElementById('showingInfo');
             
             if (filteredMessages.length === 0) {
@@ -2075,6 +2101,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 document.getElementById('messagesCardsGrid').style.display = 'none';
                 document.getElementById('emptyState').style.display = 'block';
                 paginationInfo.style.display = 'none';
+                bottomPagination.style.display = 'none';
                 return;
             }
             
@@ -2091,19 +2118,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 cardsGrid.appendChild(messageCard);
             });
             
-            // Update pagination info
+            // Update pagination info and buttons
             if (filteredMessages.length > CARDS_LIMIT) {
                 paginationInfo.style.display = 'flex';
+                bottomPagination.style.display = 'flex';
                 
                 if (showingLimited) {
                     showingInfo.textContent = `Showing ${CARDS_LIMIT} of ${filteredMessages.length} newest messages`;
                     loadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Messages';
+                    bottomLoadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Messages';
                 } else {
                     showingInfo.textContent = `Showing all ${filteredMessages.length} messages`;
                     loadMoreBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Show Recent Only';
+                    bottomLoadMoreBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Show Recent Only';
                 }
             } else {
                 paginationInfo.style.display = 'none';
+                bottomPagination.style.display = 'none';
             }
             
             document.getElementById('loadingState').style.display = 'none';
