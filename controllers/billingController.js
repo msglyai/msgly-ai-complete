@@ -1,5 +1,6 @@
 // controllers/billingController.js - Chargebee Webhook Handlers
 // Exact copies from server.js with same imports and logic
+// 🔄 LINKEDIN URL DECOUPLING: Updated webhook handlers to use completeRegistrationAfterPayment
 
 // Import dependencies used by webhook handlers
 const {
@@ -7,6 +8,7 @@ const {
     getUserByEmail,
     getPendingRegistration,
     completePendingRegistration,
+    completeRegistrationAfterPayment, // 🔄 NEW: Registration without LinkedIn URL dependency
     downgradeUserToFree,
     // CONTEXT FIX: Add missing context slot functions
     getContextAddonUsage,
@@ -154,17 +156,14 @@ async function handleSubscriptionCreated(subscription, customer) {
             }
         }
         
-        // NEW: Check for pending registration and complete it automatically
-        const pendingReg = await getPendingRegistration(user.id);
-        if (pendingReg.success && pendingReg.data) {
-            console.log('[WEBHOOK] Found pending registration, completing automatically...');
-            
-            const completionResult = await completePendingRegistration(user.id, pendingReg.data.linkedin_url);
-            if (completionResult.success) {
-                console.log('[WEBHOOK] Registration completed automatically after subscription');
-            } else {
-                console.error('[WEBHOOK] Failed to complete pending registration:', completionResult.error);
-            }
+        // 🔄 LINKEDIN URL DECOUPLING: Use new registration completion function
+        console.log('[WEBHOOK] Completing registration after payment (without LinkedIn URL requirement)...');
+        
+        const completionResult = await completeRegistrationAfterPayment(user.id);
+        if (completionResult.success) {
+            console.log('[WEBHOOK] Registration completed automatically after subscription (LinkedIn URL optional)');
+        } else {
+            console.error('[WEBHOOK] Failed to complete registration:', completionResult.error);
         }
         
         // NEW: Send welcome email for paid users (NON-BLOCKING)
@@ -230,6 +229,18 @@ async function handleSubscriptionActivated(subscription, customer) {
         `, [subscription.id, user.id]);
         
         console.log(`[WEBHOOK] Subscription activated for user ${user.id}`);
+        
+        // 🔄 LINKEDIN URL DECOUPLING: Complete registration if needed (optional LinkedIn URL)
+        if (!user.registration_completed) {
+            console.log('[WEBHOOK] Completing registration after activation (without LinkedIn URL requirement)...');
+            
+            const completionResult = await completeRegistrationAfterPayment(user.id);
+            if (completionResult.success) {
+                console.log('[WEBHOOK] Registration completed after activation (LinkedIn URL optional)');
+            } else {
+                console.error('[WEBHOOK] Failed to complete registration after activation:', completionResult.error);
+            }
+        }
         
     } catch (error) {
         console.error('[WEBHOOK] Error handling subscription_activated:', error);
@@ -529,17 +540,14 @@ async function handleInvoiceGenerated(invoice, subscription) {
                 
                 // Common processing for all one-time purchases
                 
-                // NEW: Check for pending registration and complete it automatically
-                const pendingReg = await getPendingRegistration(user.id);
-                if (pendingReg.success && pendingReg.data) {
-                    console.log('[WEBHOOK] Found pending registration, completing automatically...');
-                    
-                    const completionResult = await completePendingRegistration(user.id, pendingReg.data.linkedin_url);
-                    if (completionResult.success) {
-                        console.log('[WEBHOOK] Registration completed automatically after purchase');
-                    } else {
-                        console.error('[WEBHOOK] Failed to complete pending registration:', completionResult.error);
-                    }
+                // 🔄 LINKEDIN URL DECOUPLING: Use new registration completion function
+                console.log('[WEBHOOK] Completing registration after purchase (without LinkedIn URL requirement)...');
+                
+                const completionResult = await completeRegistrationAfterPayment(user.id);
+                if (completionResult.success) {
+                    console.log('[WEBHOOK] Registration completed automatically after purchase (LinkedIn URL optional)');
+                } else {
+                    console.error('[WEBHOOK] Failed to complete registration:', completionResult.error);
                 }
                 
                 // NEW: Send welcome email for one-time purchase users (NON-BLOCKING)
@@ -656,6 +664,16 @@ async function handlePaymentSucceeded(payment, invoice) {
                                 console.log('[WEBHOOK] Recovery successful: PAYG credits added');
                             }
                         }
+                    }
+                }
+                
+                // 🔄 LINKEDIN URL DECOUPLING: Complete registration if needed (during recovery)
+                if (!userData.registration_completed) {
+                    console.log('[WEBHOOK] Recovery: Completing registration (without LinkedIn URL requirement)...');
+                    
+                    const completionResult = await completeRegistrationAfterPayment(userData.id);
+                    if (completionResult.success) {
+                        console.log('[WEBHOOK] Recovery: Registration completed (LinkedIn URL optional)');
                     }
                 }
             }
