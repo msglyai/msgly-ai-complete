@@ -22,7 +22,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: includes context data)
+// GET /messages/history - Get messages for user (FIXED: includes message_type field)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -32,6 +32,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.target_title as "targetProfile.role", 
                 ml.target_company as "targetProfile.company",
                 ml.generated_message as message,
+                ml.message_type,
                 ml.context_text as context,
                 ml.created_at,
                 -- FIXED: Read actual database values instead of hardcoded 'pending'
@@ -53,6 +54,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 company: row["targetProfile.company"] || 'Company'
             },
             message: row.message || '',
+            message_type: row.message_type,
             context: row.context || 'No context available',
             sent: row.sent,
             gotReply: row.gotReply,
