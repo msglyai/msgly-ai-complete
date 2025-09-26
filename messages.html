@@ -860,6 +860,79 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             border-radius: 10px;
         }
 
+        /* Message type filtering with strong highlighting */
+        .message-type-block.filtered-highlight {
+            border: 3px solid var(--primary-purple);
+            background: linear-gradient(135deg, 
+                rgba(128, 57, 223, 0.15) 0%, 
+                rgba(128, 57, 223, 0.08) 100%);
+            box-shadow: 0 0 20px rgba(128, 57, 223, 0.4);
+            transform: scale(1.02);
+            position: relative;
+            animation: highlightPulse 2s ease-in-out infinite;
+        }
+
+        .message-type-block.filtered-highlight::before {
+            content: '⭐ FILTERED';
+            position: absolute;
+            top: -10px;
+            right: 10px;
+            background: var(--primary-purple);
+            color: var(--white);
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 8px rgba(128, 57, 223, 0.5);
+        }
+
+        .message-type-block.filtered-dimmed {
+            opacity: 0.3;
+            filter: grayscale(0.7);
+            transform: scale(0.98);
+            transition: all 0.3s ease;
+        }
+
+        .message-type-block.filtered-dimmed:hover {
+            opacity: 0.6;
+            filter: grayscale(0.4);
+            transform: scale(1);
+        }
+
+        /* Card highlighting when it contains filtered content */
+        .message-card.has-filtered-content {
+            border-color: var(--primary-purple);
+            box-shadow: 0 8px 30px rgba(128, 57, 223, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .message-card.has-filtered-content::before {
+            opacity: 1;
+        }
+
+        /* Strong glow animation for highlighted sections */
+        @keyframes highlightPulse {
+            0% {
+                box-shadow: 0 0 20px rgba(128, 57, 223, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(128, 57, 223, 0.6);
+            }
+            100% {
+                box-shadow: 0 0 20px rgba(128, 57, 223, 0.4);
+            }
+        }
+
+        /* Filter active state enhancement */
+        .filter-btn.active {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border-color: var(--primary-purple);
+            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.4);
+            transform: translateY(-1px);
+        }
+
         /* Status and Comments Section */
         .card-status-section {
             padding: 1rem;
@@ -1899,16 +1972,78 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             applyFilters();
         }
 
+        // NEW: Enhanced message type filtering with highlighting
         function filterByMessageType(type) {
             currentMessageTypeFilter = type;
             
-            // Update UI
+            // Update UI - enhanced active state
             document.querySelectorAll('.filter-section:nth-child(2) .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             event.target.classList.add('active');
             
+            // Apply highlighting to message type blocks
+            applyMessageTypeHighlighting(type);
+            
+            // Still apply the normal filtering for stats
             applyFilters();
+        }
+
+        // NEW: Apply strong highlighting to filtered message types
+        function applyMessageTypeHighlighting(filterType) {
+            const allCards = document.querySelectorAll('.message-card');
+            
+            allCards.forEach(card => {
+                const messageBlocks = card.querySelectorAll('.message-type-block');
+                let hasFilteredContent = false;
+                
+                messageBlocks.forEach(block => {
+                    // Remove existing filter classes
+                    block.classList.remove('filtered-highlight', 'filtered-dimmed');
+                    
+                    if (filterType === 'all') {
+                        // Show all sections normally when "All Types" is selected
+                        return;
+                    }
+                    
+                    // Check if this block matches the filter
+                    const isMatch = (
+                        (filterType === 'linkedin' && block.classList.contains('linkedin')) ||
+                        (filterType === 'connection' && block.classList.contains('connection')) ||
+                        (filterType === 'email' && block.classList.contains('email'))
+                    );
+                    
+                    if (isMatch) {
+                        // HIGHLIGHT: Make matching sections extremely prominent
+                        block.classList.add('filtered-highlight');
+                        hasFilteredContent = true;
+                        
+                        // Auto-expand highlighted sections
+                        const expandBtn = block.querySelector('.expand-btn[onclick*="toggleMessageExpand"]');
+                        if (expandBtn && !expandBtn.innerHTML.includes('Collapse')) {
+                            expandBtn.click();
+                        }
+                    } else {
+                        // DIM: Make non-matching sections less prominent
+                        block.classList.add('filtered-dimmed');
+                        
+                        // Auto-collapse dimmed sections
+                        const expandBtn = block.querySelector('.expand-btn[onclick*="toggleMessageExpand"]');
+                        if (expandBtn && expandBtn.innerHTML.includes('Collapse')) {
+                            expandBtn.click();
+                        }
+                    }
+                });
+                
+                // Highlight entire card if it contains filtered content
+                if (hasFilteredContent && filterType !== 'all') {
+                    card.classList.add('has-filtered-content');
+                } else {
+                    card.classList.remove('has-filtered-content');
+                }
+            });
+            
+            console.log(`[FILTER] Applied ${filterType} highlighting to message blocks`);
         }
 
         function filterByDateRange(range) {
@@ -1974,6 +2109,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('messagesCardsGrid').style.display = 'grid';
             document.getElementById('emptyState').style.display = 'none';
+            
+            // ENHANCED: Apply message type highlighting after rendering
+            setTimeout(() => {
+                applyMessageTypeHighlighting(currentMessageTypeFilter);
+            }, 100);
         }
 
         function createMessageCard(messageGroup) {
