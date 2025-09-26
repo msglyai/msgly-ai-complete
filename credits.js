@@ -6,6 +6,7 @@
 // FIXED: Race condition and row locking issues in completeOperation
 // CRITICAL FIX: NaN corruption bug that was destroying user credits
 // CRITICAL FIX: Added missing 'unified_generation' operation type
+// STAGE 3 ADD: Added email_verification operation type for email finder feature
 
 const { pool } = require('./utils/database');
 
@@ -17,7 +18,8 @@ class CreditManager {
             'message_generation': 1.0,
             'connection_generation': 1.0,
             'cold_email_generation': 1.0, // ADDED: Cold email generation support
-            'unified_generation': 1.0     // CRITICAL FIX: Added missing unified_generation
+            'unified_generation': 1.0,    // CRITICAL FIX: Added missing unified_generation
+            'email_verification': 2.0     // STAGE 3 ADD: Email verification operation (2 credits per successful verification)
         };
     }
 
