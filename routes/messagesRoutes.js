@@ -137,7 +137,7 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== EMAIL FINDER ENDPOINT ====================
+// ==================== EMAIL FINDER ENDPOINT - FIXED: MISSING ENDPOINT ADDED ====================
 
 // POST /api/ask-email - Find and verify email using real Snov.io API (Silver+ plans only)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
