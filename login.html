@@ -403,7 +403,47 @@
     </div>
 
     <script>
-        // ✅ FIXED: Check authentication on page load with registration_completed logic
+        // 🔧 LINKEDIN URL DECOUPLING STAGE 6: Updated authentication flow - removed LinkedIn URL dependency
+        // 🔧 RETURN URL FIX: Added return URL handling for better user experience
+        
+        // Helper function to validate and get safe return URL
+        function getSafeReturnUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnUrl = urlParams.get('returnUrl');
+            
+            if (!returnUrl) return null;
+            
+            // Security: Only allow internal paths (prevent open redirect attacks)
+            const allowedPaths = ['/dashboard', '/messages', '/msgly-profile', '/contexts', '/upgrade'];
+            const isValidPath = allowedPaths.some(path => returnUrl.startsWith(path));
+            
+            if (isValidPath) {
+                console.log('📍 Valid return URL found:', returnUrl);
+                return returnUrl;
+            } else {
+                console.log('⚠️ Invalid return URL blocked for security:', returnUrl);
+                return null;
+            }
+        }
+        
+        // Helper function to get redirect destination
+        function getRedirectDestination(user, syncStatus) {
+            const safeReturnUrl = getSafeReturnUrl();
+            const needsOnboarding = !user.registrationCompleted || syncStatus.isIncomplete;
+            
+            if (needsOnboarding) {
+                // If user needs onboarding, always go to sign-up regardless of return URL
+                return '/sign-up';
+            } else if (safeReturnUrl) {
+                // User is fully registered and has a valid return URL
+                console.log('🎯 Redirecting to original destination:', safeReturnUrl);
+                return safeReturnUrl;
+            } else {
+                // Default to dashboard
+                return '/dashboard';
+            }
+        }
+
         window.addEventListener('load', async () => {
             console.log('🔍 Login page loaded - checking authentication status');
             
@@ -420,7 +460,7 @@
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('loadingState').style.display = 'block';
                 
-                // ✅ FIXED: Check user registration status before redirecting
+                // 🔧 LINKEDIN URL DECOUPLING: Updated user status check - removed LinkedIn URL dependency
                 try {
                     const response = await fetch('https://api.msgly.ai/profile', {
                         method: 'GET',
@@ -436,33 +476,28 @@
                         const syncStatus = data.data.syncStatus;
 
                         console.log('✅ User profile fetched successfully');
-                        console.log('   - Registration completed:', user.registrationCompleted);  // ✅ FIXED: Changed from profileCompleted
+                        console.log('   - Registration completed:', user.registrationCompleted);
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
+                        console.log('   - LinkedIn URL Decoupling: LinkedIn URL no longer required for login redirect');
 
-                        // ✅ FIXED: Smart redirect based on registration_completed status
-                        const needsOnboarding = !user.registrationCompleted ||  // ✅ FIXED: Check registration_completed instead of profileCompleted
-                                               !user.linkedinUrl ||
-                                               syncStatus.isIncomplete;
-
-                        if (needsOnboarding) {
-                            console.log('➡️ User needs onboarding - redirecting to sign-up');
-                            setTimeout(() => {
-                                window.location.href = '/sign-up';
-                            }, 1500);
-                        } else {
-                            console.log('➡️ User registration complete - redirecting to dashboard');
-                            setTimeout(() => {
-                                window.location.href = '/dashboard';
-                            }, 1500);
-                        }
+                        // 🔧 RETURN URL FIX: Use smart redirect logic
+                        const redirectUrl = getRedirectDestination(user, syncStatus);
+                        
+                        console.log('➡️ Redirecting to:', redirectUrl);
+                        setTimeout(() => {
+                            window.location.href = redirectUrl;
+                        }, 1500);
                     } else {
                         throw new Error('Failed to fetch user profile');
                     }
                 } catch (error) {
                     console.error('❌ Error checking user status:', error);
-                    // Default to dashboard redirect on API error
+                    // 🔧 RETURN URL FIX: Use return URL even on API error if user seems authenticated
+                    const safeReturnUrl = getSafeReturnUrl();
+                    const fallbackUrl = safeReturnUrl || '/dashboard';
+                    
                     setTimeout(() => {
-                        window.location.href = '/dashboard';
+                        window.location.href = fallbackUrl;
                     }, 1500);
                 }
                 
@@ -476,7 +511,7 @@
                 console.log('✅ Existing token found in localStorage - checking user status');
                 
                 try {
-                    // ✅ FIXED: Check user registration status for existing token
+                    // 🔧 LINKEDIN URL DECOUPLING: Updated existing token validation - removed LinkedIn URL dependency
                     const response = await fetch('https://api.msgly.ai/profile', {
                         method: 'GET',
                         headers: {
@@ -491,26 +526,20 @@
                         const syncStatus = data.data.syncStatus;
 
                         console.log('✅ Existing user profile validated');
-                        console.log('   - Registration completed:', user.registrationCompleted);  // ✅ FIXED: Changed from profileCompleted
+                        console.log('   - Registration completed:', user.registrationCompleted);
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
+                        console.log('   - LinkedIn URL Decoupling: LinkedIn URL collection handled by extension');
 
                         // Show auto-redirect message
                         document.getElementById('loginForm').style.display = 'none';
                         document.getElementById('autoRedirectState').style.display = 'block';
 
-                        // ✅ FIXED: Smart redirect based on registration_completed status
-                        const needsOnboarding = !user.registrationCompleted ||  // ✅ FIXED: Check registration_completed instead of profileCompleted
-                                               !user.linkedinUrl ||
-                                               syncStatus.isIncomplete;
-
+                        // 🔧 RETURN URL FIX: Use smart redirect logic for existing users
+                        const redirectUrl = getRedirectDestination(user, syncStatus);
+                        
                         setTimeout(() => {
-                            if (needsOnboarding) {
-                                console.log('➡️ Existing user needs onboarding - redirecting to sign-up');
-                                window.location.href = '/sign-up';
-                            } else {
-                                console.log('➡️ Existing user registration complete - redirecting to dashboard');
-                                window.location.href = '/dashboard';
-                            }
+                            console.log('➡️ Existing user redirecting to:', redirectUrl);
+                            window.location.href = redirectUrl;
                         }, 2000);
                         
                         return;
@@ -533,6 +562,15 @@
                 // Form stays visible for retry
             }
             
+            // 🔧 RETURN URL FIX: Show return URL info in login form if present
+            const safeReturnUrl = getSafeReturnUrl();
+            if (safeReturnUrl) {
+                const loginSubtitle = document.querySelector('.login-subtitle');
+                if (loginSubtitle) {
+                    loginSubtitle.textContent = `Please log in to continue to ${safeReturnUrl}.`;
+                }
+            }
+            
             console.log('ℹ️ No existing authentication found - showing login form');
         });
 
@@ -540,7 +578,7 @@
         function handleGoogleSignIn(e) {
             e.preventDefault();
             
-            console.log('🔐 Initiating Google Sign In');
+            console.log('🔍 Initiating Google Sign In');
             
             // Show loading state
             document.getElementById('loginForm').style.display = 'none';
