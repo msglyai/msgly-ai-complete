@@ -139,11 +139,12 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
 
 // ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - Find and verify email for target profile
+// POST /api/ask-email - Find and verify email for target profile (Silver+ plans only)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
         logger.custom('EMAIL', '=== EMAIL FINDER REQUEST ===');
         logger.info(`User ID: ${req.user.id}`);
+        logger.info(`User Plan: ${req.user.package_type}`);
         logger.info(`Target Profile ID: ${req.body.targetProfileId}`);
         
         const { targetProfileId } = req.body;
@@ -152,6 +153,23 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'targetProfileId is required'
+            });
+        }
+        
+        // NEW: Check if user has Silver+ plan for email finder access
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+        const userPlan = req.user.package_type?.toLowerCase();
+        
+        if (!allowedPlans.includes(userPlan)) {
+            logger.warn(`Email finder access denied for user ${req.user.id} with plan: ${userPlan}`);
+            return res.status(403).json({
+                success: false,
+                error: 'plan_upgrade_required',
+                message: 'Email finder feature requires Silver plan or higher',
+                userMessage: 'Upgrade to Silver, Gold, or Platinum to access email finder',
+                currentPlan: req.user.package_type,
+                requiredPlans: ['Silver', 'Gold', 'Platinum'],
+                upgradeUrl: '/upgrade'
             });
         }
         
