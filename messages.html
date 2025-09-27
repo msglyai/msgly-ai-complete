@@ -889,7 +889,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .message-type-block.filtered-highlight::before {
-            content: 'â­ FILTERED';
+            content: '⭐ FILTERED';
             position: absolute;
             top: -10px;
             right: 10px;
@@ -2308,6 +2308,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             `;
         }
 
+        // FIXED EMAIL FINDER BUTTON - Uses messageGroup.id instead of target profile ID
         function createEmailAskButton(messageGroup) {
             if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
                 return `<button class="email-ask-btn" disabled title="Email already processed.">
@@ -2315,6 +2316,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </button>`;
             }
             
+            // FIXED: Use messageGroup.id (which is a message ID) instead of profile ID
             return `<button class="email-ask-btn" onclick="showEmailFinderModal(${messageGroup.id})" title="Ask Email (2 credits)">
                 <i class="fas fa-search"></i> Ask Email
             </button>`;
@@ -2532,9 +2534,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return finalText.trim();
         }
 
-        // Email Finder modal functions
-        function showEmailFinderModal(targetId) {
-            currentTargetId = targetId;
+        // Email Finder modal functions - FIXED TO ACCEPT MESSAGE ID
+        function showEmailFinderModal(messageId) {
+            // FIXED: Store messageId instead of target profile ID
+            currentTargetId = messageId;
             
             // Check user plan first
             if (!currentUserPlan) {
@@ -2570,7 +2573,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            console.log(`[EMAIL_FINDER] Showing email finder modal for user with plan '${userPlan}' and ${userCredits} credits`);
+            console.log(`[EMAIL_FINDER] Showing email finder modal for message ID ${messageId} with plan '${userPlan}' and ${userCredits} credits`);
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
@@ -2587,13 +2590,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('upgradeModal').classList.remove('active');
         }
 
-        // FIXED: Real Snov.io Email Finder Integration - CLEAN FIX
+        // FIXED: Real Snov.io Email Finder Integration - SENDS MESSAGE ID
         async function confirmEmailFinder() {
             if (!currentTargetId) return;
             
             closeEmailModal();
             
-            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for message ${currentTargetId}`);
+            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for message ID ${currentTargetId}`);
             
             // Update button to loading state
             const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
@@ -2611,7 +2614,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                // Call real Snov.io API through backend - FIXED: Send messageId
+                // FIXED: Send messageId to backend (this is the key fix)
                 const response = await fetch('/api/ask-email', {
                     method: 'POST',
                     headers: {
@@ -2619,7 +2622,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        messageId: currentTargetId  // FIXED: Changed from targetProfileId to messageId
+                        messageId: currentTargetId  // FIXED: This matches what backend expects
                     })
                 });
                 
@@ -2709,8 +2712,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function getStatusIcon(status) {
             switch(status) {
-                case 'yes': return 'âœ"';
-                case 'no': return 'âœ—';
+                case 'yes': return '✓';
+                case 'no': return '✗';
                 default: return '?';
             }
         }
@@ -2956,8 +2959,4 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         });
     </script>
 </body>
-</html>ByStatus('sent')">
-                        <i class="fas fa-paper-plane"></i>
-                        Sent
-                    </button>
-                    <button class="filter-btn" onclick="filter
+</html>
