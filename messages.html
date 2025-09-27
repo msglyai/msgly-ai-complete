@@ -1695,11 +1695,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (data.success) {
                     const user = data.data.user;
                     
+                    // DEBUG: Log the entire user object to see what fields are available
+                    console.log('[PROFILE] Full user object:', user);
+                    console.log('[PROFILE] Available credit fields:', {
+                        totalCredits: user.totalCredits,
+                        credits: user.credits,
+                        creditBalance: user.creditBalance,
+                        available_credits: user.available_credits,
+                        remainingCredits: user.remainingCredits
+                    });
+                    
                     currentUserPlan = {
                         planCode: user.planCode || 'free',
-                        totalCredits: user.totalCredits || 0,
+                        totalCredits: user.totalCredits || user.credits || user.creditBalance || user.available_credits || user.remainingCredits || 0,
                         planName: user.planName || 'Free'
                     };
+                    
+                    console.log('[PROFILE] User credits loaded:', currentUserPlan.totalCredits);
                     
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
@@ -2534,6 +2546,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
+            console.log('[EMAIL_FINDER] Current user plan:', currentUserPlan);
+            
             // Check if user has Silver+ plan
             const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
             const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
@@ -2544,19 +2558,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // Check if user has enough credits
-            if (currentUserPlan.totalCredits < 2) {
-                console.log(`[EMAIL_FINDER] Insufficient credits (${currentUserPlan.totalCredits}/2), showing credits modal`);
+            // Check if user has enough credits - FIXED: Better credit checking
+            const userCredits = currentUserPlan.totalCredits || 0;
+            console.log(`[EMAIL_FINDER] User credits: ${userCredits}`);
+            
+            if (userCredits < 2) {
+                console.log(`[EMAIL_FINDER] Insufficient credits (${userCredits}/2), showing credits modal`);
                 // Update current credits display in modal
                 const creditsElement = document.getElementById('currentCredits');
                 if (creditsElement) {
-                    creditsElement.textContent = currentUserPlan.totalCredits || 0;
+                    creditsElement.textContent = userCredits;
                 }
                 document.getElementById('insufficientCreditsModal').classList.add('active');
                 return;
             }
             
-            console.log(`[EMAIL_FINDER] Showing email finder modal for user with plan '${userPlan}' and ${currentUserPlan.totalCredits} credits`);
+            console.log(`[EMAIL_FINDER] Showing email finder modal for user with plan '${userPlan}' and ${userCredits} credits`);
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
