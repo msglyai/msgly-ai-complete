@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: includes message_type field)
+// GET /messages/history - Get messages for user (FIXED: JOIN with target_profiles for email data)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -38,16 +38,19 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.message_type,
                 ml.context_text as context,
                 ml.created_at,
+                ml.linkedin_url,
                 -- FIXED: Read actual database values instead of hardcoded 'pending'
                 COALESCE(ml.sent_status, 'pending') as sent,
                 COALESCE(ml.reply_status, 'pending') as "gotReply",
                 COALESCE(ml.comments, '') as comments,
                 ml.sent_date,
                 ml.reply_date,
-                ml.email_found,
-                ml.email_status,
-                ml.email_verified_at
+                -- Get email data from target_profiles table (where it belongs)
+                tp.email_found,
+                tp.email_status,
+                tp.email_verified_at
             FROM message_logs ml 
+            LEFT JOIN target_profiles tp ON ml.linkedin_url = tp.linkedin_url AND tp.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
@@ -65,8 +68,10 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             sent: row.sent,
             gotReply: row.gotReply,
             comments: row.comments,
+            linkedinUrl: row.linkedin_url,
+            // Get email data from target_profiles table
             emailFound: row.email_found,
-            emailStatus: row.email_status,
+            emailStatus: row.email_status || 'pending',
             emailVerifiedAt: row.email_verified_at,
             createdAt: row.created_at,
             sentDate: row.sent_date,
@@ -143,9 +148,9 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== EMAIL FINDER ENDPOINT - FIXED ====================
+// ==================== EMAIL FINDER ENDPOINT - SIMPLIFIED ====================
 
-// POST /api/ask-email - Find and verify email using real Snov.io API (CLEAN FIX)
+// POST /api/ask-email - Find and verify email using real Snov.io API
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
         logger.custom('EMAIL', '=== REAL SNOV.IO EMAIL FINDER REQUEST ===');
@@ -252,34 +257,10 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         
         logger.custom('EMAIL', `Real Snov.io result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
         
-        // Update the message with email results
         if (result.success) {
-            await pool.query(`
-                UPDATE message_logs 
-                SET email_found = $1, email_status = 'verified', email_verified_at = NOW()
-                WHERE id = $2
-            `, [result.email, messageId]);
-            
             logger.success(`Email found via Snov.io: ${result.email}, Credits charged: ${result.creditsCharged}`);
         } else {
-            await pool.query(`
-                UPDATE message_logs 
-                SET email_status = 'not_found', email_verified_at = NOW()
-                WHERE id = $1
-            `, [messageId]);
-            
             logger.info(`Snov.io email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
         }
         
-        res.json(result);
-        
-    } catch (error) {
-        logger.error('Email finder error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Email finder temporarily unavailable'
-        });
-    }
-});
-
-module.exports = router;
+        res
