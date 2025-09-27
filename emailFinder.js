@@ -1,33 +1,65 @@
-// emailFinder.js - Email Finding Module with Credit Integration
-// STAGE 3: Dummy mode with full credit system integration
-// STAGE 4: Will add real Snov.io API integration
+// emailFinder.js - Real Snov.io Email Finding Integration
+// Direct integration with Snov.io API - No dummy mode
 // Handles email finding and verification with "charge only on success" policy
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
 const logger = require('./utils/logger');
+const axios = require('axios');
 
 class EmailFinder {
     constructor() {
         // Feature flags from environment
         this.enabled = process.env.EMAIL_FINDER_ENABLED === 'true';
-        this.dummyMode = process.env.EMAIL_FINDER_DUMMY_MODE === 'true';
         this.timeoutMs = parseInt(process.env.EMAIL_FINDER_TIMEOUT_MS) || 10000;
-        this.rateLimitPerMin = parseInt(process.env.EMAIL_FINDER_RATE_LIMIT_PER_MIN) || 10;
         this.costPerSuccess = parseFloat(process.env.EMAIL_FINDER_COST_PER_SUCCESS_CREDITS) || 2.0;
         
-        logger.custom('EMAIL', 'Email Finder initialized:', {
+        // Snov.io API configuration
+        this.snovClientId = process.env.SNOV_CLIENT_ID;
+        this.snovClientSecret = process.env.SNOV_CLIENT_SECRET;
+        this.snovApiKey = process.env.SNOV_API_KEY;
+        this.snovBaseUrl = 'https://app.snov.io/restapi';
+        
+        // Check if we have credentials
+        this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
+        
+        logger.custom('EMAIL', 'Real Snov.io Email Finder initialized:', {
             enabled: this.enabled,
-            dummyMode: this.dummyMode,
+            hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
-            costPerSuccess: this.costPerSuccess
+            costPerSuccess: this.costPerSuccess,
+            authMethod: this.snovApiKey ? 'API Key' : 'OAuth'
         });
+    }
+
+    // Get Snov.io access token (if using OAuth)
+    async getSnovAccessToken() {
+        if (this.snovApiKey) {
+            return this.snovApiKey; // Direct API key
+        }
+        
+        if (!this.snovClientId || !this.snovClientSecret) {
+            throw new Error('Missing Snov.io credentials');
+        }
+        
+        try {
+            const response = await axios.post(`${this.snovBaseUrl}/get-access-token`, {
+                grant_type: 'client_credentials',
+                client_id: this.snovClientId,
+                client_secret: this.snovClientSecret
+            });
+            
+            return response.data.access_token;
+        } catch (error) {
+            logger.error('Failed to get Snov.io access token:', error.response?.data || error.message);
+            throw new Error('Failed to authenticate with Snov.io');
+        }
     }
 
     // Main entry point: Find and verify email for a target profile
     async findEmail(userId, targetProfileId) {
         try {
-            logger.custom('EMAIL', `Email finder request: User ${userId}, Target ${targetProfileId}`);
+            logger.custom('EMAIL', `Real Snov.io email finder request: User ${userId}, Target ${targetProfileId}`);
 
             // Check if feature is enabled
             if (!this.enabled) {
@@ -35,6 +67,15 @@ class EmailFinder {
                     success: false,
                     error: 'email_finder_disabled',
                     message: 'Email finder feature is currently disabled'
+                };
+            }
+
+            // Check if we have Snov.io credentials
+            if (!this.hasCredentials) {
+                return {
+                    success: false,
+                    error: 'snov_not_configured',
+                    message: 'Snov.io API credentials not configured'
                 };
             }
 
@@ -90,10 +131,8 @@ class EmailFinder {
                 // Set status to processing
                 await this.updateEmailStatus(targetProfileId, null, 'processing', null);
 
-                // Find email (dummy or real depending on mode)
-                const emailResult = this.dummyMode 
-                    ? await this.findEmailDummy(targetProfile.data)
-                    : await this.findEmailReal(targetProfile.data);
+                // Find email using real Snov.io API
+                const emailResult = await this.findEmailWithSnov(targetProfile.data);
 
                 if (emailResult.success && emailResult.email && emailResult.status === 'verified') {
                     // Success: Update database and complete payment
@@ -108,7 +147,7 @@ class EmailFinder {
                     const paymentResult = await completeOperation(userId, holdId, {
                         email: emailResult.email,
                         status: emailResult.status,
-                        processingTimeMs: emailResult.processingTimeMs || null
+                        snovResponse: emailResult.snovData
                     });
 
                     logger.success(`Email verification successful: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
@@ -173,6 +212,136 @@ class EmailFinder {
                 details: error.message
             };
         }
+    }
+
+    // Real Snov.io email finding
+    async findEmailWithSnov(profileData) {
+        try {
+            logger.info('Finding email with real Snov.io API...');
+            
+            // Get access token
+            const accessToken = await this.getSnovAccessToken();
+            
+            // Extract profile information
+            const profileJson = profileData.profile_data || {};
+            const firstName = profileJson.firstName || profileJson.first_name || '';
+            const lastName = profileJson.lastName || profileJson.last_name || '';
+            const company = profileJson.currentCompany || profileJson.company || '';
+            
+            if (!firstName || !lastName || !company) {
+                logger.warn('Insufficient profile data for email lookup');
+                return {
+                    success: false,
+                    email: null,
+                    status: 'insufficient_data'
+                };
+            }
+            
+            // Step 1: Find email using Snov.io
+            logger.debug('Calling Snov.io email finder API...');
+            const findResponse = await axios.post(`${this.snovBaseUrl}/get-emails-from-names`, {
+                firstName: firstName,
+                lastName: lastName,
+                domain: this.extractDomainFromCompany(company)
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: this.timeoutMs
+            });
+            
+            const emails = findResponse.data?.emails || [];
+            
+            if (emails.length === 0) {
+                logger.info('No emails found by Snov.io');
+                return {
+                    success: false,
+                    email: null,
+                    status: 'not_found',
+                    snovData: findResponse.data
+                };
+            }
+            
+            // Get the first email result
+            const foundEmail = emails[0]?.email;
+            
+            if (!foundEmail) {
+                return {
+                    success: false,
+                    email: null,
+                    status: 'not_found',
+                    snovData: findResponse.data
+                };
+            }
+            
+            logger.info(`Email found by Snov.io: ${foundEmail}`);
+            
+            // Step 2: Verify email using Snov.io
+            logger.debug('Calling Snov.io email verification API...');
+            const verifyResponse = await axios.post(`${this.snovBaseUrl}/verify-single-email`, {
+                email: foundEmail
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: this.timeoutMs
+            });
+            
+            const verification = verifyResponse.data;
+            const isVerified = verification?.result === 'valid' || verification?.deliverable === true;
+            
+            logger.info(`Email verification result: ${isVerified ? 'verified' : 'unverified'}`);
+            
+            return {
+                success: isVerified,
+                email: foundEmail,
+                status: isVerified ? 'verified' : 'unverified',
+                snovData: {
+                    findResult: findResponse.data,
+                    verifyResult: verifyResponse.data
+                }
+            };
+            
+        } catch (error) {
+            logger.error('Snov.io API error:', error.response?.data || error.message);
+            
+            if (error.response?.status === 401) {
+                return {
+                    success: false,
+                    email: null,
+                    status: 'auth_failed',
+                    error: 'Snov.io authentication failed'
+                };
+            }
+            
+            if (error.response?.status === 429) {
+                return {
+                    success: false,
+                    email: null,
+                    status: 'rate_limited',
+                    error: 'Snov.io rate limit reached'
+                };
+            }
+            
+            return {
+                success: false,
+                email: null,
+                status: 'api_error',
+                error: error.message
+            };
+        }
+    }
+
+    // Extract domain from company name
+    extractDomainFromCompany(company) {
+        // Simple domain extraction - can be improved
+        const cleanCompany = company.toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+            .replace(/(inc|ltd|llc|corp|corporation|company|co)$/, '');
+        
+        return `${cleanCompany}.com`;
     }
 
     // Get target profile from database
@@ -241,93 +410,13 @@ class EmailFinder {
         }
     }
 
-    // STAGE 3: Dummy email finding for testing
-    async findEmailDummy(profileData) {
-        logger.info('Running in dummy mode - generating fake email result');
-        
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-        const profileJson = profileData.profile_data || {};
-        
-        // Extract names for realistic email generation
-        const firstName = profileJson.firstName || profileJson.first_name || 'john';
-        const lastName = profileJson.lastName || profileJson.last_name || 'doe';
-        const company = profileJson.currentCompany || profileJson.company || 'company';
-        
-        // Generate realistic dummy email
-        const emailDomain = this.generateDummyDomain(company);
-        const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${emailDomain}`;
-        
-        // 80% success rate in dummy mode
-        const isSuccess = Math.random() > 0.2;
-        
-        if (isSuccess) {
-            return {
-                success: true,
-                email: email,
-                status: 'verified',
-                processingTimeMs: 1500
-            };
-        } else {
-            // 20% failure rate
-            const failureType = Math.random();
-            if (failureType < 0.6) {
-                // Email found but not verified
-                return {
-                    success: false,
-                    email: email,
-                    status: 'unverified'
-                };
-            } else {
-                // No email found
-                return {
-                    success: false,
-                    email: null,
-                    status: 'not_found'
-                };
-            }
-        }
-    }
-
-    // Generate realistic domain for dummy emails
-    generateDummyDomain(company) {
-        const cleanCompany = company.toLowerCase()
-            .replace(/[^a-z0-9]/g, '')
-            .substring(0, 10);
-        
-        const domains = ['com', 'org', 'net', 'io'];
-        const domain = domains[Math.floor(Math.random() * domains.length)];
-        
-        return `${cleanCompany}.${domain}`;
-    }
-
-    // STAGE 4: Real email finding (placeholder for now)
-    async findEmailReal(profileData) {
-        logger.warn('Real Snov.io integration not implemented yet (Stage 4)');
-        
-        // For now, return not found until Stage 4
-        return {
-            success: false,
-            email: null,
-            status: 'not_found'
-        };
-    }
-
-    // Check if user is admin (for early access testing)
-    isAdminUser(userId) {
-        // Add your admin user IDs here for early testing
-        const adminUserIds = [1]; // Add your user ID here
-        return adminUserIds.includes(userId);
-    }
-
     // Get feature status
     getStatus() {
         return {
             enabled: this.enabled,
-            dummyMode: this.dummyMode,
+            hasCredentials: this.hasCredentials,
             costPerSuccess: this.costPerSuccess,
-            rateLimitPerMin: this.rateLimitPerMin
+            mode: 'real_snov_api'
         };
     }
 }
@@ -345,7 +434,7 @@ function getEmailFinderStatus() {
 }
 
 function isEmailFinderEnabled() {
-    return emailFinder.enabled;
+    return emailFinder.enabled && emailFinder.hasCredentials;
 }
 
 module.exports = {
@@ -356,4 +445,4 @@ module.exports = {
     isEmailFinderEnabled
 };
 
-logger.success('Email Finder module loaded successfully!');
+logger.success('Real Snov.io Email Finder module loaded successfully!');
