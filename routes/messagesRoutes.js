@@ -34,7 +34,6 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.target_first_name as "targetProfile.firstName",
                 ml.target_title as "targetProfile.role", 
                 ml.target_company as "targetProfile.company",
-                ml.target_profile_url as "targetProfile.linkedinUrl",
                 ml.generated_message as message,
                 ml.message_type,
                 ml.context_text as context,
@@ -47,7 +46,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.reply_date,
                 ml.email_found,
                 ml.email_status,
-                ml.email_verified_at
+                ml.email_verified_at,
+                ml.target_profile_url as linkedin_url
             FROM message_logs ml 
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
@@ -58,8 +58,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             targetProfile: {
                 firstName: row["targetProfile.firstName"] || 'Unknown',
                 role: row["targetProfile.role"] || 'Professional', 
-                company: row["targetProfile.company"] || 'Company',
-                linkedinUrl: row["targetProfile.linkedinUrl"] || ''
+                company: row["targetProfile.company"] || 'Company'
             },
             message: row.message || '',
             message_type: row.message_type,
@@ -70,6 +69,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             emailFound: row.email_found,
             emailStatus: row.email_status,
             emailVerifiedAt: row.email_verified_at,
+            linkedinUrl: row.linkedin_url,
             createdAt: row.created_at,
             sentDate: row.sent_date,
             replyDate: row.reply_date
@@ -145,12 +145,12 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== SIMPLIFIED EMAIL FINDER ENDPOINT ====================
+// ==================== EMAIL FINDER ENDPOINT - SIMPLIFIED ====================
 
-// POST /api/ask-email - Simple LinkedIn URL to Snov.io email finder
+// POST /api/ask-email - Find email using LinkedIn URL directly
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== SIMPLIFIED SNOV.IO EMAIL FINDER REQUEST ===');
+        logger.custom('EMAIL', '=== SIMPLE LINKEDIN URL EMAIL FINDER REQUEST ===');
         logger.info(`User ID: ${req.user.id}`);
         
         const { linkedinUrl } = req.body;
@@ -161,9 +161,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
                 error: 'linkedinUrl is required'
             });
         }
-
-        logger.info(`LinkedIn URL: ${linkedinUrl}`);
-
+        
         // Check if user has Silver+ plan
         const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
         const userPlan = req.user.package_type?.toLowerCase();
@@ -189,12 +187,12 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // Call simplified email finder with LinkedIn URL
+        // Call simplified email finder with LinkedIn URL directly
         const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
-        logger.custom('EMAIL', `Snov.io result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        logger.custom('EMAIL', `LinkedIn URL email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
         
-        // Update ALL messages for this LinkedIn URL
+        // Update ALL messages for this LinkedIn URL with email results
         if (result.success) {
             await pool.query(`
                 UPDATE message_logs 
