@@ -432,81 +432,57 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 500;
         }
 
-        /* LinkedIn URL Input */
-        .linkedin-input-group {
+        /* 🔧 LINKEDIN URL DECOUPLING STAGE 5: Extension Info Section (replaces LinkedIn URL input) */
+        .extension-info-section {
             margin: 30px 0;
-            position: relative;
+            padding: 24px;
+            background: linear-gradient(135deg, rgba(128, 57, 223, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%);
+            border: 2px solid rgba(128, 57, 223, 0.15);
+            border-radius: 16px;
+            text-align: center;
         }
 
-        .linkedin-input-label {
+        .extension-info-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary-purple);
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--black);
-            font-size: 16px;
         }
 
-        .linkedin-input-label .required {
-            color: var(--accent-pink);
-        }
-
-        .linkedin-input {
-            width: 100%;
-            padding: 16px 20px 16px 50px;
-            border: 2px solid rgba(128, 57, 223, 0.2);
-            border-radius: 12px;
+        .extension-info-message {
             font-size: 15px;
-            transition: all 0.3s ease;
-            background: var(--white);
-            color: var(--black);
+            color: var(--dark-gray);
+            line-height: 1.6;
+            margin-bottom: 16px;
         }
 
-        .linkedin-input:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-            box-shadow: var(--glow-shadow);
-        }
-
-        .linkedin-input-icon {
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--primary-purple);
-            font-size: 18px;
-        }
-
-        .linkedin-input-help {
-            margin-top: 8px;
-            font-size: 13px;
-            color: var(--gray);
-            display: flex;
-            align-items: flex-start;
-            gap: 6px;
-        }
-
-        .linkedin-features {
+        .extension-benefits {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin-top: 8px;
+            justify-content: center;
+            margin-top: 12px;
         }
 
-        .linkedin-feature {
+        .extension-benefit {
             display: flex;
             align-items: center;
-            gap: 4px;
-            font-size: 12px;
+            gap: 6px;
+            font-size: 13px;
             color: var(--gray);
-            background: rgba(128, 57, 223, 0.05);
-            padding: 4px 8px;
-            border-radius: 6px;
+            background: rgba(128, 57, 223, 0.08);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 500;
         }
 
-        .linkedin-feature i {
+        .extension-benefit i {
             color: var(--primary-purple);
+            font-size: 12px;
         }
 
         /* Terms & Privacy Agreement Section */
@@ -937,6 +913,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 padding: 14px 20px !important;
                 flex: none !important;
             }
+
+            .extension-benefits {
+                flex-direction: column;
+                align-items: center;
+            }
         }
     </style>
 </head>
@@ -1059,38 +1040,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                     </div>
 
-                    <!-- LinkedIn Profile URL Input -->
-                    <div class="linkedin-input-group">
-                        <label class="linkedin-input-label">
-                            <i class="fab fa-linkedin"></i>
-                            Your LinkedIn Profile URL <span class="required">*</span>
-                        </label>
-                        <div style="position: relative;">
-                            <input 
-                                type="url" 
-                                class="linkedin-input" 
-                                placeholder="https://www.linkedin.com/in/your-profile"
-                                id="linkedinUrl"
-                                required
-                            >
-                            <i class="fab fa-linkedin linkedin-input-icon"></i>
+                    <!-- 🔧 LINKEDIN URL DECOUPLING STAGE 5: Extension Info Section (replaces LinkedIn URL input) -->
+                    <div class="extension-info-section">
+                        <div class="extension-info-title">
+                            <i class="fab fa-chrome"></i>
+                            LinkedIn Profile Setup Made Easy
                         </div>
-                        <div class="linkedin-input-help">
-                            <i class="fas fa-info-circle" style="color: var(--primary-purple); margin-top: 2px;"></i>
-                            <span>We'll analyze your profile automatically in the background - takes 5-10 minutes</span>
+                        <div class="extension-info-message">
+                            After registration, install our Chrome extension and visit your LinkedIn profile. 
+                            We'll automatically detect and sync your profile data - no manual URL entry needed!
                         </div>
-                        <div class="linkedin-features">
-                            <div class="linkedin-feature">
+                        <div class="extension-benefits">
+                            <div class="extension-benefit">
+                                <i class="fas fa-magic"></i>
+                                <span>Automatic Detection</span>
+                            </div>
+                            <div class="extension-benefit">
                                 <i class="fas fa-shield-alt"></i>
                                 <span>Secure & Private</span>
                             </div>
-                            <div class="linkedin-feature">
-                                <i class="fas fa-robot"></i>
-                                <span>AI Analysis</span>
-                            </div>
-                            <div class="linkedin-feature">
-                                <i class="fas fa-chart-line"></i>
-                                <span>3x Better Results</span>
+                            <div class="extension-benefit">
+                                <i class="fas fa-rocket"></i>
+                                <span>Instant Setup</span>
                             </div>
                         </div>
                     </div>
@@ -1130,7 +1101,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                         <div class="extraction-step" id="step-analyzing">
                             <div class="extraction-step-icon">2</div>
-                            <span>Starting profile analysis</span>
+                            <span>Preparing Chrome extension</span>
                         </div>
                         <div class="extraction-step" id="step-extracting">
                             <div class="extraction-step-icon">3</div>
@@ -1147,22 +1118,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <!-- Enhanced Thank You State -->
             <div class="success-message" id="successState">
                 <div class="success-icon">✓</div>
-                <h3 class="success-title">Thank You for Joining Msgly AI!</h3>
+                <h3 class="success-title">Welcome to Msgly AI!</h3>
                 <p class="success-subtitle">Your account has been created successfully.</p>
                 
                 <!-- Thank You Message -->
                 <div class="thank-you-section">
                     <div class="thank-you-title">
-                        <i class="fas fa-magic"></i>
-                        Profile Analysis in Progress
+                        <i class="fab fa-chrome"></i>
+                        Ready for LinkedIn Integration
                     </div>
                     <div class="thank-you-message">
-                        Our AI is analyzing your LinkedIn profile to create the perfect personalized messages. 
-                        This process takes <strong>5-10 minutes</strong> and will enhance your messaging experience significantly.
+                        Install our Chrome extension and visit your LinkedIn profile to automatically sync your data. 
+                        The extension will detect your profile and set everything up instantly - <strong>no manual URL entry required!</strong>
                     </div>
                     <div class="analysis-status">
-                        <i class="fas fa-cogs analysis-icon"></i>
-                        Analysis running in background - No action needed
+                        <i class="fas fa-rocket analysis-icon"></i>
+                        Ready for instant LinkedIn integration
                     </div>
                 </div>
                 
@@ -1176,23 +1147,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="step-number">1</div>
                         <div>
                             <strong>Install Chrome Extension</strong><br>
-                            <span style="font-size: 12px; color: var(--gray);">Available below - Install now while profile analyzes</span>
+                            <span style="font-size: 12px; color: var(--gray);">Click the button below to add Msgly AI to Chrome</span>
                         </div>
                     </div>
                     
                     <div class="step-item">
                         <div class="step-number">2</div>
                         <div>
-                            <strong>Visit LinkedIn Profiles</strong><br>
-                            <span style="font-size: 12px; color: var(--gray);">Extension will appear automatically on any LinkedIn profile</span>
+                            <strong>Visit Your LinkedIn Profile</strong><br>
+                            <span style="font-size: 12px; color: var(--gray);">Extension will automatically detect and sync your profile</span>
                         </div>
                     </div>
                     
                     <div class="step-item">
                         <div class="step-number">3</div>
                         <div>
-                            <strong>Generate AI Messages</strong><br>
-                            <span style="font-size: 12px; color: var(--gray);">Get personalized messages in seconds (even better after analysis completes)</span>
+                            <strong>Start Generating AI Messages</strong><br>
+                            <span style="font-size: 12px; color: var(--gray);">Visit any LinkedIn profile and generate personalized messages instantly</span>
                         </div>
                     </div>
                 </div>
@@ -1272,12 +1243,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                         console.log('✅ User profile fetched for registration check');
                         console.log('   - Registration completed:', user.registrationCompleted);
-                        console.log('   - LinkedIn URL:', !!user.linkedinUrl);
+                        // 🔧 LINKEDIN URL DECOUPLING: Updated logic - LinkedIn URL no longer required for completion check
                         console.log('   - Profile sync incomplete:', syncStatus.isIncomplete);
 
-                        const isRegistrationComplete = user.registrationCompleted &&
-                                                     user.linkedinUrl &&
-                                                     !syncStatus.isIncomplete;
+                        // 🔧 LINKEDIN URL DECOUPLING: Updated completion check - removed LinkedIn URL dependency
+                        const isRegistrationComplete = user.registrationCompleted && !syncStatus.isIncomplete;
 
                         if (isRegistrationComplete) {
                             console.log('✅ User registration is complete - redirecting to dashboard');
@@ -1355,26 +1325,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             event.currentTarget.classList.add('selected');
         }
 
-        // Validate form
+        // 🔧 LINKEDIN URL DECOUPLING STAGE 5: Updated validateForm - removed LinkedIn URL validation
         function validateForm() {
             const termsAgreed = document.getElementById('termsAgreement').checked;
-            const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
             const continueBtn = document.getElementById('continueBtn');
             
-            if (termsAgreed && linkedinUrl && linkedinUrl.includes('linkedin.com/in/')) {
+            // Only require terms acceptance now
+            if (termsAgreed) {
                 continueBtn.disabled = false;
             } else {
                 continueBtn.disabled = true;
             }
         }
-
-        // Add event listener for LinkedIn URL input
-        document.addEventListener('DOMContentLoaded', function() {
-            const linkedinInput = document.getElementById('linkedinUrl');
-            if (linkedinInput) {
-                linkedinInput.addEventListener('input', validateForm);
-            }
-        });
 
         // Enhanced progress animation
         function animateExtractionProgress() {
@@ -1382,7 +1344,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const steps = ['step-saving', 'step-analyzing', 'step-extracting', 'step-completing'];
             const messages = [
                 'Finalizing your registration...',
-                'Starting LinkedIn profile analysis...',
+                'Preparing Chrome extension integration...',
                 'Setting up your dashboard...',
                 'Completing account setup...'
             ];
@@ -1411,24 +1373,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }, 1500);
         }
 
-        // PAYG EXPANSION: Updated completeRegistration with Gold/Platinum PAYG support
+        // 🔧 LINKEDIN URL DECOUPLING STAGE 5: Updated completeRegistration - removed LinkedIn URL handling
         async function completeRegistration() {
             const termsAgreed = document.getElementById('termsAgreement').checked;
-            const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
             
-            // Validation
+            // 🔧 LINKEDIN URL DECOUPLING: Updated validation - only terms required
             if (!termsAgreed) {
                 alert('Please agree to our Terms of Service and Privacy Policy to continue.');
-                return;
-            }
-            
-            if (!linkedinUrl) {
-                alert('Please enter your LinkedIn profile URL to continue.');
-                return;
-            }
-            
-            if (!linkedinUrl.includes('linkedin.com/in/')) {
-                alert('Please enter a valid LinkedIn profile URL (e.g., https://www.linkedin.com/in/your-profile)');
                 return;
             }
 
@@ -1452,7 +1403,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                     console.log(`Creating checkout for ${selectedPackage} plan: ${planId} (${currentPricingMode})`);
                     
-                    // Store registration data in DATABASE before payment
+                    // 🔧 LINKEDIN URL DECOUPLING: Updated pending registration - LinkedIn URL no longer required
                     console.log('[PENDING_REG] Storing registration data in database...');
                     const storePendingResponse = await fetch('https://api.msgly.ai/store-pending-registration', {
                         method: 'POST',
@@ -1461,9 +1412,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             'Authorization': `Bearer ${userToken}`
                         },
                         body: JSON.stringify({
-                            linkedinUrl: linkedinUrl,
                             packageType: selectedPackage,
                             termsAccepted: termsAgreed
+                            // LinkedIn URL removed - will be collected by extension
                         })
                     });
                     
@@ -1516,6 +1467,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             animateExtractionProgress();
             
             try {
+                // 🔧 LINKEDIN URL DECOUPLING: Updated registration request - LinkedIn URL removed
                 const response = await fetch('https://api.msgly.ai/complete-registration', {
                     method: 'POST',
                     headers: {
@@ -1523,9 +1475,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Authorization': `Bearer ${userToken}`
                     },
                     body: JSON.stringify({
-                        linkedinUrl: linkedinUrl,
                         packageType: selectedPackage,
                         termsAccepted: termsAgreed
+                        // LinkedIn URL removed - will be collected by extension
                     })
                 });
                 
@@ -1535,7 +1487,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     throw new Error(result.error || 'Failed to complete registration');
                 }
                 
-                console.log('✅ Registration completed successfully - registration_completed set to true');
+                console.log('✅ Registration completed successfully - registration_completed set to true (LinkedIn URL will be collected by extension)');
                 
                 localStorage.setItem('authToken', userToken);
                 console.log('✅ Token stored in localStorage:', userToken);
@@ -1583,7 +1535,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            console.log('✅ Redirecting to dashboard with stored token - registration_completed = true');
+            console.log('✅ Redirecting to dashboard with stored token - registration_completed = true (LinkedIn URL will be collected by extension)');
             window.location.href = '/dashboard';
         }
     </script>
