@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: JOIN with target_profiles for email data)
+// GET /messages/history - Get messages for user (FIXED: Use correct column names)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -38,19 +38,19 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.message_type,
                 ml.context_text as context,
                 ml.created_at,
-                ml.linkedin_url,
+                ml.target_profile_url,
                 -- FIXED: Read actual database values instead of hardcoded 'pending'
                 COALESCE(ml.sent_status, 'pending') as sent,
                 COALESCE(ml.reply_status, 'pending') as "gotReply",
                 COALESCE(ml.comments, '') as comments,
                 ml.sent_date,
                 ml.reply_date,
-                -- Get email data from target_profiles table (where it belongs)
+                -- Get email data from target_profiles table using target_profile_url
                 tp.email_found,
                 tp.email_status,
                 tp.email_verified_at
             FROM message_logs ml 
-            LEFT JOIN target_profiles tp ON ml.linkedin_url = tp.linkedin_url AND tp.user_id = ml.user_id
+            LEFT JOIN target_profiles tp ON ml.target_profile_url = tp.linkedin_url AND tp.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
@@ -68,7 +68,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             sent: row.sent,
             gotReply: row.gotReply,
             comments: row.comments,
-            linkedinUrl: row.linkedin_url,
+            linkedinUrl: row.target_profile_url,
             // Get email data from target_profiles table
             emailFound: row.email_found,
             emailStatus: row.email_status || 'pending',
@@ -172,10 +172,10 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
                 ml.target_first_name,
                 ml.target_title, 
                 ml.target_company,
-                ml.linkedin_url,
+                ml.target_profile_url,
                 tp.id as target_profile_id
             FROM message_logs ml
-            LEFT JOIN target_profiles tp ON ml.linkedin_url = tp.linkedin_url AND tp.user_id = ml.user_id
+            LEFT JOIN target_profiles tp ON ml.target_profile_url = tp.linkedin_url AND tp.user_id = ml.user_id
             WHERE ml.id = $1 AND ml.user_id = $2
         `, [messageId, req.user.id]);
         
@@ -189,7 +189,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         
         const messageData = messageResult.rows[0];
         
-        if (!messageData.linkedin_url) {
+        if (!messageData.target_profile_url) {
             return res.status(400).json({
                 success: false,
                 error: 'no_linkedin_url',
@@ -211,7 +211,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
                 RETURNING id
             `, [
                 req.user.id,
-                messageData.linkedin_url,
+                messageData.target_profile_url,
                 JSON.stringify({
                     profile: {
                         firstName: messageData.target_first_name || 'Unknown',
