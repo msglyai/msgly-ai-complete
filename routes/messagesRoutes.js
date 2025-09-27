@@ -14,7 +14,7 @@ const {
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
 
-// Import real Snov.io email finder integration
+// Import email finder integration
 const { findEmailWithLinkedInUrl, isEmailFinderEnabled } = require('../emailFinder');
 
 // EXISTING: Message generation routes (unchanged)
@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (ORIGINAL WORKING VERSION)
+// GET /messages/history - Get messages for user (FIXED: includes message_type field)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -43,11 +43,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 COALESCE(ml.reply_status, 'pending') as "gotReply",
                 COALESCE(ml.comments, '') as comments,
                 ml.sent_date,
-                ml.reply_date,
-                ml.email_found,
-                ml.email_status,
-                ml.email_verified_at,
-                ml.target_profile_url as linkedin_url
+                ml.reply_date
             FROM message_logs ml 
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
@@ -66,10 +62,6 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             sent: row.sent,
             gotReply: row.gotReply,
             comments: row.comments,
-            emailFound: row.email_found,
-            emailStatus: row.email_status,
-            emailVerifiedAt: row.email_verified_at,
-            linkedinUrl: row.linkedin_url,
             createdAt: row.created_at,
             sentDate: row.sent_date,
             replyDate: row.reply_date
@@ -88,7 +80,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /messages/:id - Update message status and comments (ORIGINAL WORKING VERSION)
+// PUT /messages/:id - Update message status and comments (FIXED: SQL type casting)
 router.put('/messages/:id', authenticateToken, async (req, res) => {
     try {
         const messageId = parseInt(req.params.id);
@@ -145,9 +137,9 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== EMAIL FINDER ENDPOINT - LINKEDIN URL DIRECT ====================
+// ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - Find email using LinkedIn URL directly (SIMPLIFIED)
+// POST /api/ask-email - Find email using LinkedIn URL directly
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
         logger.custom('EMAIL', '=== LINKEDIN URL EMAIL FINDER REQUEST ===');
@@ -187,29 +179,10 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // Call simplified email finder with LinkedIn URL directly
+        // Call email finder with LinkedIn URL directly
         const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
         logger.custom('EMAIL', `LinkedIn URL email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
-        
-        // Update ALL messages for this LinkedIn URL with email results
-        if (result.success) {
-            await pool.query(`
-                UPDATE message_logs 
-                SET email_found = $1, email_status = 'verified', email_verified_at = NOW()
-                WHERE target_profile_url = $2 AND user_id = $3
-            `, [result.email, linkedinUrl, req.user.id]);
-            
-            logger.success(`Email found via Snov.io: ${result.email}, Credits charged: ${result.creditsCharged}`);
-        } else {
-            await pool.query(`
-                UPDATE message_logs 
-                SET email_status = 'not_found', email_verified_at = NOW()
-                WHERE target_profile_url = $1 AND user_id = $2
-            `, [linkedinUrl, req.user.id]);
-            
-            logger.info(`Snov.io email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
-        }
         
         res.json(result);
         
