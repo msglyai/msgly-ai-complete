@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: includes message_type field)
+// GET /messages/history - Get messages for user (ORIGINAL WORKING VERSION)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -47,7 +47,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.email_found,
                 ml.email_status,
                 ml.email_verified_at,
-                ml.target_profile_url as linkedin_url
+                ml.linkedin_url
             FROM message_logs ml 
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
@@ -88,7 +88,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /messages/:id - Update message status and comments (FIXED: SQL type casting)
+// PUT /messages/:id - Update message status and comments (ORIGINAL WORKING VERSION)
 router.put('/messages/:id', authenticateToken, async (req, res) => {
     try {
         const messageId = parseInt(req.params.id);
@@ -145,12 +145,12 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== EMAIL FINDER ENDPOINT - SIMPLIFIED ====================
+// ==================== EMAIL FINDER ENDPOINT - LINKEDIN URL DIRECT ====================
 
-// POST /api/ask-email - Find email using LinkedIn URL directly
+// POST /api/ask-email - Find email using LinkedIn URL directly (SIMPLIFIED)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== SIMPLE LINKEDIN URL EMAIL FINDER REQUEST ===');
+        logger.custom('EMAIL', '=== LINKEDIN URL EMAIL FINDER REQUEST ===');
         logger.info(`User ID: ${req.user.id}`);
         
         const { linkedinUrl } = req.body;
@@ -197,7 +197,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             await pool.query(`
                 UPDATE message_logs 
                 SET email_found = $1, email_status = 'verified', email_verified_at = NOW()
-                WHERE target_profile_url = $2 AND user_id = $3
+                WHERE linkedin_url = $2 AND user_id = $3
             `, [result.email, linkedinUrl, req.user.id]);
             
             logger.success(`Email found via Snov.io: ${result.email}, Credits charged: ${result.creditsCharged}`);
@@ -205,7 +205,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             await pool.query(`
                 UPDATE message_logs 
                 SET email_status = 'not_found', email_verified_at = NOW()
-                WHERE target_profile_url = $1 AND user_id = $2
+                WHERE linkedin_url = $1 AND user_id = $2
             `, [linkedinUrl, req.user.id]);
             
             logger.info(`Snov.io email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
