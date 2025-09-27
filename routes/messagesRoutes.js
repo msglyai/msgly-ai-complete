@@ -263,4 +263,15 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             logger.info(`Snov.io email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
         }
         
-        res
+        res.json(result);
+        
+    } catch (error) {
+        logger.error('Email finder error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Email finder temporarily unavailable'
+        });
+    }
+});
+
+module.exports = router;
