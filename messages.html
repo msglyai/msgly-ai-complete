@@ -1701,14 +1701,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         totalCredits: user.totalCredits,
                         credits: user.credits,
                         creditBalance: user.creditBalance,
+                        credits_remaining: user.credits_remaining,
                         available_credits: user.available_credits,
                         remainingCredits: user.remainingCredits
                     });
                     
                     currentUserPlan = {
-                        planCode: user.planCode || 'free',
-                        totalCredits: user.totalCredits || user.credits || user.creditBalance || user.available_credits || user.remainingCredits || 0,
-                        planName: user.planName || 'Free'
+                        planCode: user.planCode || user.plan_code || 'free',
+                        totalCredits: user.totalCredits || user.credits || user.credits_remaining || user.creditBalance || user.available_credits || user.remainingCredits || 0,
+                        planName: user.planName || user.plan_name || 'Free'
                     };
                     
                     console.log('[PROFILE] User credits loaded:', currentUserPlan.totalCredits);
