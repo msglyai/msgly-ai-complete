@@ -889,7 +889,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .message-type-block.filtered-highlight::before {
-            content: 'â­ FILTERED';
+            content: '⭐ FILTERED';
             position: absolute;
             top: -10px;
             right: 10px;
@@ -1516,6 +1516,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <button class="filter-btn active" onclick="filterByStatus('all')">
                         <i class="fas fa-list"></i>
                         All
+                    </button>
+                    <button class="filter-btn" onclick="filterByStatus('sent')">
+                        <i class="fas fa-paper-plane"></i>
+                        Sent
                     </button>
                     <button class="filter-btn" onclick="filterByStatus('replied')">
                         <i class="fas fa-reply"></i>
@@ -2587,13 +2591,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('upgradeModal').classList.remove('active');
         }
 
-        // FIXED: Real Snov.io Email Finder Integration - CLEAN FIX
+        // FIXED: Real Snov.io Email Finder Integration
         async function confirmEmailFinder() {
             if (!currentTargetId) return;
             
             closeEmailModal();
             
-            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for message ${currentTargetId}`);
+            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for target ${currentTargetId}`);
             
             // Update button to loading state
             const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
@@ -2611,7 +2615,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                // Call real Snov.io API through backend - FIXED: Send messageId
+                // Call real Snov.io API through backend
                 const response = await fetch('/api/ask-email', {
                     method: 'POST',
                     headers: {
@@ -2619,7 +2623,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        messageId: currentTargetId  // FIXED: Changed from targetProfileId to messageId
+                        targetProfileId: currentTargetId
                     })
                 });
                 
@@ -2668,7 +2672,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         currentUserPlan.totalCredits -= result.creditsCharged;
                     }
                     
-                    if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
+                    if (result.error === 'email_not_found') {
                         // Update the grouped message data to show "not found"
                         Object.values(groupedMessages).forEach(group => {
                             if (group.id === currentTargetId) {
@@ -2709,8 +2713,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function getStatusIcon(status) {
             switch(status) {
-                case 'yes': return 'âœ"';
-                case 'no': return 'âœ—';
+                case 'yes': return '✓';
+                case 'no': return '✗';
                 default: return '?';
             }
         }
@@ -2956,8 +2960,4 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         });
     </script>
 </body>
-</html>ByStatus('sent')">
-                        <i class="fas fa-paper-plane"></i>
-                        Sent
-                    </button>
-                    <button class="filter-btn" onclick="filter
+</html>
