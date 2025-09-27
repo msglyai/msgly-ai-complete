@@ -15,7 +15,7 @@ const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
 
 // Import real Snov.io email finder integration
-const { findEmailForProfile, isEmailFinderEnabled } = require('../emailFinder');
+const { findEmailWithLinkedInUrl, isEmailFinderEnabled } = require('../emailFinder');
 
 // EXISTING: Message generation routes (unchanged)
 router.post('/generate-message', authenticateToken, handleGenerateMessage);
@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: Use correct column names)
+// GET /messages/history - Get messages for user (FIXED: includes message_type field)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -34,23 +34,21 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.target_first_name as "targetProfile.firstName",
                 ml.target_title as "targetProfile.role", 
                 ml.target_company as "targetProfile.company",
+                ml.target_profile_url as "targetProfile.linkedinUrl",
                 ml.generated_message as message,
                 ml.message_type,
                 ml.context_text as context,
                 ml.created_at,
-                ml.target_profile_url,
                 -- FIXED: Read actual database values instead of hardcoded 'pending'
                 COALESCE(ml.sent_status, 'pending') as sent,
                 COALESCE(ml.reply_status, 'pending') as "gotReply",
                 COALESCE(ml.comments, '') as comments,
                 ml.sent_date,
                 ml.reply_date,
-                -- Get email data from target_profiles table using target_profile_url
-                tp.email_found,
-                tp.email_status,
-                tp.email_verified_at
+                ml.email_found,
+                ml.email_status,
+                ml.email_verified_at
             FROM message_logs ml 
-            LEFT JOIN target_profiles tp ON ml.target_profile_url = tp.linkedin_url AND tp.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
@@ -60,7 +58,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             targetProfile: {
                 firstName: row["targetProfile.firstName"] || 'Unknown',
                 role: row["targetProfile.role"] || 'Professional', 
-                company: row["targetProfile.company"] || 'Company'
+                company: row["targetProfile.company"] || 'Company',
+                linkedinUrl: row["targetProfile.linkedinUrl"] || ''
             },
             message: row.message || '',
             message_type: row.message_type,
@@ -68,10 +67,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             sent: row.sent,
             gotReply: row.gotReply,
             comments: row.comments,
-            linkedinUrl: row.target_profile_url,
-            // Get email data from target_profiles table
             emailFound: row.email_found,
-            emailStatus: row.email_status || 'pending',
+            emailStatus: row.email_status,
             emailVerifiedAt: row.email_verified_at,
             createdAt: row.created_at,
             sentDate: row.sent_date,
@@ -148,85 +145,25 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== EMAIL FINDER ENDPOINT - SIMPLIFIED ====================
+// ==================== SIMPLIFIED EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - Find and verify email using real Snov.io API
+// POST /api/ask-email - Simple LinkedIn URL to Snov.io email finder
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== REAL SNOV.IO EMAIL FINDER REQUEST ===');
+        logger.custom('EMAIL', '=== SIMPLIFIED SNOV.IO EMAIL FINDER REQUEST ===');
         logger.info(`User ID: ${req.user.id}`);
         
-        const { messageId } = req.body;
+        const { linkedinUrl } = req.body;
         
-        if (!messageId) {
+        if (!linkedinUrl) {
             return res.status(400).json({
                 success: false,
-                error: 'messageId is required'
+                error: 'linkedinUrl is required'
             });
         }
-        
-        // Get the message and target profile data
-        const messageResult = await pool.query(`
-            SELECT 
-                ml.id,
-                ml.target_first_name,
-                ml.target_title, 
-                ml.target_company,
-                ml.target_profile_url,
-                tp.id as target_profile_id
-            FROM message_logs ml
-            LEFT JOIN target_profiles tp ON ml.target_profile_url = tp.linkedin_url AND tp.user_id = ml.user_id
-            WHERE ml.id = $1 AND ml.user_id = $2
-        `, [messageId, req.user.id]);
-        
-        if (messageResult.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'message_not_found',
-                message: 'Message not found'
-            });
-        }
-        
-        const messageData = messageResult.rows[0];
-        
-        if (!messageData.target_profile_url) {
-            return res.status(400).json({
-                success: false,
-                error: 'no_linkedin_url',
-                message: 'No LinkedIn URL found for this contact'
-            });
-        }
-        
-        let targetProfileId = messageData.target_profile_id;
-        
-        // If no target profile exists, create one
-        if (!targetProfileId) {
-            const createResult = await pool.query(`
-                INSERT INTO target_profiles (
-                    user_id, 
-                    linkedin_url, 
-                    data_json,
-                    created_at
-                ) VALUES ($1, $2, $3, NOW())
-                RETURNING id
-            `, [
-                req.user.id,
-                messageData.target_profile_url,
-                JSON.stringify({
-                    profile: {
-                        firstName: messageData.target_first_name || 'Unknown',
-                        lastName: '',
-                        name: messageData.target_first_name || 'Unknown',
-                        headline: messageData.target_title || 'Professional',
-                        currentCompany: messageData.target_company || 'Company'
-                    }
-                })
-            ]);
-            
-            targetProfileId = createResult.rows[0].id;
-            logger.info(`Created target profile: ${targetProfileId}`);
-        }
-        
+
+        logger.info(`LinkedIn URL: ${linkedinUrl}`);
+
         // Check if user has Silver+ plan
         const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
         const userPlan = req.user.package_type?.toLowerCase();
@@ -252,14 +189,27 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // Call Snov.io email finder
-        const result = await findEmailForProfile(req.user.id, targetProfileId);
+        // Call simplified email finder with LinkedIn URL
+        const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
-        logger.custom('EMAIL', `Real Snov.io result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        logger.custom('EMAIL', `Snov.io result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
         
+        // Update ALL messages for this LinkedIn URL
         if (result.success) {
+            await pool.query(`
+                UPDATE message_logs 
+                SET email_found = $1, email_status = 'verified', email_verified_at = NOW()
+                WHERE target_profile_url = $2 AND user_id = $3
+            `, [result.email, linkedinUrl, req.user.id]);
+            
             logger.success(`Email found via Snov.io: ${result.email}, Credits charged: ${result.creditsCharged}`);
         } else {
+            await pool.query(`
+                UPDATE message_logs 
+                SET email_status = 'not_found', email_verified_at = NOW()
+                WHERE target_profile_url = $1 AND user_id = $2
+            `, [linkedinUrl, req.user.id]);
+            
             logger.info(`Snov.io email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
         }
         
