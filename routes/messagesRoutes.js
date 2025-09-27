@@ -14,7 +14,7 @@ const {
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
 
-// NEW: Import email finder for Snov.io integration
+// Import real Snov.io email finder integration
 const { findEmailForProfile, isEmailFinderEnabled } = require('../emailFinder');
 
 // EXISTING: Message generation routes (unchanged)
@@ -139,10 +139,10 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
 
 // ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - Find and verify email for target profile (Silver+ plans only)
+// POST /api/ask-email - Find and verify email using real Snov.io API (Silver+ plans only)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== EMAIL FINDER REQUEST ===');
+        logger.custom('EMAIL', '=== REAL SNOV.IO EMAIL FINDER REQUEST ===');
         logger.info(`User ID: ${req.user.id}`);
         logger.info(`User Plan: ${req.user.package_type}`);
         logger.info(`Target Profile ID: ${req.body.targetProfileId}`);
@@ -156,7 +156,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // NEW: Check if user has Silver+ plan for email finder access
+        // Check if user has Silver+ plan for email finder access
         const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
         const userPlan = req.user.package_type?.toLowerCase();
         
@@ -173,30 +173,30 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // Check if email finder is enabled
+        // Check if email finder is enabled and configured
         if (!isEmailFinderEnabled()) {
             return res.status(503).json({
                 success: false,
                 error: 'email_finder_disabled',
-                message: 'Email finder feature is currently disabled'
+                message: 'Email finder feature is currently disabled or not configured'
             });
         }
         
-        // Call email finder service
+        // Call real Snov.io email finder service
         const result = await findEmailForProfile(req.user.id, targetProfileId);
         
-        logger.custom('EMAIL', `Email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        logger.custom('EMAIL', `Real Snov.io result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
         
         if (result.success) {
-            logger.success(`Email found: ${result.email}, Credits charged: ${result.creditsCharged}`);
+            logger.success(`Email found via Snov.io: ${result.email}, Credits charged: ${result.creditsCharged}`);
         } else {
-            logger.info(`Email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
+            logger.info(`Snov.io email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
         }
         
         res.json(result);
         
     } catch (error) {
-        logger.error('Email finder endpoint error:', error);
+        logger.error('Real Snov.io email finder endpoint error:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error',
