@@ -1428,7 +1428,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="modal-title">Find & Verify Email</div>
             </div>
             <div class="modal-body">
-                We'll search for this contact's email address. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
+                We'll search for this contact's email address using Snov.io. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
             </div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
@@ -1443,7 +1443,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="modal-title">Not Enough Credits</div>
             </div>
             <div class="modal-body">
-                You don't have enough credits to perform this action.
+                You need at least 2 credits to use the email finder. You currently have <span id="currentCredits">0</span> credits.
             </div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
@@ -1650,7 +1650,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function checkAuthentication() {
             const token = getAuthToken();
             if (!token) {
-                window.location.href = '/login';
+                // FIXED: Use return URL mechanism to preserve user intent
+                window.location.href = '/login?returnUrl=/messages';
                 return false;
             }
             return true;
@@ -1665,7 +1666,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             try {
                 const token = getAuthToken();
                 if (!token) {
-                    window.location.href = '/login';
+                    // FIXED: Use return URL mechanism to preserve user intent
+                    window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
 
@@ -1679,7 +1681,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
-                    window.location.href = '/login';
+                    // FIXED: Use return URL mechanism to preserve user intent
+                    window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
 
@@ -1749,7 +1752,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 const token = getAuthToken();
                 if (!token) {
-                    window.location.href = '/login';
+                    // FIXED: Use return URL mechanism to preserve user intent
+                    window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
                 
@@ -1765,7 +1769,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
-                    window.location.href = '/login';
+                    // FIXED: Use return URL mechanism to preserve user intent
+                    window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
                 
@@ -2522,19 +2527,36 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function showEmailFinderModal(targetId) {
             currentTargetId = targetId;
             
-            if (currentUserPlan && currentUserPlan.planCode === 'free') {
-                console.log('[EMAIL_FINDER] Free user detected, showing upgrade modal');
+            // Check user plan first
+            if (!currentUserPlan) {
+                console.log('[EMAIL_FINDER] User plan not loaded, showing upgrade modal');
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
-            if (currentUserPlan && currentUserPlan.totalCredits < 2) {
-                console.log('[EMAIL_FINDER] Insufficient credits, showing credits modal');
+            // Check if user has Silver+ plan
+            const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+            const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
+            
+            if (!allowedPlans.includes(userPlan)) {
+                console.log(`[EMAIL_FINDER] Plan '${userPlan}' not eligible for email finder, showing upgrade modal`);
+                document.getElementById('upgradeModal').classList.add('active');
+                return;
+            }
+            
+            // Check if user has enough credits
+            if (currentUserPlan.totalCredits < 2) {
+                console.log(`[EMAIL_FINDER] Insufficient credits (${currentUserPlan.totalCredits}/2), showing credits modal`);
+                // Update current credits display in modal
+                const creditsElement = document.getElementById('currentCredits');
+                if (creditsElement) {
+                    creditsElement.textContent = currentUserPlan.totalCredits || 0;
+                }
                 document.getElementById('insufficientCreditsModal').classList.add('active');
                 return;
             }
             
-            console.log('[EMAIL_FINDER] Showing email finder modal for paid user');
+            console.log(`[EMAIL_FINDER] Showing email finder modal for user with plan '${userPlan}' and ${currentUserPlan.totalCredits} credits`);
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
@@ -2551,13 +2573,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('upgradeModal').classList.remove('active');
         }
 
+        // FIXED: Real Snov.io Email Finder Integration
         async function confirmEmailFinder() {
             if (!currentTargetId) return;
             
             closeEmailModal();
             
-            console.log(`[EMAIL_FINDER] Starting email finder for target ${currentTargetId} (STUB MODE)`);
+            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for target ${currentTargetId}`);
             
+            // Update button to loading state
             const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
@@ -2565,27 +2589,108 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 btn.disabled = true;
             });
             
-            setTimeout(() => {
-                const fakeResult = {
-                    success: true,
-                    emailFound: 'dummy@example.com',
-                    emailStatus: 'verified',
-                    emailVerifiedAt: new Date().toISOString()
-                };
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    // FIXED: Use return URL mechanism to preserve user intent
+                    window.location.href = '/login?returnUrl=/messages';
+                    return;
+                }
                 
-                // Update the grouped message data
-                Object.values(groupedMessages).forEach(group => {
-                    if (group.id === currentTargetId) {
-                        group.emailFound = fakeResult.emailFound;
-                        group.emailStatus = fakeResult.emailStatus;
-                        group.emailVerifiedAt = fakeResult.emailVerifiedAt;
-                    }
+                // Call real Snov.io API through backend
+                const response = await fetch('/api/ask-email', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        targetProfileId: currentTargetId
+                    })
                 });
                 
-                renderMessages();
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    // FIXED: Use return URL mechanism to preserve user intent
+                    window.location.href = '/login?returnUrl=/messages';
+                    return;
+                }
                 
-                console.log(`[EMAIL_FINDER] Email finder completed for target ${currentTargetId} (STUB MODE)`);
-            }, 2000);
+                if (response.status === 403) {
+                    // Plan upgrade required
+                    const result = await response.json();
+                    console.log('[EMAIL_FINDER] Plan upgrade required:', result.message);
+                    document.getElementById('upgradeModal').classList.add('active');
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`[EMAIL_FINDER] Success: ${result.email}, Credits charged: ${result.creditsCharged}`);
+                    
+                    // Update user credits in memory
+                    if (currentUserPlan) {
+                        currentUserPlan.totalCredits -= result.creditsCharged;
+                    }
+                    
+                    // Update the grouped message data
+                    Object.values(groupedMessages).forEach(group => {
+                        if (group.id === currentTargetId) {
+                            group.emailFound = result.email;
+                            group.emailStatus = 'verified';
+                            group.emailVerifiedAt = new Date().toISOString();
+                        }
+                    });
+                    
+                    // Re-render messages to show updated email data
+                    renderMessages();
+                    
+                } else {
+                    console.log(`[EMAIL_FINDER] Failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
+                    
+                    // Update user credits even on failure if credits were charged
+                    if (currentUserPlan && result.creditsCharged) {
+                        currentUserPlan.totalCredits -= result.creditsCharged;
+                    }
+                    
+                    if (result.error === 'email_not_found') {
+                        // Update the grouped message data to show "not found"
+                        Object.values(groupedMessages).forEach(group => {
+                            if (group.id === currentTargetId) {
+                                group.emailStatus = 'not_found';
+                                group.emailVerifiedAt = new Date().toISOString();
+                            }
+                        });
+                        
+                        // Re-render messages to show "not found" status
+                        renderMessages();
+                    } else {
+                        // Show error to user
+                        alert(`Email finder failed: ${result.message || result.error}`);
+                        
+                        // Reset button state
+                        buttons.forEach(btn => {
+                            btn.classList.remove('loading');
+                            btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
+                            btn.disabled = false;
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('[EMAIL_FINDER] Error calling email finder API:', error);
+                alert('Email finder temporarily unavailable. Please try again later.');
+                
+                // Reset button state
+                buttons.forEach(btn => {
+                    btn.classList.remove('loading');
+                    btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
+                    btn.disabled = false;
+                });
+            }
+            
+            currentTargetId = null;
         }
 
         function getStatusIcon(status) {
