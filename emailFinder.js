@@ -5,6 +5,7 @@
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
+const logger = require('./utils/logger');
 
 class EmailFinder {
     constructor() {
@@ -15,7 +16,7 @@ class EmailFinder {
         this.rateLimitPerMin = parseInt(process.env.EMAIL_FINDER_RATE_LIMIT_PER_MIN) || 10;
         this.costPerSuccess = parseFloat(process.env.EMAIL_FINDER_COST_PER_SUCCESS_CREDITS) || 2.0;
         
-        console.log('📧 Email Finder initialized:', {
+        logger.custom('EMAIL', 'Email Finder initialized:', {
             enabled: this.enabled,
             dummyMode: this.dummyMode,
             timeoutMs: this.timeoutMs,
@@ -26,7 +27,7 @@ class EmailFinder {
     // Main entry point: Find and verify email for a target profile
     async findEmail(userId, targetProfileId) {
         try {
-            console.log(`📧 Email finder request: User ${userId}, Target ${targetProfileId}`);
+            logger.custom('EMAIL', `Email finder request: User ${userId}, Target ${targetProfileId}`);
 
             // Check if feature is enabled
             if (!this.enabled) {
@@ -67,7 +68,7 @@ class EmailFinder {
             }
 
             // Create credit hold
-            console.log(`💳 Creating credit hold for ${this.costPerSuccess} credits`);
+            logger.info(`Creating credit hold for ${this.costPerSuccess} credits`);
             const holdResult = await createCreditHold(userId, 'email_verification', {
                 targetProfileId: targetProfileId,
                 linkedinUrl: targetProfile.data.linkedin_url
@@ -110,7 +111,7 @@ class EmailFinder {
                         processingTimeMs: emailResult.processingTimeMs || null
                     });
 
-                    console.log(`✅ Email verification successful: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
+                    logger.success(`Email verification successful: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
 
                     return {
                         success: true,
@@ -134,7 +135,7 @@ class EmailFinder {
                     // Release credit hold (no charge on failure)
                     await releaseCreditHold(userId, holdId, 'email_not_verified');
 
-                    console.log(`❌ Email verification failed: ${finalStatus} (no credits charged)`);
+                    logger.info(`Email verification failed: ${finalStatus} (no credits charged)`);
 
                     return {
                         success: false,
@@ -150,7 +151,7 @@ class EmailFinder {
 
             } catch (processingError) {
                 // Processing error: Update status and release hold
-                console.error('❌ Email finder processing error:', processingError);
+                logger.error('Email finder processing error:', processingError);
                 
                 await this.updateEmailStatus(targetProfileId, null, 'error', null);
                 await releaseCreditHold(userId, holdId, 'processing_error');
@@ -164,7 +165,7 @@ class EmailFinder {
             }
 
         } catch (error) {
-            console.error('❌ Email finder error:', error);
+            logger.error('Email finder error:', error);
             return {
                 success: false,
                 error: 'system_error',
@@ -209,7 +210,7 @@ class EmailFinder {
             };
 
         } catch (error) {
-            console.error('❌ Error getting target profile:', error);
+            logger.error('Error getting target profile:', error);
             return {
                 success: false,
                 error: 'database_error',
@@ -231,18 +232,18 @@ class EmailFinder {
                 WHERE id = $1
             `, [targetProfileId, email, status, verifiedAt]);
 
-            console.log(`📧 Updated email status: Profile ${targetProfileId} -> ${status}`);
+            logger.debug(`Updated email status: Profile ${targetProfileId} -> ${status}`);
             return { success: true };
 
         } catch (error) {
-            console.error('❌ Error updating email status:', error);
+            logger.error('Error updating email status:', error);
             return { success: false, error: error.message };
         }
     }
 
     // STAGE 3: Dummy email finding for testing
     async findEmailDummy(profileData) {
-        console.log('🎭 Running in dummy mode - generating fake email result');
+        logger.info('Running in dummy mode - generating fake email result');
         
         // Simulate processing time
         await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
@@ -303,7 +304,7 @@ class EmailFinder {
 
     // STAGE 4: Real email finding (placeholder for now)
     async findEmailReal(profileData) {
-        console.log('🚫 Real Snov.io integration not implemented yet (Stage 4)');
+        logger.warn('Real Snov.io integration not implemented yet (Stage 4)');
         
         // For now, return not found until Stage 4
         return {
@@ -355,4 +356,4 @@ module.exports = {
     isEmailFinderEnabled
 };
 
-console.log('📧 Email Finder module loaded successfully!');
+logger.success('Email Finder module loaded successfully!');
