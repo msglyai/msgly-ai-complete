@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: includes message_type field)
+// GET /messages/history - Get messages for user (EXACT ORIGINAL VERSION)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -80,7 +80,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /messages/:id - Update message status and comments (FIXED: SQL type casting)
+// PUT /messages/:id - Update message status and comments (EXACT ORIGINAL VERSION)
 router.put('/messages/:id', authenticateToken, async (req, res) => {
     try {
         const messageId = parseInt(req.params.id);
