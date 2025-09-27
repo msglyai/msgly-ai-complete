@@ -1,4 +1,5 @@
 // User Management Routes - STEP 2E: Extracted from server.js
+// 🔧 LINKEDIN URL DECOUPLING STAGE 4: Updated registration routes to remove LinkedIn URL requirements
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -101,7 +102,7 @@ router.post('/register', async (req, res) => {
 
 // User Login
 router.post('/login', async (req, res) => {
-    console.log('🔐 Login request for:', req.body.email);
+    console.log('🔍 Login request for:', req.body.email);
     
     try {
         const { email, password } = req.body;
@@ -173,32 +174,19 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// ✅ FIXED: Complete registration endpoint - Sets registration_completed = true
+// 🔧 LINKEDIN URL DECOUPLING STAGE 4: Updated complete registration endpoint - LinkedIn URL no longer required
 router.post('/complete-registration', authenticateToken, async (req, res) => {
     console.log('🎯 Complete registration request for user:', req.user.id);
     
     try {
-        const { linkedinUrl, packageType, termsAccepted } = req.body;
+        // 🔧 LINKEDIN URL DECOUPLING: Only packageType and termsAccepted required now
+        const { packageType, termsAccepted } = req.body;
         
-        // Validation
+        // 🔧 LINKEDIN URL DECOUPLING: Updated validation - LinkedIn URL no longer required
         if (!termsAccepted) {
             return res.status(400).json({
                 success: false,
                 error: 'You must accept the Terms of Service and Privacy Policy'
-            });
-        }
-        
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
             });
         }
         
@@ -216,14 +204,7 @@ router.post('/complete-registration', authenticateToken, async (req, res) => {
             );
         }
         
-        // Create profile without background extraction
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        // ✅ FIXED: Set registration_completed = true instead of profile_completed
+        // 🔧 LINKEDIN URL DECOUPLING: Set registration_completed = true without requiring LinkedIn URL
         await pool.query(
             'UPDATE users SET registration_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
             [true, req.user.id]
@@ -231,31 +212,33 @@ router.post('/complete-registration', authenticateToken, async (req, res) => {
         
         const updatedUser = await getUserById(req.user.id);
         
+        // 🔧 LINKEDIN URL DECOUPLING: Updated response - LinkedIn URL collection will happen via extension
         res.json({
             success: true,
-            message: 'Registration completed successfully! Please use the Chrome extension to complete your profile setup with enhanced data extraction.',
+            message: 'Registration completed successfully! Install the Chrome extension to sync your LinkedIn profile automatically.',
             data: {
                 user: {
                     id: updatedUser.id,
                     email: updatedUser.email,
                     displayName: updatedUser.display_name,
                     packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
+                    credits: updatedUser.credits_remaining,
+                    registrationCompleted: true
                 },
                 profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status
+                    linkedinUrl: null, // Will be collected by extension
+                    extractionStatus: 'pending_linkedin_url'
                 },
                 nextSteps: {
                     message: 'Install the Chrome extension and visit your LinkedIn profile to complete setup with enhanced data extraction',
                     requiresExtension: true,
+                    linkedinUrlRequired: true, // Extension will collect this
                     enhancedFeatures: 'Now extracts certifications, awards, activity, and engagement metrics'
                 }
             }
         });
         
-        console.log(`✅ Registration completed for user ${updatedUser.email} - Enhanced Chrome extension required!`);
+        console.log(`✅ Registration completed for user ${updatedUser.email} - LinkedIn URL will be collected by extension!`);
         
     } catch (error) {
         console.error('❌ Complete registration error:', error);
@@ -267,25 +250,28 @@ router.post('/complete-registration', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ FIXED: Update profile endpoint - Sets registration_completed = true
+// 🔧 LINKEDIN URL DECOUPLING STAGE 4: Updated update profile endpoint - LinkedIn URL handling updated
 router.post('/update-profile', authenticateToken, async (req, res) => {
     console.log('📝 Profile update request for user:', req.user.id);
     
     try {
         const { linkedinUrl, packageType } = req.body;
         
-        if (!linkedinUrl) {
-            return res.status(400).json({
-                success: false,
-                error: 'LinkedIn URL is required'
-            });
-        }
-        
-        if (!linkedinUrl.includes('linkedin.com/in/')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide a valid LinkedIn profile URL'
-            });
+        // 🔧 LINKEDIN URL DECOUPLING: LinkedIn URL validation only if provided
+        if (linkedinUrl) {
+            if (!linkedinUrl.includes('linkedin.com/in/')) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Please provide a valid LinkedIn profile URL'
+                });
+            }
+            
+            // Create profile with LinkedIn URL if provided
+            const profile = await createOrUpdateUserProfile(
+                req.user.id, 
+                linkedinUrl, 
+                req.user.display_name
+            );
         }
         
         // Update package type if needed
@@ -303,14 +289,7 @@ router.post('/update-profile', authenticateToken, async (req, res) => {
             );
         }
         
-        // Create profile without background extraction
-        const profile = await createOrUpdateUserProfile(
-            req.user.id, 
-            linkedinUrl, 
-            req.user.display_name
-        );
-        
-        // ✅ FIXED: Set registration_completed = true instead of profile_completed  
+        // Set registration_completed = true
         await pool.query(
             'UPDATE users SET registration_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
             [true, req.user.id]
@@ -318,31 +297,39 @@ router.post('/update-profile', authenticateToken, async (req, res) => {
         
         const updatedUser = await getUserById(req.user.id);
         
+        // 🔧 LINKEDIN URL DECOUPLING: Updated response based on LinkedIn URL presence
+        const responseMessage = linkedinUrl 
+            ? 'Profile updated successfully! Please use the Chrome extension to complete your profile setup with enhanced data extraction.'
+            : 'Profile updated successfully! Install the Chrome extension and visit your LinkedIn profile to complete setup.';
+        
         res.json({
             success: true,
-            message: 'Profile updated successfully! Please use the Chrome extension to complete your profile setup with enhanced data extraction.',
+            message: responseMessage,
             data: {
                 user: {
                     id: updatedUser.id,
                     email: updatedUser.email,
                     displayName: updatedUser.display_name,
                     packageType: updatedUser.package_type,
-                    credits: updatedUser.credits_remaining
+                    credits: updatedUser.credits_remaining,
+                    registrationCompleted: true
                 },
                 profile: {
-                    linkedinUrl: profile.linkedin_url,
-                    fullName: profile.full_name,
-                    extractionStatus: profile.data_extraction_status
+                    linkedinUrl: linkedinUrl || null,
+                    extractionStatus: linkedinUrl ? 'pending' : 'pending_linkedin_url'
                 },
                 nextSteps: {
-                    message: 'Install the Chrome extension and visit your LinkedIn profile to complete setup with enhanced data extraction',
+                    message: linkedinUrl 
+                        ? 'Install the Chrome extension and visit your LinkedIn profile to complete setup with enhanced data extraction'
+                        : 'Install the Chrome extension and visit your LinkedIn profile to sync your profile data',
                     requiresExtension: true,
+                    linkedinUrlRequired: !linkedinUrl,
                     enhancedFeatures: 'Now extracts certifications, awards, activity, and engagement metrics'
                 }
             }
         });
         
-        console.log(`✅ Profile updated for user ${updatedUser.email} - Enhanced Chrome extension required!`);
+        console.log(`✅ Profile updated for user ${updatedUser.email} - LinkedIn URL: ${linkedinUrl ? 'provided' : 'will be collected by extension'}!`);
         
     } catch (error) {
         console.error('❌ Profile update error:', error);
@@ -354,7 +341,7 @@ router.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Enhanced user setup status endpoint for feature lock - WITH ESCAPED current_role
+// 🔧 LINKEDIN URL DECOUPLING STAGE 4: Enhanced user setup status endpoint - updated for LinkedIn URL independence
 router.get('/user/setup-status', authenticateToken, async (req, res) => {
     try {
         console.log(`🔍 Checking enhanced setup status for user ${req.user.id}`);
@@ -394,7 +381,7 @@ router.get('/user/setup-status', authenticateToken, async (req, res) => {
             const initialScrapingDone = data.initial_scraping_done || false;
             const extractionStatus = data.data_extraction_status || 'not_started';
             userLinkedInUrl = data.linkedin_url;
-            registrationCompleted = data.registration_completed || false;  // ✅ FIXED: Get registration_completed
+            registrationCompleted = data.registration_completed || false;
             
             // Check if user has experience
             if (data.experience && Array.isArray(data.experience)) {
@@ -411,9 +398,11 @@ router.get('/user/setup-status', authenticateToken, async (req, res) => {
                 hasEngagement: (data.total_likes || 0) > 0 || (data.total_comments || 0) > 0
             };
             
-            // ✅ FIXED: Determine setup status based on registration_completed
+            // 🔧 LINKEDIN URL DECOUPLING: Updated setup status logic - LinkedIn URL collected separately
             if (!registrationCompleted) {
                 setupStatus = 'registration_incomplete';
+            } else if (!userLinkedInUrl) {
+                setupStatus = 'linkedin_url_needed'; // 🔧 NEW: Specific status for missing LinkedIn URL
             } else if (!initialScrapingDone || extractionStatus !== 'completed') {
                 setupStatus = 'profile_sync_needed';
             } else if (!hasExperience) {
@@ -424,7 +413,8 @@ router.get('/user/setup-status', authenticateToken, async (req, res) => {
             }
             
             console.log(`📊 Enhanced setup status for user ${req.user.id}:`);
-            console.log(`   - Registration completed: ${registrationCompleted}`);  // ✅ FIXED
+            console.log(`   - Registration completed: ${registrationCompleted}`);
+            console.log(`   - LinkedIn URL present: ${!!userLinkedInUrl}`); // 🔧 NEW: Log LinkedIn URL status
             console.log(`   - Initial scraping done: ${initialScrapingDone}`);
             console.log(`   - Extraction status: ${extractionStatus}`);
             console.log(`   - Has experience: ${hasExperience}`);
@@ -442,7 +432,8 @@ router.get('/user/setup-status', authenticateToken, async (req, res) => {
                 isComplete: isComplete,
                 userLinkedInUrl: userLinkedInUrl,
                 hasExperience: hasExperience,
-                registrationCompleted: registrationCompleted,  // ✅ FIXED: Include registration_completed
+                registrationCompleted: registrationCompleted,
+                linkedinUrlCollected: !!userLinkedInUrl, // 🔧 NEW: Specific flag for LinkedIn URL status
                 requiresAction: !isComplete,
                 message: getSetupStatusMessage(setupStatus),
                 enhancedData: enhancedData
@@ -470,6 +461,7 @@ router.get('/user/initial-scraping-status', authenticateToken, async (req, res) 
                 up.linkedin_url as profile_linkedin_url,
                 up.data_extraction_status,
                 u.linkedin_url as user_linkedin_url,
+                u.registration_completed, -- 🔧 LINKEDIN URL DECOUPLING: Include registration status
                 COALESCE(up.linkedin_url, u.linkedin_url) as linkedin_url
             FROM users u
             LEFT JOIN user_profiles up ON u.id = up.user_id 
@@ -479,23 +471,27 @@ router.get('/user/initial-scraping-status', authenticateToken, async (req, res) 
         let initialScrapingDone = false;
         let userLinkedInUrl = null;
         let extractionStatus = 'not_started';
+        let registrationCompleted = false;
         
         if (result.rows.length > 0) {
             const data = result.rows[0];
             initialScrapingDone = data.initial_scraping_done || false;
             userLinkedInUrl = data.linkedin_url || data.user_linkedin_url || data.profile_linkedin_url;
             extractionStatus = data.data_extraction_status || 'not_started';
+            registrationCompleted = data.registration_completed || false; // 🔧 LINKEDIN URL DECOUPLING
             
             console.log(`📊 Initial scraping data for user ${req.user.id}:`);
             console.log(`   - Profile linkedin_url: ${data.profile_linkedin_url || 'null'}`);
             console.log(`   - User linkedin_url: ${data.user_linkedin_url || 'null'}`);
             console.log(`   - Final linkedin_url: ${userLinkedInUrl || 'null'}`);
+            console.log(`   - Registration completed: ${registrationCompleted}`); // 🔧 NEW
         }
         
         console.log(`📊 Initial scraping status for user ${req.user.id}:`);
         console.log(`   - Initial scraping done: ${initialScrapingDone}`);
         console.log(`   - User LinkedIn URL: ${userLinkedInUrl || 'Not set'}`);
         console.log(`   - Extraction status: ${extractionStatus}`);
+        console.log(`   - Registration completed: ${registrationCompleted}`); // 🔧 NEW
         
         res.json({
             success: true,
@@ -503,6 +499,8 @@ router.get('/user/initial-scraping-status', authenticateToken, async (req, res) 
                 initialScrapingDone: initialScrapingDone,
                 userLinkedInUrl: userLinkedInUrl,
                 extractionStatus: extractionStatus,
+                registrationCompleted: registrationCompleted, // 🔧 LINKEDIN URL DECOUPLING: Include in response
+                linkedinUrlCollected: !!userLinkedInUrl, // 🔧 NEW: Specific LinkedIn URL flag
                 isCurrentlyProcessing: false, // No background processing
                 user: {
                     id: req.user.id,
