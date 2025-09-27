@@ -1,5 +1,5 @@
 // routes/messagesRoutes.js
-// Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD
+// Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + Email Finder
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -13,6 +13,9 @@ const {
 // NEW: Import database and logger for CRUD operations
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
+
+// NEW: Import email finder for Snov.io integration
+const { findEmailForProfile, isEmailFinderEnabled } = require('../emailFinder');
 
 // EXISTING: Message generation routes (unchanged)
 router.post('/generate-message', authenticateToken, handleGenerateMessage);
@@ -130,6 +133,56 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to update message'
+        });
+    }
+});
+
+// ==================== EMAIL FINDER ENDPOINT ====================
+
+// POST /api/ask-email - Find and verify email for target profile
+router.post('/api/ask-email', authenticateToken, async (req, res) => {
+    try {
+        logger.custom('EMAIL', '=== EMAIL FINDER REQUEST ===');
+        logger.info(`User ID: ${req.user.id}`);
+        logger.info(`Target Profile ID: ${req.body.targetProfileId}`);
+        
+        const { targetProfileId } = req.body;
+        
+        if (!targetProfileId) {
+            return res.status(400).json({
+                success: false,
+                error: 'targetProfileId is required'
+            });
+        }
+        
+        // Check if email finder is enabled
+        if (!isEmailFinderEnabled()) {
+            return res.status(503).json({
+                success: false,
+                error: 'email_finder_disabled',
+                message: 'Email finder feature is currently disabled'
+            });
+        }
+        
+        // Call email finder service
+        const result = await findEmailForProfile(req.user.id, targetProfileId);
+        
+        logger.custom('EMAIL', `Email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        
+        if (result.success) {
+            logger.success(`Email found: ${result.email}, Credits charged: ${result.creditsCharged}`);
+        } else {
+            logger.info(`Email finder failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
+        }
+        
+        res.json(result);
+        
+    } catch (error) {
+        logger.error('Email finder endpoint error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            message: 'Email finder temporarily unavailable'
         });
     }
 });
