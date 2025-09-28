@@ -1,5 +1,5 @@
 // routes/messagesRoutes.js
-// Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + EMAIL FINDER
+// Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + Email Finder
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -10,10 +10,12 @@ const {
     handleGenerateColdEmail  // EXISTING: Keep cold email functionality
 } = require('../controllers/messagesController');
 
-// NEW: Import database, logger, and email finder for CRUD operations
+// NEW: Import database and logger for CRUD operations
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
-const { findEmailWithLinkedInUrl } = require('../emailFinder');
+
+// Import email finder integration
+const { findEmailWithLinkedInUrl, isEmailFinderEnabled } = require('../emailFinder');
 
 // EXISTING: Message generation routes (unchanged)
 router.post('/generate-message', authenticateToken, handleGenerateMessage);
@@ -23,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: includes context data)
+// GET /messages/history - Get messages for user (EXACT ORIGINAL VERSION)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -33,17 +35,16 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.target_title as "targetProfile.role", 
                 ml.target_company as "targetProfile.company",
                 ml.generated_message as message,
+                ml.message_type,
                 ml.context_text as context,
                 ml.created_at,
                 -- FIXED: Read actual database values instead of hardcoded 'pending'
                 COALESCE(ml.sent_status, 'pending') as sent,
                 COALESCE(ml.reply_status, 'pending') as "gotReply",
                 COALESCE(ml.comments, '') as comments,
-                -- NEW: Include found email information
-                ml.found_email,
-                ml.email_found_date,
                 ml.sent_date,
-                ml.reply_date
+                ml.reply_date,
+                ml.target_profile_url as linkedinUrl
             FROM message_logs ml 
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
@@ -54,16 +55,15 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             targetProfile: {
                 firstName: row["targetProfile.firstName"] || 'Unknown',
                 role: row["targetProfile.role"] || 'Professional', 
-                company: row["targetProfile.company"] || 'Company'
+                company: row["targetProfile.company"] || 'Company',
+                linkedinUrl: row.linkedinUrl
             },
             message: row.message || '',
+            message_type: row.message_type,
             context: row.context || 'No context available',
             sent: row.sent,
             gotReply: row.gotReply,
             comments: row.comments,
-            // NEW: Include email information
-            foundEmail: row.found_email,
-            emailFoundDate: row.email_found_date,
             createdAt: row.created_at,
             sentDate: row.sent_date,
             replyDate: row.reply_date
@@ -82,7 +82,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /messages/:id - Update message status and comments (FIXED: SQL type casting)
+// PUT /messages/:id - Update message status and comments (EXACT ORIGINAL VERSION)
 router.put('/messages/:id', authenticateToken, async (req, res) => {
     try {
         const messageId = parseInt(req.params.id);
@@ -139,33 +139,31 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== NEW: EMAIL FINDER ENDPOINT ====================
+// ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - Find email for message (MISSING ENDPOINT ADDED)
+// POST /api/ask-email - SIMPLIFIED: Find email using messageId (backend looks up LinkedIn URL)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        const { messageId } = req.body;
-        const userId = req.user.id;
+        logger.custom('EMAIL', '=== SIMPLIFIED EMAIL FINDER REQUEST ===');
+        logger.info(`User ID: ${req.user.id}`);
         
-        logger.custom('EMAIL_FINDER', `=== ASK EMAIL REQUEST ===`);
-        logger.info(`User ID: ${userId}, Message ID: ${messageId}`);
+        const { messageId } = req.body;
+        
+        // DEBUG: Add this line to see what we're actually receiving
+        console.log('DEBUG - Request body:', req.body, 'User ID:', req.user?.id);
         
         if (!messageId) {
             return res.status(400).json({
                 success: false,
-                error: 'Message ID is required'
+                error: 'messageId is required'
             });
         }
         
-        // Get message details including LinkedIn URL
-        const messageResult = await pool.query(`
-            SELECT 
-                id, user_id, target_profile_url, 
-                target_first_name, target_company, 
-                found_email, email_found_date
-            FROM message_logs 
-            WHERE id = $1 AND user_id = $2
-        `, [messageId, userId]);
+        // SIMPLIFIED: Look up LinkedIn URL from database using messageId
+        const messageResult = await pool.query(
+            'SELECT target_profile_url FROM message_logs WHERE id = $1 AND user_id = $2',
+            [messageId, req.user.id]
+        );
         
         if (messageResult.rows.length === 0) {
             return res.status(404).json({
@@ -174,72 +172,54 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        const message = messageResult.rows[0];
-        
-        // Check if email already found
-        if (message.found_email) {
-            return res.json({
-                success: true,
-                email: message.found_email,
-                message: 'Email already found',
-                alreadyFound: true,
-                foundDate: message.email_found_date
-            });
-        }
-        
-        // Extract LinkedIn URL from target_profile_url
-        const linkedinUrl = message.target_profile_url;
+        const linkedinUrl = messageResult.rows[0].target_profile_url;
         
         if (!linkedinUrl) {
             return res.status(400).json({
                 success: false,
-                error: 'No LinkedIn URL found for this message'
+                error: 'LinkedIn URL not found for this message'
             });
         }
         
-        logger.info(`Finding email for LinkedIn URL: ${linkedinUrl}`);
+        logger.info(`Found LinkedIn URL for message ${messageId}: ${linkedinUrl}`);
         
-        // Call email finder service
-        const emailResult = await findEmailWithLinkedInUrl(userId, linkedinUrl);
+        // FIXED: Check if user has Silver+ plan using plan_code instead of package_type
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+        const userPlan = req.user.plan_code?.toLowerCase();
         
-        if (emailResult.success && emailResult.email) {
-            // SUCCESS: Update message with found email
-            await pool.query(`
-                UPDATE message_logs 
-                SET 
-                    found_email = $1,
-                    email_found_date = NOW()
-                WHERE id = $2 AND user_id = $3
-            `, [emailResult.email, messageId, userId]);
-            
-            logger.success(`Email found and saved: ${emailResult.email} for message ${messageId}`);
-            
-            res.json({
-                success: true,
-                email: emailResult.email,
-                creditsCharged: emailResult.creditsCharged,
-                newBalance: emailResult.newBalance,
-                message: 'Email found successfully'
-            });
-            
-        } else {
-            // FAILED: Email not found
-            logger.info(`Email not found for message ${messageId}: ${emailResult.message}`);
-            
-            res.json({
+        if (!allowedPlans.includes(userPlan)) {
+            return res.status(403).json({
                 success: false,
-                error: emailResult.error || 'email_not_found',
-                creditsCharged: emailResult.creditsCharged || 0,
-                message: emailResult.message || 'No email found for this LinkedIn profile'
+                error: 'plan_upgrade_required',
+                message: 'Email finder feature requires Silver plan or higher',
+                userMessage: 'Upgrade to Silver, Gold, or Platinum to access email finder',
+                currentPlan: req.user.plan_code,
+                requiredPlans: ['Silver', 'Gold', 'Platinum'],
+                upgradeUrl: '/upgrade'
             });
         }
+        
+        // Check if email finder is enabled
+        if (!isEmailFinderEnabled()) {
+            return res.status(503).json({
+                success: false,
+                error: 'email_finder_disabled',
+                message: 'Email finder feature is currently disabled'
+            });
+        }
+        
+        // Call email finder with LinkedIn URL (looked up from database)
+        const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
+        
+        logger.custom('EMAIL', `Email finder result for message ${messageId}: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        
+        res.json(result);
         
     } catch (error) {
-        logger.error('Ask email error:', error);
+        logger.error('Email finder error:', error);
         res.status(500).json({
             success: false,
-            error: 'system_error',
-            message: 'System error occurred. Please try again.'
+            error: 'Email finder temporarily unavailable'
         });
     }
 });
