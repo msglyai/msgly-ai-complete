@@ -2053,7 +2053,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </button>`;
             }
             
-            return `<button class="email-ask-btn" onclick="handleAskEmailClick(${messageGroup.id})" title="Ask Email (2 credits)">
+            return `<button class="email-ask-btn" onclick="askEmailClick(${messageGroup.id})" title="Ask Email (2 credits)">
                 <i class="fas fa-search"></i> Ask Email
             </button>`;
         }
@@ -2093,11 +2093,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // FIXED EMAIL FINDER FLOW - IMMEDIATE VALIDATION ON CLICK
-        function handleAskEmailClick(messageId) {
+        // CLEAN EMAIL FINDER - ONLY ONE FUNCTION WITH IMMEDIATE VALIDATION
+        function askEmailClick(messageId) {
             console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
             
-            // STEP 1: IMMEDIATE PLAN VALIDATION (NO MODAL OPENING YET)
+            // IMMEDIATE PLAN VALIDATION - NO MODAL OPENING YET
             if (!currentUserPlan) {
                 console.log('[EMAIL_FINDER] No user plan data - showing upgrade modal');
                 document.getElementById('upgradeModal').classList.add('active');
@@ -2114,7 +2114,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // STEP 2: CHECK CREDITS
+            // CHECK CREDITS
             const userCredits = currentUserPlan.totalCredits || 0;
             
             if (userCredits < 2) {
@@ -2127,13 +2127,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // STEP 3: ALL VALIDATIONS PASSED - SHOW CONFIRMATION MODAL
+            // ALL VALIDATIONS PASSED - SHOW CONFIRMATION MODAL
             console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
-            currentTargetId = messageId;  // Set the ID here - ONLY when we're ready to proceed
+            currentTargetId = messageId;
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
-        // SIMPLIFIED - NO MORE VALIDATION IN CONFIRMATION
+        // CLEAN CONFIRMATION - NO MORE VALIDATION
         async function confirmEmailFinder() {
             if (!currentTargetId) {
                 console.error('[EMAIL_FINDER] No currentTargetId set!');
@@ -2144,7 +2144,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             console.log(`[EMAIL_FINDER] CONFIRMED: Sending messageId ${currentTargetId} to backend`);
             
-            const buttons = document.querySelectorAll(`[onclick*="handleAskEmailClick(${currentTargetId})"]`);
+            const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${currentTargetId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
