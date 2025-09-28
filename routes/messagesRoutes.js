@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (EXACT ORIGINAL VERSION)
+// GET /messages/history - Get messages for user (FIXED: LinkedIn URL mapping)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -56,7 +56,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 firstName: row["targetProfile.firstName"] || 'Unknown',
                 role: row["targetProfile.role"] || 'Professional', 
                 company: row["targetProfile.company"] || 'Company',
-                linkedinUrl: row.linkedinUrl
+                linkedinUrl: row.linkedinUrl  // FIXED: Moved inside targetProfile object
             },
             message: row.message || '',
             message_type: row.message_type,
