@@ -1349,28 +1349,34 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </nav>
 
     <!-- Email Finder Modals -->
-    <div class="modal-overlay" id="emailFinderModal">
+    <!-- 1. UPGRADE REQUIRED MODAL -->
+    <div class="modal-overlay" id="upgradeModal">
         <div class="modal">
             <div class="modal-header">
-                <div class="modal-title">Find & Verify Email</div>
+                <div class="modal-title">🚀 Upgrade Required</div>
             </div>
             <div class="modal-body">
-                We'll search for this contact's email address using Snov.io. You'll only be charged 2 credits if we successfully find and verify an email. Continue?
+                <strong>Email finder is available for Silver, Gold, and Platinum subscribers.</strong><br><br>
+                Your current plan: <span id="currentPlanDisplay">Free</span><br><br>
+                Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
             </div>
             <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
+                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
             </div>
         </div>
     </div>
 
+    <!-- 2. INSUFFICIENT CREDITS MODAL -->
     <div class="modal-overlay" id="insufficientCreditsModal">
         <div class="modal">
             <div class="modal-header">
-                <div class="modal-title">Not Enough Credits</div>
+                <div class="modal-title">💳 Not Enough Credits</div>
             </div>
             <div class="modal-body">
-                You need at least 2 credits to use the email finder. You currently have <span id="currentCredits">0</span> credits.
+                <strong>You need at least 2 credits to use the email finder.</strong><br><br>
+                You currently have <strong><span id="currentCredits">0</span> credits</strong>.<br><br>
+                Purchase more credits to continue finding email addresses.
             </div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
@@ -1379,17 +1385,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     </div>
 
-    <div class="modal-overlay" id="upgradeModal">
+    <!-- 3. EMAIL FINDER CONFIRMATION MODAL -->
+    <div class="modal-overlay" id="emailFinderModal">
         <div class="modal">
             <div class="modal-header">
-                <div class="modal-title">Upgrade Required</div>
+                <div class="modal-title">🔍 Find & Verify Email</div>
             </div>
             <div class="modal-body">
-                Email finder is available for Silver, Gold, and Platinum subscribers. Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
+                We'll search for this contact's email address using Snov.io. <strong>You'll only be charged 2 credits if we successfully find and verify an email.</strong><br><br>
+                No charge if email is not found. Continue?
             </div>
             <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
+                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
             </div>
         </div>
     </div>
@@ -1556,6 +1564,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let currentDateRangeFilter = 'all';
         let currentSearchTerm = '';
         let pendingChanges = new Map();
+        let currentTargetId = null; // RESTORED: currentTargetId for modal flow
         let currentUserPlan = null;
         let showingLimited = true;
         let CARDS_LIMIT = 21;
@@ -2092,13 +2101,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // CLEAN EMAIL FINDER - DIRECT API CALL, NO MODALS
+        // COMPLETE EMAIL FINDER FLOW AS REQUESTED
         function askEmailClick(messageId) {
             console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
             
-            // IMMEDIATE PLAN VALIDATION
+            // STEP 1: IMMEDIATE PLAN VALIDATION
             if (!currentUserPlan) {
-                console.log('[EMAIL_FINDER] No user plan data - showing upgrade modal');
+                console.log('[EMAIL_FINDER] No user plan data');
+                document.getElementById('currentPlanDisplay').textContent = 'Unknown';
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
@@ -2108,16 +2118,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
             
             if (!allowedPlans.includes(userPlan)) {
-                console.log(`[EMAIL_FINDER] Plan check failed: ${userPlan} not in allowed plans`);
+                console.log(`[EMAIL_FINDER] Plan validation failed: ${userPlan} not in allowed plans`);
+                document.getElementById('currentPlanDisplay').textContent = currentUserPlan.planName || 'Free';
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
-            // CHECK CREDITS
+            // STEP 2: CREDIT VALIDATION
             const userCredits = currentUserPlan.totalCredits || 0;
             
             if (userCredits < 2) {
-                console.log(`[EMAIL_FINDER] Insufficient credits: ${userCredits} < 2`);
+                console.log(`[EMAIL_FINDER] Credit validation failed: ${userCredits} < 2`);
                 const creditsElement = document.getElementById('currentCredits');
                 if (creditsElement) {
                     creditsElement.textContent = userCredits;
@@ -2126,16 +2137,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // ALL VALIDATIONS PASSED - CALL API DIRECTLY
+            // STEP 3: ALL VALIDATIONS PASSED - SHOW 2-CREDIT CONFIRMATION MODAL
             console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
-            callEmailFinderAPI(messageId);
+            currentTargetId = messageId; // SET currentTargetId for modal confirmation
+            document.getElementById('emailFinderModal').classList.add('active');
         }
 
-        // DIRECT API CALL WITHOUT CONFIRMATION MODAL
-        async function callEmailFinderAPI(messageId) {
-            console.log(`[EMAIL_FINDER] Calling API for messageId ${messageId}`);
+        // STEP 4: USER CONFIRMS - NO MORE VALIDATION, DIRECT API CALL
+        async function confirmEmailFinder() {
+            if (!currentTargetId) {
+                console.error('[EMAIL_FINDER] No currentTargetId set!');
+                return;
+            }
             
-            const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${messageId})"]`);
+            closeEmailModal();
+            
+            console.log(`[EMAIL_FINDER] CONFIRMED: Sending messageId ${currentTargetId} to backend`);
+            
+            const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${currentTargetId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
@@ -2156,7 +2175,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        messageId: messageId
+                        messageId: currentTargetId
                     })
                 });
                 
@@ -2174,7 +2193,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     }
                     
                     Object.values(groupedMessages).forEach(group => {
-                        if (group.id === messageId) {
+                        if (group.id === currentTargetId) {
                             group.emailFound = result.email;
                             group.emailStatus = 'verified';
                             group.emailVerifiedAt = new Date().toISOString();
@@ -2186,7 +2205,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 } else {
                     if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
                         Object.values(groupedMessages).forEach(group => {
-                            if (group.id === messageId) {
+                            if (group.id === currentTargetId) {
                                 group.emailStatus = 'not_found';
                                 group.emailVerifiedAt = new Date().toISOString();
                             }
@@ -2212,6 +2231,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     btn.disabled = false;
                 });
             }
+            
+            currentTargetId = null; // CLEAR currentTargetId after API call
         }
 
         function createMessageTypeBlock(type, label, messagesArray, iconClass) {
@@ -2450,8 +2471,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return finalText.trim();
         }
 
+        // MODAL FUNCTIONS
         function closeEmailModal() {
             document.getElementById('emailFinderModal').classList.remove('active');
+            currentTargetId = null;
         }
 
         function closeInsufficientCreditsModal() {
@@ -2462,18 +2485,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('upgradeModal').classList.remove('active');
         }
 
-        // LEGACY FUNCTION - KEEPING FOR MODAL COMPATIBILITY
-        function confirmEmailFinder() {
-            // This function is no longer used since we removed currentTargetId
-            // But keeping it in case modal buttons still reference it
-            console.log('[EMAIL_FINDER] confirmEmailFinder called but functionality moved to askEmailClick');
-            closeEmailModal();
-        }
-
         function getStatusIcon(status) {
             switch(status) {
-                case 'yes': return 'âœ"';
-                case 'no': return 'âœ—';
+                case 'yes': return '✓';
+                case 'no': return '✗';
                 default: return '?';
             }
         }
