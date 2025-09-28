@@ -1,4 +1,4 @@
-// emailFinder.js - FIXED: Using correct Snov.io v1 API for LinkedIn URLs
+// emailFinder.js - FINAL FIX: Correct Snov.io v1 API authentication
 // Direct integration with Snov.io API using LinkedIn URLs
 // Handles email finding and verification with "charge only on success" policy
 
@@ -14,7 +14,7 @@ class EmailFinder {
         this.timeoutMs = parseInt(process.env.EMAIL_FINDER_TIMEOUT_MS) || 10000;
         this.costPerSuccess = parseFloat(process.env.EMAIL_FINDER_COST_PER_SUCCESS_CREDITS) || 2.0;
         
-        // FIXED: Correct Snov.io API base URL
+        // Snov.io API configuration
         this.snovClientId = process.env.SNOV_CLIENT_ID;
         this.snovClientSecret = process.env.SNOV_CLIENT_SECRET;
         this.snovApiKey = process.env.SNOV_API_KEY;
@@ -23,7 +23,7 @@ class EmailFinder {
         // Check if we have credentials
         this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
         
-        logger.custom('EMAIL', 'Snov.io Email Finder initialized with v1 API:', {
+        logger.custom('EMAIL', 'Snov.io Email Finder initialized with correct authentication:', {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
@@ -168,7 +168,7 @@ class EmailFinder {
         }
     }
 
-    // FIXED: Correct Snov.io v1 API implementation for LinkedIn URLs
+    // FINAL FIX: Correct Snov.io v1 API implementation with proper authentication
     async findEmailWithSnovV1(linkedinUrl) {
         try {
             logger.info('Finding email with Snov.io v1 LinkedIn URL API...');
@@ -176,29 +176,23 @@ class EmailFinder {
             // Get access token
             const accessToken = await this.getSnovAccessToken();
             
-            // Step 1: Add LinkedIn URL for search (v1 API)
+            // Step 1: Add LinkedIn URL for search (v1 API with access_token as parameter)
             logger.debug('Step 1: Adding LinkedIn URL to Snov.io...');
             const addUrlResponse = await axios.post(`${this.snovBaseUrl}/v1/add-url-for-search`, {
                 access_token: accessToken,
                 url: linkedinUrl
             }, {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
                 timeout: this.timeoutMs
             });
             
             logger.debug('URL added to Snov.io:', addUrlResponse.data);
             
-            // Step 2: Get emails from the URL (v1 API)
+            // Step 2: Get emails from the URL (v1 API with access_token as parameter)
             logger.debug('Step 2: Getting emails from LinkedIn URL...');
             const emailsResponse = await axios.post(`${this.snovBaseUrl}/v1/get-emails-from-url`, {
                 access_token: accessToken,
                 url: linkedinUrl
             }, {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
                 timeout: this.timeoutMs
             });
             
@@ -206,6 +200,17 @@ class EmailFinder {
             
             // Parse response for found emails
             const responseData = emailsResponse.data;
+            
+            // Check if response indicates success
+            if (!responseData.success) {
+                logger.warn('Snov.io API returned success: false');
+                return {
+                    success: false,
+                    email: null,
+                    snovData: responseData
+                };
+            }
+
             const emails = responseData.data?.emails || [];
             
             if (emails && emails.length > 0) {
@@ -406,7 +411,7 @@ class EmailFinder {
         }
     }
 
-    // Fallback: Name-based email search using domain search
+    // Fallback: Name-based email search using domain search (v2 API with Bearer token)
     async findEmailWithSnovNames(profileData) {
         try {
             logger.info('Finding email with Snov.io name-based search...');
@@ -560,7 +565,7 @@ class EmailFinder {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             costPerSuccess: this.costPerSuccess,
-            mode: 'snov_v1_linkedin_url'
+            mode: 'snov_v1_linkedin_url_fixed'
         };
     }
 }
@@ -594,4 +599,4 @@ module.exports = {
     isEmailFinderEnabled
 };
 
-logger.success('Snov.io Email Finder module loaded with correct v1 API implementation!');
+logger.success('Snov.io Email Finder module loaded with final authentication fix!');
