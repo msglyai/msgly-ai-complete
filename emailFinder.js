@@ -1,4 +1,4 @@
-// emailFinder.js - FINAL FIX: Correct Snov.io v1 API authentication with required processing delay + EMAIL VERIFICATION
+// emailFinder.js - FINAL FIX: Correct Snov.io v1 API authentication with required processing delay + EMAIL VERIFICATION + ROBUST URL MATCHING
 // Direct integration with Snov.io API using LinkedIn URLs
 // Handles email finding and verification with "charge only on success" policy
 
@@ -29,7 +29,7 @@ class EmailFinder {
         // Check if we have credentials
         this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
         
-        logger.custom('EMAIL', 'Snov.io Email Finder initialized with verification and persistence:', {
+        logger.custom('EMAIL', 'Snov.io Email Finder initialized with verification and persistence + ROBUST URL MATCHING:', {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
@@ -104,11 +104,53 @@ class EmailFinder {
         }
     }
 
-    // NEW: Save email to target_profiles table
+    // FIXED: Robust URL matching for database save
     async saveEmailToProfile(linkedinUrl, email, verificationStatus) {
         try {
             const cleanUrl = cleanLinkedInUrl(linkedinUrl);
             
+            logger.debug(`Attempting to save email to target_profiles for URL: ${linkedinUrl} (cleaned: ${cleanUrl})`);
+            
+            // First, try to find the target profile with multiple URL variations
+            const findResult = await pool.query(`
+                SELECT id, linkedin_url FROM target_profiles 
+                WHERE linkedin_url = $1 OR linkedin_url = $2
+                LIMIT 1
+            `, [cleanUrl, linkedinUrl]);
+            
+            if (findResult.rows.length === 0) {
+                logger.warn(`No target_profiles record found for direct URL match: ${cleanUrl} or ${linkedinUrl}`);
+                
+                // Try a broader search by removing common variations
+                const baseUrl = linkedinUrl.replace(/\/$/, '').replace(/\/overlay\/.*$/, '').replace(/\?.*$/, '');
+                const searchPattern = baseUrl.split('/').pop(); // Get the profile identifier
+                
+                if (searchPattern && searchPattern.length > 3) {
+                    const broadResult = await pool.query(`
+                        SELECT id, linkedin_url FROM target_profiles 
+                        WHERE linkedin_url ILIKE '%' || $1 || '%'
+                        LIMIT 1
+                    `, [searchPattern]);
+                    
+                    if (broadResult.rows.length === 0) {
+                        logger.error(`Still no target_profiles record found for pattern: ${searchPattern}`);
+                        
+                        // Last attempt: try to find any profile with similar URL structure
+                        const allProfilesResult = await pool.query(`
+                            SELECT id, linkedin_url FROM target_profiles 
+                            ORDER BY created_at DESC LIMIT 5
+                        `);
+                        
+                        logger.debug(`Available profiles in target_profiles:`, allProfilesResult.rows.map(r => r.linkedin_url));
+                        
+                        return { success: false, error: 'Profile not found in target_profiles table' };
+                    }
+                    
+                    logger.info(`Found profile via pattern search: ${broadResult.rows[0].linkedin_url}`);
+                }
+            }
+            
+            // Perform the update using multiple URL variations
             const result = await pool.query(`
                 UPDATE target_profiles 
                 SET 
@@ -116,11 +158,19 @@ class EmailFinder {
                     email_status = $2,
                     email_verified_at = NOW(),
                     updated_at = NOW()
-                WHERE linkedin_url = $3 OR linkedin_url = $4
-            `, [email, verificationStatus, cleanUrl, linkedinUrl]);
+                WHERE linkedin_url = $3 OR linkedin_url = $4 OR linkedin_url ILIKE '%' || $5 || '%'
+                RETURNING id, linkedin_url, email_found, email_status
+            `, [email, verificationStatus, cleanUrl, linkedinUrl, linkedinUrl.split('/').pop()]);
             
-            logger.success(`Email saved to target_profiles: ${email} (${verificationStatus}) - ${result.rowCount} rows updated`);
-            return { success: true };
+            if (result.rows.length === 0) {
+                logger.error(`Update failed - no rows affected for any URL variation of: ${linkedinUrl}`);
+                return { success: false, error: 'Update failed - no matching profile found' };
+            }
+            
+            logger.success(`Email saved to target_profiles: ${email} (${verificationStatus}) - Profile ID: ${result.rows[0].id}`);
+            logger.debug(`Updated profile:`, result.rows[0]);
+            
+            return { success: true, profileId: result.rows[0].id };
             
         } catch (error) {
             logger.error('Error saving email to target_profiles:', error);
@@ -242,7 +292,7 @@ class EmailFinder {
         }
     }
 
-    // ENHANCED: Snov.io v1 API implementation with verification and persistence
+    // ENHANCED: Snov.io v1 API implementation with verification and robust persistence
     async findEmailWithSnovV1(linkedinUrl) {
         try {
             logger.info('Finding email with Snov.io v1 LinkedIn URL API...');
@@ -302,34 +352,38 @@ class EmailFinder {
                 if (validEmail) {
                     logger.info(`Email found by Snov.io v1: ${validEmail.email}`);
                     
-                    // NEW: Add verification step
+                    // NEW: Add verification step with better error handling
+                    let verificationStatus = 'unverified';
                     try {
                         const verificationResult = await this.verifySingleEmail(validEmail.email);
+                        verificationStatus = verificationResult.status;
                         
-                        // NEW: Save to target_profiles table  
-                        await this.saveEmailToProfile(linkedinUrl, validEmail.email, verificationResult.status);
-                        
-                        logger.info(`Email verified and saved: ${validEmail.email} (${verificationResult.status})`);
-                        
-                        return {
-                            success: true,
-                            email: validEmail.email,
-                            verificationStatus: verificationResult.status,
-                            snovData: responseData
-                        };
+                        logger.info(`Email verification completed: ${validEmail.email} -> ${verificationStatus}`);
                     } catch (verificationError) {
                         logger.error('Email verification failed, but email found:', verificationError);
-                        
-                        // Still save found email even if verification fails
-                        await this.saveEmailToProfile(linkedinUrl, validEmail.email, 'unverified');
-                        
-                        return {
-                            success: true,
-                            email: validEmail.email,
-                            verificationStatus: 'unverified', 
-                            snovData: responseData
-                        };
+                        verificationStatus = 'unverified';
                     }
+                    
+                    // ENHANCED: Robust database save with better error handling
+                    try {
+                        const saveResult = await this.saveEmailToProfile(linkedinUrl, validEmail.email, verificationStatus);
+                        if (saveResult.success) {
+                            logger.success(`Email successfully saved to database: ${validEmail.email}`);
+                        } else {
+                            logger.error(`Failed to save email to database: ${saveResult.error}`);
+                            // Continue anyway - don't fail the whole operation due to database issues
+                        }
+                    } catch (saveError) {
+                        logger.error('Database save error (continuing anyway):', saveError);
+                        // Don't fail the operation due to database save issues
+                    }
+                    
+                    return {
+                        success: true,
+                        email: validEmail.email,
+                        verificationStatus: verificationStatus,
+                        snovData: responseData
+                    };
                 }
             }
             
@@ -668,7 +722,7 @@ class EmailFinder {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             costPerSuccess: this.costPerSuccess,
-            mode: 'snov_v1_linkedin_url_with_verification_and_persistence'
+            mode: 'snov_v1_linkedin_url_with_verification_persistence_robust_url_matching'
         };
     }
 }
@@ -702,4 +756,4 @@ module.exports = {
     isEmailFinderEnabled
 };
 
-logger.success('Snov.io Email Finder module loaded with verification and persistence!');
+logger.success('Snov.io Email Finder module loaded with verification, persistence, and robust URL matching!');
