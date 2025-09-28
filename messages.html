@@ -2126,7 +2126,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </button>`;
             }
             
-            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${messageGroup.id})" title="Ask Email (2 credits)">
+            return `<button class="email-ask-btn" onclick="handleAskEmailClick(${messageGroup.id})" title="Ask Email (2 credits)">
                 <i class="fas fa-search"></i> Ask Email
             </button>`;
         }
@@ -2166,261 +2166,32 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        function createMessageTypeBlock(type, label, messagesArray, iconClass) {
-            if (!messagesArray || messagesArray.length === 0) {
-                return '';
-            }
-
-            const latestMessage = messagesArray[0];
-            const latestMessageText = cleanMessageText(latestMessage.message || '');
-            const latestPreview = latestMessageText.length > 80 ? latestMessageText.substring(0, 80) + '...' : latestMessageText;
-            const uniqueId = `${type}-${latestMessage.id}`;
-            const hasMultiple = messagesArray.length > 1;
+        // FIXED EMAIL FINDER FLOW - IMMEDIATE VALIDATION ON CLICK
+        function handleAskEmailClick(messageId) {
+            console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
             
-            let historyHTML = '';
-            
-            historyHTML += `
-                <div class="message-history-item latest">
-                    <div class="message-timestamp">
-                        <i class="fas fa-clock"></i>
-                        Latest: ${formatMessageDate(latestMessage.created_at || latestMessage.createdAt)}
-                    </div>
-                    <div class="message-content-preview" id="preview-${uniqueId}">${latestPreview}</div>
-                    <div class="message-text" id="message-${uniqueId}" style="display: none;">
-                        ${latestMessageText}
-                    </div>
-                </div>
-            `;
-            
-            if (hasMultiple) {
-                historyHTML += `<div class="message-history-previous" id="history-${uniqueId}" style="display: none;">`;
-                
-                messagesArray.slice(1).forEach((msg, index) => {
-                    const msgText = cleanMessageText(msg.message || '');
-                    const msgPreview = msgText.length > 60 ? msgText.substring(0, 60) + '...' : msgText;
-                    const msgUniqueId = `${type}-${msg.id}`;
-                    
-                    historyHTML += `
-                        <div class="message-history-item collapsed" onclick="toggleHistoryMessage('${msgUniqueId}', this)">
-                            <div class="message-timestamp">
-                                <i class="fas fa-history"></i>
-                                Previous: ${formatMessageDate(msg.created_at || msg.createdAt)}
-                            </div>
-                            <div class="message-content-preview" id="preview-${msgUniqueId}">${msgPreview}</div>
-                            <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
-                                ${msgText}
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                historyHTML += `</div>`;
-            }
-            
-            return `
-                <div class="message-type-block ${type}">
-                    <div class="message-type-header">
-                        <div class="message-type-label ${type}">
-                            <i class="${iconClass}"></i>
-                            ${label}
-                        </div>
-                        <div class="message-actions">
-                            <button class="edit-btn" onclick="editMessage('${type}', ${latestMessage.id})">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button class="copy-btn" onclick="copyMessage('${type}', ${latestMessage.id}, this)">
-                                <i class="fas fa-copy"></i> Copy
-                            </button>
-                        </div>
-                    </div>
-                    ${historyHTML}
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.8rem;">
-                        ${hasMultiple ? `
-                        <button class="expand-btn" onclick="toggleMessageHistory('${uniqueId}', this)">
-                            <i class="fas fa-history"></i> History
-                        </button>` : ''}
-                        <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
-                            <i class="fas fa-chevron-down"></i> Expand
-                        </button>
-                        ${hasMultiple ? `<span class="message-version-count">${messagesArray.length} versions</span>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-
-        function formatMessageDate(dateString) {
-            try {
-                let dateToFormat = dateString;
-                
-                if (!dateToFormat) {
-                    return 'Just now';
-                }
-                
-                const date = new Date(dateToFormat);
-                
-                if (isNaN(date.getTime())) {
-                    return 'Date unavailable';
-                }
-                
-                const now = new Date();
-                const diffTime = now - date;
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (diffDays === 0) {
-                    return date.toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: true 
-                    }) + ' (today)';
-                } else if (diffDays === 1) {
-                    return date.toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: true 
-                    }) + ' (yesterday)';
-                } else if (diffDays < 7) {
-                    return date.toLocaleDateString('en-US', { 
-                        weekday: 'short',
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: true 
-                    });
-                } else {
-                    return date.toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                    });
-                }
-            } catch (error) {
-                return 'Date error';
-            }
-        }
-
-        function toggleMessageHistory(messageId, button) {
-            const historyElement = document.getElementById(`history-${messageId}`);
-            const isVisible = historyElement.style.display !== 'none';
-            
-            if (isVisible) {
-                historyElement.style.display = 'none';
-                button.innerHTML = '<i class="fas fa-history"></i> History';
-            } else {
-                historyElement.style.display = 'block';
-                button.innerHTML = '<i class="fas fa-history"></i> Hide History';
-            }
-        }
-
-        function toggleHistoryMessage(messageId, element) {
-            const messageElement = document.getElementById(`message-${messageId}`);
-            const previewElement = document.getElementById(`preview-${messageId}`);
-            const isExpanded = messageElement.style.display !== 'none';
-            
-            if (isExpanded) {
-                messageElement.style.display = 'none';
-                previewElement.style.display = 'block';
-                element.classList.add('collapsed');
-            } else {
-                messageElement.style.display = 'block';
-                previewElement.style.display = 'none';
-                element.classList.remove('collapsed');
-            }
-        }
-
-        function toggleMessageExpand(messageId, button) {
-            const messageElement = document.getElementById(`message-${messageId}`);
-            const previewElement = document.getElementById(`preview-${messageId}`);
-            
-            if (!messageElement || !previewElement) {
-                return;
-            }
-            
-            const isExpanded = messageElement.style.display === 'block';
-            
-            if (isExpanded) {
-                messageElement.style.display = 'none';
-                previewElement.style.display = 'block';
-                button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
-            } else {
-                messageElement.style.display = 'block';
-                previewElement.style.display = 'none';
-                button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
-            }
-        }
-
-        function editMessage(type, messageId) {
-            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
-        }
-
-        async function copyMessage(type, messageId, button) {
-            try {
-                let targetMessage = null;
-                Object.values(groupedMessages).forEach(group => {
-                    ['linkedin', 'connection', 'email'].forEach(messageType => {
-                        const messages = group.messages[messageType];
-                        if (Array.isArray(messages)) {
-                            const found = messages.find(m => m.id === messageId);
-                            if (found) targetMessage = found;
-                        }
-                    });
-                });
-                
-                if (!targetMessage || !targetMessage.message) {
-                    throw new Error('Message not found');
-                }
-                
-                const cleanMessage = cleanMessageText(targetMessage.message);
-                
-                await navigator.clipboard.writeText(cleanMessage);
-                
-                const originalHTML = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                button.classList.add('copied');
-                
-                setTimeout(() => {
-                    button.innerHTML = originalHTML;
-                    button.classList.remove('copied');
-                }, 2000);
-                
-            } catch (error) {
-                const originalHTML = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
-                
-                setTimeout(() => {
-                    button.innerHTML = originalHTML;
-                }, 2000);
-            }
-        }
-
-        function cleanMessageText(messageText) {
-            if (!messageText) return '';
-            
-            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
-            const finalText = cleanedText.replace(/^Subject:\s*/i, '');
-            
-            return finalText.trim();
-        }
-
-        function showEmailFinderModal(messageId) {
-            currentTargetId = messageId;
-            
+            // STEP 1: IMMEDIATE PLAN VALIDATION (NO MODAL OPENING YET)
             if (!currentUserPlan) {
+                console.log('[EMAIL_FINDER] No user plan data - showing upgrade modal');
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
+            // Check if user has valid plan (Silver/Gold/Platinum)
             const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
             const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
             
             if (!allowedPlans.includes(userPlan)) {
+                console.log(`[EMAIL_FINDER] Plan check failed: ${userPlan} not in allowed plans`);
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
+            // STEP 2: CHECK CREDITS
             const userCredits = currentUserPlan.totalCredits || 0;
             
             if (userCredits < 2) {
+                console.log(`[EMAIL_FINDER] Insufficient credits: ${userCredits} < 2`);
                 const creditsElement = document.getElementById('currentCredits');
                 if (creditsElement) {
                     creditsElement.textContent = userCredits;
@@ -2429,18 +2200,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
+            // STEP 3: ALL VALIDATIONS PASSED - SHOW CONFIRMATION MODAL
+            console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
+            currentTargetId = messageId;  // Set the ID here - ONLY when we're ready to proceed
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
-        // SIMPLIFIED Email Finder - Just send messageId to backend
+        // SIMPLIFIED - NO MORE VALIDATION IN CONFIRMATION
         async function confirmEmailFinder() {
-            if (!currentTargetId) return;
+            if (!currentTargetId) {
+                console.error('[EMAIL_FINDER] No currentTargetId set!');
+                return;
+            }
             
             closeEmailModal();
             
-            console.log(`[EMAIL_FINDER] SIMPLIFIED: Sending messageId ${currentTargetId} to backend`);
+            console.log(`[EMAIL_FINDER] CONFIRMED: Sending messageId ${currentTargetId} to backend`);
             
-            const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
+            const buttons = document.querySelectorAll(`[onclick*="handleAskEmailClick(${currentTargetId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
@@ -2468,12 +2245,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
                     window.location.href = '/login?returnUrl=/messages';
-                    return;
-                }
-                
-                if (response.status === 403) {
-                    const result = await response.json();
-                    document.getElementById('upgradeModal').classList.add('active');
                     return;
                 }
                 
@@ -2526,237 +2297,3 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             currentTargetId = null;
         }
-
-        function closeEmailModal() {
-            document.getElementById('emailFinderModal').classList.remove('active');
-            currentTargetId = null;
-        }
-
-        function closeInsufficientCreditsModal() {
-            document.getElementById('insufficientCreditsModal').classList.remove('active');
-        }
-
-        function closeUpgradeModal() {
-            document.getElementById('upgradeModal').classList.remove('active');
-        }
-
-        function getStatusIcon(status) {
-            switch(status) {
-                case 'yes': return '✓';
-                case 'no': return '✗';
-                default: return '?';
-            }
-        }
-
-        function getStatusLabel(status) {
-            switch(status) {
-                case 'yes': return 'Yes';
-                case 'no': return 'No';
-                default: return 'Pending';
-            }
-        }
-
-        function toggleStatus(messageId, field) {
-            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
-            if (!messageGroup) return;
-            
-            switch(messageGroup[field]) {
-                case 'pending':
-                    messageGroup[field] = 'yes';
-                    break;
-                case 'yes':
-                    messageGroup[field] = 'no';
-                    break;
-                case 'no':
-                    messageGroup[field] = 'pending';
-                    break;
-            }
-            
-            markMessageModified(messageId);
-            updateToggleDisplay(messageId, field, messageGroup[field]);
-            updateMessagesStats();
-        }
-
-        function updateToggleDisplay(messageId, field, status) {
-            const selectors = [
-                `[onclick="toggleStatus(${messageId}, '${field}')"]`,
-            ];
-            
-            selectors.forEach(selector => {
-                const toggles = document.querySelectorAll(selector);
-                toggles.forEach(toggle => {
-                    toggle.className = `toggle-switch ${status}`;
-                    const slider = toggle.querySelector('.toggle-slider');
-                    const label = toggle.nextElementSibling;
-                    
-                    if (slider) slider.textContent = getStatusIcon(status);
-                    if (label) label.textContent = getStatusLabel(status);
-                });
-            });
-        }
-
-        function updateComment(messageId, value) {
-            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
-            if (messageGroup) {
-                messageGroup.comments = value;
-                markMessageModified(messageId);
-            }
-        }
-
-        function markFieldModified(messageId) {
-            markMessageModified(messageId);
-            
-            const commentFields = document.querySelectorAll(`textarea[onchange*="${messageId}"]`);
-            commentFields.forEach(field => field.classList.add('modified'));
-        }
-
-        function markMessageModified(messageId) {
-            if (!pendingChanges.has(messageId)) {
-                pendingChanges.set(messageId, true);
-            }
-            
-            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
-            saveButtons.forEach(btn => btn.classList.add('modified'));
-        }
-
-        async function saveMessage(messageId) {
-            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
-            if (!messageGroup || !pendingChanges.has(messageId)) return;
-            
-            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
-            
-            try {
-                saveButtons.forEach(btn => {
-                    btn.classList.add('saving');
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-                });
-                
-                const token = getAuthToken();
-                if (!token) {
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                const response = await fetch(`/messages/${messageId}`, {
-                    method: 'PUT',
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        sent_status: messageGroup.sent,
-                        reply_status: messageGroup.gotReply,
-                        comments: messageGroup.comments
-                    })
-                });
-                
-                if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error(result.error || 'Failed to save message');
-                }
-                
-                saveButtons.forEach(btn => {
-                    btn.classList.remove('saving', 'modified');
-                    btn.classList.add('saved');
-                    btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
-                });
-                
-                pendingChanges.delete(messageId);
-                
-                setTimeout(() => {
-                    saveButtons.forEach(btn => {
-                        btn.classList.remove('saved');
-                        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
-                    });
-                }, 2000);
-                
-            } catch (error) {
-                console.error('[MESSAGES] Error saving message:', error);
-                
-                saveButtons.forEach(btn => {
-                    btn.classList.remove('saving');
-                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
-                });
-                
-                setTimeout(() => {
-                    saveButtons.forEach(btn => {
-                        btn.classList.add('modified');
-                        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
-                    });
-                }, 3000);
-            }
-        }
-
-        function updateMessagesStats() {
-            const totalMessages = filteredMessages.length;
-            const sentMessages = filteredMessages.filter(group => group.sent === 'yes').length;
-            const repliedMessages = filteredMessages.filter(group => group.gotReply === 'yes').length;
-            const responseRate = sentMessages > 0 ? Math.round((repliedMessages / sentMessages) * 100) : 0;
-            
-            document.getElementById('totalMessages').textContent = totalMessages;
-            document.getElementById('sentMessages').textContent = sentMessages;
-            document.getElementById('repliedMessages').textContent = repliedMessages;
-            document.getElementById('responseRate').textContent = `${responseRate}%`;
-        }
-
-        function refreshMessages() {
-            const refreshBtn = document.querySelector('.refresh-btn i');
-            refreshBtn.classList.add('fa-spin');
-            
-            loadMessagesData().finally(() => {
-                refreshBtn.classList.remove('fa-spin');
-            });
-        }
-
-        function showEmptyState() {
-            document.getElementById('loadingState').style.display = 'none';
-            document.getElementById('emptyState').style.display = 'block';
-            document.getElementById('messagesCardsGrid').style.display = 'none';
-            document.getElementById('paginationInfo').style.display = 'none';
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('active');
-        }
-
-        function logout() {
-            localStorage.removeItem('authToken');
-            window.location.href = '/login';
-        }
-
-        // Close modals when clicking outside
-        document.addEventListener('click', function(event) {
-            if (event.target.classList.contains('modal-overlay')) {
-                closeEmailModal();
-                closeInsufficientCreditsModal();
-                closeUpgradeModal();
-            }
-        });
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(event) {
-            const sidebar = document.getElementById('sidebar');
-            const toggle = document.querySelector('.sidebar-toggle');
-            
-            if (window.innerWidth <= 768 && 
-                !sidebar.contains(event.target) && 
-                !toggle.contains(event.target) && 
-                sidebar.classList.contains('active')) {
-                sidebar.classList.remove('active');
-            }
-        });
-    </script>
-</body>
-</html>
