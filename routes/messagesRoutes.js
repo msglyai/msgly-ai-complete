@@ -149,6 +149,9 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         
         const { messageId } = req.body;
         
+        // DEBUG: Add this line to see what we're actually receiving
+        console.log('DEBUG - Request body:', req.body, 'User ID:', req.user?.id);
+        
         if (!messageId) {
             return res.status(400).json({
                 success: false,
