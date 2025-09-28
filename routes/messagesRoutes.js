@@ -43,7 +43,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 COALESCE(ml.reply_status, 'pending') as "gotReply",
                 COALESCE(ml.comments, '') as comments,
                 ml.sent_date,
-                ml.reply_date
+                ml.reply_date,
+                ml.target_profile_url as linkedinUrl
             FROM message_logs ml 
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
@@ -54,7 +55,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             targetProfile: {
                 firstName: row["targetProfile.firstName"] || 'Unknown',
                 role: row["targetProfile.role"] || 'Professional', 
-                company: row["targetProfile.company"] || 'Company'
+                company: row["targetProfile.company"] || 'Company',
+                linkedinUrl: row.linkedinUrl
             },
             message: row.message || '',
             message_type: row.message_type,
