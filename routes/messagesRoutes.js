@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (FIXED: LinkedIn URL mapping)
+// GET /messages/history - Get messages for user (EXACT ORIGINAL VERSION)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -56,7 +56,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 firstName: row["targetProfile.firstName"] || 'Unknown',
                 role: row["targetProfile.role"] || 'Professional', 
                 company: row["targetProfile.company"] || 'Company',
-                linkedinUrl: row.linkedinUrl  // FIXED: Moved inside targetProfile object
+                linkedinUrl: row.linkedinUrl
             },
             message: row.message || '',
             message_type: row.message_type,
@@ -141,20 +141,44 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
 
 // ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - Find email using LinkedIn URL directly
+// POST /api/ask-email - SIMPLIFIED: Find email using messageId (backend looks up LinkedIn URL)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== LINKEDIN URL EMAIL FINDER REQUEST ===');
+        logger.custom('EMAIL', '=== SIMPLIFIED EMAIL FINDER REQUEST ===');
         logger.info(`User ID: ${req.user.id}`);
         
-        const { linkedinUrl } = req.body;
+        const { messageId } = req.body;
+        
+        if (!messageId) {
+            return res.status(400).json({
+                success: false,
+                error: 'messageId is required'
+            });
+        }
+        
+        // SIMPLIFIED: Look up LinkedIn URL from database using messageId
+        const messageResult = await pool.query(
+            'SELECT target_profile_url FROM message_logs WHERE id = $1 AND user_id = $2',
+            [messageId, req.user.id]
+        );
+        
+        if (messageResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Message not found'
+            });
+        }
+        
+        const linkedinUrl = messageResult.rows[0].target_profile_url;
         
         if (!linkedinUrl) {
             return res.status(400).json({
                 success: false,
-                error: 'linkedinUrl is required'
+                error: 'LinkedIn URL not found for this message'
             });
         }
+        
+        logger.info(`Found LinkedIn URL for message ${messageId}: ${linkedinUrl}`);
         
         // Check if user has Silver+ plan
         const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
@@ -181,10 +205,10 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // Call email finder with LinkedIn URL directly
+        // Call email finder with LinkedIn URL (looked up from database)
         const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
-        logger.custom('EMAIL', `LinkedIn URL email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        logger.custom('EMAIL', `Email finder result for message ${messageId}: ${result.success ? 'SUCCESS' : 'FAILED'}`);
         
         res.json(result);
         
