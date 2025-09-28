@@ -1397,7 +1397,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="confirmEmailFinder()">Yes, Find Email</button>
+                <button class="modal-btn primary">Yes, Find Email</button>
             </div>
         </div>
     </div>
@@ -1564,7 +1564,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let currentDateRangeFilter = 'all';
         let currentSearchTerm = '';
         let pendingChanges = new Map();
-        let currentTargetId = null; // RESTORED: currentTargetId for modal flow
         let currentUserPlan = null;
         let showingLimited = true;
         let CARDS_LIMIT = 21;
@@ -2101,7 +2100,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // COMPLETE EMAIL FINDER FLOW AS REQUESTED
+        // SIMPLE EMAIL FINDER FLOW - NO GLOBAL VARIABLE
         function askEmailClick(messageId) {
             console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
             
@@ -2139,22 +2138,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             // STEP 3: ALL VALIDATIONS PASSED - SHOW 2-CREDIT CONFIRMATION MODAL
             console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
-            currentTargetId = messageId; // SET currentTargetId for modal confirmation
+            showEmailConfirmationModal(messageId);
+        }
+
+        function showEmailConfirmationModal(messageId) {
+            // Store messageId in the modal button directly
+            const confirmButton = document.querySelector('#emailFinderModal .modal-btn.primary');
+            confirmButton.onclick = () => confirmEmailFinder(messageId);
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
         // STEP 4: USER CONFIRMS - NO MORE VALIDATION, DIRECT API CALL
-        async function confirmEmailFinder() {
-            if (!currentTargetId) {
-                console.error('[EMAIL_FINDER] No currentTargetId set!');
-                return;
-            }
-            
+        async function confirmEmailFinder(messageId) {
             closeEmailModal();
             
-            console.log(`[EMAIL_FINDER] CONFIRMED: Sending messageId ${currentTargetId} to backend`);
+            console.log(`[EMAIL_FINDER] CONFIRMED: Sending messageId ${messageId} to backend`);
             
-            const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${currentTargetId})"]`);
+            const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${messageId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
@@ -2175,7 +2175,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        messageId: currentTargetId
+                        messageId: messageId
                     })
                 });
                 
@@ -2193,7 +2193,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     }
                     
                     Object.values(groupedMessages).forEach(group => {
-                        if (group.id === currentTargetId) {
+                        if (group.id === messageId) {
                             group.emailFound = result.email;
                             group.emailStatus = 'verified';
                             group.emailVerifiedAt = new Date().toISOString();
@@ -2205,7 +2205,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 } else {
                     if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
                         Object.values(groupedMessages).forEach(group => {
-                            if (group.id === currentTargetId) {
+                            if (group.id === messageId) {
                                 group.emailStatus = 'not_found';
                                 group.emailVerifiedAt = new Date().toISOString();
                             }
@@ -2231,8 +2231,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     btn.disabled = false;
                 });
             }
-            
-            currentTargetId = null; // CLEAR currentTargetId after API call
         }
 
         function createMessageTypeBlock(type, label, messagesArray, iconClass) {
@@ -2471,10 +2469,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return finalText.trim();
         }
 
-        // MODAL FUNCTIONS
         function closeEmailModal() {
             document.getElementById('emailFinderModal').classList.remove('active');
-            currentTargetId = null;
         }
 
         function closeInsufficientCreditsModal() {
@@ -2704,4 +2700,4 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         });
     </script>
 </body>
-</html>
+</html> '
