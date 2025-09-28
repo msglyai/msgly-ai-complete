@@ -2536,22 +2536,62 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         // FIXED: Helper function to get LinkedIn URL from message group
         function getCurrentLinkedInUrl(messageId) {
+            console.log('[EMAIL_FINDER] Looking for LinkedIn URL for message ID:', messageId);
+            
             // Find the message group that contains this messageId
             const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
             if (!messageGroup) {
                 console.error('[EMAIL_FINDER] Message group not found for ID:', messageId);
+                console.log('[EMAIL_FINDER] Available message groups:', Object.values(groupedMessages).map(g => ({id: g.id, target: g.target})));
                 return null;
             }
             
-            // Try to get LinkedIn URL from the message group data
-            // Look for LinkedIn URL in various possible fields
-            const linkedinUrl = messageGroup.target.linkedinUrl || 
-                               messageGroup.target.linkedin_url || 
-                               messageGroup.linkedinUrl ||
-                               messageGroup.linkedin_url;
+            console.log('[EMAIL_FINDER] Found message group:', messageGroup);
+            
+            // Try to get LinkedIn URL from multiple possible locations
+            let linkedinUrl = null;
+            
+            // Check target object first
+            if (messageGroup.target) {
+                linkedinUrl = messageGroup.target.linkedinUrl || 
+                             messageGroup.target.linkedin_url || 
+                             messageGroup.target.linkedInUrl ||
+                             messageGroup.target.url;
+            }
+            
+            // Check message group directly
+            if (!linkedinUrl) {
+                linkedinUrl = messageGroup.linkedinUrl ||
+                             messageGroup.linkedin_url ||
+                             messageGroup.linkedInUrl ||
+                             messageGroup.url;
+            }
+            
+            // Check individual messages for LinkedIn URL
+            if (!linkedinUrl && messageGroup.messages) {
+                const allMessages = [
+                    ...(messageGroup.messages.linkedin || []),
+                    ...(messageGroup.messages.connection || []),
+                    ...(messageGroup.messages.email || [])
+                ];
+                
+                for (const msg of allMessages) {
+                    if (msg.id === messageId) {
+                        linkedinUrl = msg.linkedinUrl || 
+                                     msg.linkedin_url || 
+                                     msg.linkedInUrl ||
+                                     msg.target_profile_url ||
+                                     msg.targetProfileUrl;
+                        break;
+                    }
+                }
+            }
             
             if (!linkedinUrl) {
-                console.error('[EMAIL_FINDER] No LinkedIn URL found for message group:', messageGroup);
+                console.error('[EMAIL_FINDER] No LinkedIn URL found for message group. Available fields:');
+                console.log('[EMAIL_FINDER] Target fields:', messageGroup.target ? Object.keys(messageGroup.target) : 'No target object');
+                console.log('[EMAIL_FINDER] Message group fields:', Object.keys(messageGroup));
+                console.log('[EMAIL_FINDER] Full message group structure:', messageGroup);
                 return null;
             }
             
