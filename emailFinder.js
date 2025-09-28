@@ -168,7 +168,7 @@ class EmailFinder {
         }
     }
 
-    // MINIMAL FIX: Only changed the API endpoint path
+    // MINIMAL FIX: Only changed the API endpoint path and auth header
     async findEmailWithSnovUrl(linkedinUrl) {
         try {
             logger.info('Finding email with Snov.io LinkedIn URL API...');
@@ -182,7 +182,7 @@ class EmailFinder {
                 url: linkedinUrl
             }, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Token ${accessToken}`,  // FIXED: Changed from Bearer to Token
                     'Content-Type': 'application/json'
                 },
                 timeout: this.timeoutMs
@@ -381,7 +381,7 @@ class EmailFinder {
         }
     }
 
-    // MINIMAL FIX: Only changed API endpoint path
+    // MINIMAL FIX: Only changed API endpoint path and auth headers
     async findEmailWithSnov(profileData) {
         try {
             logger.info('Finding email with real Snov.io API...');
@@ -410,7 +410,7 @@ class EmailFinder {
                 last_name: lastName
             }, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Token ${accessToken}`,  // FIXED: Changed from Bearer to Token
                     'Content-Type': 'application/json'
                 },
                 timeout: this.timeoutMs
@@ -448,7 +448,7 @@ class EmailFinder {
                 email: foundProspect.email
             }, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Token ${accessToken}`,  // FIXED: Changed from Bearer to Token
                     'Content-Type': 'application/json'
                 },
                 timeout: this.timeoutMs
