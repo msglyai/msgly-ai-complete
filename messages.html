@@ -1631,8 +1631,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let pendingChanges = new Map();
         let currentTargetId = null; 
         let currentUserPlan = null;
-        let showingLimited = true; // NEW: Track if we're showing limited results
-        let CARDS_LIMIT = 21; // NEW: Number of cards to show initially
+        let showingLimited = true;
+        let CARDS_LIMIT = 21;
 
         // Authentication check and data loading
         document.addEventListener('DOMContentLoaded', function() {
@@ -1646,7 +1646,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function checkAuthentication() {
             const token = getAuthToken();
             if (!token) {
-                // FIXED: Use return URL mechanism to preserve user intent
                 window.location.href = '/login?returnUrl=/messages';
                 return false;
             }
@@ -1662,7 +1661,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             try {
                 const token = getAuthToken();
                 if (!token) {
-                    // FIXED: Use return URL mechanism to preserve user intent
                     window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
@@ -1677,7 +1675,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
-                    // FIXED: Use return URL mechanism to preserve user intent
                     window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
@@ -1691,24 +1688,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (data.success) {
                     const user = data.data.user;
                     
-                    // DEBUG: Log the entire user object to see what fields are available
-                    console.log('[PROFILE] Full user object:', user);
-                    console.log('[PROFILE] Available credit fields:', {
-                        totalCredits: user.totalCredits,
-                        credits: user.credits,
-                        creditBalance: user.creditBalance,
-                        credits_remaining: user.credits_remaining,
-                        available_credits: user.available_credits,
-                        remainingCredits: user.remainingCredits
-                    });
-                    
                     currentUserPlan = {
                         planCode: user.planCode || user.plan_code || 'free',
                         totalCredits: user.totalCredits || user.credits || user.credits_remaining || user.creditBalance || user.available_credits || user.remainingCredits || 0,
                         planName: user.planName || user.plan_name || 'Free'
                     };
-                    
-                    console.log('[PROFILE] User credits loaded:', currentUserPlan.totalCredits);
                     
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
@@ -1728,8 +1712,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     const displayName = user.displayName || user.email;
                     const initials = getInitials(displayName);
                     document.getElementById('sidebarUserAvatar').textContent = initials;
-                    
-                    console.log('[PROFILE] User profile loaded successfully');
                 } else {
                     throw new Error(data.error || 'Failed to load profile');
                 }
@@ -1761,12 +1743,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 const token = getAuthToken();
                 if (!token) {
-                    // FIXED: Use return URL mechanism to preserve user intent
                     window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
-                
-                console.log('[MESSAGES] Loading messages from API...');
                 
                 const response = await fetch('/messages/history', {
                     method: 'GET',
@@ -1778,7 +1757,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
-                    // FIXED: Use return URL mechanism to preserve user intent
                     window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
@@ -1791,7 +1769,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 if (data.success) {
                     messagesData = data.data || [];
-                    console.log(`[MESSAGES] Loaded ${messagesData.length} messages from database`);
                     groupMessagesByTarget();
                 } else {
                     throw new Error(data.error || 'Failed to load messages');
@@ -1812,7 +1789,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Group messages by target profile - FIXED: Use database message_type directly
+        // Group messages by target profile
         function groupMessagesByTarget() {
             groupedMessages = {};
             
@@ -1820,7 +1797,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
                 
                 if (!groupedMessages[targetKey]) {
-                    // FIXED: Handle different date field formats from database
                     const messageDate = new Date(message.created_at || message.createdAt || Date.now());
                     
                     groupedMessages[targetKey] = {
@@ -1830,7 +1806,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             connection: [],
                             email: []
                         },
-                        // Use the first message's metadata for status/comments
                         id: message.id,
                         sent: message.sent,
                         gotReply: message.gotReply,
@@ -1838,20 +1813,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         emailFound: message.emailFound,
                         emailStatus: message.emailStatus,
                         emailVerifiedAt: message.emailVerifiedAt,
-                        latestMessageDate: messageDate // Track latest message date for sorting
+                        latestMessageDate: messageDate
                     };
                 } else {
-                    // Update latest message date if this message is newer
                     const messageDate = new Date(message.created_at || message.createdAt || Date.now());
                     if (messageDate > groupedMessages[targetKey].latestMessageDate) {
                         groupedMessages[targetKey].latestMessageDate = messageDate;
                     }
                 }
                 
-                // FIXED: Use database message_type directly instead of content analysis
                 const messageType = getMessageTypeFromDatabase(message.message_type || message.messageType);
-                
-                console.log(`[DB_TYPE] Message ID ${message.id}: "${messageType.toUpperCase()}" from database field: "${message.message_type || message.messageType}"`);
                 
                 if (messageType === 'connection') {
                     groupedMessages[targetKey].messages.connection.push(message);
@@ -1868,48 +1839,36 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 group.messages.connection.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
                 group.messages.email.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
             });
-            
-            console.log('[MESSAGES] Grouped into', Object.keys(groupedMessages).length, 'target profiles with message history');
         }
 
-        // FIXED: Map database message_type values to UI categories
         function getMessageTypeFromDatabase(dbMessageType) {
             if (!dbMessageType) {
-                return 'linkedin'; // Default fallback
+                return 'linkedin';
             }
             
             const dbType = dbMessageType.toLowerCase();
             
-            // Map database values to UI categories
             if (dbType.includes('connection') || dbType === 'connection_request') {
                 return 'connection';
             } else if (dbType.includes('email') || dbType === 'cold_email') {
                 return 'email';
             } else {
-                return 'linkedin'; // Default: linkedin_message, message, etc.
+                return 'linkedin';
             }
         }
 
-        // NEW: Filter functions with date range support
         function applyFilters() {
             let filtered = Object.values(groupedMessages);
             
-            // Apply status filter
             filtered = filterMessagesByStatus(filtered);
-            
-            // Apply message type filter
             filtered = filterMessagesByType(filtered);
-            
-            // Apply date range filter
             filtered = filterMessagesByDateRange(filtered);
             
-            // Apply search filter
             if (currentSearchTerm) {
                 filtered = filtered.filter(group => {
                     const target = group.target;
                     const messages = group.messages;
                     
-                    // Search in target profile
                     const targetMatch = (
                         (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
                         (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
@@ -1917,7 +1876,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
                     );
                     
-                    // Search in all message arrays
                     const messageMatch = ['linkedin', 'connection', 'email'].some(type => {
                         const messageArray = messages[type];
                         if (Array.isArray(messageArray)) {
@@ -1932,7 +1890,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 });
             }
             
-            // Sort by latest message date (newest first)
             filtered.sort((a, b) => b.latestMessageDate - a.latestMessageDate);
             
             filteredMessages = filtered;
@@ -1940,7 +1897,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             updateMessagesStats();
         }
 
-        // NEW: Message type filtering
+        function filterMessagesByStatus(messageGroups) {
+            switch (currentStatusFilter) {
+                case 'sent':
+                    return messageGroups.filter(group => group.sent === 'yes');
+                case 'replied':
+                    return messageGroups.filter(group => group.gotReply === 'yes');
+                case 'pending':
+                    return messageGroups.filter(group => group.sent === 'yes' && group.gotReply !== 'yes');
+                case 'all':
+                default:
+                    return messageGroups;
+            }
+        }
+
         function filterMessagesByType(messageGroups) {
             if (currentMessageTypeFilter === 'all') {
                 return messageGroups;
@@ -1961,7 +1931,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             });
         }
 
-        // NEW: Date range filtering
         function filterMessagesByDateRange(messageGroups) {
             if (currentDateRangeFilter === 'all') {
                 return messageGroups;
@@ -1997,11 +1966,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             applyFilters();
         }
 
-        // NEW: Individual filter functions for UI
         function filterByStatus(status) {
             currentStatusFilter = status;
             
-            // Update UI
             document.querySelectorAll('.filter-section:first-child .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -2010,84 +1977,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             applyFilters();
         }
 
-        // NEW: Enhanced message type filtering with highlighting
         function filterByMessageType(type) {
             currentMessageTypeFilter = type;
             
-            // Update UI - enhanced active state
             document.querySelectorAll('.filter-section:nth-child(2) .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             event.target.classList.add('active');
             
-            // Apply highlighting to message type blocks
-            applyMessageTypeHighlighting(type);
-            
-            // Still apply the normal filtering for stats
             applyFilters();
-        }
-
-        // NEW: Apply strong highlighting to filtered message types
-        function applyMessageTypeHighlighting(filterType) {
-            const allCards = document.querySelectorAll('.message-card');
-            
-            allCards.forEach(card => {
-                const messageBlocks = card.querySelectorAll('.message-type-block');
-                let hasFilteredContent = false;
-                
-                messageBlocks.forEach(block => {
-                    // Remove existing filter classes
-                    block.classList.remove('filtered-highlight', 'filtered-dimmed');
-                    
-                    if (filterType === 'all') {
-                        // Show all sections normally when "All Types" is selected
-                        return;
-                    }
-                    
-                    // Check if this block matches the filter
-                    const isMatch = (
-                        (filterType === 'linkedin' && block.classList.contains('linkedin')) ||
-                        (filterType === 'connection' && block.classList.contains('connection')) ||
-                        (filterType === 'email' && block.classList.contains('email'))
-                    );
-                    
-                    if (isMatch) {
-                        // HIGHLIGHT: Make matching sections extremely prominent
-                        block.classList.add('filtered-highlight');
-                        hasFilteredContent = true;
-                        
-                        // Auto-expand highlighted sections
-                        const expandBtn = block.querySelector('.expand-btn[onclick*="toggleMessageExpand"]');
-                        if (expandBtn && !expandBtn.innerHTML.includes('Collapse')) {
-                            expandBtn.click();
-                        }
-                    } else {
-                        // DIM: Make non-matching sections less prominent
-                        block.classList.add('filtered-dimmed');
-                        
-                        // Auto-collapse dimmed sections
-                        const expandBtn = block.querySelector('.expand-btn[onclick*="toggleMessageExpand"]');
-                        if (expandBtn && expandBtn.innerHTML.includes('Collapse')) {
-                            expandBtn.click();
-                        }
-                    }
-                });
-                
-                // Highlight entire card if it contains filtered content
-                if (hasFilteredContent && filterType !== 'all') {
-                    card.classList.add('has-filtered-content');
-                } else {
-                    card.classList.remove('has-filtered-content');
-                }
-            });
-            
-            console.log(`[FILTER] Applied ${filterType} highlighting to message blocks`);
         }
 
         function filterByDateRange(range) {
             currentDateRangeFilter = range;
             
-            // Update UI
             document.querySelectorAll('.filter-section:nth-child(3) .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -2096,7 +1999,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             applyFilters();
         }
 
-        // NEW: Pagination control
         function toggleShowAll() {
             showingLimited = !showingLimited;
             renderMessages();
@@ -2119,7 +2021,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // Determine how many messages to show
             let messagesToShow = filteredMessages;
             if (showingLimited && filteredMessages.length > CARDS_LIMIT) {
                 messagesToShow = filteredMessages.slice(0, CARDS_LIMIT);
@@ -2132,7 +2033,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 cardsGrid.appendChild(messageCard);
             });
             
-            // Update pagination info and buttons
             if (filteredMessages.length > CARDS_LIMIT) {
                 paginationInfo.style.display = 'flex';
                 bottomPagination.style.display = 'flex';
@@ -2154,11 +2054,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('messagesCardsGrid').style.display = 'grid';
             document.getElementById('emptyState').style.display = 'none';
-            
-            // ENHANCED: Apply message type highlighting after rendering
-            setTimeout(() => {
-                applyMessageTypeHighlighting(currentMessageTypeFilter);
-            }, 100);
         }
 
         function createMessageCard(messageGroup) {
@@ -2224,6 +2119,53 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return card;
         }
 
+        function createEmailAskButton(messageGroup) {
+            if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
+                return `<button class="email-ask-btn" disabled title="Email already processed.">
+                    <i class="fas fa-check"></i> Done
+                </button>`;
+            }
+            
+            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${messageGroup.id})" title="Ask Email (2 credits)">
+                <i class="fas fa-search"></i> Ask Email
+            </button>`;
+        }
+
+        function createEmailVerificationDisplay(messageGroup) {
+            if (!messageGroup.emailStatus) {
+                return `<div class="email-not-available">Not searched</div>`;
+            }
+            
+            if (messageGroup.emailStatus === 'verified') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : '';
+                return `<div class="email-verification">
+                    <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                    <div class="email-status verified">
+                        <i class="fas fa-check-circle"></i> Verified
+                    </div>
+                    ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
+                </div>`;
+            } else if (messageGroup.emailStatus === 'not_found') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) : '';
+                return `<div class="email-verification">
+                    <div class="email-status not-found">
+                        <i class="fas fa-times-circle"></i> Not Found
+                    </div>
+                    ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                </div>`;
+            }
+            
+            return `<div class="email-not-available">Not searched</div>`;
+        }
+
         function createMessageTypeBlock(type, label, messagesArray, iconClass) {
             if (!messagesArray || messagesArray.length === 0) {
                 return '';
@@ -2237,7 +2179,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             let historyHTML = '';
             
-            // Show latest message with FIXED date handling
             historyHTML += `
                 <div class="message-history-item latest">
                     <div class="message-timestamp">
@@ -2251,7 +2192,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </div>
             `;
             
-            // Show previous messages (collapsed by default)
             if (hasMultiple) {
                 historyHTML += `<div class="message-history-previous" id="history-${uniqueId}" style="display: none;">`;
                 
@@ -2308,72 +2248,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             `;
         }
 
-        // FIXED EMAIL FINDER BUTTON - Uses messageGroup.id instead of target profile ID
-        function createEmailAskButton(messageGroup) {
-            if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
-                return `<button class="email-ask-btn" disabled title="Email already processed.">
-                    <i class="fas fa-check"></i> Done
-                </button>`;
-            }
-            
-            // FIXED: Use messageGroup.id (which is a message ID) instead of profile ID
-            return `<button class="email-ask-btn" onclick="showEmailFinderModal(${messageGroup.id})" title="Ask Email (2 credits)">
-                <i class="fas fa-search"></i> Ask Email
-            </button>`;
-        }
-
-        function createEmailVerificationDisplay(messageGroup) {
-            if (!messageGroup.emailStatus) {
-                return `<div class="email-not-available">Not searched</div>`;
-            }
-            
-            if (messageGroup.emailStatus === 'verified') {
-                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                }) : '';
-                return `<div class="email-verification">
-                    <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
-                    <div class="email-status verified">
-                        <i class="fas fa-check-circle"></i> Verified
-                    </div>
-                    ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
-                </div>`;
-            } else if (messageGroup.emailStatus === 'not_found') {
-                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                }) : '';
-                return `<div class="email-verification">
-                    <div class="email-status not-found">
-                        <i class="fas fa-times-circle"></i> Not Found
-                    </div>
-                    ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
-                </div>`;
-            }
-            
-            return `<div class="email-not-available">Not searched</div>`;
-        }
-
-        // FIXED: Format message date with comprehensive error handling and field compatibility
         function formatMessageDate(dateString) {
             try {
-                // Handle multiple possible date field formats
                 let dateToFormat = dateString;
                 
-                // If dateString is null/undefined, try to find a valid date
                 if (!dateToFormat) {
-                    console.warn('[DATE] No date provided, using current time');
                     return 'Just now';
                 }
                 
                 const date = new Date(dateToFormat);
                 
-                // Check if date is valid
                 if (isNaN(date.getTime())) {
-                    console.warn('[DATE] Invalid date string:', dateString);
                     return 'Date unavailable';
                 }
                 
@@ -2410,12 +2295,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     });
                 }
             } catch (error) {
-                console.error('[DATE] Error formatting date:', error, 'Input:', dateString);
                 return 'Date error';
             }
         }
 
-        // Toggle message history visibility
         function toggleMessageHistory(messageId, button) {
             const historyElement = document.getElementById(`history-${messageId}`);
             const isVisible = historyElement.style.display !== 'none';
@@ -2429,7 +2312,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Toggle individual historical message
         function toggleHistoryMessage(messageId, element) {
             const messageElement = document.getElementById(`message-${messageId}`);
             const previewElement = document.getElementById(`preview-${messageId}`);
@@ -2446,43 +2328,33 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // FIXED: Toggle message expand/collapse with preview hide/show
         function toggleMessageExpand(messageId, button) {
             const messageElement = document.getElementById(`message-${messageId}`);
             const previewElement = document.getElementById(`preview-${messageId}`);
             
             if (!messageElement || !previewElement) {
-                console.error(`[EXPAND] Elements not found for message: ${messageId}`);
                 return;
             }
             
             const isExpanded = messageElement.style.display === 'block';
             
             if (isExpanded) {
-                // Collapse: hide full message, show preview
                 messageElement.style.display = 'none';
                 previewElement.style.display = 'block';
                 button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
             } else {
-                // Expand: show full message, hide preview
                 messageElement.style.display = 'block';
                 previewElement.style.display = 'none';
                 button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
             }
-            
-            console.log(`[EXPAND] Toggled message ${messageId}: ${isExpanded ? 'collapsed' : 'expanded'}`);
         }
 
-        // Edit message functionality (placeholder for future implementation)
         function editMessage(type, messageId) {
             alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
-            console.log(`[EDIT] Edit requested for ${type} message ID: ${messageId}`);
         }
 
-        // Copy message functionality
         async function copyMessage(type, messageId, button) {
             try {
-                // Find the specific message by ID across all message groups
                 let targetMessage = null;
                 Object.values(groupedMessages).forEach(group => {
                     ['linkedin', 'connection', 'email'].forEach(messageType => {
@@ -2511,11 +2383,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     button.classList.remove('copied');
                 }, 2000);
                 
-                console.log(`[COPY] ${type} message copied to clipboard`);
-                
             } catch (error) {
-                console.error('[COPY] Error copying message:', error);
-                
                 const originalHTML = button.innerHTML;
                 button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
                 
@@ -2534,102 +2402,25 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return finalText.trim();
         }
 
-        // FIXED: Helper function to get LinkedIn URL from message group
-        function getCurrentLinkedInUrl(messageId) {
-            console.log('[EMAIL_FINDER] Looking for LinkedIn URL for message ID:', messageId);
-            
-            // Find the message group that contains this messageId
-            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
-            if (!messageGroup) {
-                console.error('[EMAIL_FINDER] Message group not found for ID:', messageId);
-                console.log('[EMAIL_FINDER] Available message groups:', Object.values(groupedMessages).map(g => ({id: g.id, target: g.target})));
-                return null;
-            }
-            
-            console.log('[EMAIL_FINDER] Found message group:', messageGroup);
-            
-            // Try to get LinkedIn URL from multiple possible locations
-            let linkedinUrl = null;
-            
-            // Check target object first
-            if (messageGroup.target) {
-                linkedinUrl = messageGroup.target.linkedinUrl || 
-                             messageGroup.target.linkedin_url || 
-                             messageGroup.target.linkedInUrl ||
-                             messageGroup.target.url;
-            }
-            
-            // Check message group directly
-            if (!linkedinUrl) {
-                linkedinUrl = messageGroup.linkedinUrl ||
-                             messageGroup.linkedin_url ||
-                             messageGroup.linkedInUrl ||
-                             messageGroup.url;
-            }
-            
-            // Check individual messages for LinkedIn URL
-            if (!linkedinUrl && messageGroup.messages) {
-                const allMessages = [
-                    ...(messageGroup.messages.linkedin || []),
-                    ...(messageGroup.messages.connection || []),
-                    ...(messageGroup.messages.email || [])
-                ];
-                
-                for (const msg of allMessages) {
-                    if (msg.id === messageId) {
-                        linkedinUrl = msg.linkedinUrl || 
-                                     msg.linkedin_url || 
-                                     msg.linkedInUrl ||
-                                     msg.target_profile_url ||
-                                     msg.targetProfileUrl;
-                        break;
-                    }
-                }
-            }
-            
-            if (!linkedinUrl) {
-                console.error('[EMAIL_FINDER] No LinkedIn URL found for message group. Available fields:');
-                console.log('[EMAIL_FINDER] Target fields:', messageGroup.target ? Object.keys(messageGroup.target) : 'No target object');
-                console.log('[EMAIL_FINDER] Message group fields:', Object.keys(messageGroup));
-                console.log('[EMAIL_FINDER] Full message group structure:', messageGroup);
-                return null;
-            }
-            
-            console.log('[EMAIL_FINDER] Found LinkedIn URL:', linkedinUrl);
-            return linkedinUrl;
-        }
-
-        // Email Finder modal functions - FIXED TO ACCEPT MESSAGE ID
         function showEmailFinderModal(messageId) {
-            // FIXED: Store messageId instead of target profile ID
             currentTargetId = messageId;
             
-            // Check user plan first
             if (!currentUserPlan) {
-                console.log('[EMAIL_FINDER] User plan not loaded, showing upgrade modal');
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
-            console.log('[EMAIL_FINDER] Current user plan:', currentUserPlan);
-            
-            // Check if user has Silver+ plan
             const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
             const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
             
             if (!allowedPlans.includes(userPlan)) {
-                console.log(`[EMAIL_FINDER] Plan '${userPlan}' not eligible for email finder, showing upgrade modal`);
                 document.getElementById('upgradeModal').classList.add('active');
                 return;
             }
             
-            // Check if user has enough credits - FIXED: Better credit checking
             const userCredits = currentUserPlan.totalCredits || 0;
-            console.log(`[EMAIL_FINDER] User credits: ${userCredits}`);
             
             if (userCredits < 2) {
-                console.log(`[EMAIL_FINDER] Insufficient credits (${userCredits}/2), showing credits modal`);
-                // Update current credits display in modal
                 const creditsElement = document.getElementById('currentCredits');
                 if (creditsElement) {
                     creditsElement.textContent = userCredits;
@@ -2638,8 +2429,102 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            console.log(`[EMAIL_FINDER] Showing email finder modal for message ID ${messageId} with plan '${userPlan}' and ${userCredits} credits`);
             document.getElementById('emailFinderModal').classList.add('active');
+        }
+
+        // SIMPLIFIED Email Finder - Just send messageId to backend
+        async function confirmEmailFinder() {
+            if (!currentTargetId) return;
+            
+            closeEmailModal();
+            
+            console.log(`[EMAIL_FINDER] SIMPLIFIED: Sending messageId ${currentTargetId} to backend`);
+            
+            const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
+            buttons.forEach(btn => {
+                btn.classList.add('loading');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
+                btn.disabled = true;
+            });
+            
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login?returnUrl=/messages';
+                    return;
+                }
+                
+                const response = await fetch('/api/ask-email', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messageId: currentTargetId
+                    })
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login?returnUrl=/messages';
+                    return;
+                }
+                
+                if (response.status === 403) {
+                    const result = await response.json();
+                    document.getElementById('upgradeModal').classList.add('active');
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (currentUserPlan) {
+                        currentUserPlan.totalCredits -= result.creditsCharged;
+                    }
+                    
+                    Object.values(groupedMessages).forEach(group => {
+                        if (group.id === currentTargetId) {
+                            group.emailFound = result.email;
+                            group.emailStatus = 'verified';
+                            group.emailVerifiedAt = new Date().toISOString();
+                        }
+                    });
+                    
+                    renderMessages();
+                    
+                } else {
+                    if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
+                        Object.values(groupedMessages).forEach(group => {
+                            if (group.id === currentTargetId) {
+                                group.emailStatus = 'not_found';
+                                group.emailVerifiedAt = new Date().toISOString();
+                            }
+                        });
+                        renderMessages();
+                    } else {
+                        alert(`Email finder failed: ${result.message || result.error}`);
+                        buttons.forEach(btn => {
+                            btn.classList.remove('loading');
+                            btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
+                            btn.disabled = false;
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('[EMAIL_FINDER] Error:', error);
+                alert('Email finder temporarily unavailable. Please try again later.');
+                
+                buttons.forEach(btn => {
+                    btn.classList.remove('loading');
+                    btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
+                    btn.disabled = false;
+                });
+            }
+            
+            currentTargetId = null;
         }
 
         function closeEmailModal() {
@@ -2653,134 +2538,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function closeUpgradeModal() {
             document.getElementById('upgradeModal').classList.remove('active');
-        }
-
-        // FIXED: Real Snov.io Email Finder Integration - SENDS LINKEDIN URL
-        async function confirmEmailFinder() {
-            if (!currentTargetId) return;
-            
-            // FIXED: Get LinkedIn URL from message group
-            const linkedinUrl = getCurrentLinkedInUrl(currentTargetId);
-            if (!linkedinUrl) {
-                alert('LinkedIn URL not found for this contact. Please try again.');
-                closeEmailModal();
-                return;
-            }
-            
-            closeEmailModal();
-            
-            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for LinkedIn URL: ${linkedinUrl}`);
-            
-            // Update button to loading state
-            const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
-            buttons.forEach(btn => {
-                btn.classList.add('loading');
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
-                btn.disabled = true;
-            });
-            
-            try {
-                const token = getAuthToken();
-                if (!token) {
-                    // FIXED: Use return URL mechanism to preserve user intent
-                    window.location.href = '/login?returnUrl=/messages';
-                    return;
-                }
-                
-                // FIXED: Send linkedinUrl to backend (this is the key fix)
-                const response = await fetch('/api/ask-email', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        linkedinUrl: linkedinUrl  // FIXED: This matches what backend now expects
-                    })
-                });
-                
-                if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    // FIXED: Use return URL mechanism to preserve user intent
-                    window.location.href = '/login?returnUrl=/messages';
-                    return;
-                }
-                
-                if (response.status === 403) {
-                    // Plan upgrade required
-                    const result = await response.json();
-                    console.log('[EMAIL_FINDER] Plan upgrade required:', result.message);
-                    document.getElementById('upgradeModal').classList.add('active');
-                    return;
-                }
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    console.log(`[EMAIL_FINDER] Success: ${result.email}, Credits charged: ${result.creditsCharged}`);
-                    
-                    // Update user credits in memory
-                    if (currentUserPlan) {
-                        currentUserPlan.totalCredits -= result.creditsCharged;
-                    }
-                    
-                    // Update the grouped message data
-                    Object.values(groupedMessages).forEach(group => {
-                        if (group.id === currentTargetId) {
-                            group.emailFound = result.email;
-                            group.emailStatus = 'verified';
-                            group.emailVerifiedAt = new Date().toISOString();
-                        }
-                    });
-                    
-                    // Re-render messages to show updated email data
-                    renderMessages();
-                    
-                } else {
-                    console.log(`[EMAIL_FINDER] Failed: ${result.error}, Credits charged: ${result.creditsCharged || 0}`);
-                    
-                    // Update user credits even on failure if credits were charged
-                    if (currentUserPlan && result.creditsCharged) {
-                        currentUserPlan.totalCredits -= result.creditsCharged;
-                    }
-                    
-                    if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
-                        // Update the grouped message data to show "not found"
-                        Object.values(groupedMessages).forEach(group => {
-                            if (group.id === currentTargetId) {
-                                group.emailStatus = 'not_found';
-                                group.emailVerifiedAt = new Date().toISOString();
-                            }
-                        });
-                        
-                        // Re-render messages to show "not found" status
-                        renderMessages();
-                    } else {
-                        // Show error to user
-                        alert(`Email finder failed: ${result.message || result.error}`);
-                        
-                        // Reset button state
-                        buttons.forEach(btn => {
-                            btn.classList.remove('loading');
-                            btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
-                            btn.disabled = false;
-                        });
-                    }
-                }
-                
-            } catch (error) {
-                console.error('[EMAIL_FINDER] Error calling email finder API:', error);
-                alert('Email finder temporarily unavailable. Please try again later.');
-                
-                // Reset button state
-                buttons.forEach(btn => {
-                    btn.classList.remove('loading');
-                    btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
-                    btn.disabled = false;
-                });
-            }
-            
-            currentTargetId = null;
         }
 
         function getStatusIcon(status) {
@@ -2800,7 +2557,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function toggleStatus(messageId, field) {
-            // Find the message group
             const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
             if (!messageGroup) return;
             
@@ -2881,8 +2637,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                console.log(`[MESSAGES] Saving message ${messageId} to database...`);
-                
                 const response = await fetch(`/messages/${messageId}`, {
                     method: 'PUT',
                     headers: { 
@@ -2927,16 +2681,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     });
                 }, 2000);
                 
-                console.log(`[MESSAGES] Message ${messageId} saved successfully to database`);
-                
             } catch (error) {
                 console.error('[MESSAGES] Error saving message:', error);
-                
-                if (error.message && error.message.includes('401')) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login';
-                    return;
-                }
                 
                 saveButtons.forEach(btn => {
                     btn.classList.remove('saving');
@@ -2952,20 +2698,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        function filterMessagesByStatus(messageGroups) {
-            switch (currentStatusFilter) {
-                case 'sent':
-                    return messageGroups.filter(group => group.sent === 'yes');
-                case 'replied':
-                    return messageGroups.filter(group => group.gotReply === 'yes');
-                case 'pending':
-                    return messageGroups.filter(group => group.sent === 'yes' && group.gotReply !== 'yes');
-                case 'all':
-                default:
-                    return messageGroups;
-            }
-        }
-
         function updateMessagesStats() {
             const totalMessages = filteredMessages.length;
             const sentMessages = filteredMessages.filter(group => group.sent === 'yes').length;
@@ -2976,13 +2708,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('sentMessages').textContent = sentMessages;
             document.getElementById('repliedMessages').textContent = repliedMessages;
             document.getElementById('responseRate').textContent = `${responseRate}%`;
-            
-            console.log(`[MESSAGES] Updated stats: Total=${totalMessages}, Sent=${sentMessages}, Replied=${repliedMessages}, Rate=${responseRate}%`);
         }
 
         function refreshMessages() {
-            console.log('[MESSAGES] Refreshing messages from database...');
-            
             const refreshBtn = document.querySelector('.refresh-btn i');
             refreshBtn.classList.add('fa-spin');
             
@@ -2998,7 +2726,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('paginationInfo').style.display = 'none';
         }
 
-        // Navigation functions
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('active');
