@@ -1,5 +1,5 @@
 // routes/messagesRoutes.js
-// Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + Email Finder
+// Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + Email Finder + EMAIL VERIFICATION DISPLAY
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -23,9 +23,9 @@ router.post('/generate-connection', authenticateToken, handleGenerateConnection)
 router.post('/generate-intro', authenticateToken, handleGenerateIntro);
 router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail); // EXISTING: Keep this
 
-// ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
+// ==================== ENHANCED: MESSAGES CRUD ENDPOINTS WITH EMAIL DATA ====================
 
-// GET /messages/history - Get messages for user (EXACT ORIGINAL VERSION)
+// GET /messages/history - Get messages for user WITH EMAIL VERIFICATION DATA
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -44,8 +44,13 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 COALESCE(ml.comments, '') as comments,
                 ml.sent_date,
                 ml.reply_date,
-                ml.target_profile_url as linkedinUrl
+                ml.target_profile_url as linkedinUrl,
+                -- NEW: Add email data from target_profiles
+                tp.email_found,
+                tp.email_status,
+                tp.email_verified_at
             FROM message_logs ml 
+            LEFT JOIN target_profiles tp ON ml.target_profile_url = tp.linkedin_url
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
@@ -66,7 +71,11 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             comments: row.comments,
             createdAt: row.created_at,
             sentDate: row.sent_date,
-            replyDate: row.reply_date
+            replyDate: row.reply_date,
+            // NEW: Add email fields from target_profiles
+            emailFound: row.email_found,
+            emailStatus: row.email_status, 
+            emailVerifiedAt: row.email_verified_at
         }));
 
         res.json({
@@ -139,7 +148,7 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== EMAIL FINDER ENDPOINT ====================
+// ==================== EMAIL FINDER ENDPOINT (UNCHANGED) ====================
 
 // POST /api/ask-email - SIMPLIFIED: Find email using messageId (backend looks up LinkedIn URL)
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
