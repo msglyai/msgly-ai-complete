@@ -7,8 +7,29 @@ const messagesController = require('../controllers/messagesController');
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
 
-// Enhanced: Import email finder functionality
-const { findEmailWithLinkedInUrl, getEmailFromCache, findOrGetEmail, isEmailFinderEnabled } = require('../emailFinder');
+// Safe import with fallbacks to prevent crashes
+let emailFinderModule;
+try {
+    emailFinderModule = require('../emailFinder');
+} catch (error) {
+    console.error('[ROUTES] Email finder module not found, using fallbacks:', error.message);
+    // Provide fallback functions to prevent crashes
+    emailFinderModule = {
+        findEmailWithLinkedInUrl: async () => ({ success: false, error: 'Email finder not available' }),
+        getEmailFromCache: async () => ({ success: false }),
+        findOrGetEmail: async () => ({ success: false, error: 'Email finder not available' }),
+        isEmailFinderEnabled: () => false,
+        getEmailFinderStatus: () => ({ enabled: false, hasCredentials: false })
+    };
+}
+
+const { 
+    findEmailWithLinkedInUrl, 
+    getEmailFromCache, 
+    findOrGetEmail, 
+    isEmailFinderEnabled,
+    getEmailFinderStatus 
+} = emailFinderModule;
 
 // ==================== MESSAGE GENERATION ENDPOINTS ====================
 
@@ -495,7 +516,6 @@ router.get('/messages/stats/overview', authenticateToken, async (req, res) => {
 // Get email finder service status
 router.get('/api/email-finder/status', authenticateToken, async (req, res) => {
     try {
-        const { getEmailFinderStatus } = require('../emailFinder');
         const status = getEmailFinderStatus();
 
         res.json({
