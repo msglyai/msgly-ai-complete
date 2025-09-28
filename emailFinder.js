@@ -1,4 +1,4 @@
-// emailFinder.js - FINAL FIX: Correct Snov.io v1 API authentication
+// emailFinder.js - FINAL FIX: Correct Snov.io v1 API authentication with required processing delay
 // Direct integration with Snov.io API using LinkedIn URLs
 // Handles email finding and verification with "charge only on success" policy
 
@@ -23,7 +23,7 @@ class EmailFinder {
         // Check if we have credentials
         this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
         
-        logger.custom('EMAIL', 'Snov.io Email Finder initialized with correct authentication:', {
+        logger.custom('EMAIL', 'Snov.io Email Finder initialized with correct authentication and delay fix:', {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
@@ -110,7 +110,7 @@ class EmailFinder {
             const holdId = holdResult.holdId;
 
             try {
-                // Find email using correct Snov.io v1 API
+                // Find email using correct Snov.io v1 API with delay
                 const emailResult = await this.findEmailWithSnovV1(linkedinUrl);
 
                 if (emailResult.success && emailResult.email) {
@@ -168,7 +168,7 @@ class EmailFinder {
         }
     }
 
-    // FINAL FIX: Correct Snov.io v1 API implementation with proper authentication
+    // FINAL FIX: Correct Snov.io v1 API implementation with proper authentication AND required delay
     async findEmailWithSnovV1(linkedinUrl) {
         try {
             logger.info('Finding email with Snov.io v1 LinkedIn URL API...');
@@ -186,6 +186,10 @@ class EmailFinder {
             });
             
             logger.debug('URL added to Snov.io:', addUrlResponse.data);
+            
+            // CRITICAL FIX: Wait for Snov.io to process the LinkedIn URL (3-5 seconds)
+            logger.debug('Waiting for Snov.io to process LinkedIn URL...');
+            await new Promise(resolve => setTimeout(resolve, 4000)); // 4 second delay
             
             // Step 2: Get emails from the URL (v1 API with access_token as parameter)
             logger.debug('Step 2: Getting emails from LinkedIn URL...');
@@ -565,7 +569,7 @@ class EmailFinder {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             costPerSuccess: this.costPerSuccess,
-            mode: 'snov_v1_linkedin_url_fixed'
+            mode: 'snov_v1_linkedin_url_with_delay_fix'
         };
     }
 }
@@ -599,4 +603,4 @@ module.exports = {
     isEmailFinderEnabled
 };
 
-logger.success('Snov.io Email Finder module loaded with final authentication fix!');
+logger.success('Snov.io Email Finder module loaded with processing delay fix!');
