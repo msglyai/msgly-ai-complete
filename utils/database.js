@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + LINKEDIN URL DECOUPLING
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -17,7 +17,8 @@
 // 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
 // 🔒 SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
 // ✅ EMAIL FINDER: Added email finder columns to target_profiles table
-// 🔄 LINKEDIN URL DECOUPLING: Added functions for extension-based LinkedIn URL collection
+// 🔧 CREDIT FIX: Fixed getUserPlan to properly calculate total credits from renewable + payasyougo
+// 🔧 PLAN NAME FIX: Added automatic plan name correction in initDB function
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -262,7 +263,7 @@ const ensurePendingRegistrationsTable = async () => {
             CREATE TABLE IF NOT EXISTS pending_registrations (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                linkedin_url TEXT,
+                linkedin_url TEXT NOT NULL,
                 package_type VARCHAR(50) NOT NULL,
                 terms_accepted BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -792,7 +793,7 @@ const setupInitialAdmin = async (requireConfirmation = true) => {
 
 const initDB = async () => {
     try {
-        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + LINKEDIN URL DECOUPLING...');
+        console.log('Creating enhanced database tables with dual credit system + GPT-5 message logging + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SIMPLIFIED CONTEXT SLOTS + SECURE ADMIN MANAGEMENT + EMAIL FINDER...');
 
         // PLANS TABLE - FIXED: Drop and recreate with correct schema
         await pool.query(`DROP TABLE IF EXISTS plans CASCADE;`);
@@ -832,6 +833,16 @@ const initDB = async () => {
                 renewable_credits = EXCLUDED.renewable_credits,
                 updated_at = CURRENT_TIMESTAMP;
         `);
+
+        // 🔧 PLAN NAME FIX: Ensure all plan names are correct (especially platinum-monthly)
+        console.log('[PLAN_FIX] Ensuring plan names are correct...');
+        await pool.query(`
+            UPDATE plans SET plan_name = 'Platinum Monthly' WHERE plan_code = 'platinum-monthly';
+            UPDATE plans SET plan_name = 'Gold Monthly' WHERE plan_code = 'gold-monthly';
+            UPDATE plans SET plan_name = 'Silver Monthly' WHERE plan_code = 'silver-monthly';
+            UPDATE plans SET plan_name = 'Free' WHERE plan_code = 'free';
+        `);
+        console.log('[PLAN_FIX] ✅ Plan names corrected');
 
         // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN
         await pool.query(`
@@ -1394,7 +1405,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔒 SECURE ADMIN MANAGEMENT, EMAIL FINDER, LINKEDIN URL DECOUPLING, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔒 SECURE ADMIN MANAGEMENT, EMAIL FINDER, PLAN NAME FIX, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1403,15 +1414,15 @@ const initDB = async () => {
 
 // ==================== DUAL CREDIT MANAGEMENT FUNCTIONS ====================
 
-// NEW: Get user plan with real data - FIXED
+// NEW: Get user plan with real data - FIXED TO SHOW CORRECT CREDIT TOTALS AND PLAN NAMES
 const getUserPlan = async (userId) => {
     try {
         const result = await pool.query(`
             SELECT 
                 u.id,
                 u.plan_code,
-                COALESCE(u.renewable_credits, 0) as renewable_credits,
-                COALESCE(u.payasyougo_credits, 0) as payasyougo_credits,
+                COALESCE(u.renewable_credits, 0)::DECIMAL(10,2) as renewable_credits,
+                COALESCE(u.payasyougo_credits, 0)::DECIMAL(10,2) as payasyougo_credits,
                 u.subscription_starts_at,
                 u.next_billing_date,
                 u.subscription_status,
@@ -1437,9 +1448,9 @@ const getUserPlan = async (userId) => {
 
         const user = result.rows[0];
         
-        // Calculate total credits (pay-as-you-go + renewable) - FIXED: Use Number conversion
-        const renewableCredits = Number(user.renewable_credits) || 0;
-        const payasyougoCredits = Number(user.payasyougo_credits) || 0;
+        // FIXED: Proper credit calculation with parseFloat to handle DECIMAL types
+        const renewableCredits = parseFloat(user.renewable_credits) || 0;
+        const payasyougoCredits = parseFloat(user.payasyougo_credits) || 0;
         const totalCredits = renewableCredits + payasyougoCredits;
         
         // Calculate next billing date for display
@@ -1451,16 +1462,32 @@ const getUserPlan = async (userId) => {
             });
         }
 
+        // FIXED: Proper plan name mapping with fallback
+        let displayPlanName = user.plan_name;
+        if (!displayPlanName || displayPlanName === 'Free') {
+            // Fallback plan name mapping if database doesn't have plan_name
+            const planNameMap = {
+                'free': 'Free',
+                'silver-monthly': 'Silver Monthly',
+                'gold-monthly': 'Gold Monthly', 
+                'platinum-monthly': 'Platinum Monthly',
+                'silver-payasyougo': 'Silver Pay-as-you-go',
+                'gold-payasyougo': 'Gold Pay-as-you-go',
+                'platinum-payasyougo': 'Platinum Pay-as-you-go'
+            };
+            displayPlanName = planNameMap[user.plan_code] || 'Free';
+        }
+
         return {
             success: true,
             data: {
                 userId: user.id,
                 planCode: user.plan_code,
-                planName: user.plan_name || 'Free',
+                planName: displayPlanName,
                 billingModel: user.billing_model || 'monthly',
                 subscriptionStatus: user.subscription_status || 'active',
                 
-                // Credit breakdown
+                // FIXED: Credit breakdown with proper decimal handling
                 renewableCredits: renewableCredits,
                 payasyougoCredits: payasyougoCredits,
                 totalCredits: totalCredits,
@@ -1474,20 +1501,20 @@ const getUserPlan = async (userId) => {
                 nextBillingDate: user.next_billing_date,
                 renewalDate: renewalDate,
                 
-                // ✅ CHARGEBEE FIX: Include Chargebee IDs for debugging
+                // Chargebee integration
                 chargebeeSubscriptionId: user.chargebee_subscription_id,
                 chargebeeCustomerId: user.chargebee_customer_id,
                 
-                // ✅ CANCELLATION FIX: Include cancellation tracking
+                // Cancellation tracking
                 cancellationScheduledAt: user.cancellation_scheduled_at,
                 cancellationEffectiveDate: user.cancellation_effective_date,
                 previousPlanCode: user.previous_plan_code,
                 
-                // 🔒 ADMIN: Include admin status
+                // Admin status
                 isAdmin: user.is_admin || false,
                 
-                // UI display data
-                creditsDisplay: `${totalCredits}/${Number(user.plan_renewable_credits) || 7} Credits`,
+                // FIXED: UI display data with correct totals
+                creditsDisplay: `${totalCredits.toFixed(2)} Credits`,
                 renewalDisplay: `Renews ${renewalDate}`,
                 progressPercentage: Math.round((renewableCredits / (Number(user.plan_renewable_credits) || 7)) * 100)
             }
@@ -2005,8 +2032,8 @@ const removeContextAddon = async (userId, addonId) => {
 
 // ==================== PENDING REGISTRATIONS FUNCTIONS ====================
 
-// 🔄 LINKEDIN URL DECOUPLING: Modified storePendingRegistration to not require LinkedIn URL
-const storePendingRegistration = async (userId, packageType, linkedinUrl = null) => {
+// ✅ NEW: Store pending registration before payment
+const storePendingRegistration = async (userId, linkedinUrl, packageType) => {
     try {
         // Remove any existing pending registrations for this user
         await pool.query(
@@ -2014,7 +2041,7 @@ const storePendingRegistration = async (userId, packageType, linkedinUrl = null)
             [userId]
         );
         
-        // Store new pending registration - LinkedIn URL is now optional
+        // Store new pending registration
         const result = await pool.query(`
             INSERT INTO pending_registrations (
                 user_id, linkedin_url, package_type, terms_accepted
@@ -2022,7 +2049,7 @@ const storePendingRegistration = async (userId, packageType, linkedinUrl = null)
             RETURNING *
         `, [userId, linkedinUrl, packageType, true]);
         
-        console.log(`[PENDING_REG] Stored pending registration for user ${userId}: ${packageType} (LinkedIn URL: ${linkedinUrl ? 'provided' : 'not provided'})`);
+        console.log(`[PENDING_REG] Stored pending registration for user ${userId}: ${packageType}`);
         
         return {
             success: true,
@@ -2067,8 +2094,8 @@ const getPendingRegistration = async (userId) => {
     }
 };
 
-// 🔄 LINKEDIN URL DECOUPLING: New function for registration completion without LinkedIn URL
-const completeRegistrationAfterPayment = async (userId) => {
+// ✅ NEW: Complete pending registration (called by webhook)
+const completePendingRegistration = async (userId) => {
     try {
         const client = await pool.connect();
         
@@ -2084,35 +2111,20 @@ const completeRegistrationAfterPayment = async (userId) => {
             `, [userId]);
             
             if (pendingResult.rows.length === 0) {
-                // No pending registration found - complete registration anyway (for existing users)
-                await client.query(`
-                    UPDATE users 
-                    SET registration_completed = true,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $1
-                `, [userId]);
-                
-                await client.query('COMMIT');
-                
-                console.log(`[REGISTRATION] Completed registration for user ${userId} (no pending registration)`);
-                
+                await client.query('ROLLBACK');
                 return {
-                    success: true,
-                    data: {
-                        linkedinUrl: null,
-                        registrationCompleted: true,
-                        message: 'Registration completed without pending data'
-                    }
+                    success: false,
+                    error: 'No pending registration found'
                 };
             }
             
             const pendingReg = pendingResult.rows[0];
             
-            // Complete registration - LinkedIn URL is optional now
+            // Update user with LinkedIn URL and mark registration complete
             await client.query(`
                 UPDATE users 
-                SET registration_completed = true,
-                    linkedin_url = COALESCE($1, users.linkedin_url),
+                SET linkedin_url = $1, 
+                    registration_completed = true,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
             `, [pendingReg.linkedin_url, userId]);
@@ -2126,7 +2138,7 @@ const completeRegistrationAfterPayment = async (userId) => {
             
             await client.query('COMMIT');
             
-            console.log(`[REGISTRATION] Completed registration for user ${userId} (LinkedIn URL: ${pendingReg.linkedin_url ? 'stored' : 'none'})`);
+            console.log(`[PENDING_REG] Completed registration for user ${userId} with LinkedIn URL: ${pendingReg.linkedin_url}`);
             
             return {
                 success: true,
@@ -2144,55 +2156,12 @@ const completeRegistrationAfterPayment = async (userId) => {
             client.release();
         }
     } catch (error) {
-        console.error('Error completing registration after payment:', error);
+        console.error('Error completing pending registration:', error);
         return {
             success: false,
             error: error.message
         };
     }
-};
-
-// 🔄 LINKEDIN URL DECOUPLING: New function for extension auto-storage of LinkedIn URL
-const autoStoreLinkedInUrl = async (userId, linkedinUrl) => {
-    try {
-        // Update user's LinkedIn URL when extension detects it
-        const result = await pool.query(`
-            UPDATE users 
-            SET linkedin_url = $1,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-            RETURNING id, linkedin_url, registration_completed
-        `, [linkedinUrl, userId]);
-        
-        if (result.rows.length === 0) {
-            throw new Error('User not found');
-        }
-        
-        const user = result.rows[0];
-        
-        console.log(`[AUTO_STORE] Extension auto-stored LinkedIn URL for user ${userId}: ${linkedinUrl}`);
-        
-        return {
-            success: true,
-            data: {
-                userId: user.id,
-                linkedinUrl: user.linkedin_url,
-                registrationCompleted: user.registration_completed
-            }
-        };
-        
-    } catch (error) {
-        console.error('Error auto-storing LinkedIn URL:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// ✅ LEGACY: Keep existing completePendingRegistration for backward compatibility
-const completePendingRegistration = async (userId) => {
-    return await completeRegistrationAfterPayment(userId);
 };
 
 // ==================== DATA PROCESSING HELPER FUNCTIONS ====================
@@ -2545,7 +2514,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔒 SECURE ADMIN MANAGEMENT + ✅ EMAIL FINDER + 🔄 LINKEDIN URL DECOUPLING
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔒 SECURE ADMIN MANAGEMENT + ✅ EMAIL FINDER + 🔧 PLAN NAME FIX
 module.exports = {
     // Database connection
     pool,
@@ -2593,12 +2562,10 @@ module.exports = {
     requireAdminAuthorization, // 🔒 NEW: Authorization middleware
     logAdminAction, // 🔒 NEW: Audit logging function
     
-    // 🔄 LINKEDIN URL DECOUPLING: Enhanced Registration Management
-    storePendingRegistration, // Modified to make LinkedIn URL optional
+    // ✅ NEW: Pending Registration Management
+    storePendingRegistration,
     getPendingRegistration,
-    completePendingRegistration, // Legacy function (calls completeRegistrationAfterPayment)
-    completeRegistrationAfterPayment, // NEW: Registration without LinkedIn URL requirement
-    autoStoreLinkedInUrl, // NEW: Extension auto-storage function
+    completePendingRegistration,
     
     // 🆕 NEW: Context Slot Management (like credit functions)
     getContextAddonUsage,
