@@ -700,30 +700,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-size: 0.8rem;
         }
 
-        /* NEW: Found Email Display */
-        .found-email-display {
-            background: rgba(16, 185, 129, 0.05);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            border-radius: 8px;
-            padding: 0.8rem;
-            text-align: center;
-        }
-
-        .found-email-address {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--success-green);
-            margin-bottom: 0.3rem;
-            word-break: break-all;
-        }
-
-        .found-email-status {
-            font-size: 0.7rem;
-            color: var(--success-green);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
         /* Message Types Section */
         .message-types-section {
             margin-bottom: 1.5rem;
@@ -1768,7 +1744,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         sent: message.sent,
                         gotReply: message.gotReply,
                         comments: message.comments,
-                        // NEW: Add email data from database
+                        // ENHANCED: Capture email data from backend response
                         emailFound: message.emailFound,
                         emailStatus: message.emailStatus,
                         emailVerifiedAt: message.emailVerifiedAt,
@@ -2078,16 +2054,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return card;
         }
 
-        // ENHANCED: Email display functions with database persistence
         function createEmailAskButton(messageGroup) {
-            // NEW: Show found email or status instead of button when available
-            if (messageGroup.emailFound) {
-                return `<button class="email-ask-btn" disabled title="Email found: ${messageGroup.emailFound}">
-                    <i class="fas fa-check"></i> Found
-                </button>`;
-            } else if (messageGroup.emailStatus && messageGroup.emailStatus !== 'pending') {
-                return `<button class="email-ask-btn" disabled title="Email already searched.">
-                    <i class="fas fa-search-minus"></i> Searched
+            if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
+                return `<button class="email-ask-btn" disabled title="Email already processed.">
+                    <i class="fas fa-check"></i> Done
                 </button>`;
             }
             
@@ -2096,39 +2066,43 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </button>`;
         }
 
+        // ENHANCED: Updated to display email data from database
         function createEmailVerificationDisplay(messageGroup) {
-            // NEW: Enhanced display logic using database email data
-            if (messageGroup.emailFound && (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'unknown' || messageGroup.emailStatus === 'risky' || messageGroup.emailStatus === 'valid')) {
+            if (!messageGroup.emailStatus) {
+                return `<div class="email-not-available">Not searched</div>`;
+            }
+            
+            if (messageGroup.emailStatus === 'verified') {
                 const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
                     year: 'numeric', 
                     month: 'short', 
                     day: 'numeric' 
                 }) : '';
-                return `<div class="found-email-display">
-                    <div class="found-email-address">${messageGroup.emailFound}</div>
-                    <div class="found-email-status">
-                        ✓ ${messageGroup.emailStatus === 'verified' ? 'Verified' : messageGroup.emailStatus}
+                return `<div class="email-verification">
+                    <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                    <div class="email-status verified">
+                        <i class="fas fa-check-circle"></i> Verified
                     </div>
-                    ${verifiedDate ? `<div class="email-verified-date">Found: ${verifiedDate}</div>` : ''}
+                    ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
                 </div>`;
-            } else if (messageGroup.emailStatus === 'not_found' || messageGroup.emailStatus === 'unverified' || messageGroup.emailStatus === 'invalid') {
-                const searchedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
+            } else if (messageGroup.emailStatus === 'not_found') {
+                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
                     year: 'numeric', 
                     month: 'short', 
                     day: 'numeric' 
                 }) : '';
                 return `<div class="email-verification">
                     <div class="email-status not-found">
-                        <i class="fas fa-times-circle"></i> ${messageGroup.emailStatus === 'unverified' ? 'Unverified' : messageGroup.emailStatus === 'invalid' ? 'Invalid' : 'Not Found'}
+                        <i class="fas fa-times-circle"></i> Not Found
                     </div>
-                    ${searchedDate ? `<div class="email-verified-date">Searched: ${searchedDate}</div>` : ''}
+                    ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
                 </div>`;
             }
             
             return `<div class="email-not-available">Not searched</div>`;
         }
 
-        // ENHANCED: Email finder flow with auto-update from database
+        // SIMPLE EMAIL FINDER FLOW - NO GLOBAL VARIABLE
         function askEmailClick(messageId) {
             console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
             
@@ -2176,7 +2150,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
-        // ENHANCED: Confirmation with auto-update from persistence
+        // STEP 4: USER CONFIRMS - NO MORE VALIDATION, DIRECT API CALL
         async function confirmEmailFinder(messageId) {
             closeEmailModal();
             
@@ -2220,11 +2194,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         currentUserPlan.totalCredits -= result.creditsCharged;
                     }
                     
-                    // NEW: Update local data with found email (will be persisted in DB by backend)
+                    // ENHANCED: Update local data with email result
                     Object.values(groupedMessages).forEach(group => {
                         if (group.id === messageId) {
                             group.emailFound = result.email;
-                            group.emailStatus = result.verificationStatus || 'verified';
+                            group.emailStatus = 'verified';
                             group.emailVerifiedAt = new Date().toISOString();
                         }
                     });
@@ -2233,7 +2207,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                 } else {
                     if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
-                        // NEW: Update status even when not found (persisted in DB)
+                        // ENHANCED: Update local data with not found status
                         Object.values(groupedMessages).forEach(group => {
                             if (group.id === messageId) {
                                 group.emailStatus = 'not_found';
