@@ -2534,6 +2534,31 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return finalText.trim();
         }
 
+        // FIXED: Helper function to get LinkedIn URL from message group
+        function getCurrentLinkedInUrl(messageId) {
+            // Find the message group that contains this messageId
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup) {
+                console.error('[EMAIL_FINDER] Message group not found for ID:', messageId);
+                return null;
+            }
+            
+            // Try to get LinkedIn URL from the message group data
+            // Look for LinkedIn URL in various possible fields
+            const linkedinUrl = messageGroup.target.linkedinUrl || 
+                               messageGroup.target.linkedin_url || 
+                               messageGroup.linkedinUrl ||
+                               messageGroup.linkedin_url;
+            
+            if (!linkedinUrl) {
+                console.error('[EMAIL_FINDER] No LinkedIn URL found for message group:', messageGroup);
+                return null;
+            }
+            
+            console.log('[EMAIL_FINDER] Found LinkedIn URL:', linkedinUrl);
+            return linkedinUrl;
+        }
+
         // Email Finder modal functions - FIXED TO ACCEPT MESSAGE ID
         function showEmailFinderModal(messageId) {
             // FIXED: Store messageId instead of target profile ID
@@ -2590,13 +2615,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('upgradeModal').classList.remove('active');
         }
 
-        // FIXED: Real Snov.io Email Finder Integration - SENDS MESSAGE ID
+        // FIXED: Real Snov.io Email Finder Integration - SENDS LINKEDIN URL
         async function confirmEmailFinder() {
             if (!currentTargetId) return;
             
+            // FIXED: Get LinkedIn URL from message group
+            const linkedinUrl = getCurrentLinkedInUrl(currentTargetId);
+            if (!linkedinUrl) {
+                alert('LinkedIn URL not found for this contact. Please try again.');
+                closeEmailModal();
+                return;
+            }
+            
             closeEmailModal();
             
-            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for message ID ${currentTargetId}`);
+            console.log(`[EMAIL_FINDER] Starting real Snov.io email finder for LinkedIn URL: ${linkedinUrl}`);
             
             // Update button to loading state
             const buttons = document.querySelectorAll(`[onclick*="showEmailFinderModal(${currentTargetId})"]`);
@@ -2614,7 +2647,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                // FIXED: Send messageId to backend (this is the key fix)
+                // FIXED: Send linkedinUrl to backend (this is the key fix)
                 const response = await fetch('/api/ask-email', {
                     method: 'POST',
                     headers: {
@@ -2622,7 +2655,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        messageId: currentTargetId  // FIXED: This matches what backend expects
+                        linkedinUrl: linkedinUrl  // FIXED: This matches what backend now expects
                     })
                 });
                 
