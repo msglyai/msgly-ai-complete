@@ -183,9 +183,9 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         
         logger.info(`Found LinkedIn URL for message ${messageId}: ${linkedinUrl}`);
         
-        // Check if user has Silver+ plan
+        // FIXED: Check if user has Silver+ plan using plan_code instead of package_type
         const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
-        const userPlan = req.user.package_type?.toLowerCase();
+        const userPlan = req.user.plan_code?.toLowerCase();
         
         if (!allowedPlans.includes(userPlan)) {
             return res.status(403).json({
@@ -193,7 +193,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
                 error: 'plan_upgrade_required',
                 message: 'Email finder feature requires Silver plan or higher',
                 userMessage: 'Upgrade to Silver, Gold, or Platinum to access email finder',
-                currentPlan: req.user.package_type,
+                currentPlan: req.user.plan_code,
                 requiredPlans: ['Silver', 'Gold', 'Platinum'],
                 upgradeUrl: '/upgrade'
             });
