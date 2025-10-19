@@ -3,7 +3,7 @@
 // Handles email finding and verification with "charge only on success" policy
 // Enhanced with target_profiles persistence - ONE email per profile
 // COMPLETE VERSION: Includes all backward compatibility functions
-// FIXED: Uses correct Snov.io v2 email verification endpoints
+// FIXED: Uses correct Snov.io v1 email-verifier endpoint (working)
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
@@ -154,58 +154,29 @@ class EmailFinder {
         }
     }
 
-    // FIXED: Verify single email using Snov.io v2 2-step async verification
+    // FIXED: Verify single email using Snov.io v1 email-verifier (WORKING)
     async verifySingleEmail(email) {
         try {
             logger.info(`[EMAIL_FINDER] Verifying email: ${email}`);
             
             const accessToken = await this.getSnovAccessToken();
             
-            // STEP 1: Start verification task
-            logger.debug('[EMAIL_FINDER] Step 1: Starting verification task...');
-            const startResponse = await axios.post(
-                `${this.snovBaseUrl}/v2/email-verification/start`,
-                { emails: [email] },
-                {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                    timeout: this.timeoutMs
-                }
-            );
+            const response = await axios.post(`${this.snovBaseUrl}/v1/email-verifier`, {
+                access_token: accessToken,
+                email: email
+            }, {
+                timeout: this.timeoutMs
+            });
 
-            logger.debug('[EMAIL_FINDER] Start response:', startResponse.data);
+            logger.debug(`[EMAIL_FINDER] Email verification response:`, response.data);
 
-            const taskHash = startResponse.data.data.task_hash;
+            const result = response.data;
             
-            if (!taskHash) {
-                throw new Error('No task_hash received from Snov.io');
-            }
-
-            // STEP 2: Wait for Snov.io to process
-            logger.debug('[EMAIL_FINDER] Step 2: Waiting 8 seconds for Snov.io to process...');
-            await new Promise(resolve => setTimeout(resolve, 8000));
-
-            // STEP 3: Get verification result
-            logger.debug('[EMAIL_FINDER] Step 3: Getting verification result...');
-            const resultResponse = await axios.get(
-                `${this.snovBaseUrl}/v2/email-verification/result?task_hash=${taskHash}`,
-                {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                    timeout: this.timeoutMs
-                }
-            );
-
-            logger.debug('[EMAIL_FINDER] Result response:', resultResponse.data);
-
-            const emailData = resultResponse.data.data[0];
-            const status = emailData.result.smtp_status; // valid, not_valid, or unknown
-            const reason = emailData.result.unknown_status_reason;
-
-            logger.info(`[EMAIL_FINDER] Verification complete: ${status}`);
-
             return {
                 success: true,
-                status: status,
-                reason: reason || null
+                status: result.result || 'unknown',
+                result: result.result,
+                reason: result.reason || null
             };
 
         } catch (error) {
