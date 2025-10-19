@@ -25,7 +25,7 @@ router.post('/generate-cold-email', authenticateToken, handleGenerateColdEmail);
 
 // ==================== NEW: MESSAGES CRUD ENDPOINTS ====================
 
-// GET /messages/history - Get messages for user (ENHANCED: Added email columns)
+// GET /messages/history - Get messages for user (FIXED: JOIN with target_profiles for email data)
 router.get('/messages/history', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -45,11 +45,12 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.sent_date,
                 ml.reply_date,
                 ml.target_profile_url as linkedinUrl,
-                -- ENHANCED: Add email finder columns
-                ml.email_found,
-                ml.email_status,
-                ml.email_verified_at
+                -- FIXED: Read email data from target_profiles table instead of message_logs
+                tp.email_found,
+                tp.email_status,
+                tp.email_verified_at
             FROM message_logs ml 
+            LEFT JOIN target_profiles tp ON tp.linkedin_url = ml.target_profile_url AND tp.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
@@ -71,7 +72,7 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             createdAt: row.created_at,
             sentDate: row.sent_date,
             replyDate: row.reply_date,
-            // ENHANCED: Include email data in response
+            // FIXED: Include email data from target_profiles
             emailFound: row.email_found,
             emailStatus: row.email_status,
             emailVerifiedAt: row.email_verified_at
@@ -149,15 +150,15 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
 
 // ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - ENHANCED: Save email results to database
+// POST /api/ask-email - FIXED: Save email results to target_profiles table
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== SIMPLIFIED EMAIL FINDER REQUEST ===');
+        logger.custom('EMAIL', '=== EMAIL FINDER REQUEST (TARGET_PROFILES) ===');
         logger.info(`User ID: ${req.user.id}`);
         
         const { messageId } = req.body;
         
-        // DEBUG: Add this line to see what we're actually receiving
+        // DEBUG: Log incoming request
         console.log('DEBUG - Request body:', req.body, 'User ID:', req.user?.id);
         
         if (!messageId) {
@@ -167,7 +168,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // SIMPLIFIED: Look up LinkedIn URL from database using messageId
+        // Look up LinkedIn URL from message_logs using messageId
         const messageResult = await pool.query(
             'SELECT target_profile_url FROM message_logs WHERE id = $1 AND user_id = $2',
             [messageId, req.user.id]
@@ -216,37 +217,19 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // Call email finder with LinkedIn URL (looked up from database)
+        // FIXED: Call email finder - it now saves directly to target_profiles table
+        // No need to save here - emailFinder.js handles all database persistence
         const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
-        logger.custom('EMAIL', `Email finder result for message ${messageId}: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        logger.custom('EMAIL', `Email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
         
-        // ENHANCED: Save email result to database
         if (result.success && result.email) {
-            // Save successful email find
-            await pool.query(`
-                UPDATE message_logs 
-                SET 
-                    email_found = $1,
-                    email_status = 'verified',
-                    email_verified_at = NOW()
-                WHERE id = $2 AND user_id = $3
-            `, [result.email, messageId, req.user.id]);
-            
-            logger.success(`Email saved to database for message ${messageId}: ${result.email}`);
+            logger.success(`Email found and saved to target_profiles: ${result.email}`);
         } else {
-            // Save failed attempt
-            await pool.query(`
-                UPDATE message_logs 
-                SET 
-                    email_status = 'not_found',
-                    email_verified_at = NOW()
-                WHERE id = $1 AND user_id = $2
-            `, [messageId, req.user.id]);
-            
-            logger.info(`Failed email attempt saved for message ${messageId}`);
+            logger.info(`Email search completed - status saved to target_profiles`);
         }
         
+        // Return result to frontend (emailFinder.js already saved to target_profiles)
         res.json(result);
         
     } catch (error) {
