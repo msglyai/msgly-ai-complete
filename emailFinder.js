@@ -1,7 +1,8 @@
-// emailFinder.js - FINAL FIX: Direct messageId persistence - NO URL MATCHING
+// emailFinder.js - COMPLETE FILE: Save to target_profiles table with LinkedIn URL identifier
 // Direct integration with Snov.io API using LinkedIn URLs
-// Handles email finding and verification with direct messageId-based persistence
-// FIXED: Removed all URL matching logic - uses messageId directly
+// Handles email finding and verification with "charge only on success" policy
+// Enhanced with target_profiles persistence - ONE email per profile
+// COMPLETE VERSION: Includes all backward compatibility functions
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
@@ -24,13 +25,13 @@ class EmailFinder {
         // Check if we have credentials
         this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
         
-        logger.custom('EMAIL', 'Snov.io Email Finder initialized - DIRECT MESSAGE_ID PERSISTENCE:', {
+        logger.custom('EMAIL', 'Snov.io Email Finder initialized - TARGET_PROFILES persistence:', {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
             costPerSuccess: this.costPerSuccess,
             authMethod: this.snovApiKey ? 'API Key' : 'OAuth',
-            persistenceMode: 'direct_message_id'
+            persistenceMode: 'target_profiles'
         });
     }
 
@@ -58,58 +59,74 @@ class EmailFinder {
         }
     }
 
-    // FIXED: Direct messageId-based persistence - NO URL MATCHING
-    async saveEmailToMessageId(messageId, email, verificationStatus, userId) {
+    // FIXED: Save email to target_profiles table (ONE record per LinkedIn URL)
+    async saveEmailToTargetProfiles(linkedinUrl, email, verificationStatus, userId) {
         try {
-            logger.info(`[EMAIL_FINDER] Saving email directly to messageId ${messageId} - Email: ${email}, Status: ${verificationStatus}`);
+            logger.info(`[EMAIL_FINDER] Saving to target_profiles - URL: ${linkedinUrl}, Email: ${email}, Status: ${verificationStatus}`);
             
             const timestamp = new Date();
             
-            // SIMPLIFIED: Direct UPDATE using messageId - NO URL COMPARISON
-            const result = await pool.query(`
-                UPDATE message_logs 
-                SET 
-                    email_found = $1,
-                    email_status = $2,
-                    email_verified_at = $3
-                WHERE id = $4 AND user_id = $5
-                RETURNING id, email_found, email_status, email_verified_at
-            `, [email, verificationStatus, timestamp, messageId, userId]);
+            // First, check if target_profiles record exists
+            const existingProfile = await pool.query(`
+                SELECT id FROM target_profiles 
+                WHERE linkedin_url = $1 AND user_id = $2
+            `, [linkedinUrl, userId]);
 
-            if (result.rows.length > 0) {
-                logger.success(`[EMAIL_FINDER] ✅ Successfully updated message_logs record:`, result.rows[0]);
-                return {
-                    success: true,
-                    data: result.rows[0],
-                    message: 'Email saved to message_logs successfully'
-                };
+            let result;
+            
+            if (existingProfile.rows.length > 0) {
+                // Update existing profile
+                result = await pool.query(`
+                    UPDATE target_profiles 
+                    SET 
+                        email_found = $1,
+                        email_status = $2,
+                        email_verified_at = $3,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE linkedin_url = $4 AND user_id = $5
+                    RETURNING id, email_found, email_status, email_verified_at
+                `, [email, verificationStatus, timestamp, linkedinUrl, userId]);
+                
+                logger.success(`[EMAIL_FINDER] ✅ Updated existing target_profile:`, result.rows[0]);
             } else {
-                logger.warn(`[EMAIL_FINDER] ⚠️ No message_logs record found for messageId: ${messageId}, User: ${userId}`);
-                return {
-                    success: false,
-                    message: 'No message_logs record found to update'
-                };
+                // Create new profile record
+                result = await pool.query(`
+                    INSERT INTO target_profiles (
+                        user_id, linkedin_url, email_found, email_status, email_verified_at, created_at, updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    RETURNING id, email_found, email_status, email_verified_at
+                `, [userId, linkedinUrl, email, verificationStatus, timestamp]);
+                
+                logger.success(`[EMAIL_FINDER] ✅ Created new target_profile:`, result.rows[0]);
             }
 
+            return {
+                success: true,
+                data: result.rows[0],
+                message: 'Email saved to target_profiles successfully'
+            };
+
         } catch (error) {
-            logger.error('[EMAIL_FINDER] Error saving email to message_logs:', error);
+            logger.error('[EMAIL_FINDER] Error saving to target_profiles:', error);
             return {
                 success: false,
                 error: error.message,
-                message: 'Failed to save email to message_logs'
+                message: 'Failed to save email to target_profiles'
             };
         }
     }
 
-    // FIXED: Get email verification status using messageId directly
-    async getEmailFromMessageId(messageId, userId) {
+    // Get email from target_profiles cache
+    async getEmailFromTargetProfiles(linkedinUrl, userId) {
         try {
             const result = await pool.query(`
                 SELECT email_found, email_status, email_verified_at, created_at
-                FROM message_logs 
-                WHERE id = $1 AND user_id = $2 
+                FROM target_profiles 
+                WHERE user_id = $1 AND linkedin_url = $2 
                 AND email_found IS NOT NULL
-            `, [messageId, userId]);
+                ORDER BY created_at DESC 
+                LIMIT 1
+            `, [userId, linkedinUrl]);
 
             if (result.rows.length > 0) {
                 const row = result.rows[0];
@@ -123,12 +140,12 @@ class EmailFinder {
             } else {
                 return {
                     success: false,
-                    message: 'No email found in message_logs for this message'
+                    message: 'No email found in target_profiles for this LinkedIn URL'
                 };
             }
 
         } catch (error) {
-            logger.error('[EMAIL_FINDER] Error getting email from message_logs:', error);
+            logger.error('[EMAIL_FINDER] Error getting email from target_profiles:', error);
             return {
                 success: false,
                 error: error.message
@@ -136,7 +153,7 @@ class EmailFinder {
         }
     }
 
-    // Verify single email using Snov.io API
+    // FIXED: Verify single email - return Snov.io's EXACT status
     async verifySingleEmail(email) {
         try {
             logger.info(`[EMAIL_FINDER] Verifying email: ${email}`);
@@ -153,11 +170,12 @@ class EmailFinder {
             logger.debug(`[EMAIL_FINDER] Email verification response:`, response.data);
 
             const result = response.data;
-            const status = result.result === 'valid' ? 'verified' : 'not_found';
-
+            
+            // FIXED: Return Snov.io's exact status without mapping
+            // Possible statuses: valid, invalid, catch_all, unknown, etc.
             return {
                 success: true,
-                status: status,
+                status: result.result || 'unknown',  // Use Snov.io's exact status
                 result: result.result,
                 reason: result.reason || null
             };
@@ -167,16 +185,16 @@ class EmailFinder {
             
             return {
                 success: false,
-                status: 'not_found',
+                status: 'unknown',
                 error: error.message
             };
         }
     }
 
-    // FIXED: Main LinkedIn URL email finder with direct messageId persistence
-    async findEmailWithMessageId(userId, messageId, linkedinUrl) {
+    // Main LinkedIn URL email finder
+    async findEmailWithLinkedInUrl(userId, linkedinUrl) {
         try {
-            logger.custom('EMAIL', `LinkedIn URL email finder: User ${userId}, MessageId ${messageId}, URL ${linkedinUrl}`);
+            logger.custom('EMAIL', `LinkedIn URL email finder: User ${userId}, URL ${linkedinUrl}`);
 
             // Check if feature is enabled
             if (!this.enabled) {
@@ -196,11 +214,11 @@ class EmailFinder {
                 };
             }
 
-            // FIXED: First check if we already have the email using messageId
-            const existingEmail = await this.getEmailFromMessageId(messageId, userId);
+            // FIXED: Check if we already have the email in target_profiles
+            const existingEmail = await this.getEmailFromTargetProfiles(linkedinUrl, userId);
             
             if (existingEmail.success) {
-                logger.info(`[EMAIL_FINDER] Email already found for messageId ${messageId}: ${existingEmail.email}`);
+                logger.info(`[EMAIL_FINDER] Email already found in target_profiles: ${existingEmail.email}`);
                 return {
                     success: true,
                     email: existingEmail.email,
@@ -227,7 +245,6 @@ class EmailFinder {
             // Create credit hold
             logger.info(`Creating credit hold for ${this.costPerSuccess} credits`);
             const holdResult = await createCreditHold(userId, 'email_verification', {
-                messageId: messageId,
                 linkedinUrl: linkedinUrl
             });
 
@@ -244,7 +261,7 @@ class EmailFinder {
             const holdId = holdResult.holdId;
 
             try {
-                // Find email using correct Snov.io v1 API with delay
+                // Find email using Snov.io v1 API with delay
                 const emailResult = await this.findEmailWithSnovV1(linkedinUrl);
 
                 if (emailResult.success && emailResult.email) {
@@ -252,8 +269,13 @@ class EmailFinder {
                     const verificationResult = await this.verifySingleEmail(emailResult.email);
                     logger.debug(`[EMAIL_FINDER] Verification result:`, verificationResult);
                     
-                    // FIXED: Save email and verification result using messageId directly
-                    const saveResult = await this.saveEmailToMessageId(messageId, emailResult.email, verificationResult.status, userId);
+                    // FIXED: Save email to target_profiles
+                    const saveResult = await this.saveEmailToTargetProfiles(
+                        linkedinUrl, 
+                        emailResult.email, 
+                        verificationResult.status,  // Snov.io's exact status
+                        userId
+                    );
                     logger.debug(`[EMAIL_FINDER] Save result:`, saveResult);
 
                     // Success: Complete payment and charge credits
@@ -269,7 +291,7 @@ class EmailFinder {
                     return {
                         success: true,
                         email: emailResult.email,
-                        verificationStatus: verificationResult.status,
+                        status: verificationResult.status,  // Return exact Snov.io status
                         creditsCharged: this.costPerSuccess,
                         newBalance: paymentResult.newBalance || creditCheck.currentCredits - this.costPerSuccess,
                         message: 'Email found and verified successfully',
@@ -277,8 +299,8 @@ class EmailFinder {
                     };
 
                 } else {
-                    // Failed to find email: Save "not found" status and release credit hold
-                    await this.saveEmailToMessageId(messageId, null, 'not_found', userId);
+                    // Failed to find email: Save "not_found" status and release credit hold
+                    await this.saveEmailToTargetProfiles(linkedinUrl, null, 'not_found', userId);
                     await releaseCreditHold(userId, holdId, 'email_not_found');
 
                     logger.info(`Email verification failed: not found (no credits charged)`);
@@ -286,6 +308,7 @@ class EmailFinder {
                     return {
                         success: false,
                         error: 'email_not_found',
+                        status: 'not_found',
                         creditsCharged: 0,
                         message: 'No email found for this LinkedIn profile'
                     };
@@ -294,7 +317,7 @@ class EmailFinder {
             } catch (processingError) {
                 // Processing error: Save error status and release credit hold
                 logger.error('Email finder processing error:', processingError);
-                await this.saveEmailToMessageId(messageId, null, 'not_found', userId);
+                await this.saveEmailToTargetProfiles(linkedinUrl, null, 'error', userId);
                 await releaseCreditHold(userId, holdId, 'processing_error');
 
                 return {
@@ -316,125 +339,7 @@ class EmailFinder {
         }
     }
 
-    // Main LinkedIn URL email finder with enhanced persistence
-    async findEmailWithLinkedInUrl(userId, linkedinUrl) {
-        try {
-            logger.custom('EMAIL', `LinkedIn URL email finder: User ${userId}, URL ${linkedinUrl}`);
-
-            // Check if feature is enabled
-            if (!this.enabled) {
-                return {
-                    success: false,
-                    error: 'email_finder_disabled',
-                    message: 'Email finder feature is currently disabled'
-                };
-            }
-
-            // Check if we have Snov.io credentials
-            if (!this.hasCredentials) {
-                return {
-                    success: false,
-                    error: 'snov_not_configured',
-                    message: 'Snov.io API credentials not configured'
-                };
-            }
-
-            // Check user credits before processing
-            const creditCheck = await checkUserCredits(userId, 'email_verification');
-            if (!creditCheck.success || !creditCheck.hasCredits) {
-                return {
-                    success: false,
-                    error: 'insufficient_credits',
-                    message: `You need ${this.costPerSuccess} credits to verify an email. You have ${creditCheck.currentCredits || 0} credits.`,
-                    currentCredits: creditCheck.currentCredits || 0,
-                    requiredCredits: this.costPerSuccess
-                };
-            }
-
-            // Create credit hold
-            logger.info(`Creating credit hold for ${this.costPerSuccess} credits`);
-            const holdResult = await createCreditHold(userId, 'email_verification', {
-                linkedinUrl: linkedinUrl
-            });
-
-            if (!holdResult.success) {
-                return {
-                    success: false,
-                    error: 'credit_hold_failed',
-                    message: holdResult.error === 'insufficient_credits' 
-                        ? `Insufficient credits: need ${this.costPerSuccess}, have ${holdResult.currentCredits}`
-                        : 'Failed to reserve credits for this operation'
-                };
-            }
-
-            const holdId = holdResult.holdId;
-
-            try {
-                // Find email using correct Snov.io v1 API with delay
-                const emailResult = await this.findEmailWithSnovV1(linkedinUrl);
-
-                if (emailResult.success && emailResult.email) {
-                    // Verify the email
-                    const verificationResult = await this.verifySingleEmail(emailResult.email);
-                    logger.debug(`[EMAIL_FINDER] Verification result:`, verificationResult);
-
-                    // Success: Complete payment and charge credits
-                    const paymentResult = await completeOperation(userId, holdId, {
-                        email: emailResult.email,
-                        verificationStatus: verificationResult.status,
-                        snovResponse: emailResult.snovData
-                    });
-
-                    logger.success(`Email verification successful: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
-
-                    return {
-                        success: true,
-                        email: emailResult.email,
-                        verificationStatus: verificationResult.status,
-                        creditsCharged: this.costPerSuccess,
-                        newBalance: paymentResult.newBalance || creditCheck.currentCredits - this.costPerSuccess,
-                        message: 'Email found and verified successfully'
-                    };
-
-                } else {
-                    // Failed to find email: Release credit hold
-                    await releaseCreditHold(userId, holdId, 'email_not_found');
-
-                    logger.info(`Email verification failed: not found (no credits charged)`);
-
-                    return {
-                        success: false,
-                        error: 'email_not_found',
-                        creditsCharged: 0,
-                        message: 'No email found for this LinkedIn profile'
-                    };
-                }
-
-            } catch (processingError) {
-                // Processing error: Release credit hold
-                logger.error('Email finder processing error:', processingError);
-                await releaseCreditHold(userId, holdId, 'processing_error');
-
-                return {
-                    success: false,
-                    error: 'processing_error',
-                    message: 'Temporary issue finding email. Please try again.',
-                    creditsCharged: 0
-                };
-            }
-
-        } catch (error) {
-            logger.error('Email finder error:', error);
-            return {
-                success: false,
-                error: 'system_error',
-                message: 'System error occurred. Please try again.',
-                details: error.message
-            };
-        }
-    }
-
-    // FINAL FIX: Correct Snov.io v1 API implementation with proper authentication AND required delay
+    // Snov.io v1 API implementation with proper delay
     async findEmailWithSnovV1(linkedinUrl) {
         try {
             logger.info('Finding email with Snov.io v1 LinkedIn URL API...');
@@ -442,7 +347,7 @@ class EmailFinder {
             // Get access token
             const accessToken = await this.getSnovAccessToken();
             
-            // Step 1: Add LinkedIn URL for search (v1 API with access_token as parameter)
+            // Step 1: Add LinkedIn URL for search
             logger.debug('Step 1: Adding LinkedIn URL to Snov.io...');
             const addUrlResponse = await axios.post(`${this.snovBaseUrl}/v1/add-url-for-search`, {
                 access_token: accessToken,
@@ -453,11 +358,11 @@ class EmailFinder {
             
             logger.debug('URL added to Snov.io:', addUrlResponse.data);
             
-            // CRITICAL FIX: Wait for Snov.io to process the LinkedIn URL (3-5 seconds)
+            // CRITICAL: Wait for Snov.io to process the LinkedIn URL
             logger.debug('Waiting for Snov.io to process LinkedIn URL...');
             await new Promise(resolve => setTimeout(resolve, 4000)); // 4 second delay
             
-            // Step 2: Get emails from the URL (v1 API with access_token as parameter)
+            // Step 2: Get emails from the URL
             logger.debug('Step 2: Getting emails from LinkedIn URL...');
             const emailsResponse = await axios.post(`${this.snovBaseUrl}/v1/get-emails-from-url`, {
                 access_token: accessToken,
@@ -468,10 +373,8 @@ class EmailFinder {
             
             logger.debug('Snov.io email response:', emailsResponse.data);
             
-            // Parse response for found emails
             const responseData = emailsResponse.data;
             
-            // Check if response indicates success
             if (!responseData.success) {
                 logger.warn('Snov.io API returned success: false');
                 return {
@@ -484,7 +387,6 @@ class EmailFinder {
             const emails = responseData.data?.emails || [];
             
             if (emails && emails.length > 0) {
-                // Find the first valid email
                 const validEmail = emails.find(emailObj => 
                     emailObj.email && 
                     emailObj.email.includes('@') &&
@@ -536,7 +438,7 @@ class EmailFinder {
         }
     }
 
-    // Keep original profile-based email finder for backward compatibility
+    // BACKWARD COMPATIBILITY: Profile-based email finder
     async findEmail(userId, targetProfileId) {
         try {
             logger.custom('EMAIL', `Profile-based email finder: User ${userId}, Target ${targetProfileId}`);
@@ -613,11 +515,22 @@ class EmailFinder {
                 }
 
                 if (emailResult.success && emailResult.email) {
+                    // Verify email and save to target_profiles
+                    const verificationResult = await this.verifySingleEmail(emailResult.email);
+                    
+                    if (targetProfile.data.linkedin_url) {
+                        await this.saveEmailToTargetProfiles(
+                            targetProfile.data.linkedin_url, 
+                            emailResult.email, 
+                            verificationResult.status, 
+                            userId
+                        );
+                    }
 
                     await this.updateEmailStatus(
                         targetProfileId, 
                         emailResult.email, 
-                        'verified', 
+                        verificationResult.status, 
                         new Date()
                     );
 
@@ -631,13 +544,21 @@ class EmailFinder {
                     return {
                         success: true,
                         email: emailResult.email,
-                        status: 'verified',
+                        status: verificationResult.status,
                         creditsCharged: this.costPerSuccess,
                         newBalance: paymentResult.newBalance || creditCheck.currentCredits - this.costPerSuccess,
                         message: 'Email found successfully'
                     };
 
                 } else {
+                    if (targetProfile.data.linkedin_url) {
+                        await this.saveEmailToTargetProfiles(
+                            targetProfile.data.linkedin_url, 
+                            null, 
+                            'not_found', 
+                            userId
+                        );
+                    }
 
                     await this.updateEmailStatus(
                         targetProfileId, 
@@ -683,7 +604,7 @@ class EmailFinder {
         }
     }
 
-    // Fallback: Name-based email search using domain search (v2 API with Bearer token)
+    // BACKWARD COMPATIBILITY: Name-based email search
     async findEmailWithSnovNames(profileData) {
         try {
             logger.info('Finding email with Snov.io name-based search...');
@@ -704,7 +625,6 @@ class EmailFinder {
                 };
             }
             
-            // Use v2 API for domain search with Bearer token
             const domain = this.extractDomainFromCompany(company);
             
             const response = await axios.post(`${this.snovBaseUrl}/v2/domain-search/prospects`, {
@@ -759,7 +679,7 @@ class EmailFinder {
         }
     }
 
-    // Helper functions (unchanged)
+    // BACKWARD COMPATIBILITY: Helper functions
     extractDomainFromCompany(company) {
         const cleanCompany = company.toLowerCase()
             .replace(/[^a-z0-9]/g, '')
@@ -832,7 +752,7 @@ class EmailFinder {
         }
     }
 
-    // Health check method
+    // Health check
     async healthCheck() {
         try {
             const accessToken = await this.getSnovAccessToken();
@@ -840,7 +760,7 @@ class EmailFinder {
                 success: true,
                 message: 'Snov.io API connection successful',
                 hasCredentials: this.hasCredentials,
-                persistenceMode: 'direct_message_id'
+                persistenceMode: 'target_profiles'
             };
         } catch (error) {
             return {
@@ -857,8 +777,8 @@ class EmailFinder {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             costPerSuccess: this.costPerSuccess,
-            mode: 'snov_v1_linkedin_url_with_delay_fix_and_direct_message_id_persistence',
-            persistenceStrategy: 'direct_message_id'
+            mode: 'snov_v1_target_profiles',
+            persistenceStrategy: 'target_profiles'
         };
     }
 }
@@ -866,7 +786,7 @@ class EmailFinder {
 // Create singleton instance
 const emailFinder = new EmailFinder();
 
-// Export helper functions with messageId support
+// COMPLETE: Export all functions (including backward compatibility)
 async function findEmailForProfile(userId, targetProfileId) {
     return await emailFinder.findEmail(userId, targetProfileId);
 }
@@ -875,14 +795,39 @@ async function findEmailWithLinkedInUrl(userId, linkedinUrl) {
     return await emailFinder.findEmailWithLinkedInUrl(userId, linkedinUrl);
 }
 
-// FIXED: New function for direct messageId-based email finding
-async function findEmailWithMessageId(userId, messageId, linkedinUrl) {
-    return await emailFinder.findEmailWithMessageId(userId, messageId, linkedinUrl);
+async function getEmailFromCache(userId, linkedinUrl) {
+    return await emailFinder.getEmailFromTargetProfiles(linkedinUrl, userId);
 }
 
-// FIXED: Check if email exists using messageId
-async function getEmailFromCache(userId, messageId) {
-    return await emailFinder.getEmailFromMessageId(messageId, userId);
+async function findOrGetEmail(userId, linkedinUrl) {
+    try {
+        // First check cache
+        const existingEmail = await emailFinder.getEmailFromTargetProfiles(linkedinUrl, userId);
+        
+        if (existingEmail.success) {
+            logger.info(`[EMAIL_FINDER] Email retrieved from cache: ${existingEmail.email}`);
+            return {
+                success: true,
+                email: existingEmail.email,
+                status: existingEmail.status,
+                source: 'cached',
+                verifiedAt: existingEmail.verifiedAt,
+                creditsCharged: 0
+            };
+        }
+
+        // If not found, search for new email
+        logger.info(`[EMAIL_FINDER] No cached email found, searching for new email...`);
+        return await emailFinder.findEmailWithLinkedInUrl(userId, linkedinUrl);
+
+    } catch (error) {
+        logger.error('[EMAIL_FINDER] Error in findOrGetEmail:', error);
+        return {
+            success: false,
+            error: error.message,
+            message: 'Email search failed'
+        };
+    }
 }
 
 function getEmailFinderStatus() {
@@ -898,10 +843,10 @@ module.exports = {
     emailFinder,
     findEmailForProfile,
     findEmailWithLinkedInUrl,
-    findEmailWithMessageId,
     getEmailFromCache,
+    findOrGetEmail,
     getEmailFinderStatus,
     isEmailFinderEnabled
 };
 
-logger.success('Snov.io Email Finder module loaded with DIRECT MESSAGE_ID PERSISTENCE - NO URL MATCHING!');
+logger.success('Snov.io Email Finder module loaded - COMPLETE VERSION with TARGET_PROFILES persistence!');
