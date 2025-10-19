@@ -681,11 +681,34 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 600;
         }
 
+        /* FIXED: Added CSS for all Snov.io status types */
+        .email-status.valid {
+            color: var(--success-green);
+        }
+
+        .email-status.invalid,
+        .email-status.not_valid {
+            color: var(--error-red);
+        }
+
+        .email-status.catch_all {
+            color: var(--warning-orange);
+        }
+
+        .email-status.unknown {
+            color: var(--gray);
+        }
+
+        .email-status.error {
+            color: var(--error-red);
+        }
+
         .email-status.verified {
             color: var(--success-green);
         }
 
-        .email-status.not-found {
+        .email-status.not-found,
+        .email-status.not_found {
             color: var(--error-red);
         }
 
@@ -2066,40 +2089,83 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </button>`;
         }
 
-        // ENHANCED: Updated to display email data from database
+        // FIXED: Updated function to handle all Snov.io status types
         function createEmailVerificationDisplay(messageGroup) {
             if (!messageGroup.emailStatus) {
                 return `<div class="email-not-available">Not searched</div>`;
             }
             
-            if (messageGroup.emailStatus === 'verified') {
-                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
+            const verifiedDate = messageGroup.emailVerifiedAt ? 
+                new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
+                    year: 'numeric', month: 'short', day: 'numeric' 
                 }) : '';
-                return `<div class="email-verification">
-                    <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
-                    <div class="email-status verified">
-                        <i class="fas fa-check-circle"></i> Verified
-                    </div>
-                    ${verifiedDate ? `<div class="email-verified-date">Verified: ${verifiedDate}</div>` : ''}
-                </div>`;
-            } else if (messageGroup.emailStatus === 'not_found') {
-                const verifiedDate = messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                }) : '';
-                return `<div class="email-verification">
-                    <div class="email-status not-found">
-                        <i class="fas fa-times-circle"></i> Not Found
-                    </div>
-                    ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
-                </div>`;
-            }
             
-            return `<div class="email-not-available">Not searched</div>`;
+            switch(messageGroup.emailStatus) {
+                case 'valid':
+                    return `<div class="email-verification">
+                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                        <div class="email-status valid">
+                            <i class="fas fa-check-circle"></i> Valid
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'invalid':
+                case 'not_valid':
+                    return `<div class="email-verification">
+                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                        <div class="email-status invalid">
+                            <i class="fas fa-times-circle"></i> Invalid
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'catch_all':
+                    return `<div class="email-verification">
+                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                        <div class="email-status catch_all">
+                            <i class="fas fa-exclamation-circle"></i> Catch-all
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'unknown':
+                    return `<div class="email-verification">
+                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                        <div class="email-status unknown">
+                            <i class="fas fa-question-circle"></i> Unknown
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'not_found':
+                    return `<div class="email-verification">
+                        <div class="email-status not_found">
+                            <i class="fas fa-times-circle"></i> Not Found
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'error':
+                    return `<div class="email-verification">
+                        <div class="email-status error">
+                            <i class="fas fa-exclamation-triangle"></i> Error
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'verified':
+                    return `<div class="email-verification">
+                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                        <div class="email-status verified">
+                            <i class="fas fa-check-circle"></i> Verified
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                default:
+                    return `<div class="email-not-available">Not searched</div>`;
+            }
         }
 
         // SIMPLE EMAIL FINDER FLOW - NO GLOBAL VARIABLE
@@ -2198,7 +2264,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     Object.values(groupedMessages).forEach(group => {
                         if (group.id === messageId) {
                             group.emailFound = result.email;
-                            group.emailStatus = 'verified';
+                            group.emailStatus = result.status;
                             group.emailVerifiedAt = new Date().toISOString();
                         }
                     });
