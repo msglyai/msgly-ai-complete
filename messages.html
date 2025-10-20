@@ -689,6 +689,17 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             100% { transform: scale(1); opacity: 1; }
         }
 
+        /* Unknown/Catch-all - Yellow Warning State */
+        .email-unknown-container {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border: 2px solid var(--warning-orange);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+            animation: emailFoundPulse 0.6s ease-out;
+        }
+
         .email-not-found-container {
             background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.03) 100%);
             border: 2px solid rgba(239, 68, 68, 0.3);
@@ -715,6 +726,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             gap: 0.4rem;
         }
 
+        .email-label.warning {
+            color: var(--warning-orange);
+        }
+
+        .email-label.error {
+            color: var(--error-red);
+        }
+
         .email-address-display {
             font-size: 1rem;
             font-weight: 700;
@@ -725,6 +744,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: rgba(255, 255, 255, 0.9);
             border-radius: 8px;
             border-left: 4px solid var(--success-green);
+        }
+
+        .email-address-display.warning {
+            border-left-color: var(--warning-orange);
         }
 
         .email-actions-row {
@@ -761,6 +784,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .copy-email-btn.copied {
             background: var(--primary-purple);
             animation: copySuccess 0.4s ease-out;
+        }
+
+        .copy-email-btn.warning {
+            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+        }
+
+        .copy-email-btn.warning:hover {
+            background: linear-gradient(135deg, #D97706 0%, var(--warning-orange) 100%);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
         }
 
         @keyframes copySuccess {
@@ -2370,10 +2403,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     year: 'numeric', month: 'short', day: 'numeric' 
                 }) : '';
             
+            const emailAddress = messageGroup.emailFound || 'N/A';
+            
             switch(messageGroup.emailStatus) {
                 case 'valid':
                 case 'verified':
-                    const emailAddress = messageGroup.emailFound || 'N/A';
                     return `<div class="email-found-container">
                         <div class="email-header-row">
                             <div class="email-label">
@@ -2391,69 +2425,112 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                         ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Found: ${verifiedDate}</div>` : ''}
                     </div>`;
+                
+                case 'unknown':
+                    return `<div class="email-unknown-container">
+                        <div class="email-header-row">
+                            <div class="email-label warning">
+                                <i class="fas fa-question-circle"></i> Email Found - Status Unknown
+                            </div>
+                        </div>
+                        <div class="email-address-display warning">${emailAddress}</div>
+                        <div class="email-actions-row">
+                            <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
+                                <i class="fas fa-copy"></i> Copy Email
+                            </button>
+                            <div class="email-status unknown">
+                                <i class="fas fa-exclamation-triangle"></i> Unknown
+                            </div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.5rem; text-align: center;">
+                            Verification status could not be determined
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.3rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                
+                case 'catch_all':
+                    return `<div class="email-unknown-container">
+                        <div class="email-header-row">
+                            <div class="email-label warning">
+                                <i class="fas fa-exclamation-circle"></i> Catch-All Domain Detected
+                            </div>
+                        </div>
+                        <div class="email-address-display warning">${emailAddress}</div>
+                        <div class="email-actions-row">
+                            <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
+                                <i class="fas fa-copy"></i> Copy Email
+                            </button>
+                            <div class="email-status catch_all">
+                                <i class="fas fa-info-circle"></i> Catch-All
+                            </div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.5rem; text-align: center;">
+                            Domain accepts all emails - verification uncertain
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.3rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
                     
                 case 'invalid':
                 case 'not_valid':
                     return `<div class="email-not-found-container">
+                        <div class="email-header-row">
+                            <div class="email-label error">
+                                <i class="fas fa-times-circle"></i> Invalid Email Found
+                            </div>
+                        </div>
                         <div class="email-verification">
-                            <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                            <div class="email-address">${emailAddress}</div>
                             <div class="email-status invalid">
-                                <i class="fas fa-times-circle"></i> Invalid Email
+                                <i class="fas fa-ban"></i> Email Invalid
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.3rem;">
+                                This email address appears to be invalid
                             </div>
                             ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
                         </div>
                     </div>`;
                     
-                case 'catch_all':
-                    return `<div class="email-verification">
-                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
-                        <div class="email-status catch_all">
-                            <i class="fas fa-exclamation-circle"></i> Catch-all Domain
-                        </div>
-                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
-                    </div>`;
-                    
-                case 'unknown':
-                    return `<div class="email-verification">
-                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
-                        <div class="email-status unknown">
-                            <i class="fas fa-question-circle"></i> Unknown Status
-                        </div>
-                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
-                    </div>`;
-                    
                 case 'found':
-                    return `<div class="email-verification">
-                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
-                        <div class="email-status found">
-                            <i class="fas fa-hourglass-half"></i> Verifying...
+                    return `<div class="email-unknown-container">
+                        <div class="email-header-row">
+                            <div class="email-label warning">
+                                <i class="fas fa-hourglass-half"></i> Verifying Email...
+                            </div>
                         </div>
-                        ${verifiedDate ? `<div class="email-verified-date">Found: ${verifiedDate}</div>` : ''}
+                        <div class="email-address-display warning">${emailAddress}</div>
+                        <div class="email-status found">
+                            <i class="fas fa-spinner fa-pulse"></i> Verification in progress
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Found: ${verifiedDate}</div>` : ''}
                     </div>`;
                     
                 case 'not_found':
                     return `<div class="email-not-found-container">
-                        <div class="email-verification">
-                            <div class="email-status not_found">
+                        <div class="email-header-row">
+                            <div class="email-label error">
                                 <i class="fas fa-times-circle"></i> Email Not Found
                             </div>
-                            <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.3rem;">
+                        </div>
+                        <div class="email-verification">
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.3rem; text-align: center;">
                                 No public email found for this contact
                             </div>
-                            ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                            ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem;">Searched: ${verifiedDate}</div>` : ''}
                         </div>
                     </div>`;
                     
                 case 'error':
                     return `<div class="email-not-found-container">
-                        <div class="email-verification">
-                            <div class="email-status error">
+                        <div class="email-header-row">
+                            <div class="email-label error">
                                 <i class="fas fa-exclamation-triangle"></i> Search Error
                             </div>
-                            <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.3rem;">
-                                An error occurred during search
+                        </div>
+                        <div class="email-verification">
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.3rem; text-align: center;">
+                                An error occurred during the email search
                             </div>
-                            ${verifiedDate ? `<div class="email-verified-date">Attempted: ${verifiedDate}</div>` : ''}
+                            ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem;">Attempted: ${verifiedDate}</div>` : ''}
                         </div>
                     </div>`;
                     
