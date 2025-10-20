@@ -155,6 +155,37 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             letter-spacing: 0.5px;
         }
 
+        /* NEW: Credits Display in Sidebar */
+        .sidebar-user-credits {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-user-credits i {
+            font-size: 0.9rem;
+            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+        }
+
+        .sidebar-user-credits.updating {
+            animation: pulse 0.6s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); background: rgba(255, 255, 255, 0.25); }
+        }
+
         .sidebar-nav {
             padding: 1.5rem 0;
         }
@@ -290,6 +321,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .page-header {
             margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .page-header-left {
+            flex: 1;
         }
 
         .page-title {
@@ -302,6 +342,39 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--gray);
             font-size: 1rem;
             margin-top: 0.4rem;
+        }
+
+        /* NEW: Credits Badge in Header */
+        .page-header-credits {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            box-shadow: var(--glow-shadow);
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .page-header-credits i {
+            font-size: 1.3rem;
+            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5));
+        }
+
+        .page-header-credits.updating {
+            animation: creditPulse 0.6s ease-in-out;
+        }
+
+        @keyframes creditPulse {
+            0%, 100% { transform: scale(1); }
+            50% { 
+                transform: scale(1.08); 
+                box-shadow: 0 0 40px rgba(128, 57, 223, 0.5);
+            }
         }
 
         .messages-controls {
@@ -681,7 +754,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 600;
         }
 
-        /* FIXED: Added CSS for all Snov.io status types */
         .email-status.valid {
             color: var(--success-green);
         }
@@ -710,6 +782,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .email-status.not-found,
         .email-status.not_found {
             color: var(--error-red);
+        }
+
+        .email-status.found {
+            color: var(--warning-orange);
         }
 
         .email-verified-date {
@@ -1278,6 +1354,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             .filter-buttons {
                 justify-content: center;
             }
+
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .page-header-credits {
+                width: 100%;
+                justify-content: center;
+            }
         }
 
         @media (min-width: 769px) and (max-width: 1200px) {
@@ -1320,6 +1406,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
                     <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
                     <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
+                    <!-- NEW: Credits Display in Sidebar -->
+                    <div class="sidebar-user-credits" id="sidebarUserCredits">
+                        <i class="fas fa-coins"></i>
+                        <span id="sidebarCreditsNumber">0</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1430,9 +1521,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <main class="main-content">
             <div class="container">
         <div class="page-header">
-            <div>
+            <div class="page-header-left">
                 <h1 class="page-title">Messages</h1>
                 <p class="page-subtitle">Manage your LinkedIn outreach campaigns and track responses</p>
+            </div>
+            <!-- NEW: Credits Badge in Header -->
+            <div class="page-header-credits" id="headerCredits">
+                <i class="fas fa-coins"></i>
+                <span id="headerCreditsNumber">0</span>
+                <span style="font-size: 0.9rem; font-weight: 500;">Credits</span>
             </div>
         </div>
 
@@ -1613,6 +1710,41 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return localStorage.getItem('authToken');
         }
 
+        // NEW: Update credit display in multiple locations
+        function updateCreditDisplay(credits) {
+            const creditsValue = Math.max(0, parseFloat(credits) || 0);
+            const formattedCredits = creditsValue.toFixed(2);
+            
+            // Update sidebar credits
+            const sidebarCredits = document.getElementById('sidebarCreditsNumber');
+            const sidebarCreditsContainer = document.getElementById('sidebarUserCredits');
+            if (sidebarCredits) {
+                sidebarCredits.textContent = formattedCredits;
+                if (sidebarCreditsContainer) {
+                    sidebarCreditsContainer.classList.add('updating');
+                    setTimeout(() => sidebarCreditsContainer.classList.remove('updating'), 600);
+                }
+            }
+            
+            // Update header credits
+            const headerCredits = document.getElementById('headerCreditsNumber');
+            const headerCreditsContainer = document.getElementById('headerCredits');
+            if (headerCredits) {
+                headerCredits.textContent = formattedCredits;
+                if (headerCreditsContainer) {
+                    headerCreditsContainer.classList.add('updating');
+                    setTimeout(() => headerCreditsContainer.classList.remove('updating'), 600);
+                }
+            }
+            
+            // Update global variable
+            if (currentUserPlan) {
+                currentUserPlan.totalCredits = creditsValue;
+            }
+            
+            console.log(`[CREDITS] Display updated: ${formattedCredits} credits`);
+        }
+
         // Load user profile for sidebar
         async function loadUserProfile() {
             try {
@@ -1645,11 +1777,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (data.success) {
                     const user = data.data.user;
                     
+                    // FIXED: Try multiple possible credit field names from backend
+                    const userCredits = user.totalCredits || user.credits || user.credits_remaining || 
+                                      user.creditBalance || user.available_credits || user.remainingCredits || 0;
+                    
                     currentUserPlan = {
                         planCode: user.planCode || user.plan_code || 'free',
-                        totalCredits: user.totalCredits || user.credits || user.credits_remaining || user.creditBalance || user.available_credits || user.remainingCredits || 0,
+                        totalCredits: parseFloat(userCredits) || 0,
                         planName: user.planName || user.plan_name || 'Free'
                     };
+                    
+                    console.log('[PROFILE] User credits loaded:', currentUserPlan.totalCredits);
+                    
+                    // Update credit displays immediately
+                    updateCreditDisplay(currentUserPlan.totalCredits);
                     
                     document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
                     document.getElementById('sidebarUserEmail').textContent = user.email;
@@ -1679,6 +1820,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
                 document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
                 document.getElementById('sidebarUserAvatar').textContent = 'U';
+                updateCreditDisplay(0);
             }
         }
 
@@ -1767,7 +1909,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         sent: message.sent,
                         gotReply: message.gotReply,
                         comments: message.comments,
-                        // ENHANCED: Capture email data from backend response
                         emailFound: message.emailFound,
                         emailStatus: message.emailStatus,
                         emailVerifiedAt: message.emailVerifiedAt,
@@ -1791,7 +1932,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 }
             });
             
-            // Sort messages within each type by creation date (newest first)
             Object.values(groupedMessages).forEach(group => {
                 group.messages.linkedin.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
                 group.messages.connection.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
@@ -2078,7 +2218,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function createEmailAskButton(messageGroup) {
-            if (messageGroup.emailStatus === 'verified' || messageGroup.emailStatus === 'not_found') {
+            if (messageGroup.emailStatus && messageGroup.emailStatus !== 'pending') {
                 return `<button class="email-ask-btn" disabled title="Email already processed.">
                     <i class="fas fa-check"></i> Done
                 </button>`;
@@ -2089,7 +2229,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </button>`;
         }
 
-        // FIXED: Updated function to handle all Snov.io status types
         function createEmailVerificationDisplay(messageGroup) {
             if (!messageGroup.emailStatus) {
                 return `<div class="email-not-available">Not searched</div>`;
@@ -2138,6 +2277,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
                     </div>`;
                     
+                case 'found':
+                    return `<div class="email-verification">
+                        <div class="email-address">${messageGroup.emailFound || 'N/A'}</div>
+                        <div class="email-status found">
+                            <i class="fas fa-hourglass-half"></i> Verifying...
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
                 case 'not_found':
                     return `<div class="email-verification">
                         <div class="email-status not_found">
@@ -2168,11 +2316,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // SIMPLE EMAIL FINDER FLOW - NO GLOBAL VARIABLE
         function askEmailClick(messageId) {
             console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
             
-            // STEP 1: IMMEDIATE PLAN VALIDATION
             if (!currentUserPlan) {
                 console.log('[EMAIL_FINDER] No user plan data');
                 document.getElementById('currentPlanDisplay').textContent = 'Unknown';
@@ -2180,7 +2326,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // Check if user has valid plan (Silver/Gold/Platinum)
             const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payasyougo', 'gold-payasyougo', 'platinum-payasyougo'];
             const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
             
@@ -2191,32 +2336,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            // STEP 2: CREDIT VALIDATION
             const userCredits = currentUserPlan.totalCredits || 0;
             
             if (userCredits < 2) {
                 console.log(`[EMAIL_FINDER] Credit validation failed: ${userCredits} < 2`);
                 const creditsElement = document.getElementById('currentCredits');
                 if (creditsElement) {
-                    creditsElement.textContent = userCredits;
+                    creditsElement.textContent = userCredits.toFixed(2);
                 }
                 document.getElementById('insufficientCreditsModal').classList.add('active');
                 return;
             }
             
-            // STEP 3: ALL VALIDATIONS PASSED - SHOW 2-CREDIT CONFIRMATION MODAL
             console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
             showEmailConfirmationModal(messageId);
         }
 
         function showEmailConfirmationModal(messageId) {
-            // Store messageId in the modal button directly
             const confirmButton = document.querySelector('#emailFinderModal .modal-btn.primary');
             confirmButton.onclick = () => confirmEmailFinder(messageId);
             document.getElementById('emailFinderModal').classList.add('active');
         }
 
-        // STEP 4: USER CONFIRMS - NO MORE VALIDATION, DIRECT API CALL
         async function confirmEmailFinder(messageId) {
             closeEmailModal();
             
@@ -2256,11 +2397,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 const result = await response.json();
                 
                 if (result.success) {
-                    if (currentUserPlan) {
-                        currentUserPlan.totalCredits -= result.creditsCharged;
+                    console.log('[EMAIL_FINDER] Success! Credits charged:', result.creditsCharged);
+                    
+                    // FIXED: Update credits display with new balance
+                    if (result.newBalance !== undefined) {
+                        updateCreditDisplay(result.newBalance);
+                    } else if (currentUserPlan && result.creditsCharged) {
+                        const newBalance = currentUserPlan.totalCredits - result.creditsCharged;
+                        updateCreditDisplay(newBalance);
                     }
                     
-                    // ENHANCED: Update local data with email result
+                    // Update local data
                     Object.values(groupedMessages).forEach(group => {
                         if (group.id === messageId) {
                             group.emailFound = result.email;
@@ -2273,7 +2420,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                 } else {
                     if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
-                        // ENHANCED: Update local data with not found status
                         Object.values(groupedMessages).forEach(group => {
                             if (group.id === messageId) {
                                 group.emailStatus = 'not_found';
@@ -2725,6 +2871,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const refreshBtn = document.querySelector('.refresh-btn i');
             refreshBtn.classList.add('fa-spin');
             
+            // Also refresh user profile to get latest credits
+            loadUserProfile();
+            
             loadMessagesData().finally(() => {
                 refreshBtn.classList.remove('fa-spin');
             });
@@ -2747,7 +2896,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             window.location.href = '/login';
         }
 
-        // Close modals when clicking outside
         document.addEventListener('click', function(event) {
             if (event.target.classList.contains('modal-overlay')) {
                 closeEmailModal();
@@ -2756,7 +2904,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         });
 
-        // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(event) {
             const sidebar = document.getElementById('sidebar');
             const toggle = document.querySelector('.sidebar-toggle');
