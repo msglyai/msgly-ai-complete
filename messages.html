@@ -1777,13 +1777,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (data.success) {
                     const user = data.data.user;
                     
-                    // FIXED: Try multiple possible credit field names from backend
-                    const userCredits = user.totalCredits || user.credits || user.credits_remaining || 
-                                      user.creditBalance || user.available_credits || user.remainingCredits || 0;
+                    // FIXED: Use dual-credit calculation like Dashboard
+                    const renewableCredits = parseFloat(user.renewableCredits || 0);
+                    const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
+                    const totalCredits = renewableCredits + payasyougoCredits;
+                    
+                    console.log('[CREDIT_FIX] Renewable:', renewableCredits.toFixed(2));
+                    console.log('[CREDIT_FIX] PayAsYouGo:', payasyougoCredits.toFixed(2));
+                    console.log('[CREDIT_FIX] Total:', totalCredits.toFixed(2));
                     
                     currentUserPlan = {
                         planCode: user.planCode || user.plan_code || 'free',
-                        totalCredits: parseFloat(userCredits) || 0,
+                        totalCredits: totalCredits,
                         planName: user.planName || user.plan_name || 'Free'
                     };
                     
