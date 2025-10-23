@@ -1,9 +1,10 @@
-// emailFinder.js - FINAL FIX: Removed catch in findEmailWithSnovV1 that was hiding errors
+// emailFinder.js - FIXED: Per-user email visibility + charge for not_found + await verification
 // Direct integration with Snov.io API using LinkedIn URLs
-// Handles email finding with "charge only on success" policy
+// Handles email finding with "charge on search" policy (found OR not_found = charged)
 // Enhanced with target_profiles persistence - ONE email per profile
-// SEPARATED: Verification moved to emailVerifier.js (auto-triggered)
-// Version: NO CACHE + CATCH REMOVED FROM SNOV API CALL
+// SEPARATED: Verification moved to emailVerifier.js (but awaited before returning)
+// NEW: email_requests table tracks which users requested email
+// Version: 1.3.0 - Per-user visibility + charge for not_found + await verification
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
@@ -156,6 +157,28 @@ class EmailFinder {
         }
     }
 
+    // NEW: Mark user as requested (add to email_requests table)
+    async markUserRequested(userId, linkedinUrl) {
+        try {
+            logger.info(`[EMAIL_FINDER] 📝 Marking user ${userId} as requested for ${linkedinUrl}`);
+            
+            // Insert or update email_requests (UPSERT)
+            await pool.query(`
+                INSERT INTO email_requests (user_id, linkedin_url, requested_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id, linkedin_url) 
+                DO UPDATE SET requested_at = CURRENT_TIMESTAMP
+            `, [userId, linkedinUrl]);
+            
+            logger.success(`[EMAIL_FINDER] ✅ User ${userId} marked as requested`);
+            return { success: true };
+            
+        } catch (error) {
+            logger.error('[EMAIL_FINDER] Error marking user as requested:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
     // Main LinkedIn URL email finder (VERIFICATION REMOVED - Auto-triggered separately)
     async findEmailWithLinkedInUrl(userId, linkedinUrl) {
         try {
@@ -237,39 +260,54 @@ class EmailFinder {
 
                     logger.success(`[EMAIL_FINDER] ✅ Email found: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
 
-                    // AUTO-TRIGGER VERIFICATION (fire-and-forget, async, FREE)
+                    // NEW: Mark user as requested (user paid, user can see result)
+                    await this.markUserRequested(userId, linkedinUrl);
+
+                    // FIXED: AWAIT VERIFICATION (not fire-and-forget)
+                    let verificationStatus = 'unknown';
                     try {
                         const { emailVerifier } = require('./emailVerifier');
-                        logger.info(`[EMAIL_FINDER] Auto-triggering verification for ${emailResult.email}`);
-                        emailVerifier.verifyEmail(emailResult.email, userId, linkedinUrl)
-                            .catch(err => logger.error('[EMAIL_FINDER] Auto-verify failed:', err));
+                        logger.info(`[EMAIL_FINDER] ⏳ Waiting for verification to complete...`);
+                        const verifyResult = await emailVerifier.verifyEmail(emailResult.email, userId, linkedinUrl);
+                        verificationStatus = verifyResult.status || 'unknown';
+                        logger.success(`[EMAIL_FINDER] ✅ Verification complete: ${verificationStatus}`);
                     } catch (verifierError) {
-                        logger.error('[EMAIL_FINDER] Could not load emailVerifier:', verifierError);
+                        logger.error('[EMAIL_FINDER] Verification failed:', verifierError);
+                        verificationStatus = 'unknown';
                     }
 
                     return {
                         success: true,
                         email: emailResult.email,
-                        status: 'pending_verification',  // Status will be updated by verifier
+                        status: verificationStatus,  // Return actual verification status
                         creditsCharged: this.costPerSuccess,
                         newBalance: paymentResult.newBalance || creditCheck.currentCredits - this.costPerSuccess,
-                        message: 'Email found successfully - verification in progress',
+                        message: 'Email found and verified',
                         saved: saveResult.success
                     };
 
                 } else {
-                    // Failed to find email: Save "not_found" status and release credit hold
+                    // FIXED: Not found = Still charge 2 credits (user paid for the search)
                     await this.saveStatusOnly(linkedinUrl, 'not_found', userId);
-                    await releaseCreditHold(userId, holdId, 'email_not_found');
+                    
+                    // Charge credits (user paid for search even if not found)
+                    const paymentResult = await completeOperation(userId, holdId, {
+                        status: 'not_found',
+                        message: 'Search completed - no email found'
+                    });
+                    
+                    // NEW: Mark user as requested (user paid, user can see "not found")
+                    await this.markUserRequested(userId, linkedinUrl);
 
-                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found (no credits charged)`);
+                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found (${this.costPerSuccess} credits charged)`);
 
                     return {
-                        success: false,
+                        success: true,  // Search was successful (just no email found)
                         error: 'email_not_found',
                         status: 'not_found',
-                        creditsCharged: 0,
-                        message: 'No email found for this LinkedIn profile'
+                        creditsCharged: this.costPerSuccess,
+                        newBalance: paymentResult.newBalance,
+                        message: 'Search completed - no email found for this LinkedIn profile'
                     };
                 }
 
