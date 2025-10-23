@@ -427,13 +427,46 @@ const emailFinder = new EmailFinder();
 
 // Export functions
 async function findEmailForProfile(userId, targetProfileId) {
-    logger.warn('[EMAIL_FINDER] findEmailForProfile called - This function always goes to Snov.io (no cache)');
-    // Implementation removed for simplicity - use findEmailWithLinkedInUrl instead
-    return {
-        success: false,
-        error: 'use_linkedin_url_method',
-        message: 'Please use findEmailWithLinkedInUrl method instead'
-    };
+    try {
+        logger.info(`[EMAIL_FINDER] findEmailForProfile called: User ${userId}, Target ${targetProfileId}`);
+
+        // Get the target profile to extract LinkedIn URL
+        const result = await pool.query(`
+            SELECT linkedin_url
+            FROM target_profiles 
+            WHERE id = $1 AND user_id = $2
+        `, [targetProfileId, userId]);
+
+        if (result.rows.length === 0) {
+            return {
+                success: false,
+                error: 'target_not_found',
+                message: 'Target profile not found'
+            };
+        }
+
+        const linkedinUrl = result.rows[0].linkedin_url;
+        
+        if (!linkedinUrl) {
+            return {
+                success: false,
+                error: 'missing_linkedin_url',
+                message: 'No LinkedIn URL found in profile'
+            };
+        }
+
+        // Call the main function with LinkedIn URL (no cache)
+        return await emailFinder.findEmailWithLinkedInUrl(userId, linkedinUrl);
+
+    } catch (error) {
+        logger.error('[EMAIL_FINDER] findEmailForProfile error:', error);
+        return {
+            success: false,
+            error: 'system_error',
+            message: 'System error occurred',
+            details: error.message
+        };
+    }
 }
 
 async function findEmailWithLinkedInUrl(userId, linkedinUrl) {
