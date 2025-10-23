@@ -26,7 +26,7 @@ class EmailVerifier {
             timeoutMs: this.timeoutMs,
             authMethod: this.snovApiKey ? 'API Key' : 'OAuth',
             mode: 'auto_triggered_free',
-            waitTime: '8 seconds'
+            waitTime: '12 seconds'
         });
     }
 
@@ -155,9 +155,9 @@ class EmailVerifier {
 
             logger.info(`[EMAIL_VERIFIER] Task hash received: ${taskHash}`);
 
-            // STEP 2: FIXED - Wait 8 seconds for Snov.io to process (optimized from 10s)
-            logger.info('[EMAIL_VERIFIER] Step 2: Waiting 8 seconds for Snov.io to process...');
-            await new Promise(resolve => setTimeout(resolve, 8000));
+            // STEP 2: FIXED - Wait 12 seconds for Snov.io to process (reliable timing)
+            logger.info('[EMAIL_VERIFIER] Step 2: Waiting 12 seconds for Snov.io to process...');
+            await new Promise(resolve => setTimeout(resolve, 12000));
 
             // STEP 3: Get verification result
             logger.info('[EMAIL_VERIFIER] Step 3: Retrieving verification result...');
@@ -353,7 +353,7 @@ class EmailVerifier {
             mode: 'auto_triggered_free',
             apiVersion: 'v2_async',
             timeoutMs: this.timeoutMs,
-            waitTime: '8 seconds'
+            waitTime: '12 seconds'
         };
     }
 }
@@ -382,4 +382,4 @@ module.exports = {
     getEmailVerifierStatus
 };
 
-logger.success('Snov.io Email Verifier module loaded - FIXED: 8s wait + flexible URL matching!');
+logger.success('Snov.io Email Verifier module loaded - FIXED: 12s wait + flexible URL matching!');
