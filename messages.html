@@ -2613,7 +2613,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${messageId})"]`);
             buttons.forEach(btn => {
                 btn.classList.add('loading');
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding & verifying email...';
                 btn.disabled = true;
             });
             
@@ -2644,7 +2644,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 const result = await response.json();
                 
                 if (result.success) {
-                    console.log('[EMAIL_FINDER] Success! Credits charged:', result.creditsCharged);
+                    console.log('[EMAIL_FINDER] Success! Email:', result.email, 'Status:', result.status, 'Credits charged:', result.creditsCharged);
                     
                     // FIXED: Update credits display with new balance
                     if (result.newBalance !== undefined) {
@@ -2654,16 +2654,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         updateCreditDisplay(newBalance);
                     }
                     
-                    // Update local data
+                    // FIXED: Update local data with complete email + status
                     Object.values(groupedMessages).forEach(group => {
                         if (group.id === messageId) {
                             group.emailFound = result.email;
                             group.emailStatus = result.status;
-                            group.emailVerifiedAt = new Date().toISOString();
+                            group.emailVerifiedAt = result.verifiedAt || new Date().toISOString();
                         }
                     });
                     
+                    // FIXED: Force re-render to show updated data
                     renderMessages();
+                    
+                    // Show success message
+                    console.log('[EMAIL_FINDER] UI updated with email and verification status');
                     
                 } else {
                     if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
