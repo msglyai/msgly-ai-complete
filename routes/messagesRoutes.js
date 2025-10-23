@@ -1,5 +1,6 @@
-// routes/messagesRoutes.js
+// routes/messagesRoutes.js - FIXED: Email finder waits for verification
 // Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + Email Finder
+// Version: 1.1.0 - FIXED: /api/ask-email now waits for verification to complete
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -150,10 +151,10 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
 
 // ==================== EMAIL FINDER ENDPOINT ====================
 
-// POST /api/ask-email - FIXED: Save email results to target_profiles table
+// POST /api/ask-email - FIXED: Waits for verification to complete before responding
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== EMAIL FINDER REQUEST (TARGET_PROFILES) ===');
+        logger.custom('EMAIL', '=== EMAIL FINDER REQUEST (WITH VERIFICATION WAIT) ===');
         logger.info(`User ID: ${req.user.id}`);
         
         const { messageId } = req.body;
@@ -217,20 +218,62 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             });
         }
         
-        // FIXED: Call email finder - it now saves directly to target_profiles table
-        // No need to save here - emailFinder.js handles all database persistence
-        const result = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
+        // STEP 1: Call email finder (finds email, triggers verification)
+        logger.custom('EMAIL', '[STEP 1] Finding email...');
+        const finderResult = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
-        logger.custom('EMAIL', `Email finder result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
-        
-        if (result.success && result.email) {
-            logger.success(`Email found and saved to target_profiles: ${result.email}`);
-        } else {
-            logger.info(`Email search completed - status saved to target_profiles`);
+        if (!finderResult.success) {
+            logger.warn(`[EMAIL_FINDER] Failed: ${finderResult.error}`);
+            return res.json(finderResult);
         }
         
-        // Return result to frontend (emailFinder.js already saved to target_profiles)
-        res.json(result);
+        if (!finderResult.email) {
+            logger.warn('[EMAIL_FINDER] No email found');
+            return res.json(finderResult);
+        }
+        
+        logger.success(`[EMAIL_FINDER] ✅ Email found: ${finderResult.email}`);
+        
+        // STEP 2: FIXED - Wait for verification to complete (12-15 seconds total)
+        logger.custom('EMAIL', '[STEP 2] Waiting for verification to complete...');
+        
+        // Wait 12 seconds for verification (email finding ~3s + verification ~8s + buffer ~1s)
+        await new Promise(resolve => setTimeout(resolve, 12000));
+        
+        // STEP 3: Get final verification status from database
+        logger.custom('EMAIL', '[STEP 3] Retrieving final verification status...');
+        const statusResult = await pool.query(`
+            SELECT email_found, email_status, email_verified_at
+            FROM target_profiles 
+            WHERE linkedin_url = $1 AND user_id = $2
+        `, [linkedinUrl, req.user.id]);
+        
+        if (statusResult.rows.length > 0) {
+            const row = statusResult.rows[0];
+            logger.success(`[EMAIL_FINDER] ✅ Complete result: email=${row.email_found}, status=${row.email_status}`);
+            
+            // Return complete result with email + verification status
+            return res.json({
+                success: true,
+                email: row.email_found,
+                status: row.email_status || 'unknown',
+                verifiedAt: row.email_verified_at,
+                creditsCharged: finderResult.creditsCharged,
+                newBalance: finderResult.newBalance,
+                message: 'Email found and verified successfully'
+            });
+        } else {
+            // Fallback: return finder result if DB query fails
+            logger.warn('[EMAIL_FINDER] Could not retrieve verification status from DB');
+            return res.json({
+                success: true,
+                email: finderResult.email,
+                status: 'pending_verification',
+                creditsCharged: finderResult.creditsCharged,
+                newBalance: finderResult.newBalance,
+                message: 'Email found, verification status pending'
+            });
+        }
         
     } catch (error) {
         logger.error('Email finder error:', error);
