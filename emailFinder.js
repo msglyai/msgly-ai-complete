@@ -190,21 +190,39 @@ class EmailFinder {
 
             const holdId = holdResult.holdId;
             logger.success(`[EMAIL_FINDER] ✅ Credit hold created: ${holdId}`);
+            
+            console.log('═══════════════════════════════════════════════════════');
+            console.log('🔍 DEBUG CHECKPOINT 1: After credit hold creation');
+            console.log('Hold ID:', holdId);
+            console.log('LinkedIn URL:', linkedinUrl);
+            console.log('User ID:', userId);
+            console.log('About to enter try block...');
+            console.log('═══════════════════════════════════════════════════════');
 
             try {
+                console.log('🔍 DEBUG CHECKPOINT 2: Inside try block - BEFORE Snov.io call');
+                
                 // Find email using Snov.io v1 API with delay
                 logger.custom('EMAIL', '🚀 Calling Snov.io API NOW...');
+                
+                console.log('🔍 DEBUG CHECKPOINT 3: About to call findEmailWithSnovV1()');
                 const emailResult = await this.findEmailWithSnovV1(linkedinUrl);
+                console.log('🔍 DEBUG CHECKPOINT 4: Returned from findEmailWithSnovV1()');
+                console.log('Email Result:', JSON.stringify(emailResult));
 
                 if (emailResult.success && emailResult.email) {
+                    console.log('🔍 DEBUG CHECKPOINT 5: Email found! Processing save...');
+                    
                     // FIXED: Save ONLY email (no status)
                     const saveResult = await this.saveEmailToTargetProfiles(
                         linkedinUrl, 
                         emailResult.email, 
                         userId
                     );
+                    console.log('🔍 DEBUG CHECKPOINT 6: After saveEmailToTargetProfiles');
                     logger.debug(`[EMAIL_FINDER] Save result:`, saveResult);
 
+                    console.log('🔍 DEBUG CHECKPOINT 7: About to complete operation (charge credits)');
                     // Success: Complete payment and charge credits
                     const paymentResult = await completeOperation(userId, holdId, {
                         email: emailResult.email,
@@ -212,6 +230,7 @@ class EmailFinder {
                         snovResponse: emailResult.snovData,
                         saved: saveResult.success
                     });
+                    console.log('🔍 DEBUG CHECKPOINT 8: Credits charged successfully');
 
                     logger.success(`[EMAIL_FINDER] ✅ Email found: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
 
@@ -242,14 +261,19 @@ class EmailFinder {
                     };
 
                 } else {
+                    console.log('🔍 DEBUG CHECKPOINT 9: Email NOT found by Snov.io');
+                    console.log('Email result:', JSON.stringify(emailResult));
+                    
                     // FIXED: Not found = Charge 2 credits + mark user as requested (no status save)
                     logger.info(`[EMAIL_FINDER] ⚠️ Email not found - charging credits and marking user as requested`);
                     
+                    console.log('🔍 DEBUG CHECKPOINT 10: About to charge credits for not_found');
                     // Charge credits (user paid for search even if not found)
                     const paymentResult = await completeOperation(userId, holdId, {
                         status: 'not_found',
                         message: 'Search completed - no email found'
                     });
+                    console.log('🔍 DEBUG CHECKPOINT 11: Credits charged for not_found');
                     
                     // NEW: Mark user as requested (user paid, user can see "not found")
                     await this.markUserRequested(userId, linkedinUrl);
@@ -267,6 +291,13 @@ class EmailFinder {
                 }
 
             } catch (processingError) {
+                console.log('═══════════════════════════════════════════════════════');
+                console.log('🚨 DEBUG: CAUGHT ERROR IN TRY BLOCK!');
+                console.log('Error type:', processingError.constructor.name);
+                console.log('Error message:', processingError.message);
+                console.log('Error stack:', processingError.stack);
+                console.log('═══════════════════════════════════════════════════════');
+                
                 // Processing error: Release credit hold (no status saved)
                 logger.error('[EMAIL_FINDER] 🚨 Processing error:', processingError);
                 logger.error('[EMAIL_FINDER] Error details:', processingError.message);
@@ -296,6 +327,11 @@ class EmailFinder {
 
     // Snov.io v1 API implementation with proper delay - NO CATCH, let errors throw
     async findEmailWithSnovV1(linkedinUrl) {
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('🔍 DEBUG: ENTERED findEmailWithSnovV1()');
+        console.log('LinkedIn URL received:', linkedinUrl);
+        console.log('═══════════════════════════════════════════════════════');
+        
         logger.info('[EMAIL_FINDER] 🌐 Finding email with Snov.io v1 LinkedIn URL API...');
         logger.info(`[EMAIL_FINDER] LinkedIn URL: ${linkedinUrl}`);
         
