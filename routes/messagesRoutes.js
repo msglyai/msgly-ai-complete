@@ -234,11 +234,11 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         
         logger.success(`[EMAIL_FINDER] ✅ Email found: ${finderResult.email}`);
         
-        // STEP 2: FIXED - Wait for verification to complete (12-15 seconds total)
+        // STEP 2: FIXED - Wait for verification to complete (16 seconds total)
         logger.custom('EMAIL', '[STEP 2] Waiting for verification to complete...');
         
-        // Wait 12 seconds for verification (email finding ~3s + verification ~8s + buffer ~1s)
-        await new Promise(resolve => setTimeout(resolve, 12000));
+        // Wait 16 seconds for verification (email finding ~3s + verification ~12s + buffer ~1s)
+        await new Promise(resolve => setTimeout(resolve, 16000));
         
         // STEP 3: Get final verification status from database
         logger.custom('EMAIL', '[STEP 3] Retrieving final verification status...');
