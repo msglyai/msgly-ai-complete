@@ -57,65 +57,47 @@ class EmailVerifier {
 
     // Main verification function (called by emailFinder)
     async verifyEmail(email, userId, linkedinUrl) {
-        try {
-            logger.custom('EMAIL_VERIFIER', `Starting verification for email: ${email}`);
-            logger.info(`[EMAIL_VERIFIER] User: ${userId}, LinkedIn: ${linkedinUrl}`);
+        logger.custom('EMAIL_VERIFIER', `Starting verification for email: ${email}`);
+        logger.info(`[EMAIL_VERIFIER] LinkedIn: ${linkedinUrl}`);
 
-            if (!this.hasCredentials) {
-                logger.warn('[EMAIL_VERIFIER] No Snov.io credentials - skipping verification');
-                await this.updateVerificationStatus(linkedinUrl, userId, 'unknown', null);
-                return {
-                    success: false,
-                    status: 'unknown',
-                    error: 'no_credentials'
-                };
-            }
+        if (!this.hasCredentials) {
+            logger.warn('[EMAIL_VERIFIER] No Snov.io credentials - skipping verification');
+            await this.updateVerificationStatus(linkedinUrl, userId, 'unknown', null);
+            return {
+                success: false,
+                status: 'unknown',
+                error: 'no_credentials'
+            };
+        }
 
-            // Call Snov.io v2 async verification API
-            const verificationResult = await this.verifySingleEmailV2(email);
+        // Call Snov.io v2 async verification API
+        const verificationResult = await this.verifySingleEmailV2(email);
 
-            if (verificationResult.success) {
-                // Update database with Snov.io's exact status
-                const status = verificationResult.smtp_status || 'unknown';
-                const reason = verificationResult.unknown_status_reason || null;
-                
-                await this.updateVerificationStatus(linkedinUrl, userId, status, reason);
-                
-                logger.success(`[EMAIL_VERIFIER] ✅ Verification complete: ${email} -> ${status}`);
-                
-                return {
-                    success: true,
-                    status: status,
-                    reason: reason,
-                    email: email
-                };
-            } else {
-                // Verification failed - update with 'unknown' status
-                await this.updateVerificationStatus(linkedinUrl, userId, 'unknown', 'verification_failed');
-                
-                logger.warn(`[EMAIL_VERIFIER] ⚠️ Verification failed: ${email} -> unknown`);
-                
-                return {
-                    success: false,
-                    status: 'unknown',
-                    error: verificationResult.error
-                };
-            }
-
-        } catch (error) {
-            logger.error('[EMAIL_VERIFIER] Verification error:', error);
+        if (verificationResult.success) {
+            // Update database with Snov.io's exact status
+            const status = verificationResult.smtp_status || 'unknown';
+            const reason = verificationResult.unknown_status_reason || null;
             
-            // On error, update with 'unknown' status
-            try {
-                await this.updateVerificationStatus(linkedinUrl, userId, 'unknown', 'error');
-            } catch (dbError) {
-                logger.error('[EMAIL_VERIFIER] Failed to update DB after error:', dbError);
-            }
+            await this.updateVerificationStatus(linkedinUrl, userId, status, reason);
+            
+            logger.success(`[EMAIL_VERIFIER] ✅ Verification complete: ${email} -> ${status}`);
+            
+            return {
+                success: true,
+                status: status,
+                reason: reason,
+                email: email
+            };
+        } else {
+            // Verification failed - update with 'unknown' status
+            await this.updateVerificationStatus(linkedinUrl, userId, 'unknown', 'verification_failed');
+            
+            logger.warn(`[EMAIL_VERIFIER] ⚠️ Verification failed: ${email} -> unknown`);
             
             return {
                 success: false,
                 status: 'unknown',
-                error: error.message
+                error: verificationResult.error
             };
         }
     }
@@ -240,124 +222,74 @@ class EmailVerifier {
         }
     }
 
-    // FIXED: Update target_profiles by EMAIL (not LinkedIn URL)
+    // FIXED: Update target_profiles by LINKEDIN URL ONLY (updates shared record for all users)
     async updateVerificationStatus(linkedinUrl, userId, status, reason) {
-        try {
-            logger.info(`[EMAIL_VERIFIER] Updating DB by EMAIL (not URL) -> Status: ${status}`);
-            
-            const timestamp = new Date();
-            
-            // First, get the email for this LinkedIn URL
-            const emailResult = await pool.query(`
-                SELECT email_found 
-                FROM target_profiles 
-                WHERE linkedin_url = $1 AND user_id = $2 AND email_found IS NOT NULL
-                LIMIT 1
-            `, [linkedinUrl, userId]);
-            
-            if (emailResult.rows.length === 0 || !emailResult.rows[0].email_found) {
-                logger.warn(`[EMAIL_VERIFIER] ⚠️ No email found for ${linkedinUrl} (user: ${userId})`);
-                return {
-                    success: false,
-                    error: 'no_email_found'
-                };
-            }
-            
-            const email = emailResult.rows[0].email_found;
-            logger.info(`[EMAIL_VERIFIER] Found email: ${email}, updating all records with this email...`);
-            
-            // FIXED: Update by EMAIL instead of LinkedIn URL
-            // This updates ALL records with this email (more reliable)
-            const result = await pool.query(`
-                UPDATE target_profiles 
-                SET 
-                    email_status = $1,
-                    email_verified_at = $2,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $3
-                AND email_found = $4
-                RETURNING id, email_found, email_status, email_verified_at, linkedin_url
-            `, [status, timestamp, userId, email]);
+        logger.info(`[EMAIL_VERIFIER] Updating verification status for ${linkedinUrl} -> ${status}`);
+        
+        const timestamp = new Date();
+        
+        // FIXED: Update by linkedin_url ONLY (updates the ONE shared record)
+        const result = await pool.query(`
+            UPDATE target_profiles 
+            SET 
+                email_status = $1,
+                email_verified_at = $2,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE linkedin_url = $3
+            RETURNING id, email_found, email_status, email_verified_at, linkedin_url
+        `, [status, timestamp, linkedinUrl]);
 
-            if (result.rows.length > 0) {
-                logger.success(`[EMAIL_VERIFIER] ✅ Updated ${result.rows.length} record(s) successfully:`, {
-                    email: email,
-                    status: status,
-                    recordsUpdated: result.rows.length,
-                    linkedInUrls: result.rows.map(r => r.linkedin_url)
-                });
-                return {
-                    success: true,
-                    data: result.rows[0],
-                    recordsUpdated: result.rows.length
-                };
-            } else {
-                logger.warn(`[EMAIL_VERIFIER] ⚠️ No records updated for email: ${email} (user: ${userId})`);
-                return {
-                    success: false,
-                    error: 'no_records_updated'
-                };
-            }
-
-        } catch (error) {
-            logger.error('[EMAIL_VERIFIER] DB update error:', error);
+        if (result.rows.length > 0) {
+            logger.success(`[EMAIL_VERIFIER] ✅ Verification status updated:`, {
+                email: result.rows[0].email_found,
+                status: status,
+                linkedinUrl: result.rows[0].linkedin_url
+            });
+            return {
+                success: true,
+                data: result.rows[0]
+            };
+        } else {
+            logger.warn(`[EMAIL_VERIFIER] ⚠️ No record found for LinkedIn URL: ${linkedinUrl}`);
             return {
                 success: false,
-                error: error.message
+                error: 'no_record_found'
             };
         }
     }
 
-    // Get verification status from database
+    // Get verification status from database (by linkedin_url ONLY)
     async getVerificationStatus(linkedinUrl, userId) {
-        try {
-            const result = await pool.query(`
-                SELECT email_found, email_status, email_verified_at
-                FROM target_profiles 
-                WHERE linkedin_url = $1 AND user_id = $2
-            `, [linkedinUrl, userId]);
+        const result = await pool.query(`
+            SELECT email_found, email_status, email_verified_at
+            FROM target_profiles 
+            WHERE linkedin_url = $1
+        `, [linkedinUrl]);
 
-            if (result.rows.length > 0) {
-                const row = result.rows[0];
-                return {
-                    success: true,
-                    email: row.email_found,
-                    status: row.email_status,
-                    verifiedAt: row.email_verified_at
-                };
-            } else {
-                return {
-                    success: false,
-                    message: 'No record found'
-                };
-            }
-
-        } catch (error) {
-            logger.error('[EMAIL_VERIFIER] Error getting verification status:', error);
+        if (result.rows.length > 0) {
+            const row = result.rows[0];
+            return {
+                success: true,
+                email: row.email_found,
+                status: row.email_status,
+                verifiedAt: row.email_verified_at
+            };
+        } else {
             return {
                 success: false,
-                error: error.message
+                message: 'No record found'
             };
         }
     }
 
     // Health check
     async healthCheck() {
-        try {
-            const accessToken = await this.getSnovAccessToken();
-            return {
-                success: true,
-                message: 'Email verifier ready',
-                hasCredentials: this.hasCredentials
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: 'Email verifier not ready',
-                error: error.message,
-                hasCredentials: this.hasCredentials
-            };
-        }
+        const accessToken = await this.getSnovAccessToken();
+        return {
+            success: true,
+            message: 'Email verifier ready',
+            hasCredentials: this.hasCredentials
+        };
     }
 
     // Get verifier status
