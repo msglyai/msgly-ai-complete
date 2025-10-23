@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + EMAIL REQUESTS
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -20,6 +20,7 @@
 // 🔧 CREDIT FIX: Fixed getUserPlan to properly calculate total credits from renewable + payasyougo
 // 🔧 PLAN NAME FIX: Added automatic plan name correction in initDB function
 // 📧 EMAIL FINDER v2: Added email finder columns to message_logs table for easy persistence
+// 🆕 EMAIL REQUESTS: Added email_requests table for per-user email visibility control
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -148,6 +149,44 @@ const ensureSavedContextsTable = async () => {
         
     } catch (error) {
         console.error('[ERROR] Failed to ensure saved_contexts table:', error);
+        throw error;
+    }
+};
+
+// 🆕 NEW: Ensure email_requests table exists (per-user email visibility)
+const ensureEmailRequestsTable = async () => {
+    try {
+        console.log('[INIT] Creating email_requests table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS email_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                linkedin_url TEXT NOT NULL,
+                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                UNIQUE(user_id, linkedin_url)
+            );
+        `);
+        
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_email_requests_user_id 
+                ON email_requests(user_id);
+                CREATE INDEX IF NOT EXISTS idx_email_requests_linkedin_url 
+                ON email_requests(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_email_requests_user_linkedin 
+                ON email_requests(user_id, linkedin_url);
+            `);
+            console.log('[SUCCESS] Created email_requests indexes');
+        } catch (err) {
+            console.log('[INFO] Email requests indexes might already exist:', err.message);
+        }
+        
+        console.log('[SUCCESS] email_requests table ensured');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure email_requests table:', error);
         throw error;
     }
 };
@@ -1095,6 +1134,9 @@ const initDB = async () => {
         // ✅ NEW: SAVED_CONTEXTS TABLE for context management
         await ensureSavedContextsTable();
         
+        // 🆕 NEW: EMAIL_REQUESTS TABLE for per-user email visibility
+        await ensureEmailRequestsTable();
+        
         // ✅ NEW: CONTEXT ADDON TABLES for extra slot subscriptions
         await ensureContextAddonTables();
         
@@ -1434,7 +1476,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔒 SECURE ADMIN MANAGEMENT, EMAIL FINDER, PLAN NAME FIX, 📧 EMAIL FINDER IN MESSAGE_LOGS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, 🆕 EMAIL_REQUESTS (per-user visibility), CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔒 SECURE ADMIN MANAGEMENT, EMAIL FINDER, PLAN NAME FIX, 📧 EMAIL FINDER IN MESSAGE_LOGS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
