@@ -1,6 +1,6 @@
-// routes/messagesRoutes.js - FIXED: Email finder waits for verification
+// routes/messagesRoutes.js - FIXED: Email visibility per user (email_requests table)
 // Messages Routes - GPT-5 powered message generation endpoints + Messages CRUD + Email Finder
-// Version: 1.1.0 - FIXED: /api/ask-email now waits for verification to complete
+// Version: 1.2.0 - FIXED: Email visibility filtered by user requests (only show if user asked)
 
 const router = require('express').Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -46,12 +46,22 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.sent_date,
                 ml.reply_date,
                 ml.target_profile_url as linkedinUrl,
-                -- FIXED: Read email data from target_profiles table instead of message_logs
-                tp.email_found,
-                tp.email_status,
-                tp.email_verified_at
+                -- FIXED: Only show email if THIS user requested it
+                CASE 
+                    WHEN er.user_id IS NOT NULL THEN tp.email_found
+                    ELSE NULL
+                END as email_found,
+                CASE 
+                    WHEN er.user_id IS NOT NULL THEN tp.email_status
+                    ELSE NULL
+                END as email_status,
+                CASE 
+                    WHEN er.user_id IS NOT NULL THEN tp.email_verified_at
+                    ELSE NULL
+                END as email_verified_at
             FROM message_logs ml 
-            LEFT JOIN target_profiles tp ON tp.linkedin_url = ml.target_profile_url AND tp.user_id = ml.user_id
+            LEFT JOIN target_profiles tp ON tp.linkedin_url = ml.target_profile_url
+            LEFT JOIN email_requests er ON er.linkedin_url = ml.target_profile_url AND er.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
