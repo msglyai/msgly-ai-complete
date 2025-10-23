@@ -164,7 +164,7 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
 // POST /api/ask-email - FIXED: Waits for verification to complete before responding
 router.post('/api/ask-email', authenticateToken, async (req, res) => {
     try {
-        logger.custom('EMAIL', '=== EMAIL FINDER REQUEST (WITH VERIFICATION WAIT) ===');
+        logger.info('=== EMAIL FINDER REQUEST (WITH VERIFICATION WAIT) ===');
         logger.info(`User ID: ${req.user.id}`);
         
         const { messageId } = req.body;
@@ -229,7 +229,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         }
         
         // STEP 1: Call email finder (finds email, triggers verification)
-        logger.custom('EMAIL', '[STEP 1] Finding email...');
+        logger.info('[STEP 1] Finding email...');
         const finderResult = await findEmailWithLinkedInUrl(req.user.id, linkedinUrl);
         
         if (!finderResult.success) {
@@ -245,13 +245,13 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         logger.success(`[EMAIL_FINDER] ✅ Email found: ${finderResult.email}`);
         
         // STEP 2: FIXED - Wait for verification to complete (16 seconds total)
-        logger.custom('EMAIL', '[STEP 2] Waiting for verification to complete...');
+        logger.info('[STEP 2] Waiting for verification to complete...');
         
         // Wait 16 seconds for verification (email finding ~3s + verification ~12s + buffer ~1s)
         await new Promise(resolve => setTimeout(resolve, 16000));
         
         // STEP 3: Get final verification status from database
-        logger.custom('EMAIL', '[STEP 3] Retrieving final verification status...');
+        logger.info('[STEP 3] Retrieving final verification status...');
         const statusResult = await pool.query(`
             SELECT email_found, email_status, email_verified_at
             FROM target_profiles 
