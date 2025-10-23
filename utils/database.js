@@ -78,7 +78,7 @@ const ensureTargetProfilesTable = async () => {
         // Clean up any existing duplicates before adding constraint
         await cleanupDuplicateTargetProfiles();
         
-        // Add UNIQUE constraint - FIXED: Correct error message
+        // Add UNIQUE constraint - FIXED: Correct error code for constraint existence
         try {
             await pool.query(`
                 ALTER TABLE target_profiles 
@@ -87,10 +87,13 @@ const ensureTargetProfilesTable = async () => {
             `);
             console.log('[SUCCESS] Added UNIQUE constraint to target_profiles');
         } catch (err) {
-            if (err.code === '42P07') {
+            // 42710 = object (constraint) already exists
+            // 42P07 = relation (table/index) already exists
+            if (err.code === '42710' || err.message.includes('already exists')) {
                 console.log('[INFO] UNIQUE constraint already exists on target_profiles');
             } else {
                 console.log('[ERROR] UNIQUE constraint creation failed:', err.message);
+                throw err; // Re-throw if it's a real error
             }
         }
         
