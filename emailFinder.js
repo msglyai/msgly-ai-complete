@@ -526,12 +526,140 @@ async function findEmailForProfile(userId, targetProfileId) {
 }
 
 async function findEmailWithLinkedInUrl(userId, linkedinUrl) {
-    logger.warn('[EMAIL_FINDER] findEmailWithLinkedInUrl not implemented - use findEmailForProfile instead');
-    return {
-        success: false,
-        error: 'use_profile_method',
-        message: 'Please use findEmailForProfile method instead'
-    };
+    try {
+        logger.custom('EMAIL_FINDER', `🔍 LinkedIn URL email finder (NO CACHE): User ${userId}, URL ${linkedinUrl}`);
+
+        // Check if feature is enabled
+        if (!emailFinder.enabled) {
+            return {
+                success: false,
+                error: 'email_finder_disabled',
+                message: 'Email finder feature is currently disabled'
+            };
+        }
+
+        // Check credentials
+        if (!emailFinder.hasCredentials) {
+            return {
+                success: false,
+                error: 'snov_not_configured',
+                message: 'Snov.io API credentials not configured'
+            };
+        }
+
+        // ❌ NO CACHE CHECK - ALWAYS call Snov.io
+        logger.info('[EMAIL_FINDER] ⚠️ Cache DISABLED - Calling Snov.io directly');
+
+        // Check user credits
+        const creditCheck = await checkUserCredits(userId, 'email_verification');
+        if (!creditCheck.success || !creditCheck.hasCredits) {
+            return {
+                success: false,
+                error: 'insufficient_credits',
+                message: `You need ${emailFinder.costPerSuccess} credits to verify an email. You have ${creditCheck.currentCredits || 0} credits.`,
+                currentCredits: creditCheck.currentCredits || 0,
+                requiredCredits: emailFinder.costPerSuccess
+            };
+        }
+
+        // Create credit hold
+        logger.info(`[EMAIL_FINDER] 💳 Creating credit hold for ${emailFinder.costPerSuccess} credits`);
+        const holdResult = await createCreditHold(userId, 'email_verification', {
+            linkedinUrl: linkedinUrl
+        });
+
+        if (!holdResult.success) {
+            return {
+                success: false,
+                error: 'credit_hold_failed',
+                message: holdResult.error === 'insufficient_credits' 
+                    ? `Insufficient credits: need ${emailFinder.costPerSuccess}, have ${holdResult.currentCredits}`
+                    : 'Failed to reserve credits for this operation'
+            };
+        }
+
+        const holdId = holdResult.holdId;
+
+        try {
+            // ALWAYS call Snov.io
+            logger.info('[EMAIL_FINDER] 🚀 Calling Snov.io API NOW...');
+            const emailResult = await emailFinder.findEmailWithSnovV1(linkedinUrl);
+
+            if (emailResult.success && emailResult.email) {
+                // Save email
+                await emailFinder.saveEmailToTargetProfiles(
+                    linkedinUrl, 
+                    emailResult.email, 
+                    userId
+                );
+                
+                // Complete payment
+                const paymentResult = await completeOperation(userId, holdId, {
+                    email: emailResult.email,
+                    snovResponse: emailResult.snovData
+                });
+
+                logger.success(`[EMAIL_FINDER] ✅ Email found from Snov.io: ${emailResult.email}`);
+                logger.success(`[EMAIL_FINDER] 💰 Credits charged: ${emailFinder.costPerSuccess}`);
+
+                // Auto-trigger verification
+                try {
+                    const { emailVerifier } = require('./emailVerifier');
+                    logger.info(`[EMAIL_FINDER] 🔄 Auto-triggering verification for ${emailResult.email}`);
+                    emailVerifier.verifyEmail(emailResult.email, userId, linkedinUrl)
+                        .catch(err => logger.error('[EMAIL_FINDER] Auto-verify failed:', err));
+                } catch (verifierError) {
+                    logger.error('[EMAIL_FINDER] Could not load emailVerifier:', verifierError);
+                }
+
+                return {
+                    success: true,
+                    email: emailResult.email,
+                    status: 'pending_verification',
+                    source: 'snov_io_fresh',
+                    creditsCharged: emailFinder.costPerSuccess,
+                    newBalance: paymentResult.newBalance || creditCheck.currentCredits - emailFinder.costPerSuccess,
+                    message: 'Email found from Snov.io - verification in progress'
+                };
+
+            } else {
+                // No email found
+                await emailFinder.saveStatusOnly(linkedinUrl, 'not_found', userId);
+                await releaseCreditHold(userId, holdId, 'email_not_found');
+
+                logger.info(`[EMAIL_FINDER] ❌ No email found (no credits charged)`);
+
+                return {
+                    success: false,
+                    error: 'email_not_found',
+                    status: 'not_found',
+                    creditsCharged: 0,
+                    message: 'No email found for this LinkedIn profile'
+                };
+            }
+
+        } catch (processingError) {
+            logger.error('[EMAIL_FINDER] Processing error:', processingError);
+            await emailFinder.saveStatusOnly(linkedinUrl, 'error', userId);
+            await releaseCreditHold(userId, holdId, 'processing_error');
+
+            return {
+                success: false,
+                error: 'processing_error',
+                message: 'Temporary issue finding email. Please try again.',
+                creditsCharged: 0
+            };
+        }
+
+    } catch (error) {
+        logger.error('[EMAIL_FINDER] System error:', error);
+        return {
+            success: false,
+            error: 'system_error',
+            message: 'System error occurred. Please try again.',
+            details: error.message
+        };
+    }
 }
 
 function getEmailFinderStatus() {
