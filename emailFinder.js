@@ -63,42 +63,38 @@ class EmailFinder {
         }
     }
 
-    // FIXED: Save ONLY email to target_profiles (no status, no timestamp)
+    // FIXED: Save ONLY email to target_profiles (ONLY UPDATE existing records by linkedin_url)
     async saveEmailToTargetProfiles(linkedinUrl, email, userId) {
         try {
-            logger.info(`[EMAIL_FINDER] Saving email ONLY to target_profiles - URL: ${linkedinUrl}, Email: ${email}`);
+            logger.info(`[EMAIL_FINDER] Saving email to target_profiles - URL: ${linkedinUrl}, Email: ${email}`);
             
-            // First, check if target_profiles record exists
+            // FIXED: Check if record exists (by linkedin_url ONLY - shared across all users)
             const existingProfile = await pool.query(`
                 SELECT id FROM target_profiles 
-                WHERE linkedin_url = $1 AND user_id = $2
-            `, [linkedinUrl, userId]);
+                WHERE linkedin_url = $1
+            `, [linkedinUrl]);
 
-            let result;
-            
-            if (existingProfile.rows.length > 0) {
-                // Update existing profile - ONLY email_found
-                result = await pool.query(`
-                    UPDATE target_profiles 
-                    SET 
-                        email_found = $1,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE linkedin_url = $2 AND user_id = $3
-                    RETURNING id, email_found
-                `, [email, linkedinUrl, userId]);
-                
-                logger.success(`[EMAIL_FINDER] ✅ Updated existing target_profile (email only):`, result.rows[0]);
-            } else {
-                // Create new profile record - ONLY email_found
-                result = await pool.query(`
-                    INSERT INTO target_profiles (
-                        user_id, linkedin_url, email_found, created_at, updated_at
-                    ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    RETURNING id, email_found
-                `, [userId, linkedinUrl, email]);
-                
-                logger.success(`[EMAIL_FINDER] ✅ Created new target_profile (email only):`, result.rows[0]);
+            if (existingProfile.rows.length === 0) {
+                // Record doesn't exist - should have been created by Chrome extension
+                logger.error(`[EMAIL_FINDER] ❌ No target_profile found for ${linkedinUrl}`);
+                return {
+                    success: false,
+                    error: 'profile_not_found',
+                    message: 'Target profile must be created via Chrome extension before finding email'
+                };
             }
+            
+            // FIXED: Update existing record - ONLY by linkedin_url (updates shared record for ALL users)
+            const result = await pool.query(`
+                UPDATE target_profiles 
+                SET 
+                    email_found = $1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE linkedin_url = $2
+                RETURNING id, email_found
+            `, [email, linkedinUrl]);
+            
+            logger.success(`[EMAIL_FINDER] ✅ Updated target_profile (email only):`, result.rows[0]);
 
             return {
                 success: true,
@@ -113,47 +109,6 @@ class EmailFinder {
                 error: error.message,
                 message: 'Failed to save email to target_profiles'
             };
-        }
-    }
-
-    // FIXED: Save only status/error flags (for not_found, error cases)
-    async saveStatusOnly(linkedinUrl, status, userId) {
-        try {
-            logger.info(`[EMAIL_FINDER] Saving status flag: ${status} for ${linkedinUrl}`);
-            
-            const existingProfile = await pool.query(`
-                SELECT id FROM target_profiles 
-                WHERE linkedin_url = $1 AND user_id = $2
-            `, [linkedinUrl, userId]);
-
-            let result;
-            
-            if (existingProfile.rows.length > 0) {
-                // Update existing profile with status flag only
-                result = await pool.query(`
-                    UPDATE target_profiles 
-                    SET 
-                        email_status = $1,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE linkedin_url = $2 AND user_id = $3
-                    RETURNING id, email_status
-                `, [status, linkedinUrl, userId]);
-            } else {
-                // Create new profile with status flag
-                result = await pool.query(`
-                    INSERT INTO target_profiles (
-                        user_id, linkedin_url, email_status, created_at, updated_at
-                    ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    RETURNING id, email_status
-                `, [userId, linkedinUrl, status]);
-            }
-
-            logger.success(`[EMAIL_FINDER] ✅ Saved status flag: ${status}`);
-            return { success: true, data: result.rows[0] };
-
-        } catch (error) {
-            logger.error('[EMAIL_FINDER] Error saving status flag:', error);
-            return { success: false, error: error.message };
         }
     }
 
@@ -287,8 +242,8 @@ class EmailFinder {
                     };
 
                 } else {
-                    // FIXED: Not found = Still charge 2 credits (user paid for the search)
-                    await this.saveStatusOnly(linkedinUrl, 'not_found', userId);
+                    // FIXED: Not found = Charge 2 credits + mark user as requested (no status save)
+                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found - charging credits and marking user as requested`);
                     
                     // Charge credits (user paid for search even if not found)
                     const paymentResult = await completeOperation(userId, holdId, {
@@ -312,12 +267,11 @@ class EmailFinder {
                 }
 
             } catch (processingError) {
-                // Processing error: Save error status and release credit hold
+                // Processing error: Release credit hold (no status saved)
                 logger.error('[EMAIL_FINDER] 🚨 Processing error:', processingError);
                 logger.error('[EMAIL_FINDER] Error details:', processingError.message);
                 logger.error('[EMAIL_FINDER] Stack trace:', processingError.stack);
                 
-                await this.saveStatusOnly(linkedinUrl, 'error', userId);
                 await releaseCreditHold(userId, holdId, 'processing_error');
 
                 return {
