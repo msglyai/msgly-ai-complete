@@ -1,9 +1,9 @@
-// emailVerifier.js - COMPLETE NEW FILE: Email verification ONLY
+// emailVerifier.js - FIXED: Email verification with 8-second wait and flexible URL matching
 // Separate process from email finding
 // Auto-triggered by emailFinder when email is found
 // FREE verification (no credits charged)
 // Updates target_profiles with Snov.io verification status
-// Version: 1.0.0 - Initial separated verification module
+// Version: 1.1.0 - FIXED: 8s wait + flexible URL matching
 
 const { pool } = require('./utils/database');
 const logger = require('./utils/logger');
@@ -25,7 +25,8 @@ class EmailVerifier {
             hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
             authMethod: this.snovApiKey ? 'API Key' : 'OAuth',
-            mode: 'auto_triggered_free'
+            mode: 'auto_triggered_free',
+            waitTime: '8 seconds'
         });
     }
 
@@ -154,9 +155,9 @@ class EmailVerifier {
 
             logger.info(`[EMAIL_VERIFIER] Task hash received: ${taskHash}`);
 
-            // STEP 2: Wait for Snov.io to process (8-10 seconds recommended)
-            logger.info('[EMAIL_VERIFIER] Step 2: Waiting 10 seconds for Snov.io to process...');
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            // STEP 2: FIXED - Wait 8 seconds for Snov.io to process (optimized from 10s)
+            logger.info('[EMAIL_VERIFIER] Step 2: Waiting 8 seconds for Snov.io to process...');
+            await new Promise(resolve => setTimeout(resolve, 8000));
 
             // STEP 3: Get verification result
             logger.info('[EMAIL_VERIFIER] Step 3: Retrieving verification result...');
@@ -238,31 +239,46 @@ class EmailVerifier {
         }
     }
 
-    // Update target_profiles with verification result
+    // FIXED: Update target_profiles with flexible URL matching
     async updateVerificationStatus(linkedinUrl, userId, status, reason) {
         try {
             logger.info(`[EMAIL_VERIFIER] Updating DB: ${linkedinUrl} -> ${status}`);
             
             const timestamp = new Date();
             
+            // FIXED: Use flexible URL matching to handle variations
+            // Matches: exact URL, case-insensitive, without protocol/www
             const result = await pool.query(`
                 UPDATE target_profiles 
                 SET 
                     email_status = $1,
                     email_verified_at = $2,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE linkedin_url = $3 AND user_id = $4
-                RETURNING id, email_found, email_status, email_verified_at
-            `, [status, timestamp, linkedinUrl, userId]);
+                WHERE user_id = $3
+                AND (
+                    linkedin_url = $4
+                    OR LOWER(TRIM(linkedin_url)) = LOWER(TRIM($4))
+                    OR REPLACE(REPLACE(REPLACE(LOWER(TRIM(linkedin_url)), 'https://', ''), 'http://', ''), 'www.', '') 
+                       = REPLACE(REPLACE(REPLACE(LOWER(TRIM($4)), 'https://', ''), 'http://', ''), 'www.', '')
+                )
+                RETURNING id, email_found, email_status, email_verified_at, linkedin_url
+            `, [status, timestamp, userId, linkedinUrl]);
 
             if (result.rows.length > 0) {
-                logger.success(`[EMAIL_VERIFIER] ✅ DB updated:`, result.rows[0]);
+                logger.success(`[EMAIL_VERIFIER] ✅ DB updated successfully:`, {
+                    id: result.rows[0].id,
+                    email: result.rows[0].email_found,
+                    status: result.rows[0].email_status,
+                    verifiedAt: result.rows[0].email_verified_at,
+                    linkedinUrl: result.rows[0].linkedin_url
+                });
                 return {
                     success: true,
                     data: result.rows[0]
                 };
             } else {
-                logger.warn(`[EMAIL_VERIFIER] No record found to update for ${linkedinUrl}`);
+                logger.warn(`[EMAIL_VERIFIER] ⚠️ No record found to update for ${linkedinUrl} (user: ${userId})`);
+                logger.warn('[EMAIL_VERIFIER] URL might not exist in database or already updated');
                 return {
                     success: false,
                     error: 'record_not_found'
@@ -336,7 +352,8 @@ class EmailVerifier {
             hasCredentials: this.hasCredentials,
             mode: 'auto_triggered_free',
             apiVersion: 'v2_async',
-            timeoutMs: this.timeoutMs
+            timeoutMs: this.timeoutMs,
+            waitTime: '8 seconds'
         };
     }
 }
@@ -365,4 +382,4 @@ module.exports = {
     getEmailVerifierStatus
 };
 
-logger.success('Snov.io Email Verifier module loaded - SEPARATED verification process!');
+logger.success('Snov.io Email Verifier module loaded - FIXED: 8s wait + flexible URL matching!');
