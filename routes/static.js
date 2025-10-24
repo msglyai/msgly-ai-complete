@@ -37,6 +37,16 @@ router.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'Dashboard.html'));
 });
 
+// Messages route
+router.get('/messages', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'messages.html'));
+});
+
+// Target Profiles route - NEW!
+router.get('/target-profiles', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'target-profiles.html'));
+});
+
 // 🔧 FIX: Added missing message-generator route
 router.get('/message-generator.html', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'message-generator.html'));
@@ -82,6 +92,18 @@ router.get('/sitemap.xml', (req, res) => {
     </url>
     <url>
         <loc>https://msgly.ai/dashboard</loc>
+        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+    <url>
+        <loc>https://msgly.ai/messages</loc>
+        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+    <url>
+        <loc>https://msgly.ai/target-profiles</loc>
         <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.9</priority>
