@@ -1860,10 +1860,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <script>
-        // API Configuration - Update this if your API is on a different domain
-        const API_BASE_URL = window.location.origin; // Uses same domain as frontend
-        // If your API is on a different domain/port, change to: const API_BASE_URL = 'https://api.msgly.ai';
-        
         // Global variables
         let messagesData = [];
         let filteredMessages = [];
@@ -1880,9 +1876,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         // Authentication check and data loading
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('[CONFIG] API Base URL:', API_BASE_URL);
-            console.log('[CONFIG] Full Messages Endpoint:', `${API_BASE_URL}/messages`);
-            
             if (!checkAuthentication()) {
                 return;
             }
@@ -1947,7 +1940,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
 
-                const response = await fetch(`${API_BASE_URL}/profile`, {
+                const response = await fetch('/profile', {
                     method: 'GET',
                     headers: { 
                         'Authorization': `Bearer ${token}`,
@@ -2022,7 +2015,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
 
-                const response = await fetch(`${API_BASE_URL}/messages`, {
+                const response = await fetch('/messages/history', {
                     method: 'GET',
                     headers: { 
                         'Authorization': `Bearer ${token}`,
@@ -2684,7 +2677,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                const response = await fetch(`${API_BASE_URL}/messages/${messageId}`, {
+                const response = await fetch(`/messages/${messageId}`, {
                     method: 'PUT',
                     headers: { 
                         'Authorization': `Bearer ${token}`,
@@ -2796,7 +2789,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                const response = await fetch(`${API_BASE_URL}/email-finder/${targetId}`, {
+                const response = await fetch(`/email-finder/${targetId}`, {
                     method: 'POST',
                     headers: { 
                         'Authorization': `Bearer ${token}`,
