@@ -3089,53 +3089,83 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const target = messageGroup.target;
             const messages = messageGroup.messages;
             
+            // Combine all messages for timeline
+            const allMessages = [
+                ...messages.linkedin.map(m => ({...m, type: 'linkedin', icon: 'fab fa-linkedin', label: 'LinkedIn Message'})),
+                ...messages.connection.map(m => ({...m, type: 'connection', icon: 'fas fa-user-plus', label: 'Connection Request'})),
+                ...messages.email.map(m => ({...m, type: 'email', icon: 'fas fa-envelope', label: 'Cold Email'}))
+            ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            
+            const emailAddress = messageGroup.emailFound || target.email || '';
+            const hasEmailStatus = messageGroup.emailStatus && messageGroup.emailStatus !== 'not_found' && messageGroup.emailStatus !== 'error';
+            
             card.innerHTML = `
-                <div class="card-profile-header">
-                    <div class="profile-info">
-                        <div class="profile-name">${target.firstName || 'Unknown'}</div>
-                        <div class="profile-role">${target.role || 'Professional'}</div>
-                        <div class="profile-company">${target.company || 'Company'}</div>
-                    </div>
-                    <div class="email-finder-header-section">
-                        ${createEmailAskButton(messageGroup)}
-                        <div class="email-finder-description">Email Finder (powered by Snov.io)</div>
-                        ${createEmailVerificationDisplay(messageGroup)}
+                <!-- SECTION 1: TARGET PROFILE INFO -->
+                <div class="profile-section-new">
+                    <div class="profile-details-wrapper">
+                        <h3 class="profile-fullname">${target.firstName || ''} ${target.lastName || ''}</h3>
+                        <div class="profile-meta-info">
+                            <span class="meta-role">${target.role || 'Professional'}</span>
+                            <span class="meta-dot">•</span>
+                            <span class="meta-company">${target.company || 'Company'}</span>
+                        </div>
+                        ${target.linkedinUrl ? `
+                            <a href="${target.linkedinUrl}" target="_blank" class="linkedin-url-link">
+                                <i class="fab fa-linkedin"></i> View LinkedIn Profile
+                            </a>
+                        ` : ''}
                     </div>
                 </div>
 
-                <div class="message-types-section">
-                    ${messages.linkedin.length > 0 ? createMessageTypeBlock('linkedin', 'LinkedIn Message', messages.linkedin, 'fab fa-linkedin') : ''}
-                    ${messages.connection.length > 0 ? createMessageTypeBlock('connection', 'Connection Request', messages.connection, 'fas fa-user-plus') : ''}
-                    ${messages.email.length > 0 ? createMessageTypeBlock('email', 'Cold Email', messages.email, 'fas fa-envelope') : ''}
+                <!-- SECTION 2: EMAIL FINDER & VERIFICATION -->
+                <div class="email-section-new">
+                    <div class="email-section-title">
+                        <i class="fas fa-envelope-open-text"></i>
+                        <span>EMAIL FINDER & VERIFICATION</span>
+                        <span class="snov-powered">Powered by Snov.io</span>
+                    </div>
+                    <div class="email-section-content">
+                        ${hasEmailStatus && emailAddress ? createEmailVerificationDisplay(messageGroup) : createEmailFinderButton(messageGroup)}
+                    </div>
                 </div>
 
-                <div class="card-status-section">
-                    <div class="status-row">
-                        <div class="status-item">
-                            <div class="status-label">Message Sent</div>
-                            <div class="toggle-switch ${messageGroup.sent}" onclick="toggleStatus(${messageGroup.id}, 'sent')">
-                                <div class="toggle-slider">${getStatusIcon(messageGroup.sent)}</div>
-                            </div>
-                            <div class="toggle-label">${getStatusLabel(messageGroup.sent)}</div>
+                <!-- SECTION 3: OUTREACH HISTORY -->
+                <div class="outreach-section-new">
+                    <div class="outreach-section-title">
+                        <i class="fas fa-history"></i>
+                        <span>OUTREACH HISTORY</span>
+                    </div>
+                    <div class="outreach-timeline-wrapper">
+                        ${createOutreachTimeline(allMessages, messageGroup)}
+                    </div>
+                </div>
+
+                <!-- SECTION 4: TAGS & NOTES -->
+                <div class="tags-notes-section-new">
+                    <div class="tags-notes-content">
+                        <div class="tags-notes-title">
+                            <i class="fas fa-tags"></i>
+                            <span>TAGS & NOTES</span>
                         </div>
-                        
-                        <div class="status-item">
-                            <div class="status-label">Got Reply</div>
-                            <div class="toggle-switch ${messageGroup.gotReply}" onclick="toggleStatus(${messageGroup.id}, 'gotReply')">
-                                <div class="toggle-slider">${getStatusIcon(messageGroup.gotReply)}</div>
-                            </div>
-                            <div class="toggle-label">${getStatusLabel(messageGroup.gotReply)}</div>
+                        <div class="tags-display-area">
+                            <span class="prospect-tag hot-tag">#Hot-Lead</span>
+                            <span class="prospect-tag decision-tag">#Decision-Maker</span>
+                            <span class="prospect-tag followup-tag">#Follow-Up</span>
+                            <button class="add-tag-button"><i class="fas fa-plus-circle"></i> Add Tag</button>
+                        </div>
+                        <div class="notes-input-area">
+                            <label class="notes-input-label">
+                                <i class="fas fa-sticky-note"></i> NOTES:
+                            </label>
+                            <textarea 
+                                class="notes-textarea" 
+                                placeholder="Add notes about this contact..."
+                                onchange="updateComment(${messageGroup.id}, this.value)"
+                                onkeyup="markFieldModified(${messageGroup.id})"
+                            >${messageGroup.comments || ''}</textarea>
                         </div>
                     </div>
-                    
-                    <textarea 
-                        class="comment-field" 
-                        placeholder="Add notes about this contact..."
-                        onchange="updateComment(${messageGroup.id}, this.value)"
-                        onkeyup="markFieldModified(${messageGroup.id})"
-                    >${messageGroup.comments || ''}</textarea>
-                    
-                    <button class="save-btn" id="save-${messageGroup.id}" onclick="saveMessage(${messageGroup.id})">
+                    <button class="save-all-btn" id="save-${messageGroup.id}" onclick="saveMessage(${messageGroup.id})">
                         <i class="fas fa-save"></i> Save Changes
                     </button>
                 </div>
@@ -3230,11 +3260,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <button class="copy-email-btn" onclick="copyEmailAddress('${emailAddress}', this)">
                                 <i class="fas fa-copy"></i> Copy Email
                             </button>
+                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray); margin-left: 0.5rem;">
+                                <i class="fas fa-redo"></i> Search Again
+                            </button>
                             <div class="email-status valid">
                                 <i class="fas fa-shield-alt"></i> Verified
                             </div>
                         </div>
-                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Found: ${verifiedDate}</div>` : ''}
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
                     </div>`;
                 
                 case 'unknown':
@@ -3248,6 +3281,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="email-actions-row">
                             <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
                                 <i class="fas fa-copy"></i> Copy Email
+                            </button>
+                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray); margin-left: 0.5rem;">
+                                <i class="fas fa-redo"></i> Search Again
                             </button>
                             <div class="email-status unknown">
                                 <i class="fas fa-exclamation-triangle"></i> Unknown
@@ -3271,6 +3307,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
                                 <i class="fas fa-copy"></i> Copy Email
                             </button>
+                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray); margin-left: 0.5rem;">
+                                <i class="fas fa-redo"></i> Search Again
+                            </button>
                             <div class="email-status catch_all">
                                 <i class="fas fa-info-circle"></i> Catch-All
                             </div>
@@ -3291,6 +3330,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                         <div class="email-verification">
                             <div class="email-address">${emailAddress}</div>
+                            <div class="email-actions-row" style="margin-top: 1rem;">
+                                <button class="copy-email-btn" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray);">
+                                    <i class="fas fa-redo"></i> Search Again
+                                </button>
+                            </div>
                             <div class="email-status invalid">
                                 <i class="fas fa-ban"></i> Email Invalid
                             </div>
@@ -3312,7 +3356,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="email-status found">
                             <i class="fas fa-spinner fa-pulse"></i> Verification in progress
                         </div>
-                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Found: ${verifiedDate}</div>` : ''}
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
                     </div>`;
                     
                 case 'not_found':
