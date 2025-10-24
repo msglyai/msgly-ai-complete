@@ -233,42 +233,50 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .nav-badge {
-            background: var(--accent-pink);
-            color: var(--white);
-            font-size: 0.65rem;
-            font-weight: 700;
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
             padding: 0.2rem 0.5rem;
             border-radius: 10px;
+            font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
+        .nav-badge.new {
+            background: var(--accent-pink);
+            color: var(--white);
+        }
+
         .nav-badge.soon {
-            background: var(--warning-orange);
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
             padding: 1.5rem;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin-top: auto;
         }
 
         .logout-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
             width: 100%;
             padding: 0.75rem;
             background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
             color: var(--white);
             text-decoration: none;
-            border-radius: 8px;
             font-size: 0.9rem;
-            font-weight: 600;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             transition: all 0.3s ease;
-            cursor: pointer;
-            border: none;
         }
 
         .logout-btn:hover {
@@ -276,15 +284,34 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transform: translateY(-1px);
         }
 
-        /* Main Content Wrapper */
+        /* Mobile Sidebar Toggle */
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background: var(--primary-purple);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+
+        /* Main Content */
         .main-wrapper {
+            flex: 1;
             margin-left: 280px;
-            width: calc(100% - 280px);
             min-height: 100vh;
+            transition: margin-left 0.3s ease;
         }
 
         .main-content {
-            padding: 2rem;
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
         }
 
         .container {
@@ -292,13 +319,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin: 0 auto;
         }
 
-        /* Page Header */
         .page-header {
+            margin-bottom: 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
-            gap: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .page-header-left {
@@ -306,54 +333,78 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .page-title {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 700;
             color: var(--black);
-            margin-bottom: 0.5rem;
         }
 
         .page-subtitle {
-            font-size: 1rem;
             color: var(--gray);
+            font-size: 1rem;
+            margin-top: 0.4rem;
         }
 
         /* NEW: Credits Badge in Header */
         .page-header-credits {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.25rem;
-            background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple));
-            color: var(--white);
-            border-radius: 30px;
+            gap: 0.6rem;
             font-size: 1.1rem;
             font-weight: 700;
-            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+            box-shadow: var(--glow-shadow);
             transition: all 0.3s ease;
-        }
-
-        .page-header-credits.updating {
-            animation: pulse 0.6s ease-in-out;
+            border: 2px solid rgba(255, 255, 255, 0.2);
         }
 
         .page-header-credits i {
-            font-size: 1.2rem;
-            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+            font-size: 1.3rem;
+            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5));
         }
 
-        /* Controls */
+        .page-header-credits.updating {
+            animation: creditPulse 0.6s ease-in-out;
+        }
+
+        @keyframes creditPulse {
+            0%, 100% { transform: scale(1); }
+            50% { 
+                transform: scale(1.08); 
+                box-shadow: 0 0 40px rgba(128, 57, 223, 0.5);
+            }
+        }
+
         .messages-controls {
             display: flex;
-            gap: 1.5rem;
-            align-items: center;
+            gap: 1rem;
             margin-bottom: 2rem;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .search-box {
             flex: 1;
-            min-width: 250px;
+            min-width: 300px;
             position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 3rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 25px;
+            font-size: 0.9rem;
+            background: var(--white);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 15px rgba(128, 57, 223, 0.15);
         }
 
         .search-icon {
@@ -362,167 +413,893 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             top: 50%;
             transform: translateY(-50%);
             color: var(--gray);
-            font-size: 1rem;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 0.9rem 1rem 0.9rem 3rem;
-            border: 2px solid #E5E7EB;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
-            background: var(--white);
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-            box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
+            font-size: 1.1rem;
         }
 
         .messages-stats {
             display: flex;
-            gap: 1.5rem;
+            gap: 1rem;
         }
 
         .stat-item {
             text-align: center;
-            min-width: 80px;
+            padding: 0.8rem 1.2rem;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            min-width: 100px;
+            position: relative;
         }
 
         .stat-number {
-            font-size: 1.8rem;
-            font-weight: 700;
+            font-size: 1.5rem;
+            font-weight: 900;
             color: var(--primary-purple);
-            line-height: 1;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.2rem;
         }
 
         .stat-label {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--gray);
-            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
         }
 
-        .refresh-btn {
-            padding: 0.9rem 1.2rem;
-            background: var(--white);
-            border: 2px solid #E5E7EB;
-            border-radius: 12px;
-            color: var(--primary-purple);
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .refresh-btn:hover {
-            background: var(--light-purple);
-            border-color: var(--primary-purple);
-            transform: translateY(-1px);
-        }
-
-        .refresh-btn i.fa-spin {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        /* Filters */
         .messages-filters {
-            background: var(--white);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow);
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
         }
 
         .filter-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .filter-section:last-child {
-            margin-bottom: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
         }
 
         .filter-label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 600;
             color: var(--dark-gray);
-            margin-bottom: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .filter-buttons {
             display: flex;
-            gap: 0.75rem;
+            gap: 0.8rem;
             flex-wrap: wrap;
         }
 
         .filter-btn {
             padding: 0.6rem 1rem;
+            border: 2px solid var(--light-gray);
             background: var(--white);
-            border: 2px solid #E5E7EB;
-            border-radius: 8px;
-            color: var(--dark-gray);
-            font-size: 0.85rem;
-            font-weight: 500;
+            color: var(--gray);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
         }
 
         .filter-btn:hover {
             border-color: var(--primary-purple);
             color: var(--primary-purple);
-            background: var(--light-purple);
         }
 
         .filter-btn.active {
-            background: var(--primary-purple);
-            border-color: var(--primary-purple);
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             color: var(--white);
+            border-color: var(--primary-purple);
         }
 
-        .filter-btn i {
-            font-size: 0.9rem;
-        }
-
-        /* Messages Cards Container */
+        /* CARD-BASED LAYOUT */
         .messages-cards-container {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(128, 57, 223, 0.08);
             position: relative;
+            overflow: hidden;
+        }
+
+        .messages-cards-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+        }
+
+        .pagination-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--light-gray);
+        }
+
+        .showing-info {
+            font-size: 0.9rem;
+            color: var(--dark-gray);
+            font-weight: 500;
+        }
+
+        .load-more-btn {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: var(--glow-shadow);
+        }
+
+        .load-more-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px);
+        }
+
+        .load-more-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Bottom pagination styling */
+        .bottom-pagination {
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem 1rem;
+            border-top: 1px solid var(--light-gray);
+            margin-top: 2rem;
+        }
+
+        .bottom-pagination .load-more-btn {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            min-width: 200px;
+            justify-content: center;
         }
 
         .messages-cards-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+            margin-top: 1rem;
+            align-items: stretch;
+        }
+        
+        @media (max-width: 1600px) {
+            .messages-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 900px) {
+            .messages-cards-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
-        /* NEW REDESIGNED MESSAGE CARD */
-        .message-card-redesigned {
-            background: white;
-            border-radius: 12px;
+        .message-card {
+            background: var(--white);
+            border: 3px solid var(--light-gray);
+            border-radius: 16px;
             padding: 0;
-            margin-bottom: 0;
-            box-shadow: 0 1px 3px rgba(128, 57, 223, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-            overflow: visible;
-            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .message-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-purple);
+        }
+
+        .message-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .message-card:hover::before {
+            opacity: 1;
+        }
+
+        /* Target Profile Header */
+        .card-profile-header {
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-gray);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .profile-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 0.4rem;
+        }
+
+        .profile-role {
+            font-size: 1rem;
+            color: var(--dark-gray);
+            font-weight: 500;
+            margin-bottom: 0.3rem;
+        }
+
+        .profile-company {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .email-finder-header-section {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.5rem;
+        }
+
+        .email-finder-description {
+            font-size: 0.7rem;
+            color: var(--primary-purple);
+            font-weight: 500;
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        /* Enhanced Email Display */
+        .email-found-container {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+            border: 2px solid var(--success-green);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+            animation: emailFoundPulse 0.6s ease-out;
+        }
+
+        @keyframes emailFoundPulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Unknown/Catch-all - Yellow Warning State */
+        .email-unknown-container {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border: 2px solid var(--warning-orange);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+            animation: emailFoundPulse 0.6s ease-out;
+        }
+
+        .email-not-found-container {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.03) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 100%;
+        }
+
+        .email-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.6rem;
+        }
+
+        .email-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--success-green);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .email-label.warning {
+            color: var(--warning-orange);
+        }
+
+        .email-label.error {
+            color: var(--error-red);
+        }
+
+        .email-address-display {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--dark-gray);
+            word-break: break-all;
+            margin-bottom: 0.6rem;
+            padding: 0.6rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            border-left: 4px solid var(--success-green);
+        }
+
+        .email-address-display.warning {
+            border-left-color: var(--warning-orange);
+        }
+
+        .email-actions-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .copy-email-btn {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex: 1;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .copy-email-btn:hover {
+            background: linear-gradient(135deg, #059669 0%, var(--success-green) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+        }
+
+        .copy-email-btn.copied {
+            background: var(--primary-purple);
+            animation: copySuccess 0.4s ease-out;
+        }
+
+        .copy-email-btn.warning {
+            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+        }
+
+        .copy-email-btn.warning:hover {
+            background: linear-gradient(135deg, #D97706 0%, var(--warning-orange) 100%);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+        }
+
+        @keyframes copySuccess {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Email Finder Section */
+        .email-finder-section {
+            background: rgba(128, 57, 223, 0.03);
+            border: 1px solid rgba(128, 57, 223, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .email-finder-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-purple);
+        }
+
+        .email-finder-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .email-ask-btn {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem 1.2rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            box-shadow: var(--glow-shadow);
+            white-space: nowrap;
+        }
+
+        .email-ask-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
+        }
+
+        .email-ask-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.6;
+        }
+
+        .email-ask-btn.loading {
+            background: var(--warning-orange);
+            cursor: wait;
+        }
+
+        .email-ask-btn.search-again {
+            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        .email-ask-btn.search-again:hover {
+            background: linear-gradient(135deg, #D97706 0%, var(--warning-orange) 100%);
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+        }
+
+        .email-verification {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+        }
+
+        .email-address {
+            color: var(--dark-gray);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .email-status {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .email-status.valid {
+            color: var(--success-green);
+        }
+
+        .email-status.invalid,
+        .email-status.not_valid {
+            color: var(--error-red);
+        }
+
+        .email-status.catch_all {
+            color: var(--warning-orange);
+        }
+
+        .email-status.unknown {
+            color: var(--gray);
+        }
+
+        .email-status.error {
+            color: var(--error-red);
+        }
+
+        .email-status.verified {
+            color: var(--success-green);
+        }
+
+        .email-status.not-found,
+        .email-status.not_found {
+            color: var(--error-red);
+        }
+
+        .email-status.found {
+            color: var(--warning-orange);
+        }
+
+        .email-verified-date {
+            font-size: 0.7rem;
+            color: var(--gray);
+        }
+
+        .email-not-available {
+            color: var(--gray);
+            font-style: italic;
+            font-size: 0.8rem;
+        }
+
+        /* Message Types Section */
+        .message-types-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .message-type-block {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 12px;
+            background: rgba(128, 57, 223, 0.01);
+        }
+
+        .message-type-block.linkedin {
+            border-left: 4px solid #0077B5;
+        }
+
+        .message-type-block.connection {
+            border-left: 4px solid var(--accent-pink);
+        }
+
+        .message-type-block.email {
+            border-left: 4px solid var(--warning-orange);
+        }
+
+        .message-type-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+        }
+
+        .message-type-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+
+        .message-type-label i {
+            font-size: 1rem;
+        }
+
+        .message-type-label.linkedin { color: #0077B5; }
+        .message-type-label.connection { color: var(--accent-pink); }
+        .message-type-label.email { color: var(--warning-orange); }
+
+        .message-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .expand-btn, .edit-btn, .copy-btn {
+            background: var(--light-gray);
+            border: 1px solid var(--gray);
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--dark-gray);
+        }
+
+        .expand-btn:hover {
+            background: #0077B5;
+            color: var(--white);
+            border-color: #0077B5;
+        }
+
+        .edit-btn:hover {
+            background: var(--warning-orange);
+            color: var(--white);
+            border-color: var(--warning-orange);
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-purple);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        .copy-btn.copied {
+            background: var(--success-green);
+            color: var(--white);
+            border-color: var(--success-green);
+        }
+
+        .message-text {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--dark-gray);
+            background: rgba(128, 57, 223, 0.03);
+            padding: 0.8rem;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        .message-text.expanded {
+            display: block;
+        }
+
+        .message-text.empty {
+            color: var(--gray);
+            font-style: italic;
+            text-align: center;
+            padding: 1.5rem;
+            display: block;
+        }
+
+        .message-preview {
+            font-size: 0.85rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+            display: block;
+        }
+
+        .message-preview.hidden {
+            display: none;
+        }
+
+        .message-history-item {
+            margin-bottom: 0.8rem;
+            padding: 0.6rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.5);
             transition: all 0.3s ease;
         }
 
-        .message-card-redesigned:hover {
-            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
+        .message-history-item.latest {
+            border-color: var(--primary-purple);
+            background: rgba(128, 57, 223, 0.05);
         }
 
+        .message-history-item.collapsed {
+            background: var(--light-gray);
+            cursor: pointer;
+        }
+
+        .message-history-item.collapsed:hover {
+            background: rgba(128, 57, 223, 0.08);
+        }
+
+        .message-timestamp {
+            font-size: 0.7rem;
+            color: var(--gray);
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .message-content-preview {
+            font-size: 0.85rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+        }
+
+        .message-version-count {
+            font-size: 0.75rem;
+            color: var(--primary-purple);
+            font-weight: 600;
+            margin-left: 0.5rem;
+            padding: 0.2rem 0.5rem;
+            background: rgba(128, 57, 223, 0.1);
+            border-radius: 10px;
+        }
+
+        /* Status and Comments Section */
+        .card-status-section {
+            padding: 1rem;
+            background: rgba(128, 57, 223, 0.02);
+            border-radius: 12px;
+            border: 1px solid rgba(128, 57, 223, 0.08);
+        }
+
+        .status-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-item {
+            text-align: center;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .toggle-switch {
+            width: 60px;
+            height: 28px;
+            background: var(--light-gray);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            margin: 0 auto 0.5rem;
+        }
+
+        .toggle-switch.pending {
+            background: var(--light-gray);
+        }
+
+        .toggle-switch.yes {
+            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
+            border-color: var(--success-green);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .toggle-switch.no {
+            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
+            border-color: var(--error-red);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: var(--white);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-switch.pending .toggle-slider {
+            background: var(--gray);
+            color: var(--white);
+        }
+
+        .toggle-switch.yes .toggle-slider {
+            transform: translateX(32px);
+            background: var(--white);
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no .toggle-slider {
+            background: var(--white);
+            color: var(--error-red);
+        }
+
+        .toggle-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .toggle-switch.pending + .toggle-label {
+            color: var(--gray);
+        }
+
+        .toggle-switch.yes + .toggle-label {
+            color: var(--success-green);
+        }
+
+        .toggle-switch.no + .toggle-label {
+            color: var(--error-red);
+        }
+
+        .comment-field {
+            width: 100%;
+            min-height: 60px;
+            max-height: 120px;
+            padding: 0.8rem;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        .comment-field:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 0.8rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 1rem;
+            opacity: 0.6;
+            transform: scale(0.98);
+        }
+
+        .save-btn.modified {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
+        }
+
+        .save-btn:hover.modified {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-1px) scale(1);
+        }
+
+        .save-btn.saving {
+            background: var(--warning-orange);
+            cursor: not-allowed;
+        }
+
+        .save-btn.saved {
+            background: var(--success-green);
+        }
+
+        /* ========== NEW 4-SECTION CARD DESIGN ========== */
+        
         /* SECTION 1: PROFILE */
         .profile-section-new {
             padding: 1.25rem 1.5rem;
@@ -676,6 +1453,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin-right: 0.35rem;
         }
 
+        .find-email-big-btn.search-again {
+            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+        }
+
+        .find-email-big-btn.search-again:hover {
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
         .email-hint-text {
             text-align: center;
             color: var(--gray);
@@ -716,6 +1502,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 600;
             color: var(--black);
             font-family: 'Courier New', monospace;
+            text-align: center;
         }
 
         .verified-check {
@@ -732,6 +1519,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .verified-check i {
             font-size: 0.75rem;
+        }
+
+        .verified-check.warning {
+            background: var(--warning-orange);
+        }
+
+        .verified-check.error {
+            background: var(--error-red);
         }
 
         .email-buttons-row {
@@ -770,8 +1565,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transform: translateY(-1px);
         }
 
-        .email-btn-new.copy {
-            border-color: var(--primary-purple);
+        .email-btn-new.copy.copied {
+            background: var(--success-green);
+            color: white;
+            border-color: var(--success-green);
         }
 
         .email-btn-new.search-again {
@@ -784,7 +1581,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: white;
         }
 
-        /* EMAIL STATUS INFO (under email address) */
         .email-status-info {
             display: flex;
             align-items: center;
@@ -798,7 +1594,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .email-searched-date {
             color: var(--gray);
             font-size: 0.65rem;
-            margin-left: 0;
             text-align: center;
         }
 
@@ -806,6 +1601,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin-right: 0.25rem;
             color: var(--primary-purple);
             font-size: 0.6rem;
+        }
+
+        .email-not-available {
+            color: var(--gray);
+            font-style: italic;
+            font-size: 0.8rem;
+            text-align: center;
         }
 
         /* SECTION 3: OUTREACH HISTORY */
@@ -860,7 +1662,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
-        /* Disabled state for message types with no data */
         .history-timeline-item.history-item-disabled {
             opacity: 0.5;
             background: #fafafa;
@@ -890,7 +1691,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transition: background 0.2s ease;
         }
 
-        /* Active (enabled) message types - highlighted with color */
         .history-timeline-item:not(.history-item-disabled) .history-item-header {
             background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
             border-left: 3px solid var(--primary-purple);
@@ -910,6 +1710,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transition: transform 0.2s ease;
         }
 
+        .chevron-toggle.rotated {
+            transform: rotate(90deg);
+        }
+
         .history-type-icon {
             color: var(--primary-purple);
             font-size: 0.95rem;
@@ -924,45 +1728,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .history-date-text {
             color: var(--gray);
             font-size: 0.8rem;
-        }
-
-        /* Header Status Badges */
-        .header-status-badges {
             margin-left: auto;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            font-size: 0.8rem;
-            color: var(--dark-gray);
-        }
-
-        .header-status-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .header-checkbox {
-            width: 16px;
-            height: 16px;
-            border: 2px solid #6B7280;
-            border-radius: 3px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            font-size: 0.7rem;
-            color: #111827;
-        }
-
-        .header-checkbox.checked {
-            background: white;
-        }
-
-        .header-status-text {
-            font-weight: 500;
-            color: #374151;
-            white-space: nowrap;
         }
 
         .history-item-body {
@@ -970,6 +1736,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             padding-bottom: 0.85rem;
             background: white;
             border-top: 1px solid #e0e0e0;
+            display: none;
+        }
+
+        .history-item-body.expanded {
+            display: block;
         }
 
         .message-preview-text {
@@ -977,7 +1748,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-size: 0.85rem;
             line-height: 1.5;
             margin-bottom: 0.65rem;
-            font-style: italic;
+            white-space: pre-wrap;
         }
 
         .history-item-actions {
@@ -1010,18 +1781,23 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--primary-purple);
         }
 
+        .history-action-btn.copied {
+            background: var(--success-green);
+            color: white;
+            border-color: var(--success-green);
+        }
+
         .history-action-btn i {
             font-size: 0.9rem;
         }
 
-        /* COMPACT STATUS TOGGLES (inside message items) */
+        /* Compact Status Toggles */
         .message-status-toggles {
             display: flex;
             flex-direction: column;
             gap: 0.3rem;
             margin: 0.5rem auto 0 auto;
             padding-top: 0.5rem;
-            padding-bottom: 0rem;
             border-top: 1px solid #e5e7eb;
             max-width: 220px;
             width: fit-content;
@@ -1043,8 +1819,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             min-width: 80px;
         }
 
-        /* Toggle Switch */
-        .toggle-switch {
+        .toggle-switch-compact {
             position: relative;
             width: 44px;
             height: 24px;
@@ -1052,13 +1827,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             cursor: pointer;
         }
 
-        .toggle-switch input {
+        .toggle-switch-compact input {
             opacity: 0;
             width: 0;
             height: 0;
         }
 
-        .toggle-slider {
+        .toggle-slider-compact {
             position: absolute;
             top: 0;
             left: 0;
@@ -1069,7 +1844,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transition: 0.3s;
         }
 
-        .toggle-slider::before {
+        .toggle-slider-compact::before {
             content: "?";
             position: absolute;
             height: 18px;
@@ -1087,23 +1862,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: #6b7280;
         }
 
-        .toggle-switch input:checked + .toggle-slider {
+        .toggle-switch-compact input:checked + .toggle-slider-compact {
             background: var(--success-green);
         }
 
-        .toggle-switch input:checked + .toggle-slider::before {
+        .toggle-switch-compact input:checked + .toggle-slider-compact::before {
             content: "✓";
             transform: translateX(20px);
             color: var(--success-green);
-        }
-
-        .toggle-switch.no-toggle input:checked + .toggle-slider {
-            background: #ef4444;
-        }
-
-        .toggle-switch.no-toggle input:checked + .toggle-slider::before {
-            content: "✕";
-            color: #ef4444;
         }
 
         .toggle-status-label {
@@ -1111,10 +1877,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-weight: 600;
             color: var(--dark-gray);
             margin-left: 0.3rem;
-        }
-
-        .toggle-status-label.pending {
-            color: var(--gray);
         }
 
         .toggle-status-label.yes {
@@ -1300,115 +2062,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             50% { transform: scale(1.02); }
         }
 
-        /* Loading & Empty States */
-        .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 4rem 2rem;
-            text-align: center;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--light-purple);
-            border-top-color: var(--primary-purple);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 1rem;
-        }
-
-        .loading p {
-            color: var(--gray);
-            font-size: 1rem;
-        }
-
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 4rem 2rem;
-            text-align: center;
-            background: var(--white);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            color: var(--gray);
-            opacity: 0.3;
-            margin-bottom: 1.5rem;
-        }
-
-        .empty-state h3 {
-            font-size: 1.5rem;
-            color: var(--black);
-            margin-bottom: 0.75rem;
-        }
-
-        .empty-state p {
-            color: var(--gray);
-            font-size: 1rem;
-            max-width: 500px;
-        }
-
-        /* Pagination */
-        .pagination-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
-            margin-bottom: 1rem;
-        }
-
-        .showing-info {
-            font-size: 0.9rem;
-            color: var(--gray);
-        }
-
-        .load-more-btn {
-            padding: 0.75rem 1.5rem;
-            background: var(--primary-purple);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .load-more-btn:hover {
-            background: var(--neon-purple);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.3);
-        }
-
-        .bottom-pagination {
-            display: flex;
-            justify-content: center;
-            padding: 1rem 0;
-        }
-
-        /* Modal Styles */
+        /* MODAL STYLES */
         .modal-overlay {
-            display: none;
             position: fixed;
             top: 0;
             left: 0;
-            right: 0;
-            bottom: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
+            display: none;
             justify-content: center;
             align-items: center;
+            z-index: 2000;
             backdrop-filter: blur(4px);
         }
 
@@ -1420,24 +2085,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: var(--white);
             border-radius: 16px;
             padding: 2rem;
-            max-width: 500px;
+            max-width: 400px;
             width: 90%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: modalSlideIn 0.3s ease-out;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(128, 57, 223, 0.1);
         }
 
-        @keyframes modalSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .modal-overlay.active .modal {
+            transform: scale(1);
         }
 
         .modal-header {
+            text-align: center;
             margin-bottom: 1.5rem;
         }
 
@@ -1445,73 +2106,123 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--black);
+            margin-bottom: 0.5rem;
         }
 
         .modal-body {
-            margin-bottom: 1.5rem;
+            text-align: center;
+            margin-bottom: 2rem;
             color: var(--dark-gray);
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .modal-actions {
             display: flex;
             gap: 1rem;
-            justify-content: flex-end;
+            justify-content: center;
         }
 
         .modal-btn {
-            padding: 0.75rem 1.5rem;
+            padding: 0.8rem 1.5rem;
             border: none;
             border-radius: 8px;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .modal-btn.primary {
-            background: var(--primary-purple);
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             color: var(--white);
+            box-shadow: var(--glow-shadow);
         }
 
         .modal-btn.primary:hover {
-            background: var(--neon-purple);
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.3);
         }
 
         .modal-btn.secondary {
             background: var(--light-gray);
             color: var(--dark-gray);
+            border: 2px solid var(--light-gray);
         }
 
         .modal-btn.secondary:hover {
-            background: #E5E7EB;
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
         }
 
-        /* Mobile Styles */
-        .sidebar-toggle {
-            display: none;
-            position: fixed;
-            top: 1rem;
-            left: 1rem;
-            z-index: 1001;
-            background: var(--primary-purple);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            width: 45px;
-            height: 45px;
+        /* Loading & Empty States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 300px;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary-purple);
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
             font-size: 1.2rem;
+            margin-bottom: 0.6rem;
+            color: var(--dark-gray);
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--gray);
             cursor: pointer;
-            box-shadow: var(--shadow-lg);
+            padding: 0.5rem;
+            border-radius: 8px;
             transition: all 0.3s ease;
+            font-size: 1.1rem;
         }
 
-        .sidebar-toggle:hover {
-            background: var(--neon-purple);
+        .refresh-btn:hover {
+            background: var(--light-purple);
+            color: var(--primary-purple);
         }
 
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Mobile Responsive */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -1522,22 +2233,48 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             }
 
             .sidebar-toggle {
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                display: block;
             }
 
             .main-wrapper {
                 margin-left: 0;
-                width: 100%;
             }
 
             .main-content {
-                padding: 5rem 1rem 1rem;
+                padding: 1rem;
+                margin-top: 4rem;
+            }
+
+            .messages-controls {
+                flex-direction: column;
+            }
+
+            .search-box {
+                min-width: auto;
+            }
+
+            .messages-stats {
+                justify-content: center;
+                flex-wrap: wrap;
             }
 
             .messages-cards-grid {
                 grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .status-row {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .modal {
+                max-width: 350px;
+                padding: 1.5rem;
+            }
+
+            .filter-buttons {
+                justify-content: center;
             }
 
             .page-header {
@@ -1696,7 +2433,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-btn primary" id="confirmEmailSearchBtn">Yes, Find Email</button>
+                <button class="modal-btn primary">Yes, Find Email</button>
             </div>
         </div>
     </div>
@@ -1872,7 +2609,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         let currentUserPlan = null;
         let showingLimited = true;
         let CARDS_LIMIT = 21;
-        let currentEmailSearchTargetId = null;
 
         // Authentication check and data loading
         document.addEventListener('DOMContentLoaded', function() {
@@ -1942,7 +2678,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 const response = await fetch('/profile', {
                     method: 'GET',
-                    headers: { 
+                    headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
@@ -1955,120 +2691,127 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 }
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.error('[PROFILE] Server returned non-JSON response:', contentType);
-                    const text = await response.text();
-                    console.error('[PROFILE] Response text:', text.substring(0, 200));
-                    throw new Error('Server returned HTML instead of JSON - possible authentication issue');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 const data = await response.json();
                 
-                if (data.success && data.profile) {
-                    const profile = data.profile;
+                if (data.success) {
+                    const user = data.data.user;
                     
-                    // Update sidebar user info
-                    const avatar = document.getElementById('sidebarUserAvatar');
-                    const name = document.getElementById('sidebarUserName');
-                    const email = document.getElementById('sidebarUserEmail');
-                    const plan = document.getElementById('sidebarUserPlan');
+                    // FIXED: Use dual-credit calculation like Dashboard
+                    const renewableCredits = parseFloat(user.renewableCredits || 0);
+                    const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
+                    const totalCredits = renewableCredits + payasyougoCredits;
                     
-                    if (profile.name) {
-                        const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-                        avatar.textContent = initials;
-                        name.textContent = profile.name;
-                    }
+                    console.log('[CREDIT_FIX] Renewable:', renewableCredits.toFixed(2));
+                    console.log('[CREDIT_FIX] PayAsYouGo:', payasyougoCredits.toFixed(2));
+                    console.log('[CREDIT_FIX] Total:', totalCredits.toFixed(2));
                     
-                    if (profile.email) {
-                        email.textContent = profile.email;
-                    }
+                    currentUserPlan = {
+                        planCode: user.planCode || user.plan_code || 'free',
+                        totalCredits: totalCredits,
+                        planName: user.planName || user.plan_name || 'Free'
+                    };
                     
-                    if (profile.subscription_plan) {
-                        plan.textContent = profile.subscription_plan;
-                        currentUserPlan = {
-                            plan: profile.subscription_plan,
-                            totalCredits: profile.total_credits || 0
-                        };
-                    }
+                    console.log('[PROFILE] User credits loaded:', currentUserPlan.totalCredits);
                     
-                    // Update credits display
-                    updateCreditDisplay(profile.total_credits || 0);
+                    // Update credit displays immediately
+                    updateCreditDisplay(currentUserPlan.totalCredits);
                     
-                    console.log('[PROFILE] User profile loaded successfully');
+                    document.getElementById('sidebarUserName').textContent = user.displayName || user.email;
+                    document.getElementById('sidebarUserEmail').textContent = user.email;
+                    
+                    const planCode = user.planCode || 'free';
+                    const planNames = {
+                        'free': 'Free Plan',
+                        'silver-monthly': 'Silver Monthly',
+                        'silver-payasyougo': 'Silver Pay-as-you-go',
+                        'gold-monthly': 'Gold Monthly', 
+                        'gold-payasyougo': 'Gold Pay-as-you-go',
+                        'platinum-monthly': 'Platinum Monthly',
+                        'platinum-payasyougo': 'Platinum Pay-as-you-go'
+                    };
+                    document.getElementById('sidebarUserPlan').textContent = planNames[planCode] || 'Unknown Plan';
+                    
+                    const displayName = user.displayName || user.email;
+                    const initials = getInitials(displayName);
+                    document.getElementById('sidebarUserAvatar').textContent = initials;
+                } else {
+                    throw new Error(data.error || 'Failed to load profile');
                 }
+                
             } catch (error) {
                 console.error('[PROFILE] Error loading user profile:', error);
+                document.getElementById('sidebarUserName').textContent = 'User';
+                document.getElementById('sidebarUserEmail').textContent = 'user@example.com';
+                document.getElementById('sidebarUserPlan').textContent = 'Free Plan';
+                document.getElementById('sidebarUserAvatar').textContent = 'U';
+                updateCreditDisplay(0);
             }
         }
 
-        // Load messages data
+        function getInitials(name) {
+            if (!name) return '??';
+            
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                return name.substring(0, 2).toUpperCase();
+            }
+        }
+
+        // Load messages data from API
         async function loadMessagesData() {
             try {
+                document.getElementById('loadingState').style.display = 'flex';
+                
                 const token = getAuthToken();
                 if (!token) {
                     window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
-
+                
                 const response = await fetch('/messages/history', {
                     method: 'GET',
-                    headers: { 
+                    headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 });
-
+                
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
                     window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
-
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.error('[MESSAGES] Server returned non-JSON response:', contentType);
-                    const text = await response.text();
-                    console.error('[MESSAGES] Response text:', text.substring(0, 200));
-                    throw new Error('Server returned HTML instead of JSON - possible authentication issue');
-                }
-
+                
                 const data = await response.json();
                 
-                if (data.success && data.messages) {
-                    messagesData = data.messages;
-                    console.log(`[MESSAGES] Loaded ${messagesData.length} messages from server`);
-                    
+                if (data.success) {
+                    messagesData = data.data || [];
                     groupMessagesByTarget();
-                    applyFiltersAndSearch();
-                    
-                    if (filteredMessages.length === 0) {
-                        showEmptyState();
-                    }
                 } else {
-                    console.log('[MESSAGES] No messages found');
-                    showEmptyState();
+                    throw new Error(data.error || 'Failed to load messages');
                 }
+                
+                applyFilters();
+                
             } catch (error) {
                 console.error('[MESSAGES] Error loading messages:', error);
                 
-                // Show more helpful error message
-                if (error.message && error.message.includes('JSON')) {
-                    console.error('[MESSAGES] This usually means the server is returning an HTML page instead of JSON data.');
-                    console.error('[MESSAGES] Check if: 1) User is logged in, 2) API endpoint is correct, 3) Server is running properly');
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
                 }
                 
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('emptyState').style.display = 'block';
+                showEmptyState();
             }
         }
 
@@ -2077,136 +2820,186 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             groupedMessages = {};
             
             messagesData.forEach(message => {
-                const targetId = message.target_profile_id;
+                const targetKey = message.targetProfile.firstName + '_' + message.targetProfile.company;
                 
-                if (!groupedMessages[targetId]) {
-                    groupedMessages[targetId] = {
-                        id: targetId,
-                        target: {
-                            firstName: message.target_first_name || 'Unknown',
-                            lastName: message.target_last_name || '',
-                            role: message.target_role || 'Professional',
-                            company: message.target_company || 'Company',
-                            linkedinUrl: message.target_linkedin_url || null
-                        },
+                if (!groupedMessages[targetKey]) {
+                    const messageDate = new Date(message.created_at || message.createdAt || Date.now());
+                    
+                    groupedMessages[targetKey] = {
+                        target: message.targetProfile,
                         messages: {
                             linkedin: [],
                             connection: [],
                             email: []
                         },
-                        sent: message.sent_status || 'pending',
-                        gotReply: message.reply_status || 'pending',
-                        comments: message.comments || '',
-                        emailStatus: message.email_status || null,
-                        emailFound: message.email_found || null,
-                        emailVerifiedAt: message.email_verified_at || null,
-                        latestDate: new Date(message.created_at)
+                        id: message.id,
+                        sent: message.sent,
+                        gotReply: message.gotReply,
+                        comments: message.comments,
+                        emailFound: message.emailFound,
+                        emailStatus: message.emailStatus,
+                        emailVerifiedAt: message.emailVerifiedAt,
+                        latestMessageDate: messageDate
                     };
+                } else {
+                    const messageDate = new Date(message.created_at || message.createdAt || Date.now());
+                    if (messageDate > groupedMessages[targetKey].latestMessageDate) {
+                        groupedMessages[targetKey].latestMessageDate = messageDate;
+                    }
                 }
                 
-                const messageType = message.message_type || 'linkedin';
-                const messageObj = {
-                    id: message.id,
-                    message: message.message_content,
-                    created_at: message.created_at,
-                    type: messageType
-                };
+                const messageType = getMessageTypeFromDatabase(message.message_type || message.messageType);
                 
-                if (messageType === 'linkedin' || messageType === 'message') {
-                    groupedMessages[targetId].messages.linkedin.push(messageObj);
-                } else if (messageType === 'connection' || messageType === 'connection_request') {
-                    groupedMessages[targetId].messages.connection.push(messageObj);
-                } else if (messageType === 'email' || messageType === 'cold_email') {
-                    groupedMessages[targetId].messages.email.push(messageObj);
-                }
-                
-                const msgDate = new Date(message.created_at);
-                if (msgDate > groupedMessages[targetId].latestDate) {
-                    groupedMessages[targetId].latestDate = msgDate;
+                if (messageType === 'connection') {
+                    groupedMessages[targetKey].messages.connection.push(message);
+                } else if (messageType === 'email') {
+                    groupedMessages[targetKey].messages.email.push(message);
+                } else {
+                    groupedMessages[targetKey].messages.linkedin.push(message);
                 }
             });
             
-            console.log(`[MESSAGES] Grouped into ${Object.keys(groupedMessages).length} target profiles`);
+            Object.values(groupedMessages).forEach(group => {
+                group.messages.linkedin.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+                group.messages.connection.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+                group.messages.email.sort((a, b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+            });
         }
 
-        // Apply filters and search
-        function applyFiltersAndSearch() {
-            filteredMessages = Object.values(groupedMessages);
-            
-            // Apply status filter
-            if (currentStatusFilter === 'replied') {
-                filteredMessages = filteredMessages.filter(group => group.gotReply === 'yes');
-            } else if (currentStatusFilter === 'pending') {
-                filteredMessages = filteredMessages.filter(group => group.gotReply !== 'yes');
+        function getMessageTypeFromDatabase(dbMessageType) {
+            if (!dbMessageType) {
+                return 'linkedin';
             }
             
-            // Apply message type filter
-            if (currentMessageTypeFilter !== 'all') {
-                filteredMessages = filteredMessages.filter(group => {
-                    if (currentMessageTypeFilter === 'linkedin') {
-                        return group.messages.linkedin.length > 0;
-                    } else if (currentMessageTypeFilter === 'connection') {
-                        return group.messages.connection.length > 0;
-                    } else if (currentMessageTypeFilter === 'email') {
-                        return group.messages.email.length > 0;
-                    }
-                    return true;
-                });
-            }
+            const dbType = dbMessageType.toLowerCase();
             
-            // Apply date range filter
-            if (currentDateRangeFilter !== 'all') {
-                const now = new Date();
-                let cutoffDate;
-                
-                if (currentDateRangeFilter === '7days') {
-                    cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                } else if (currentDateRangeFilter === '30days') {
-                    cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                } else if (currentDateRangeFilter === '3months') {
-                    cutoffDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-                } else if (currentDateRangeFilter === '1year') {
-                    cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-                }
-                
-                if (cutoffDate) {
-                    filteredMessages = filteredMessages.filter(group => group.latestDate >= cutoffDate);
-                }
+            if (dbType.includes('connection') || dbType === 'connection_request') {
+                return 'connection';
+            } else if (dbType.includes('email') || dbType === 'cold_email') {
+                return 'email';
+            } else {
+                return 'linkedin';
             }
+        }
+
+        function applyFilters() {
+            let filtered = Object.values(groupedMessages);
             
-            // Apply search
+            filtered = filterMessagesByStatus(filtered);
+            filtered = filterMessagesByType(filtered);
+            filtered = filterMessagesByDateRange(filtered);
+            
             if (currentSearchTerm) {
-                const searchLower = currentSearchTerm.toLowerCase();
-                filteredMessages = filteredMessages.filter(group => {
+                filtered = filtered.filter(group => {
                     const target = group.target;
-                    return (
-                        (target.firstName && target.firstName.toLowerCase().includes(searchLower)) ||
-                        (target.lastName && target.lastName.toLowerCase().includes(searchLower)) ||
-                        (target.role && target.role.toLowerCase().includes(searchLower)) ||
-                        (target.company && target.company.toLowerCase().includes(searchLower))
+                    const messages = group.messages;
+                    
+                    const targetMatch = (
+                        (target.firstName && target.firstName.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.role && target.role.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (target.company && target.company.toLowerCase().includes(currentSearchTerm.toLowerCase())) ||
+                        (group.comments && group.comments.toLowerCase().includes(currentSearchTerm.toLowerCase()))
                     );
+                    
+                    const messageMatch = ['linkedin', 'connection', 'email'].some(type => {
+                        const messageArray = messages[type];
+                        if (Array.isArray(messageArray)) {
+                            return messageArray.some(msg => 
+                                msg.message && msg.message.toLowerCase().includes(currentSearchTerm.toLowerCase())
+                            );
+                        }
+                        return false;
+                    });
+                    
+                    return targetMatch || messageMatch;
                 });
             }
             
-            // Sort by latest date
-            filteredMessages.sort((a, b) => b.latestDate - a.latestDate);
+            filtered.sort((a, b) => b.latestMessageDate - a.latestMessageDate);
             
-            console.log(`[MESSAGES] Filtered to ${filteredMessages.length} target profiles`);
-            
+            filteredMessages = filtered;
             renderMessages();
             updateMessagesStats();
         }
 
-        // Filter functions
+        function filterMessagesByStatus(messageGroups) {
+            switch (currentStatusFilter) {
+                case 'sent':
+                    return messageGroups.filter(group => group.sent === 'yes');
+                case 'replied':
+                    return messageGroups.filter(group => group.gotReply === 'yes');
+                case 'pending':
+                    return messageGroups.filter(group => group.sent === 'yes' && group.gotReply !== 'yes');
+                case 'all':
+                default:
+                    return messageGroups;
+            }
+        }
+
+        function filterMessagesByType(messageGroups) {
+            if (currentMessageTypeFilter === 'all') {
+                return messageGroups;
+            }
+            
+            return messageGroups.filter(group => {
+                const messages = group.messages;
+                switch (currentMessageTypeFilter) {
+                    case 'linkedin':
+                        return messages.linkedin && messages.linkedin.length > 0;
+                    case 'connection':
+                        return messages.connection && messages.connection.length > 0;
+                    case 'email':
+                        return messages.email && messages.email.length > 0;
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        function filterMessagesByDateRange(messageGroups) {
+            if (currentDateRangeFilter === 'all') {
+                return messageGroups;
+            }
+            
+            const now = new Date();
+            let cutoffDate;
+            
+            switch (currentDateRangeFilter) {
+                case '7days':
+                    cutoffDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                    break;
+                case '30days':
+                    cutoffDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+                    break;
+                case '3months':
+                    cutoffDate = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
+                    break;
+                case '1year':
+                    cutoffDate = new Date(now.getTime() - (365 * 24 * 60 * 60 * 1000));
+                    break;
+                default:
+                    return messageGroups;
+            }
+            
+            return messageGroups.filter(group => {
+                return group.latestMessageDate >= cutoffDate;
+            });
+        }
+
+        function searchMessages(searchTerm) {
+            currentSearchTerm = searchTerm.trim();
+            applyFilters();
+        }
+
         function filterByStatus(status) {
             currentStatusFilter = status;
             
             document.querySelectorAll('.filter-section:first-child .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.closest('.filter-btn').classList.add('active');
+            event.target.classList.add('active');
             
-            applyFiltersAndSearch();
+            applyFilters();
         }
 
         function filterByMessageType(type) {
@@ -2215,31 +3008,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.querySelectorAll('.filter-section:nth-child(2) .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
+            event.target.classList.add('active');
             
-            const btnId = 'typeFilter' + type.charAt(0).toUpperCase() + type.slice(1);
-            const activeBtn = document.getElementById(btnId);
-            if (activeBtn) activeBtn.classList.add('active');
-            
-            applyFiltersAndSearch();
+            applyFilters();
         }
 
         function filterByDateRange(range) {
             currentDateRangeFilter = range;
             
-            document.querySelectorAll('.filter-section:last-child .filter-btn').forEach(btn => {
+            document.querySelectorAll('.filter-section:nth-child(3) .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
+            event.target.classList.add('active');
             
-            const btnId = 'dateFilter' + range.charAt(0).toUpperCase() + range.slice(1);
-            const activeBtn = document.getElementById(btnId);
-            if (activeBtn) activeBtn.classList.add('active');
-            
-            applyFiltersAndSearch();
-        }
-
-        function searchMessages(searchTerm) {
-            currentSearchTerm = searchTerm;
-            applyFiltersAndSearch();
+            applyFilters();
         }
 
         function toggleShowAll() {
@@ -2247,24 +3029,33 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             renderMessages();
         }
 
-        // Render messages
         function renderMessages() {
-            const container = document.getElementById('messagesCardsGrid');
+            const cardsGrid = document.getElementById('messagesCardsGrid');
             const paginationInfo = document.getElementById('paginationInfo');
             const bottomPagination = document.getElementById('bottomPagination');
-            const showingInfo = document.getElementById('showingInfo');
             const loadMoreBtn = document.getElementById('loadMoreBtn');
             const bottomLoadMoreBtn = document.getElementById('bottomLoadMoreBtn');
+            const showingInfo = document.getElementById('showingInfo');
             
-            container.innerHTML = '';
+            if (filteredMessages.length === 0) {
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('messagesCardsGrid').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                paginationInfo.style.display = 'none';
+                bottomPagination.style.display = 'none';
+                return;
+            }
             
-            const messagesToShow = showingLimited ? 
-                filteredMessages.slice(0, CARDS_LIMIT) : 
-                filteredMessages;
+            let messagesToShow = filteredMessages;
+            if (showingLimited && filteredMessages.length > CARDS_LIMIT) {
+                messagesToShow = filteredMessages.slice(0, CARDS_LIMIT);
+            }
+            
+            cardsGrid.innerHTML = '';
             
             messagesToShow.forEach(messageGroup => {
                 const messageCard = createMessageCard(messageGroup);
-                container.appendChild(messageCard);
+                cardsGrid.appendChild(messageCard);
             });
             
             if (filteredMessages.length > CARDS_LIMIT) {
@@ -2290,16 +3081,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('emptyState').style.display = 'none';
         }
 
-        // Create message card with new redesigned layout
         function createMessageCard(messageGroup) {
             const card = document.createElement('div');
-            card.className = 'message-card-redesigned';
+            card.className = 'message-card';
             card.setAttribute('data-target-id', messageGroup.id);
             
             const target = messageGroup.target;
             const messages = messageGroup.messages;
             
-            // Combine all messages for history
+            // Combine all messages for timeline
             const allMessages = [
                 ...messages.linkedin.map(m => ({...m, type: 'linkedin', icon: 'fab fa-linkedin', label: 'LinkedIn Message'})),
                 ...messages.connection.map(m => ({...m, type: 'connection', icon: 'fas fa-user-plus', label: 'Connection Request'})),
@@ -2335,7 +3125,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <span class="snov-powered">Powered by Snov.io</span>
                     </div>
                     <div class="email-section-content">
-                        ${hasEmail ? createEmailFoundDisplay(messageGroup, emailAddress) : createEmailNotFoundDisplay(messageGroup)}
+                        ${hasEmail ? `
+                            <div class="email-found-display">
+                                <div class="email-address-row">
+                                    <i class="fas fa-envelope"></i>
+                                    <span class="email-text">${emailAddress}</span>
+                                    <span class="verified-check"><i class="fas fa-check-circle"></i> Verified</span>
+                                </div>
+                                <div class="email-status-info">
+                                    <span class="email-searched-date">
+                                        <i class="fas fa-calendar-alt"></i> Searched: ${messageGroup.emailVerifiedAt ? new Date(messageGroup.emailVerifiedAt).toLocaleDateString() : 'Recently'}
+                                    </span>
+                                </div>
+                                <div class="email-buttons-row">
+                                    <button class="email-btn-new copy" onclick="copyEmailAddress('${emailAddress}', this)" title="Copy to clipboard">
+                                        <i class="fas fa-copy"></i> Copy Email
+                                    </button>
+                                    <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
+                                        <i class="fas fa-redo"></i> Search Again
+                                    </button>
+                                </div>
+                            </div>
+                        ` : createEmailFinderButton(messageGroup)}
                     </div>
                 </div>
 
@@ -2369,7 +3180,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             </label>
                             <textarea 
                                 class="notes-textarea" 
-                                placeholder="Very interested in pricing, follow up Nov 1..."
+                                placeholder="Add notes about this contact..."
                                 onchange="updateComment(${messageGroup.id}, this.value)"
                                 onkeyup="markFieldModified(${messageGroup.id})"
                             >${messageGroup.comments || ''}</textarea>
@@ -2384,48 +3195,607 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return card;
         }
 
-        function createEmailFoundDisplay(messageGroup, emailAddress) {
+        function createEmailFinderButton(messageGroup) {
+            // Email not found - show "Try Again" option
+            if (messageGroup.emailStatus === 'not_found' || messageGroup.emailStatus === 'error') {
+                return `
+                    <button class="find-email-big-btn search-again" onclick="askEmailClick(${messageGroup.id})">
+                        <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
+                    </button>
+                    <p class="email-hint-text">Email not found. Click to search again.</p>
+                `;
+            }
+            
+            // Invalid/catch-all - show "Search Again" option
+            if (messageGroup.emailStatus === 'invalid' || messageGroup.emailStatus === 'not_valid' || 
+                messageGroup.emailStatus === 'catch_all' || messageGroup.emailStatus === 'unknown') {
+                return `
+                    <button class="find-email-big-btn search-again" onclick="askEmailClick(${messageGroup.id})">
+                        <i class="fas fa-redo"></i> Search Again (2 Snov.io Credits)
+                    </button>
+                    <p class="email-hint-text">Previous result was uncertain. Try again.</p>
+                `;
+            }
+            
+            // First time - show "Find Email"
+            return `
+                <button class="find-email-big-btn" onclick="askEmailClick(${messageGroup.id})">
+                    <i class="fas fa-search"></i> Find Email (2 Snov.io Credits)
+                </button>
+                <p class="email-hint-text">Click to reveal verified email address</p>
+            `;
+        }
+
+        function createEmailAskButton(messageGroup) {
+            // Email found and verified - show "Search Again" option
+            if (messageGroup.emailStatus === 'valid' || messageGroup.emailStatus === 'verified') {
+                return `<button class="email-ask-btn search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
+                    <i class="fas fa-redo"></i> Search Again
+                </button>`;
+            }
+            
+            // Email not found - show "Try Again" option
+            if (messageGroup.emailStatus === 'not_found' || messageGroup.emailStatus === 'error') {
+                return `<button class="email-ask-btn search-again" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
+                    <i class="fas fa-redo"></i> Try Again
+                </button>`;
+            }
+            
+            // Invalid/catch-all - show "Search Again" option
+            if (messageGroup.emailStatus === 'invalid' || messageGroup.emailStatus === 'not_valid' || 
+                messageGroup.emailStatus === 'catch_all' || messageGroup.emailStatus === 'unknown') {
+                return `<button class="email-ask-btn search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
+                    <i class="fas fa-redo"></i> Search Again
+                </button>`;
+            }
+            
+            // First time - show "Ask Email"
+            return `<button class="email-ask-btn" onclick="askEmailClick(${messageGroup.id})" title="Find email (2 credits)">
+                <i class="fas fa-search"></i> Find Email
+            </button>`;
+        }
+
+        function createEmailVerificationDisplay(messageGroup) {
+            if (!messageGroup.emailStatus) {
+                return `<div class="email-not-available">Click "Find Email" to search</div>`;
+            }
+            
             const verifiedDate = messageGroup.emailVerifiedAt ? 
                 new Date(messageGroup.emailVerifiedAt).toLocaleDateString('en-US', { 
                     year: 'numeric', month: 'short', day: 'numeric' 
                 }) : '';
             
-            return `
-                <div class="email-found-display">
-                    <div class="email-address-row">
-                        <i class="fas fa-envelope"></i>
-                        <span class="email-text">${emailAddress}</span>
-                        <span class="verified-check"><i class="fas fa-check-circle"></i> Verified</span>
-                    </div>
-                    ${verifiedDate ? `
-                        <div class="email-status-info">
-                            <span class="email-searched-date">
-                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate}
-                            </span>
+            const emailAddress = messageGroup.emailFound || 'N/A';
+            
+            switch(messageGroup.emailStatus) {
+                case 'valid':
+                case 'verified':
+                    return `<div class="email-found-container">
+                        <div class="email-header-row">
+                            <div class="email-label">
+                                <i class="fas fa-check-circle"></i> Email Found & Verified
+                            </div>
                         </div>
-                    ` : ''}
-                    <div class="email-buttons-row">
-                        <button class="email-btn-new copy" onclick="copyEmailAddress('${emailAddress}', this)" title="Copy to clipboard">
-                            <i class="fas fa-copy"></i> Copy Email
+                        <div class="email-address-display">${emailAddress}</div>
+                        <div class="email-actions-row">
+                            <button class="copy-email-btn" onclick="copyEmailAddress('${emailAddress}', this)">
+                                <i class="fas fa-copy"></i> Copy Email
+                            </button>
+                            <div class="email-status valid">
+                                <i class="fas fa-shield-alt"></i> Verified
+                            </div>
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Found: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                
+                case 'unknown':
+                    return `<div class="email-unknown-container">
+                        <div class="email-header-row">
+                            <div class="email-label warning">
+                                <i class="fas fa-question-circle"></i> Email Found - Status Unknown
+                            </div>
+                        </div>
+                        <div class="email-address-display warning">${emailAddress}</div>
+                        <div class="email-actions-row">
+                            <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
+                                <i class="fas fa-copy"></i> Copy Email
+                            </button>
+                            <div class="email-status unknown">
+                                <i class="fas fa-exclamation-triangle"></i> Unknown
+                            </div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.5rem; text-align: center;">
+                            Verification status could not be determined
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.3rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                
+                case 'catch_all':
+                    return `<div class="email-unknown-container">
+                        <div class="email-header-row">
+                            <div class="email-label warning">
+                                <i class="fas fa-exclamation-circle"></i> Catch-All Domain Detected
+                            </div>
+                        </div>
+                        <div class="email-address-display warning">${emailAddress}</div>
+                        <div class="email-actions-row">
+                            <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
+                                <i class="fas fa-copy"></i> Copy Email
+                            </button>
+                            <div class="email-status catch_all">
+                                <i class="fas fa-info-circle"></i> Catch-All
+                            </div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.5rem; text-align: center;">
+                            Domain accepts all emails - verification uncertain
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.3rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'invalid':
+                case 'not_valid':
+                    return `<div class="email-not-found-container">
+                        <div class="email-header-row">
+                            <div class="email-label error">
+                                <i class="fas fa-times-circle"></i> Invalid Email Found
+                            </div>
+                        </div>
+                        <div class="email-verification">
+                            <div class="email-address">${emailAddress}</div>
+                            <div class="email-status invalid">
+                                <i class="fas fa-ban"></i> Email Invalid
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.3rem;">
+                                This email address appears to be invalid
+                            </div>
+                            ${verifiedDate ? `<div class="email-verified-date">Searched: ${verifiedDate}</div>` : ''}
+                        </div>
+                    </div>`;
+                    
+                case 'found':
+                    return `<div class="email-unknown-container">
+                        <div class="email-header-row">
+                            <div class="email-label warning">
+                                <i class="fas fa-hourglass-half"></i> Verifying Email...
+                            </div>
+                        </div>
+                        <div class="email-address-display warning">${emailAddress}</div>
+                        <div class="email-status found">
+                            <i class="fas fa-spinner fa-pulse"></i> Verification in progress
+                        </div>
+                        ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Found: ${verifiedDate}</div>` : ''}
+                    </div>`;
+                    
+                case 'not_found':
+                    return `<div class="email-not-found-container">
+                        <div class="email-header-row">
+                            <div class="email-label error">
+                                <i class="fas fa-times-circle"></i> Email Not Found
+                            </div>
+                        </div>
+                        <div class="email-verification">
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.3rem; text-align: center;">
+                                No public email found for this contact
+                            </div>
+                            ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem;">Searched: ${verifiedDate}</div>` : ''}
+                        </div>
+                    </div>`;
+                    
+                case 'error':
+                    return `<div class="email-not-found-container">
+                        <div class="email-header-row">
+                            <div class="email-label error">
+                                <i class="fas fa-exclamation-triangle"></i> Search Error
+                            </div>
+                        </div>
+                        <div class="email-verification">
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.3rem; text-align: center;">
+                                An error occurred during the email search
+                            </div>
+                            ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem;">Attempted: ${verifiedDate}</div>` : ''}
+                        </div>
+                    </div>`;
+                    
+                default:
+                    return `<div class="email-not-available">Status unknown</div>`;
+            }
+        }
+
+        async function copyEmailAddress(email, button) {
+            try {
+                await navigator.clipboard.writeText(email);
+                
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('copied');
+                }, 2000);
+                
+            } catch (error) {
+                console.error('[EMAIL_COPY] Error:', error);
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                }, 2000);
+            }
+        }
+
+        function askEmailClick(messageId) {
+            console.log(`[EMAIL_FINDER] Ask Email clicked for message ID: ${messageId}`);
+            
+            if (!currentUserPlan) {
+                console.log('[EMAIL_FINDER] No user plan data');
+                document.getElementById('currentPlanDisplay').textContent = 'Unknown';
+                document.getElementById('upgradeModal').classList.add('active');
+                return;
+            }
+            
+            const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payasyougo', 'gold-payasyougo', 'platinum-payasyougo'];
+            const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
+            
+            if (!allowedPlans.includes(userPlan)) {
+                console.log(`[EMAIL_FINDER] Plan validation failed: ${userPlan} not in allowed plans`);
+                document.getElementById('currentPlanDisplay').textContent = currentUserPlan.planName || 'Free';
+                document.getElementById('upgradeModal').classList.add('active');
+                return;
+            }
+            
+            const userCredits = currentUserPlan.totalCredits || 0;
+            
+            if (userCredits < 2) {
+                console.log(`[EMAIL_FINDER] Credit validation failed: ${userCredits} < 2`);
+                const creditsElement = document.getElementById('currentCredits');
+                if (creditsElement) {
+                    creditsElement.textContent = userCredits.toFixed(2);
+                }
+                document.getElementById('insufficientCreditsModal').classList.add('active');
+                return;
+            }
+            
+            console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
+            showEmailConfirmationModal(messageId);
+        }
+
+        function showEmailConfirmationModal(messageId) {
+            const confirmButton = document.querySelector('#emailFinderModal .modal-btn.primary');
+            confirmButton.onclick = () => confirmEmailFinder(messageId);
+            document.getElementById('emailFinderModal').classList.add('active');
+        }
+
+        async function confirmEmailFinder(messageId) {
+            closeEmailModal();
+            
+            console.log(`[EMAIL_FINDER] CONFIRMED: Sending messageId ${messageId} to backend`);
+            
+            const buttons = document.querySelectorAll(`[onclick*="askEmailClick(${messageId})"]`);
+            buttons.forEach(btn => {
+                btn.classList.add('loading');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding & verifying email...';
+                btn.disabled = true;
+            });
+            
+            try {
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login?returnUrl=/messages';
+                    return;
+                }
+                
+                const response = await fetch('/api/ask-email', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messageId: messageId
+                    })
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login?returnUrl=/messages';
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('[EMAIL_FINDER] Success! Email:', result.email, 'Status:', result.status, 'Credits charged:', result.creditsCharged);
+                    
+                    // FIXED: Update credits display with new balance
+                    if (result.newBalance !== undefined) {
+                        updateCreditDisplay(result.newBalance);
+                    } else if (currentUserPlan && result.creditsCharged) {
+                        const newBalance = currentUserPlan.totalCredits - result.creditsCharged;
+                        updateCreditDisplay(newBalance);
+                    }
+                    
+                    // FIXED: Update local data with complete email + status
+                    Object.values(groupedMessages).forEach(group => {
+                        if (group.id === messageId) {
+                            group.emailFound = result.email;
+                            group.emailStatus = result.status;
+                            group.emailVerifiedAt = result.verifiedAt || new Date().toISOString();
+                        }
+                    });
+                    
+                    // FIXED: Force re-render to show updated data
+                    renderMessages();
+                    
+                    // Show success message
+                    console.log('[EMAIL_FINDER] UI updated with email and verification status');
+                    
+                } else {
+                    if (result.error === 'email_not_found' || result.error === 'email_not_verified') {
+                        Object.values(groupedMessages).forEach(group => {
+                            if (group.id === messageId) {
+                                group.emailStatus = 'not_found';
+                                group.emailVerifiedAt = new Date().toISOString();
+                            }
+                        });
+                        renderMessages();
+                    } else {
+                        alert(`Email finder failed: ${result.message || result.error}`);
+                        buttons.forEach(btn => {
+                            btn.classList.remove('loading');
+                            btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
+                            btn.disabled = false;
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('[EMAIL_FINDER] Error:', error);
+                alert('Email finder temporarily unavailable. Please try again later.');
+                
+                buttons.forEach(btn => {
+                    btn.classList.remove('loading');
+                    btn.innerHTML = '<i class="fas fa-search"></i> Ask Email';
+                    btn.disabled = false;
+                });
+            }
+        }
+
+        function createMessageTypeBlock(type, label, messagesArray, iconClass) {
+            if (!messagesArray || messagesArray.length === 0) {
+                return '';
+            }
+
+            const latestMessage = messagesArray[0];
+            const latestMessageText = cleanMessageText(latestMessage.message || '');
+            const latestPreview = latestMessageText.length > 80 ? latestMessageText.substring(0, 80) + '...' : latestMessageText;
+            const uniqueId = `${type}-${latestMessage.id}`;
+            const hasMultiple = messagesArray.length > 1;
+            
+            let historyHTML = '';
+            
+            historyHTML += `
+                <div class="message-history-item latest">
+                    <div class="message-timestamp">
+                        <i class="fas fa-clock"></i>
+                        Latest: ${formatMessageDate(latestMessage.created_at || latestMessage.createdAt)}
+                    </div>
+                    <div class="message-content-preview" id="preview-${uniqueId}">${latestPreview}</div>
+                    <div class="message-text" id="message-${uniqueId}" style="display: none;">
+                        ${latestMessageText}
+                    </div>
+                </div>
+            `;
+            
+            if (hasMultiple) {
+                historyHTML += `<div class="message-history-previous" id="history-${uniqueId}" style="display: none;">`;
+                
+                messagesArray.slice(1).forEach((msg, index) => {
+                    const msgText = cleanMessageText(msg.message || '');
+                    const msgPreview = msgText.length > 60 ? msgText.substring(0, 60) + '...' : msgText;
+                    const msgUniqueId = `${type}-${msg.id}`;
+                    
+                    historyHTML += `
+                        <div class="message-history-item collapsed" onclick="toggleHistoryMessage('${msgUniqueId}', this)">
+                            <div class="message-timestamp">
+                                <i class="fas fa-history"></i>
+                                Previous: ${formatMessageDate(msg.created_at || msg.createdAt)}
+                            </div>
+                            <div class="message-content-preview" id="preview-${msgUniqueId}">${msgPreview}</div>
+                            <div class="message-text" id="message-${msgUniqueId}" style="display: none;">
+                                ${msgText}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                historyHTML += `</div>`;
+            }
+            
+            return `
+                <div class="message-type-block ${type}">
+                    <div class="message-type-header">
+                        <div class="message-type-label ${type}">
+                            <i class="${iconClass}"></i>
+                            ${label}
+                        </div>
+                        <div class="message-actions">
+                            <button class="edit-btn" onclick="editMessage('${type}', ${latestMessage.id})">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="copy-btn" onclick="copyMessage('${type}', ${latestMessage.id}, this)">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                    ${historyHTML}
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.8rem;">
+                        ${hasMultiple ? `
+                        <button class="expand-btn" onclick="toggleMessageHistory('${uniqueId}', this)">
+                            <i class="fas fa-history"></i> History
+                        </button>` : ''}
+                        <button class="expand-btn" onclick="toggleMessageExpand('${uniqueId}', this)">
+                            <i class="fas fa-chevron-down"></i> Expand
                         </button>
-                        <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
-                            <i class="fas fa-redo"></i> Search Again
-                        </button>
+                        ${hasMultiple ? `<span class="message-version-count">${messagesArray.length} versions</span>` : ''}
                     </div>
                 </div>
             `;
         }
 
-        function createEmailNotFoundDisplay(messageGroup) {
-            const buttonText = (messageGroup.emailStatus === 'not_found' || messageGroup.emailStatus === 'error') ? 
-                'Try Again' : 'Find Email';
+        function formatMessageDate(dateString) {
+            try {
+                let dateToFormat = dateString;
+                
+                if (!dateToFormat) {
+                    return 'Just now';
+                }
+                
+                const date = new Date(dateToFormat);
+                
+                if (isNaN(date.getTime())) {
+                    return 'Date unavailable';
+                }
+                
+                const now = new Date();
+                const diffTime = now - date;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays === 0) {
+                    return date.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }) + ' (today)';
+                } else if (diffDays === 1) {
+                    return date.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    }) + ' (yesterday)';
+                } else if (diffDays < 7) {
+                    return date.toLocaleDateString('en-US', { 
+                        weekday: 'short',
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    });
+                } else {
+                    return date.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                }
+            } catch (error) {
+                return 'Date error';
+            }
+        }
+
+        function toggleMessageHistory(messageId, button) {
+            const historyElement = document.getElementById(`history-${messageId}`);
+            const isVisible = historyElement.style.display !== 'none';
             
-            return `
-                <button class="find-email-big-btn" onclick="askEmailClick(${messageGroup.id})">
-                    <i class="fas fa-search"></i> ${buttonText} (2 Snov.io Credits)
-                </button>
-                <p class="email-hint-text">Click to reveal verified email address</p>
-            `;
+            if (isVisible) {
+                historyElement.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-history"></i> History';
+            } else {
+                historyElement.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-history"></i> Hide History';
+            }
+        }
+
+        function toggleHistoryMessage(messageId, element) {
+            const messageElement = document.getElementById(`message-${messageId}`);
+            const previewElement = document.getElementById(`preview-${messageId}`);
+            const isExpanded = messageElement.style.display !== 'none';
+            
+            if (isExpanded) {
+                messageElement.style.display = 'none';
+                previewElement.style.display = 'block';
+                element.classList.add('collapsed');
+            } else {
+                messageElement.style.display = 'block';
+                previewElement.style.display = 'none';
+                element.classList.remove('collapsed');
+            }
+        }
+
+        function toggleMessageExpand(messageId, button) {
+            const messageElement = document.getElementById(`message-${messageId}`);
+            const previewElement = document.getElementById(`preview-${messageId}`);
+            
+            if (!messageElement || !previewElement) {
+                return;
+            }
+            
+            const isExpanded = messageElement.style.display === 'block';
+            
+            if (isExpanded) {
+                messageElement.style.display = 'none';
+                previewElement.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-chevron-down"></i> Expand';
+            } else {
+                messageElement.style.display = 'block';
+                previewElement.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
+            }
+        }
+
+        function editMessage(type, messageId) {
+            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
+        }
+
+        async function copyMessage(type, messageId, button) {
+            try {
+                let targetMessage = null;
+                Object.values(groupedMessages).forEach(group => {
+                    ['linkedin', 'connection', 'email'].forEach(messageType => {
+                        const messages = group.messages[messageType];
+                        if (Array.isArray(messages)) {
+                            const found = messages.find(m => m.id === messageId);
+                            if (found) targetMessage = found;
+                        }
+                    });
+                });
+                
+                if (!targetMessage || !targetMessage.message) {
+                    throw new Error('Message not found');
+                }
+                
+                const cleanMessage = cleanMessageText(targetMessage.message);
+                
+                await navigator.clipboard.writeText(cleanMessage);
+                
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('copied');
+                }, 2000);
+                
+            } catch (error) {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                }, 2000);
+            }
+        }
+
+        function cleanMessageText(messageText) {
+            if (!messageText) return '';
+            
+            const cleanedText = messageText.replace(/^MSG_\d+\s*/i, '');
+            const finalText = cleanedText.replace(/^Subject:\s*/i, '');
+            
+            return finalText.trim();
         }
 
         function createOutreachTimeline(messages, messageGroup) {
@@ -2457,118 +3827,97 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 let dateStr = 'N/A';
                 let messageText = 'No message sent yet';
                 
-                if (hasMessage) {
-                    const msgDate = actualMessage.created_at ? new Date(actualMessage.created_at) : new Date();
-                    dateStr = msgDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    messageText = actualMessage.message || 'Message content...';
+                if (hasMessage && actualMessage.created_at) {
+                    dateStr = new Date(actualMessage.created_at).toLocaleDateString();
+                    messageText = actualMessage.message || 'No content';
                 }
                 
-                // All items start closed (minimized)
-                const isOpen = false;
-                const openClass = isOpen ? 'item-open' : 'item-closed';
-                const chevronClass = isOpen ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
-                const bodyDisplay = isOpen ? 'block' : 'none';
+                const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
                 
-                // Add disabled class if no message
-                const disabledClass = isDisabled ? 'history-item-disabled' : '';
-                const clickHandler = isDisabled ? '' : 'onclick="toggleHistoryExpand(this)"';
-                
-                html += '<div class="history-timeline-item ' + openClass + ' ' + disabledClass + '">';
-                html += '<div class="history-item-header" ' + clickHandler + '>';
-                
-                // Show chevron only if message exists, otherwise show dash
-                if (hasMessage) {
-                    html += '<i class="' + chevronClass + ' chevron-toggle"></i>';
-                } else {
-                    html += '<i class="fas fa-minus chevron-toggle" style="opacity: 0.3;"></i>';
-                }
-                
-                html += '<i class="' + msgType.icon + ' history-type-icon"></i>';
-                html += '<span class="history-type-text">' + msgType.label + '</span>';
-                html += '<span class="history-date-text">(' + dateStr + ')</span>';
-                
-                // Add status indicators in header
-                html += '<div class="header-status-badges">';
-                
-                // Message Sent checkbox
-                const sentCheckmark = messageGroup.sent === 'yes' ? '<i class="fas fa-check"></i>' : '';
                 html += `
-                    <div class="header-status-item">
-                        <span class="header-status-text">Message Sent</span>
-                        <div class="header-checkbox ${sentChecked}">${sentCheckmark}</div>
+                    <div class="history-timeline-item ${isDisabled ? 'history-item-disabled' : ''}">
+                        <div class="history-item-header" onclick="${!isDisabled ? `toggleHistoryItem('${uniqueId}')` : ''}">
+                            <i class="fas fa-chevron-right chevron-toggle" id="chevron-${uniqueId}"></i>
+                            <i class="${msgType.icon} history-type-icon"></i>
+                            <span class="history-type-text">${msgType.label}</span>
+                            <span class="history-date-text">${dateStr}</span>
+                        </div>
+                        <div class="history-item-body" id="${uniqueId}">
+                            <div class="message-preview-text">${messageText}</div>
+                            ${hasMessage ? `
+                                <div class="history-item-actions">
+                                    <button class="history-action-btn" onclick="copyMessageText('${uniqueId}-text', this)">
+                                        <i class="fas fa-copy"></i> Copy
+                                    </button>
+                                </div>
+                                <div class="message-status-toggles">
+                                    <div class="status-toggle-compact">
+                                        <label>Sent:</label>
+                                        <label class="toggle-switch-compact">
+                                            <input type="checkbox" ${sentChecked} onchange="toggleMessageSent(${messageGroup.id}, this.checked)">
+                                            <span class="toggle-slider-compact"></span>
+                                        </label>
+                                        <span class="toggle-status-label ${sentLabelClass}">${sentLabel}</span>
+                                    </div>
+                                    <div class="status-toggle-compact">
+                                        <label>Got Reply:</label>
+                                        <label class="toggle-switch-compact">
+                                            <input type="checkbox" ${replyChecked} onchange="toggleGotReply(${messageGroup.id}, this.checked)">
+                                            <span class="toggle-slider-compact"></span>
+                                        </label>
+                                        <span class="toggle-status-label ${replyLabelClass}">${replyLabel}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            <span id="${uniqueId}-text" style="display: none;">${messageText}</span>
+                        </div>
                     </div>
                 `;
-                
-                // Got Reply checkbox
-                const replyCheckmark = messageGroup.gotReply === 'yes' ? '<i class="fas fa-check"></i>' : '';
-                html += `
-                    <div class="header-status-item">
-                        <span class="header-status-text">Got Reply</span>
-                        <div class="header-checkbox ${replyChecked}">${replyCheckmark}</div>
-                    </div>
-                `;
-                
-                html += '</div>';
-                html += '</div>';
-                
-                // Only add body content if message exists
-                if (hasMessage) {
-                    html += '<div class="history-item-body" style="display: ' + bodyDisplay + '">';
-                    html += '<div class="message-preview-text">' + messageText + '</div>';
-                    html += '<div class="history-item-actions">';
-                    html += '<button class="history-action-btn"><i class="fas fa-edit"></i> Edit</button>';
-                    html += '<button class="history-action-btn"><i class="fas fa-copy"></i> Copy</button>';
-                    html += '</div>';
-                    
-                    // Add status toggles inside each message item
-                    html += '<div class="message-status-toggles">';
-                    html += '<div class="status-toggle-compact">';
-                    html += '<label>Message Sent</label>';
-                    html += '<label class="toggle-switch">';
-                    html += '<input type="checkbox" ' + sentChecked + ' onchange="toggleMessageSent(' + messageGroup.id + ', this.checked)">';
-                    html += '<span class="toggle-slider"></span>';
-                    html += '</label>';
-                    html += '<span class="toggle-status-label ' + sentLabelClass + '">' + sentLabel + '</span>';
-                    html += '</div>';
-                    
-                    html += '<div class="status-toggle-compact">';
-                    html += '<label>Got Reply</label>';
-                    html += '<label class="toggle-switch no-toggle">';
-                    html += '<input type="checkbox" ' + replyChecked + ' onchange="toggleGotReply(' + messageGroup.id + ', this.checked)">';
-                    html += '<span class="toggle-slider"></span>';
-                    html += '</label>';
-                    html += '<span class="toggle-status-label ' + replyLabelClass + '">' + replyLabel + '</span>';
-                    html += '</div>';
-                    html += '</div>';
-                    
-                    html += '</div>';
-                }
-                
-                html += '</div>';
             });
             
-            return html;
+            return html || '<div class="no-outreach-yet">No outreach messages yet</div>';
         }
 
-        function toggleHistoryExpand(headerEl) {
-            const item = headerEl.parentElement;
-            const body = item.querySelector('.history-item-body');
-            const chevron = headerEl.querySelector('.chevron-toggle');
+        function toggleHistoryItem(itemId) {
+            const body = document.getElementById(itemId);
+            const chevron = document.getElementById('chevron-' + itemId);
             
-            if (item.classList.contains('item-open')) {
-                item.classList.remove('item-open');
-                item.classList.add('item-closed');
-                body.style.display = 'none';
-                chevron.className = 'fas fa-chevron-right chevron-toggle';
-            } else {
-                item.classList.add('item-open');
-                item.classList.remove('item-closed');
-                body.style.display = 'block';
-                chevron.className = 'fas fa-chevron-down chevron-toggle';
+            if (body && chevron) {
+                body.classList.toggle('expanded');
+                chevron.classList.toggle('rotated');
             }
         }
 
-        // Toggle functions for status switches
+        function copyMessageText(textElementId, button) {
+            const textElement = document.getElementById(textElementId);
+            if (textElement) {
+                const text = textElement.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalHTML = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    button.classList.add('copied');
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalHTML;
+                        button.classList.remove('copied');
+                    }, 2000);
+                });
+            }
+        }
+
+        function copyEmailAddress(email, button) {
+            navigator.clipboard.writeText(email).then(() => {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
         function toggleMessageSent(messageId, isChecked) {
             const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
             if (!messageGroup) return;
@@ -2576,30 +3925,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             messageGroup.sent = isChecked ? 'yes' : 'no';
             markMessageModified(messageId);
             
-            // Update all labels and checkboxes for this target
+            // Update label
             const card = document.querySelector(`[data-target-id="${messageId}"]`);
             if (card) {
-                // Update toggle labels
                 const labels = card.querySelectorAll('.status-toggle-compact:first-child .toggle-status-label');
                 labels.forEach(label => {
                     label.textContent = isChecked ? 'YES' : 'NO';
                     label.className = 'toggle-status-label ' + (isChecked ? 'yes' : 'no');
                 });
-                
-                // Update header checkboxes
-                const checkboxes = card.querySelectorAll('.header-status-item:first-child .header-checkbox');
-                checkboxes.forEach(checkbox => {
-                    if (isChecked) {
-                        checkbox.classList.add('checked');
-                        checkbox.innerHTML = '<i class="fas fa-check"></i>';
-                    } else {
-                        checkbox.classList.remove('checked');
-                        checkbox.innerHTML = '';
-                    }
-                });
             }
-            
-            updateMessagesStats();
         }
 
         function toggleGotReply(messageId, isChecked) {
@@ -2609,30 +3943,82 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             messageGroup.gotReply = isChecked ? 'yes' : 'no';
             markMessageModified(messageId);
             
-            // Update all labels and checkboxes for this target
+            // Update label
             const card = document.querySelector(`[data-target-id="${messageId}"]`);
             if (card) {
-                // Update toggle labels
                 const labels = card.querySelectorAll('.status-toggle-compact:last-child .toggle-status-label');
                 labels.forEach(label => {
                     label.textContent = isChecked ? 'YES' : 'NO';
                     label.className = 'toggle-status-label ' + (isChecked ? 'yes' : 'no');
                 });
-                
-                // Update header checkboxes
-                const checkboxes = card.querySelectorAll('.header-status-item:last-child .header-checkbox');
-                checkboxes.forEach(checkbox => {
-                    if (isChecked) {
-                        checkbox.classList.add('checked');
-                        checkbox.innerHTML = '<i class="fas fa-check"></i>';
-                    } else {
-                        checkbox.classList.remove('checked');
-                        checkbox.innerHTML = '';
-                    }
-                });
+            }
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailFinderModal').classList.remove('active');
+        }
+
+        function closeInsufficientCreditsModal() {
+            document.getElementById('insufficientCreditsModal').classList.remove('active');
+        }
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').classList.remove('active');
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'yes': return '✓';
+                case 'no': return '✗';
+                default: return '?';
+            }
+        }
+
+        function getStatusLabel(status) {
+            switch(status) {
+                case 'yes': return 'Yes';
+                case 'no': return 'No';
+                default: return 'Pending';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup) return;
+            
+            switch(messageGroup[field]) {
+                case 'pending':
+                    messageGroup[field] = 'yes';
+                    break;
+                case 'yes':
+                    messageGroup[field] = 'no';
+                    break;
+                case 'no':
+                    messageGroup[field] = 'pending';
+                    break;
             }
             
+            markMessageModified(messageId);
+            updateToggleDisplay(messageId, field, messageGroup[field]);
             updateMessagesStats();
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            const selectors = [
+                `[onclick="toggleStatus(${messageId}, '${field}')"]`,
+            ];
+            
+            selectors.forEach(selector => {
+                const toggles = document.querySelectorAll(selector);
+                toggles.forEach(toggle => {
+                    toggle.className = `toggle-switch ${status}`;
+                    const slider = toggle.querySelector('.toggle-slider');
+                    const label = toggle.nextElementSibling;
+                    
+                    if (slider) slider.textContent = getStatusIcon(status);
+                    if (label) label.textContent = getStatusLabel(status);
+                });
+            });
         }
 
         function updateComment(messageId, value) {
@@ -2736,130 +4122,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     });
                 }, 3000);
             }
-        }
-
-        // Email finder functionality
-        function askEmailClick(targetId) {
-            console.log('[EMAIL] Email search clicked for target:', targetId);
-            
-            if (!currentUserPlan) {
-                console.log('[EMAIL] No user plan loaded, showing upgrade modal');
-                document.getElementById('upgradeModal').classList.add('active');
-                return;
-            }
-            
-            const plan = currentUserPlan.plan.toLowerCase();
-            if (plan === 'free') {
-                console.log('[EMAIL] Free plan, showing upgrade modal');
-                document.getElementById('currentPlanDisplay').textContent = 'Free';
-                document.getElementById('upgradeModal').classList.add('active');
-                return;
-            }
-            
-            const credits = currentUserPlan.totalCredits || 0;
-            if (credits < 2) {
-                console.log('[EMAIL] Insufficient credits:', credits);
-                document.getElementById('currentCredits').textContent = credits.toFixed(2);
-                document.getElementById('insufficientCreditsModal').classList.add('active');
-                return;
-            }
-            
-            console.log('[EMAIL] Opening confirmation modal for target:', targetId);
-            currentEmailSearchTargetId = targetId;
-            
-            const modal = document.getElementById('emailFinderModal');
-            const confirmBtn = document.getElementById('confirmEmailSearchBtn');
-            
-            confirmBtn.onclick = function() {
-                performEmailSearch(targetId);
-            };
-            
-            modal.classList.add('active');
-        }
-
-        async function performEmailSearch(targetId) {
-            console.log('[EMAIL] Starting email search for target:', targetId);
-            
-            closeEmailModal();
-            
-            try {
-                const token = getAuthToken();
-                if (!token) {
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                const response = await fetch(`/email-finder/${targetId}`, {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login';
-                    return;
-                }
-                
-                const result = await response.json();
-                console.log('[EMAIL] Email search result:', result);
-                
-                if (result.success) {
-                    // Update the message group with new email info
-                    if (groupedMessages[targetId]) {
-                        groupedMessages[targetId].emailStatus = result.emailStatus;
-                        groupedMessages[targetId].emailFound = result.emailFound;
-                        groupedMessages[targetId].emailVerifiedAt = result.emailVerifiedAt;
-                    }
-                    
-                    // Update credits display
-                    if (result.creditsRemaining !== undefined) {
-                        updateCreditDisplay(result.creditsRemaining);
-                    }
-                    
-                    // Re-render messages to show updated email info
-                    renderMessages();
-                    
-                    console.log('[EMAIL] Email search completed successfully');
-                } else {
-                    console.error('[EMAIL] Email search failed:', result.error);
-                    alert(result.error || 'Failed to search for email');
-                }
-            } catch (error) {
-                console.error('[EMAIL] Error during email search:', error);
-                alert('An error occurred while searching for email. Please try again.');
-            }
-        }
-
-        function copyEmailAddress(email, buttonEl) {
-            navigator.clipboard.writeText(email).then(() => {
-                const originalHTML = buttonEl.innerHTML;
-                buttonEl.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                buttonEl.style.background = 'var(--success-green)';
-                
-                setTimeout(() => {
-                    buttonEl.innerHTML = originalHTML;
-                    buttonEl.style.background = '';
-                }, 2000);
-            }).catch(err => {
-                console.error('[EMAIL] Failed to copy:', err);
-                alert('Failed to copy email address');
-            });
-        }
-
-        function closeEmailModal() {
-            document.getElementById('emailFinderModal').classList.remove('active');
-            currentEmailSearchTargetId = null;
-        }
-
-        function closeInsufficientCreditsModal() {
-            document.getElementById('insufficientCreditsModal').classList.remove('active');
-        }
-
-        function closeUpgradeModal() {
-            document.getElementById('upgradeModal').classList.remove('active');
         }
 
         function updateMessagesStats() {
