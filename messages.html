@@ -10,39 +10,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- End Google Tag Manager -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <meta name="cache-buster" content="v2024-10-24-filters-removed">
     <title>Messages - Msgly AI</title>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* MOCK BANNER */
-        .design-mock-banner {
-            position: fixed;
-            top: 0;
-            left: 280px;
-            right: 0;
-            background: linear-gradient(135deg, #FF2370, #F59E0B);
-            color: white;
-            padding: 0.75rem;
-            text-align: center;
-            font-weight: 600;
-            z-index: 9999;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-        }
-        
-        .main-content {
-            margin-top: 48px !important;
-        }
-        
-        @media (max-width: 768px) {
-            .design-mock-banner {
-                left: 0;
-            }
-        }
-        
         :root {
             --primary-purple: #8039DF;
             --dark-purple: #3E0075;
@@ -338,13 +309,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .main-content {
-            padding: 1.5rem 2.5rem;
-            max-width: 1800px;
+            padding: 1.5rem;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
         .container {
-            max-width: 100%;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -371,239 +342,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--gray);
             font-size: 1rem;
             margin-top: 0.4rem;
-        }
-
-        /* Statistics Section - Clean Funnel Design! */
-        .stats-section {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 2rem;
-            margin-bottom: 2rem;
-            padding: 2.5rem 3rem;
-            background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(128, 57, 223, 0.12);
-            flex-wrap: wrap;
-            position: relative;
-        }
-
-        .funnel-container {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.8rem;
-        }
-
-        .funnel-visual {
-            display: flex;
-            align-items: stretch;
-            gap: 0.8rem;
-            min-height: 100px;
-        }
-
-        .funnel-section {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 1.2rem 1.5rem;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            animation: slideIn 0.6s ease-out backwards;
-        }
-
-        @keyframes slideIn {
-            0% {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            100% {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        .funnel-section:hover {
-            transform: translateY(-5px);
-            filter: brightness(1.1);
-        }
-
-        /* Section 1: Total Profiles - Largest */
-        .funnel-section-1 {
-            width: 160px;
-            background: linear-gradient(135deg, #8039DF 0%, #6A1B9A 100%);
-            animation-delay: 0.1s;
-            box-shadow: 0 8px 25px rgba(128, 57, 223, 0.35);
-        }
-
-        /* Section 2: Contacted - Medium */
-        .funnel-section-2 {
-            width: 140px;
-            background: linear-gradient(135deg, #6A1B9A 0%, #7B2CBF 100%);
-            animation-delay: 0.3s;
-            box-shadow: 0 8px 25px rgba(106, 27, 154, 0.35);
-        }
-
-        /* Section 3: Got Reply - Smallest */
-        .funnel-section-3 {
-            width: 120px;
-            background: linear-gradient(135deg, #FF2370 0%, #E91E63 100%);
-            animation-delay: 0.5s;
-            box-shadow: 0 8px 25px rgba(255, 35, 112, 0.35);
-        }
-
-        .funnel-number {
-            font-size: 2.4rem;
-            font-weight: 900;
-            color: white;
-            line-height: 1;
-            margin-bottom: 0.3rem;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            animation: numberPop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) backwards;
-        }
-
-        .funnel-section-1 .funnel-number {
-            animation-delay: 0.4s;
-        }
-
-        .funnel-section-2 .funnel-number {
-            animation-delay: 0.6s;
-        }
-
-        .funnel-section-3 .funnel-number {
-            animation-delay: 0.8s;
-        }
-
-        @keyframes numberPop {
-            0% {
-                opacity: 0;
-                transform: scale(0) rotate(-180deg);
-            }
-            100% {
-                opacity: 1;
-                transform: scale(1) rotate(0deg);
-            }
-        }
-
-        .funnel-label {
-            font-size: 0.65rem;
-            color: rgba(255, 255, 255, 0.95);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            font-weight: 700;
-            text-align: center;
-            line-height: 1.3;
-            margin-bottom: 0.25rem;
-        }
-
-        .funnel-percentage {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.95);
-            font-weight: 700;
-        }
-
-        /* Small Response Rate Text */
-        .response-rate-text {
-            font-size: 0.8rem;
-            color: var(--primary-purple);
-            text-align: center;
-            line-height: 1.5;
-            animation: fadeInText 0.8s ease-out 1s backwards;
-        }
-
-        .response-rate-text strong {
-            font-weight: 700;
-        }
-
-        .response-rate-text span {
-            color: var(--gray);
-            font-style: italic;
-        }
-
-        @keyframes fadeInText {
-            0% {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            100% {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .stats-section {
-                padding: 2rem;
-            }
-
-            .funnel-section-1 { width: 145px; }
-            .funnel-section-2 { width: 125px; }
-            .funnel-section-3 { width: 105px; }
-
-            .funnel-number {
-                font-size: 2.1rem;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .funnel-visual {
-                gap: 0.6rem;
-            }
-
-            .funnel-section-1 { width: 130px; }
-            .funnel-section-2 { width: 115px; }
-            .funnel-section-3 { width: 95px; }
-
-            .funnel-number {
-                font-size: 1.9rem;
-            }
-
-            .funnel-label {
-                font-size: 0.6rem;
-            }
-
-            .response-rate-text {
-                font-size: 0.75rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .funnel-visual {
-                flex-direction: column;
-                gap: 1rem;
-            }
-
-            .funnel-section {
-                width: 100% !important;
-                max-width: 200px;
-            }
-
-            .funnel-number {
-                font-size: 1.8rem;
-            }
-
-            .funnel-label {
-                font-size: 0.55rem;
-            }
-
-            .funnel-percentage {
-                font-size: 0.7rem;
-            }
-
-            .response-rate-text {
-                font-size: 0.7rem;
-            }
-        }
-
-        /* Keep old stat-card classes for backwards compatibility (hidden) */
-        .stat-card {
-            display: none !important;
         }
 
         /* NEW: Credits Badge in Header */
@@ -676,6 +414,90 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transform: translateY(-50%);
             color: var(--gray);
             font-size: 1.1rem;
+        }
+
+        .messages-stats {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0.8rem 1.2rem;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            min-width: 100px;
+            position: relative;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .messages-filters {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .filter-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 0.6rem 1rem;
+            border: 2px solid var(--light-gray);
+            background: var(--white);
+            color: var(--gray);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary-purple);
+            color: var(--primary-purple);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border-color: var(--primary-purple);
         }
 
         /* CARD-BASED LAYOUT */
@@ -760,36 +582,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .messages-cards-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.25rem;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
             margin-top: 1rem;
-            align-items: stretch;
-        }
-        
-        @media (max-width: 1600px) {
-            .messages-cards-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        
-        @media (max-width: 900px) {
-            .messages-cards-grid {
-                grid-template-columns: 1fr;
-            }
         }
 
         .message-card {
             background: var(--white);
             border: 3px solid var(--light-gray);
             border-radius: 16px;
-            padding: 0;
+            padding: 1.5rem;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
             box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            height: 100%;
         }
 
         .message-card:hover {
@@ -1713,1257 +1519,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 grid-template-columns: repeat(3, 1fr);
             }
         }
-    
-/* ========================================
-           NEW REDESIGNED CARD STYLES
-           ======================================== */
-        
-        .message-card-redesigned {
-            background: white;
-            border-radius: 12px;
-            padding: 0;
-            margin-bottom: 0;
-            box-shadow: 0 1px 3px rgba(128, 57, 223, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-            overflow: visible;
-            border: 1px solid #e5e7eb;
-            transition: all 0.3s ease;
-        }
-
-        .message-card-redesigned:hover {
-            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
-        }
-
-        /* SECTION 1: PROFILE */
-        .profile-section-new {
-            padding: 1.25rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            border-bottom: 2px solid #ede9fe;
-            background: linear-gradient(135deg, #fdfcff 0%, #f9f7ff 100%);
-        }
-
-        
-
-        .profile-details-wrapper {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .profile-fullname {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--black);
-            margin: 0 0 0.35rem 0;
-            line-height: 1.2;
-            text-align: center;
-        }
-
-        .profile-meta-info {
-            font-size: 0.9rem;
-            color: var(--gray);
-            margin-bottom: 0.5rem;
-            text-align: center;
-        }
-
-        .meta-role {
-            font-weight: 500;
-            color: var(--dark-gray);
-        }
-
-        .meta-dot {
-            margin: 0 0.5rem;
-            color: var(--gray);
-        }
-
-        .meta-company {
-            font-weight: 500;
-            color: var(--dark-gray);
-        }
-
-        .linkedin-url-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--primary-purple);
-            text-decoration: none;
-            font-size: 0.95rem;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }
-
-        .linkedin-url-link:hover {
-            color: var(--neon-purple);
-            text-decoration: underline;
-        }
-
-        .linkedin-url-link i {
-            font-size: 1.1rem;
-        }
-
-        /* SECTION 2: EMAIL FINDER */
-        .email-section-new {
-            padding: 1rem 1.5rem;
-            border-bottom: 2px solid #ede9fe;
-            background: linear-gradient(135deg, var(--light-purple) 0%, #FAF6FF 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .email-section-content {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 120px;
-            justify-content: center;
-        }
-
-        .email-section-title {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            flex-wrap: nowrap;
-        }
-
-        .email-section-title i {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-            flex-shrink: 0;
-        }
-
-        .email-section-title span:first-of-type {
-            white-space: nowrap;
-            flex-shrink: 1;
-            min-width: 0;
-        }
-
-        .snov-powered {
-            margin-left: auto;
-            font-size: 0.65rem;
-            color: #9333ea;
-            font-weight: 600;
-            text-transform: none;
-            background: #f3e8ff;
-            padding: 0.2rem 0.6rem;
-            border-radius: 10px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .find-email-big-btn {
-            width: 100%;
-            max-width: 400px;
-            padding: 0.6rem 1rem;
-            background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple));
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(128, 57, 223, 0.2);
-        }
-
-        .find-email-big-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.3);
-        }
-
-        .find-email-big-btn i {
-            margin-right: 0.35rem;
-        }
-
-        .email-hint-text {
-            text-align: center;
-            color: var(--gray);
-            font-size: 0.65rem;
-            margin-top: 0.35rem;
-        }
-
-        .email-found-display {
-            background: white;
-            border: 1px solid #d1fae5;
-            border-left: 3px solid var(--success-green);
-            border-radius: 8px;
-            padding: 0.75rem 0.85rem;
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .email-address-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.4rem;
-            width: 100%;
-        }
-
-        .email-address-row i.fas.fa-envelope {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-        }
-
-        .email-text {
-            flex: 1;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--black);
-            font-family: 'Courier New', monospace;
-        }
-
-        .verified-check {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            background: var(--success-green);
-            color: white;
-            padding: 0.25rem 0.55rem;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .verified-check i {
-            font-size: 0.75rem;
-        }
-
-        .email-buttons-row {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.65rem;
-        }
-
-        .email-btn-new {
-            padding: 0.5rem 0.9rem;
-            border: 1.5px solid var(--primary-purple);
-            background: white;
-            color: var(--primary-purple);
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.35rem;
-            white-space: nowrap;
-        }
-
-        .email-btn-new i {
-            font-size: 0.75rem;
-        }
-
-        .email-btn-new:hover {
-            background: var(--primary-purple);
-            color: white;
-            transform: translateY(-1px);
-        }
-
-        .email-btn-new.copy {
-            border-color: var(--primary-purple);
-        }
-
-        .email-btn-new.compose {
-            border-color: var(--success-green);
-            color: var(--success-green);
-        }
-
-        .email-btn-new.compose:hover {
-            background: var(--success-green);
-            color: white;
-        }
-
-        .email-btn-new.search-again {
-            border-color: var(--gray);
-            color: var(--gray);
-        }
-
-        .email-btn-new.search-again:hover {
-            background: var(--gray);
-            color: white;
-        }
-
-        /* EMAIL STATUS INFO (under email address) */
-        .email-status-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-top: 0.4rem;
-            font-size: 0.65rem;
-            width: 100%;
-        }
-
-        .email-validation-badge {
-            display: none;
-        }
-
-        .email-validation-badge.valid {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #10b981;
-        }
-
-        .email-validation-badge.unknown {
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #f59e0b;
-        }
-
-        .email-validation-badge.invalid {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #ef4444;
-        }
-
-        .email-validation-badge i {
-            font-size: 0.7rem;
-        }
-
-        .email-searched-date {
-            color: var(--gray);
-            font-size: 0.65rem;
-            margin-left: 0;
-            text-align: center;
-        }
-
-        .email-searched-date i {
-            margin-right: 0.25rem;
-            color: var(--primary-purple);
-            font-size: 0.6rem;
-        }
-
-        .email-buttons-row {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.65rem;
-            justify-content: center;
-            width: 100%;
-        }
-
-        /* COMPACT STATUS TOGGLES (inside message items) */
-        .message-status-toggles {
-            display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
-            margin: 0.5rem auto 0 auto;
-            padding-top: 0.5rem;
-            padding-bottom: 0rem;
-            border-top: 1px solid #e5e7eb;
-            max-width: 220px;
-            width: fit-content;
-        }
-
-        .status-toggle-compact {
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-            justify-content: flex-start;
-        }
-
-        .status-toggle-compact label {
-            font-size: 0.65rem;
-            color: var(--dark-gray);
-            font-weight: 600;
-            text-transform: uppercase;
-            white-space: nowrap;
-            min-width: 80px;
-        }
-
-        /* Toggle Switch */
-        .toggle-switch {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            display: inline-block;
-            cursor: pointer;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #9ca3af;
-            border-radius: 12px;
-            transition: 0.3s;
-        }
-
-        .toggle-slider::before {
-            content: "?";
-            position: absolute;
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            top: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.65rem;
-            font-weight: bold;
-            color: #6b7280;
-        }
-
-        .toggle-switch input:checked + .toggle-slider {
-            background: var(--success-green);
-        }
-
-        .toggle-switch input:checked + .toggle-slider::before {
-            content: "✓";
-            transform: translateX(20px);
-            color: var(--success-green);
-        }
-
-        .toggle-switch.no-toggle input:checked + .toggle-slider {
-            background: #ef4444;
-        }
-
-        .toggle-switch.no-toggle input:checked + .toggle-slider::before {
-            content: "✕";
-            color: #ef4444;
-        }
-
-        .toggle-status-label {
-            font-size: 0.62rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin-left: 0.3rem;
-        }
-
-        .toggle-status-label.pending {
-            color: var(--gray);
-        }
-
-        .toggle-status-label.yes {
-            color: var(--success-green);
-        }
-
-        .toggle-status-label.no {
-            color: #ef4444;
-        }
-
-        /* SECTION 3: OUTREACH HISTORY */
-        .outreach-section-new {
-            padding: 1rem 1.5rem;
-            border-bottom: 2px solid #ede9fe;
-            background: linear-gradient(135deg, var(--light-gray) 0%, #FCFCFD 100%);
-        }
-
-        .outreach-section-title {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            flex-wrap: nowrap;
-        }
-
-        .outreach-section-title i {
-            color: var(--primary-purple);
-            font-size: 0.95rem;
-            flex-shrink: 0;
-        }
-
-        .outreach-timeline-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-        }
-
-        .no-outreach-yet {
-            text-align: center;
-            padding: 2rem;
-            color: var(--gray);
-            font-style: italic;
-        }
-
-        .history-timeline-item {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            overflow: visible;
-            transition: all 0.2s ease;
-        }
-
-        .history-timeline-item:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-
-        /* Disabled state for message types with no data */
-        .history-timeline-item.history-item-disabled {
-            opacity: 0.5;
-            background: #fafafa;
-        }
-
-        .history-timeline-item.history-item-disabled .history-item-header {
-            cursor: not-allowed;
-            background: #f5f5f5;
-        }
-
-        .history-timeline-item.history-item-disabled:hover {
-            box-shadow: none;
-        }
-
-        .history-timeline-item.history-item-disabled .history-item-header:hover {
-            background: #f5f5f5;
-        }
-
-        .history-item-header {
-            padding: 0.75rem 1rem;
-            background: var(--light-gray);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 0.85rem;
-            transition: background 0.2s ease;
-        }
-
-        /* Active (enabled) message types - highlighted with color */
-        .history-timeline-item:not(.history-item-disabled) .history-item-header {
-            background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
-            border-left: 3px solid var(--primary-purple);
-        }
-
-        .history-timeline-item:not(.history-item-disabled) .history-item-header:hover {
-            background: linear-gradient(135deg, #e8f0fe 0%, #dbe7fc 100%);
-        }
-
-        .history-item-header:hover {
-            background: #f0f0f0;
-        }
-
-        .chevron-toggle {
-            color: var(--gray);
-            font-size: 0.8rem;
-            transition: transform 0.2s ease;
-        }
-
-        .history-type-icon {
-            color: var(--primary-purple);
-            font-size: 0.95rem;
-        }
-
-        .history-type-text {
-            font-weight: 600;
-            color: var(--black);
-            font-size: 0.85rem;
-        }
-
-        .history-date-text {
-            color: var(--gray);
-            font-size: 0.8rem;
-        }
-
-        /* Header Status Badges */
-        .header-status-badges {
-            margin-left: auto;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            font-size: 0.8rem;
-            color: var(--dark-gray);
-        }
-
-        .header-status-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .header-checkbox {
-            width: 16px;
-            height: 16px;
-            border: 2px solid #6B7280;
-            border-radius: 3px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            font-size: 0.7rem;
-            color: #111827;
-        }
-
-        .header-checkbox.checked {
-            background: white;
-        }
-
-        .header-status-text {
-            font-weight: 500;
-            color: #374151;
-            white-space: nowrap;
-        }
-
-        .history-item-body {
-            padding: 0.85rem 1rem;
-            padding-bottom: 0.85rem;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-        }
-
-        .message-preview-text {
-            color: var(--dark-gray);
-            font-size: 0.85rem;
-            line-height: 1.5;
-            margin-bottom: 0.65rem;
-            font-style: italic;
-        }
-
-        .history-item-actions {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.5rem;
-        }
-
-        .history-action-btn {
-            padding: 0.5rem 0.75rem;
-            background: white;
-            border: 1px solid #d1d5db;
-            color: var(--dark-gray);
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            min-width: auto;
-            white-space: nowrap;
-        }
-
-        .history-action-btn:hover {
-            background: var(--light-purple);
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-        }
-
-        .history-action-btn i {
-            font-size: 0.9rem;
-        }
-
-        /* SECTION 4: TAGS & NOTES */
-        .tags-notes-section-new {
-            padding: 1rem 1.5rem 1.5rem 1.5rem;
-            background: linear-gradient(135deg, var(--white) 0%, #FEFCFF 100%);
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .tags-notes-content {
-            flex: 1;
-        }
-
-        .tags-notes-title {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            flex-wrap: nowrap;
-        }
-
-        .tags-notes-title i {
-            color: var(--primary-purple);
-            font-size: 0.95rem;
-            flex-shrink: 0;
-        }
-
-        .tags-display-area {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-bottom: 0.85rem;
-            justify-content: center;
-        }
-
-        .prospect-tag {
-            padding: 0.35rem 0.75rem;
-            border-radius: 15px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .prospect-tag.hot-tag {
-            background: #FFE5E5;
-            color: #D32F2F;
-        }
-
-        .prospect-tag.decision-tag {
-            background: #FFF4E5;
-            color: #F57C00;
-        }
-
-        .prospect-tag.followup-tag {
-            background: #E3F2FD;
-            color: #1976D2;
-        }
-
-        .add-tag-button {
-            padding: 0.35rem 0.75rem;
-            background: white;
-            border: 1.5px dashed var(--gray);
-            color: var(--gray);
-            border-radius: 15px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .add-tag-button:hover {
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-            background: var(--light-purple);
-        }
-
-        .notes-input-area {
-            margin-bottom: 0.85rem;
-        }
-
-        .notes-input-label {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .notes-input-label i {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-        }
-
-        .notes-textarea {
-            width: 100%;
-            height: 80px;
-            padding: 0.75rem;
-            border: 1.5px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-family: inherit;
-            color: var(--dark-gray);
-            resize: none;
-            transition: border-color 0.2s ease;
-        }
-
-        .notes-textarea:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-        }
-
-        .notes-textarea::placeholder {
-            color: var(--gray);
-            font-style: italic;
-        }
-
-        .save-all-btn {
-            width: 100%;
-            padding: 0.7rem 1rem;
-            background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple));
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.4rem;
-            box-shadow: 0 3px 12px rgba(128, 57, 223, 0.25);
-            margin-top: auto;
-        }
-
-        .save-all-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 5px 16px rgba(128, 57, 223, 0.35);
-        }
-
-        .save-all-btn.modified {
-            background: linear-gradient(135deg, var(--warning-orange), #FF9800);
-            animation: pulse-orange 0.6s ease-in-out;
-        }
-
-        .save-all-btn.saving {
-            background: var(--gray);
-            cursor: wait;
-        }
-
-        .save-all-btn.saved {
-            background: linear-gradient(135deg, var(--success-green), #34D399);
-        }
-
-        @keyframes pulse-orange {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-        }
-
-        /* MESSAGES PAGE SPECIFIC CSS */
-        
-        /* Messages Filters */
-        .messages-filters {
-            display: flex;
-            gap: 0.8rem;
-            margin-bottom: 2rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-section {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .filter-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 0.8rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 0.6rem 1rem;
-            border: 2px solid var(--light-gray);
-            background: var(--white);
-            color: var(--gray);
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .filter-btn:hover {
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-        }
-
-        .filter-btn.active {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border-color: var(--primary-purple);
-        }
-
-        /* Message Cards Container */
-        .messages-cards-container {
-            background: var(--white);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            border: 1px solid rgba(128, 57, 223, 0.08);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .messages-cards-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--accent-pink) 100%);
-        }
-
-        .messages-cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 2rem;
-            margin-top: 1rem;
-        }
-
-        .message-card {
-            background: var(--white);
-            border: 3px solid var(--light-gray);
-            border-radius: 16px;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            box-shadow: var(--shadow);
-        }
-
-        .message-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-purple);
-        }
-
-        .message-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .message-card:hover::before {
-            opacity: 1;
-        }
-
-        /* Card Profile Header */
-        .card-profile-header {
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--light-gray);
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 1rem;
-        }
-
-        .profile-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .profile-name {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--black);
-            margin-bottom: 0.4rem;
-        }
-
-        .profile-role {
-            font-size: 1rem;
-            color: var(--dark-gray);
-            font-weight: 500;
-            margin-bottom: 0.3rem;
-        }
-
-        .profile-company {
-            font-size: 0.9rem;
-            color: var(--gray);
-        }
-
-        /* Message Section */
-        .card-message-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .message-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--gray);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.6rem;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .message-content {
-            background: var(--light-gray);
-            padding: 1rem;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            color: var(--dark-gray);
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        /* Card Footer */
-        .card-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-            padding-top: 1rem;
-            border-top: 2px solid var(--light-gray);
-            flex-wrap: wrap;
-        }
-
-        .footer-metadata {
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-            font-size: 0.8rem;
-            color: var(--gray);
-        }
-
-        .metadata-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .metadata-item i {
-            width: 16px;
-            color: var(--primary-purple);
-        }
-
-        /* Status Badges */
-        .status-badge {
-            padding: 0.4rem 0.8rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .status-badge.sent {
-            background: linear-gradient(135deg, rgba(128, 57, 223, 0.1) 0%, rgba(128, 57, 223, 0.05) 100%);
-            color: var(--primary-purple);
-            border: 2px solid var(--primary-purple);
-        }
-
-        .status-badge.replied {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-            color: var(--success-green);
-            border: 2px solid var(--success-green);
-        }
-
-        .status-badge.pending {
-            background: linear-gradient(135deg, rgba(156, 163, 175, 0.1) 0%, rgba(156, 163, 175, 0.05) 100%);
-            color: var(--gray);
-            border: 2px solid var(--gray);
-        }
-
-        /* Action Buttons */
-        .card-actions {
-            display: flex;
-            gap: 0.6rem;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            padding: 0.6rem 1rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .action-btn.primary {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            box-shadow: var(--glow-shadow);
-        }
-
-        .action-btn.primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
-        }
-
-        .action-btn.secondary {
-            background: var(--white);
-            color: var(--primary-purple);
-            border: 2px solid var(--primary-purple);
-        }
-
-        .action-btn.secondary:hover {
-            background: var(--light-purple);
-        }
-
-        /* Pagination */
-        .pagination-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            background: var(--light-purple);
-            border-radius: 12px;
-            margin-bottom: 1rem;
-        }
-
-        .showing-info {
-            font-size: 0.9rem;
-            color: var(--dark-gray);
-            font-weight: 500;
-        }
-
-        .load-more-btn {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            padding: 0.6rem 1.2rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .load-more-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
-        }
-
-        .bottom-pagination {
-            margin-top: 2rem;
-            text-align: center;
-        }
-
-        /* Loading & Empty States */
-        .loading {
-            text-align: center;
-            padding: 3rem;
-            color: var(--gray);
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--light-gray);
-            border-top: 3px solid var(--primary-purple);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 3rem 2rem;
-            color: var(--gray);
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: var(--primary-purple);
-            opacity: 0.3;
-        }
-
-        .empty-state h3 {
-            font-size: 1.2rem;
-            margin-bottom: 0.6rem;
-            color: var(--dark-gray);
-        }
-
-        .empty-state p {
-            font-size: 0.9rem;
-            line-height: 1.4;
-            max-width: 400px;
-            margin: 0 auto;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .messages-cards-grid {
-                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            }
-        }
-
-        @media (max-width: 768px) {
-            .messages-filters {
-                flex-direction: column;
-            }
-
-            .filter-section {
-                width: 100%;
-            }
-
-            .messages-cards-grid {
-                grid-template-columns: 1fr;
-                gap: 1.5rem;
-            }
-
-            .card-footer {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-        }
-
-
     </style>
 </head>
 <body>
-<!-- Design Mock Banner -->
-<div class="design-mock-banner">
-    <i class="fas fa-paint-brush"></i> DESIGN MOCK - No authentication required
-</div>
-
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5CNT3VV9"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -3010,14 +1568,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <i class="fas fa-user-circle"></i>
                     <span class="nav-item-text">Msgly Profile</span>
                 </a>
-                <a href="https://api.msgly.ai/messages" class="nav-item">
+                <a href="https://api.msgly.ai/messages" class="nav-item active">
                     <i class="fas fa-envelope"></i>
                     <span class="nav-item-text">Messages</span>
-                </a>
-                <a href="https://api.msgly.ai/target-profiles" class="nav-item active">
-                    <i class="fas fa-users"></i>
-                    <span class="nav-item-text">Target Profiles</span>
-                    <span class="nav-badge new">New</span>
                 </a>
                 <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
                     <i class="fas fa-chart-line"></i>
@@ -3112,7 +1665,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div class="page-header">
             <div class="page-header-left">
                 <h1 class="page-title">Messages</h1>
-                <p class="page-subtitle">Track and manage all your LinkedIn outreach messages with complete conversation history</p>
+                <p class="page-subtitle">Manage your LinkedIn outreach campaigns and track responses</p>
             </div>
             <!-- NEW: Credits Badge in Header -->
             <div class="page-header-credits" id="headerCredits">
@@ -3122,45 +1675,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
         </div>
 
-        <!-- Statistics Section -->
-        <div class="stats-section" id="statsSection">
-            <div class="funnel-container">
-                <!-- Horizontal Funnel Visual -->
-                <div class="funnel-visual">
-                    <!-- Section 1: Total Profiles -->
-                    <div class="funnel-section funnel-section-1">
-                        <div class="funnel-number" id="statTotal">0</div>
-                        <div class="funnel-label">TOTAL<br>PROFILES</div>
-                        <div class="funnel-percentage">100%</div>
-                    </div>
-
-                    <!-- Section 2: Contacted -->
-                    <div class="funnel-section funnel-section-2">
-                        <div class="funnel-number" id="statContacted">0</div>
-                        <div class="funnel-label">CONTACTED</div>
-                        <div class="funnel-percentage" id="contactedPercent">0%</div>
-                    </div>
-
-                    <!-- Section 3: Got Reply -->
-                    <div class="funnel-section funnel-section-3">
-                        <div class="funnel-number" id="statReplied">0</div>
-                        <div class="funnel-label">GOT REPLY</div>
-                        <div class="funnel-percentage" id="replyPercent">0%</div>
-                    </div>
-                </div>
-
-                <!-- Small Response Rate Text -->
-                <div class="response-rate-text">
-                    <strong>Response Rate:</strong> <span>Got Reply ÷ Contacted × 100</span>
-                </div>
-            </div>
-        </div>
-
         <div class="messages-controls">
             <div class="search-box">
                 <i class="fas fa-search search-icon"></i>
                 <input type="text" class="search-input" placeholder="Search messages, names, companies..." 
                        id="searchInput" oninput="searchMessages(this.value)">
+            </div>
+            <div class="messages-stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalMessages">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="sentMessages">0</div>
+                    <div class="stat-label">Sent</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="repliedMessages">0</div>
+                    <div class="stat-label">Replied</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="responseRate">0%</div>
+                    <div class="stat-label">Response Rate</div>
+                </div>
             </div>
             <button class="refresh-btn" onclick="refreshMessages()" title="Refresh Messages">
                 <i class="fas fa-sync-alt"></i>
@@ -4575,17 +3112,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const repliedMessages = filteredMessages.filter(group => group.gotReply === 'yes').length;
             const responseRate = sentMessages > 0 ? Math.round((repliedMessages / sentMessages) * 100) : 0;
             
-            // Calculate contacted percentage
-            const contactedPercent = totalMessages > 0 ? Math.round((sentMessages / totalMessages) * 100) : 0;
-            
-            // Update funnel sections (matching new design IDs)
-            document.getElementById('statTotal').textContent = totalMessages;
-            document.getElementById('statContacted').textContent = sentMessages;
-            document.getElementById('statReplied').textContent = repliedMessages;
-            
-            // Update percentages
-            document.getElementById('contactedPercent').textContent = `${contactedPercent}%`;
-            document.getElementById('replyPercent').textContent = `${responseRate}%`;
+            document.getElementById('totalMessages').textContent = totalMessages;
+            document.getElementById('sentMessages').textContent = sentMessages;
+            document.getElementById('repliedMessages').textContent = repliedMessages;
+            document.getElementById('responseRate').textContent = `${responseRate}%`;
         }
 
         function refreshMessages() {
