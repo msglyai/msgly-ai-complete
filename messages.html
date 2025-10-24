@@ -3263,9 +3263,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray); margin-left: 0.5rem;">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
-                            <div class="email-status valid">
-                                <i class="fas fa-shield-alt"></i> Verified
-                            </div>
                         </div>
                         ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
                     </div>`;
@@ -3285,12 +3282,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray); margin-left: 0.5rem;">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
-                            <div class="email-status unknown">
-                                <i class="fas fa-exclamation-triangle"></i> Unknown
-                            </div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.5rem; text-align: center;">
-                            Verification status could not be determined
+                            Snov.io found this email but doesn't have verification data for it yet
                         </div>
                         ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.3rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
                     </div>`;
@@ -3310,12 +3304,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray); margin-left: 0.5rem;">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
-                            <div class="email-status catch_all">
-                                <i class="fas fa-info-circle"></i> Catch-All
-                            </div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--gray); margin-top: 0.5rem; text-align: center;">
-                            Domain accepts all emails - verification uncertain
+                            Snov.io found this email but the domain accepts all addresses - verification uncertain
                         </div>
                         ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.3rem; text-align: center;">Searched: ${verifiedDate}</div>` : ''}
                     </div>`;
