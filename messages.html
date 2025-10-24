@@ -1958,6 +1958,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     throw new Error(`HTTP ${response.status}`);
                 }
 
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('[PROFILE] Server returned non-JSON response:', contentType);
+                    const text = await response.text();
+                    console.error('[PROFILE] Response text:', text.substring(0, 200));
+                    throw new Error('Server returned HTML instead of JSON - possible authentication issue');
+                }
+
                 const data = await response.json();
                 
                 if (data.success && data.profile) {
@@ -2024,6 +2033,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     throw new Error(`HTTP ${response.status}`);
                 }
 
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('[MESSAGES] Server returned non-JSON response:', contentType);
+                    const text = await response.text();
+                    console.error('[MESSAGES] Response text:', text.substring(0, 200));
+                    throw new Error('Server returned HTML instead of JSON - possible authentication issue');
+                }
+
                 const data = await response.json();
                 
                 if (data.success && data.messages) {
@@ -2042,6 +2060,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 }
             } catch (error) {
                 console.error('[MESSAGES] Error loading messages:', error);
+                
+                // Show more helpful error message
+                if (error.message && error.message.includes('JSON')) {
+                    console.error('[MESSAGES] This usually means the server is returning an HTML page instead of JSON data.');
+                    console.error('[MESSAGES] Check if: 1) User is logged in, 2) API endpoint is correct, 3) Server is running properly');
+                }
+                
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('emptyState').style.display = 'block';
             }
