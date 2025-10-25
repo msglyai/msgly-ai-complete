@@ -610,6 +610,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             box-shadow: var(--shadow);
             display: flex;
             flex-direction: column;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         .message-card:hover {
@@ -4129,7 +4131,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <div style="display: flex; flex-direction: column; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
                                     <div style="display: flex; align-items: center; gap: 1rem;">
                                         <span style="font-weight: 700; color: #1F2937; font-size: 0.8rem; letter-spacing: 0.5px; min-width: 100px;">MESSAGE SENT</span>
-                                        <div class="toggle-switch ${sentStatus}" data-message-id="${messageId}" data-field="sent" onclick="toggleStatus(${messageId}, 'sent'); event.stopPropagation();" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
+                                        <div class="toggle-switch ${sentStatus}" data-message-id="${messageId}" data-field="sent" ${messageId ? `onclick="toggleStatus(${messageId}, 'sent'); event.stopPropagation();"` : ''} style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
                                             <div class="toggle-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: ${sentStatus === 'yes' ? '27px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '?')}
                                             </div>
@@ -4140,7 +4142,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 1rem;">
                                         <span style="font-weight: 700; color: #1F2937; font-size: 0.8rem; letter-spacing: 0.5px; min-width: 100px;">GOT REPLY</span>
-                                        <div class="toggle-switch ${replyStatus}" data-message-id="${messageId}" data-field="gotReply" onclick="toggleStatus(${messageId}, 'gotReply'); event.stopPropagation();" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
+                                        <div class="toggle-switch ${replyStatus}" data-message-id="${messageId}" data-field="gotReply" ${messageId ? `onclick="toggleStatus(${messageId}, 'gotReply'); event.stopPropagation();"` : ''} style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
                                             <div class="toggle-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: ${replyStatus === 'yes' ? '27px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '?')}
                                             </div>
