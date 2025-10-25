@@ -1109,7 +1109,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             width: 100%;
             max-width: 500px;
             padding: 0.85rem 1.5rem;
-            background: #F59E0B;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
             color: white;
             border: none;
             border-radius: 8px;
@@ -1121,6 +1121,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
+            box-shadow: var(--glow-shadow);
         }
 
         .email-try-again-btn i {
@@ -1128,15 +1129,49 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .email-try-again-btn:hover {
-            background: #D97706;
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
             transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(245, 158, 11, 0.2);
+            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
         }
 
         .email-not-found-text {
             font-size: 0.85rem;
             color: var(--gray);
             text-align: center;
+        }
+
+        /* White box wrapper for email content with status-based colored border */
+        .email-content-box {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border-left: 4px solid #10B981;  /* Default green */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        /* Status-based left border colors for white box */
+        .email-content-box[data-status="valid"],
+        .email-content-box[data-status="verified"] {
+            border-left-color: #10B981;  /* Green */
+        }
+
+        .email-content-box[data-status="unknown"],
+        .email-content-box[data-status="catch_all"],
+        .email-content-box[data-status="found"] {
+            border-left-color: #F59E0B;  /* Orange */
+        }
+
+        .email-content-box[data-status="invalid"],
+        .email-content-box[data-status="not_valid"],
+        .email-content-box[data-status="not_found"],
+        .email-content-box[data-status="error"] {
+            border-left-color: #EF4444;  /* Red */
+        }
+
+        .email-content-box[data-status="none"] {
+            border-left-color: #8B5CF6;  /* Purple - no status yet */
         }
 
         /* Message Types Section */
@@ -1556,36 +1591,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .email-section-new {
             padding: 1rem 1.5rem;
             border-bottom: 2px solid #ede9fe;
-            border-left: 4px solid #10B981;  /* Default green */
             background: linear-gradient(135deg, var(--light-purple) 0%, #FAF6FF 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
-        /* Status-based left border colors */
-        .email-section-new[data-email-status="valid"],
-        .email-section-new[data-email-status="verified"] {
-            border-left-color: #10B981;  /* Green */
-        }
-
-        .email-section-new[data-email-status="unknown"],
-        .email-section-new[data-email-status="catch_all"],
-        .email-section-new[data-email-status="found"] {
-            border-left-color: #F59E0B;  /* Orange */
-        }
-
-        .email-section-new[data-email-status="invalid"],
-        .email-section-new[data-email-status="not_valid"],
-        .email-section-new[data-email-status="not_found"],
-        .email-section-new[data-email-status="error"] {
-            border-left-color: #EF4444;  /* Red */
-        }
-
-        .email-section-new[data-email-status="none"] {
-            border-left-color: #8B5CF6;  /* Purple - no status yet */
-        }
-
+        /* Email content gets white box with colored left border */
         .email-section-content {
             width: 100%;
             display: flex;
@@ -3455,7 +3467,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             switch(messageGroup.emailStatus) {
                 case 'valid':
                 case 'verified':
-                    return `<div class="email-found-display">
+                    return `<div class="email-content-box" data-status="verified">
                         <div class="email-address-row">
                             <i class="fas fa-envelope"></i>
                             <span class="email-text">${emailAddress}</span>
@@ -3477,7 +3489,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     </div>`;
                 
                 case 'unknown':
-                    return `<div class="email-found-display">
+                    return `<div class="email-content-box" data-status="unknown">
                         <div class="email-address-row">
                             <span class="email-text">${emailAddress}</span>
                             <span class="verified-check unknown"><i class="fas fa-question-circle"></i> Unknown</span>
@@ -3501,7 +3513,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     </div>`;
                 
                 case 'catch_all':
-                    return `<div class="email-found-display">
+                    return `<div class="email-content-box" data-status="catch_all">
                         <div class="email-address-row">
                             <span class="email-text">${emailAddress}</span>
                             <span class="verified-check catch-all"><i class="fas fa-exclamation-circle"></i> Catch-All</span>
@@ -3526,7 +3538,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                 case 'invalid':
                 case 'not_valid':
-                    return `<div class="email-found-display">
+                    return `<div class="email-content-box" data-status="invalid">
                         <div class="email-address-row">
                             <span class="email-text">${emailAddress}</span>
                             <span class="verified-check invalid"><i class="fas fa-times-circle"></i> Invalid</span>
@@ -3547,7 +3559,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     </div>`;
                     
                 case 'found':
-                    return `<div class="email-found-display">
+                    return `<div class="email-content-box" data-status="found">
                         <div class="email-address-row">
                             <span class="email-text">${emailAddress}</span>
                             <span class="verified-check verifying"><i class="fas fa-spinner fa-pulse"></i> Verifying</span>
@@ -3563,22 +3575,38 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     </div>`;
                     
                 case 'not_found':
-                    return `<div class="email-not-found-display">
-                        <button class="email-try-again-btn" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
-                            <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
-                        </button>
-                        <div class="email-not-found-text">
-                            Email not found. Click to search again.
+                    return `<div class="email-content-box" data-status="not_found">
+                        <div class="email-address-row">
+                            <span class="email-text">Email not found</span>
+                            <span class="verified-check invalid"><i class="fas fa-minus-circle"></i> Not Found</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
+                            </span>
+                        </div>
+                        <div class="email-buttons-row">
+                            <button class="email-try-again-btn" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
+                                <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
+                            </button>
                         </div>
                     </div>`;
                     
                 case 'error':
-                    return `<div class="email-not-found-display">
-                        <button class="email-try-again-btn" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
-                            <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
-                        </button>
-                        <div class="email-not-found-text">
-                            An error occurred during the email search
+                    return `<div class="email-content-box" data-status="error">
+                        <div class="email-address-row">
+                            <span class="email-text">Search error occurred</span>
+                            <span class="verified-check invalid"><i class="fas fa-exclamation-triangle"></i> Error</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Attempted: ${verifiedDate || 'Recently'}
+                            </span>
+                        </div>
+                        <div class="email-buttons-row">
+                            <button class="email-try-again-btn" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
+                                <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
+                            </button>
                         </div>
                     </div>`;
                     
