@@ -955,87 +955,145 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-size: 0.8rem;
         }
 
-        /* NEW: Clean Email Display Row */
-        .email-display-row-clean {
+        /* EXACT MOCK DESIGN - Email Display */
+        .email-address-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            margin-bottom: 0.75rem;
-            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+            width: 100%;
         }
 
-        .email-address-clean {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            word-break: break-all;
+        .email-address-row i.fas.fa-envelope {
+            color: var(--primary-purple);
+            font-size: 0.85rem;
+        }
+
+        .email-text {
             flex: 1;
-            min-width: 200px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--black);
+            font-family: 'Courier New', monospace;
         }
 
-        .email-badge-clean {
+        .verified-check {
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            padding: 0.4rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
+            gap: 0.25rem;
+            background: var(--success-green);
+            color: white;
+            padding: 0.25rem 0.55rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
             font-weight: 600;
-            white-space: nowrap;
-            flex-shrink: 0;
         }
 
-        .email-badge-clean.verified {
-            background: #E8F5E9;
-            color: #2E7D32;
+        .verified-check i {
+            font-size: 0.75rem;
         }
 
-        .email-badge-clean.unknown {
-            background: #FFF3E0;
-            color: #E65100;
+        .verified-check.unknown {
+            background: #F59E0B;
+            color: white;
         }
 
-        .email-badge-clean.catch-all {
-            background: #FFF3E0;
-            color: #E65100;
+        .verified-check.catch-all {
+            background: #F59E0B;
+            color: white;
         }
 
-        .email-badge-clean.invalid {
-            background: #FFEBEE;
-            color: #C62828;
+        .verified-check.invalid {
+            background: #EF4444;
+            color: white;
         }
 
-        .email-badge-clean.verifying {
-            background: #E3F2FD;
-            color: #1565C0;
+        .verified-check.verifying {
+            background: #3B82F6;
+            color: white;
         }
 
-        .email-date-row-clean {
+        .email-status-info {
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 0.5rem;
-            font-size: 0.8rem;
+            margin-top: 0.4rem;
+            font-size: 0.65rem;
+            width: 100%;
+        }
+
+        .email-searched-date {
             color: var(--gray);
-            margin-bottom: 0.75rem;
+            font-size: 0.65rem;
+            margin-left: 0;
+            text-align: center;
         }
 
-        .email-date-row-clean i {
+        .email-searched-date i {
+            margin-right: 0.25rem;
             color: var(--primary-purple);
+            font-size: 0.6rem;
         }
 
-        .email-buttons-row-clean {
+        .email-buttons-row {
             display: flex;
             gap: 0.5rem;
-            margin-bottom: 0.75rem;
             flex-wrap: wrap;
+            margin-top: 0.65rem;
+            justify-content: center;
+            width: 100%;
         }
 
-        .email-explanation-text-clean {
-            font-size: 0.8rem;
+        .email-btn-new {
+            padding: 0.5rem 0.9rem;
+            border: 1.5px solid var(--primary-purple);
+            background: white;
+            color: var(--primary-purple);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+
+        .email-btn-new i {
+            font-size: 0.75rem;
+        }
+
+        .email-btn-new:hover {
+            background: var(--primary-purple);
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .email-btn-new.copy {
+            border-color: var(--primary-purple);
+        }
+
+        .email-btn-new.search-again {
+            border-color: var(--gray);
+            color: var(--gray);
+            background: #E5E7EB;
+        }
+
+        .email-btn-new.search-again:hover {
+            background: var(--gray);
+            color: white;
+        }
+
+        .email-explanation-text {
+            font-size: 0.75rem;
             color: var(--gray);
             line-height: 1.4;
-            margin-top: 0.5rem;
+            margin-top: 0.65rem;
+            text-align: center;
         }
 
         /* Message Types Section */
@@ -3330,113 +3388,109 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             switch(messageGroup.emailStatus) {
                 case 'valid':
                 case 'verified':
-                    return `<div class="email-found-container-clean">
-                        <div class="email-display-row-clean">
-                            <span class="email-address-clean">${emailAddress}</span>
-                            <span class="email-badge-clean verified">
-                                <i class="fas fa-check-circle"></i> Verified
+                    return `<div class="email-found-display">
+                        <div class="email-address-row">
+                            <i class="fas fa-envelope"></i>
+                            <span class="email-text">${emailAddress}</span>
+                            <span class="verified-check"><i class="fas fa-check-circle"></i> Verified</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
                             </span>
                         </div>
-                        ${verifiedDate ? `<div class="email-date-row-clean">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Searched: ${verifiedDate}</span>
-                        </div>` : ''}
-                        <div class="email-buttons-row-clean">
-                            <button class="copy-email-btn" onclick="copyEmailAddress('${emailAddress}', this)">
+                        <div class="email-buttons-row">
+                            <button class="email-btn-new copy" onclick="copyEmailAddress('${emailAddress}', this)" title="Copy to clipboard">
                                 <i class="fas fa-copy"></i> Copy Email
                             </button>
-                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray);">
+                            <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
                         </div>
                     </div>`;
                 
                 case 'unknown':
-                    return `<div class="email-unknown-container-clean">
-                        <div class="email-display-row-clean">
-                            <span class="email-address-clean">${emailAddress}</span>
-                            <span class="email-badge-clean unknown">
-                                <i class="fas fa-question-circle"></i> Unknown
+                    return `<div class="email-found-display">
+                        <div class="email-address-row">
+                            <span class="email-text">${emailAddress}</span>
+                            <span class="verified-check unknown"><i class="fas fa-question-circle"></i> Unknown</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
                             </span>
                         </div>
-                        ${verifiedDate ? `<div class="email-date-row-clean">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Searched: ${verifiedDate}</span>
-                        </div>` : ''}
-                        <div class="email-buttons-row-clean">
-                            <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
+                        <div class="email-buttons-row">
+                            <button class="email-btn-new copy" onclick="copyEmailAddress('${emailAddress}', this)" title="Copy to clipboard">
                                 <i class="fas fa-copy"></i> Copy Email
                             </button>
-                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray);">
+                            <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
                         </div>
-                        <div class="email-explanation-text-clean">
+                        <div class="email-explanation-text">
                             Snov.io found this email but doesn't have verification data for it yet
                         </div>
                     </div>`;
                 
                 case 'catch_all':
-                    return `<div class="email-catchall-container-clean">
-                        <div class="email-display-row-clean">
-                            <span class="email-address-clean">${emailAddress}</span>
-                            <span class="email-badge-clean catch-all">
-                                <i class="fas fa-exclamation-circle"></i> Catch-All
+                    return `<div class="email-found-display">
+                        <div class="email-address-row">
+                            <span class="email-text">${emailAddress}</span>
+                            <span class="verified-check catch-all"><i class="fas fa-exclamation-circle"></i> Catch-All</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
                             </span>
                         </div>
-                        ${verifiedDate ? `<div class="email-date-row-clean">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Searched: ${verifiedDate}</span>
-                        </div>` : ''}
-                        <div class="email-buttons-row-clean">
-                            <button class="copy-email-btn warning" onclick="copyEmailAddress('${emailAddress}', this)">
+                        <div class="email-buttons-row">
+                            <button class="email-btn-new copy" onclick="copyEmailAddress('${emailAddress}', this)" title="Copy to clipboard">
                                 <i class="fas fa-copy"></i> Copy Email
                             </button>
-                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray);">
+                            <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
                         </div>
-                        <div class="email-explanation-text-clean">
+                        <div class="email-explanation-text">
                             Snov.io found this email but the domain accepts all addresses - verification uncertain
                         </div>
                     </div>`;
                     
                 case 'invalid':
                 case 'not_valid':
-                    return `<div class="email-invalid-container-clean">
-                        <div class="email-display-row-clean">
-                            <span class="email-address-clean">${emailAddress}</span>
-                            <span class="email-badge-clean invalid">
-                                <i class="fas fa-times-circle"></i> Invalid
+                    return `<div class="email-found-display">
+                        <div class="email-address-row">
+                            <span class="email-text">${emailAddress}</span>
+                            <span class="verified-check invalid"><i class="fas fa-times-circle"></i> Invalid</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
                             </span>
                         </div>
-                        ${verifiedDate ? `<div class="email-date-row-clean">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Searched: ${verifiedDate}</span>
-                        </div>` : ''}
-                        <div class="email-buttons-row-clean">
-                            <button class="copy-email-btn search-again" onclick="askEmailClick(${messageGroup.id})" style="background: var(--gray);">
+                        <div class="email-buttons-row">
+                            <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)">
                                 <i class="fas fa-redo"></i> Search Again
                             </button>
                         </div>
-                        <div class="email-explanation-text-clean">
+                        <div class="email-explanation-text">
                             This email address appears to be invalid
                         </div>
                     </div>`;
                     
                 case 'found':
-                    return `<div class="email-verifying-container-clean">
-                        <div class="email-display-row-clean">
-                            <span class="email-address-clean">${emailAddress}</span>
-                            <span class="email-badge-clean verifying">
-                                <i class="fas fa-spinner fa-pulse"></i> Verifying
+                    return `<div class="email-found-display">
+                        <div class="email-address-row">
+                            <span class="email-text">${emailAddress}</span>
+                            <span class="verified-check verifying"><i class="fas fa-spinner fa-pulse"></i> Verifying</span>
+                        </div>
+                        <div class="email-status-info">
+                            <span class="email-searched-date">
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
                             </span>
                         </div>
-                        ${verifiedDate ? `<div class="email-date-row-clean">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Searched: ${verifiedDate}</span>
-                        </div>` : ''}
-                        <div class="email-explanation-text-clean">
+                        <div class="email-explanation-text">
                             Verification in progress...
                         </div>
                     </div>`;
