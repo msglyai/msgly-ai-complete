@@ -4013,20 +4013,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function createOutreachTimeline(messages, messageGroup) {
-            // Define all 3 message types in order - always show all
+            // Always show all 3 message types in order
             const allMessageTypes = [
                 { type: 'linkedin', label: 'LinkedIn Message', icon: 'fab fa-linkedin' },
                 { type: 'email', label: 'Cold Email', icon: 'fas fa-envelope' },
                 { type: 'connection', label: 'Connection Request', icon: 'fas fa-user-plus' }
             ];
-            
-            // Determine toggle states (same for all message types)
-            const sentChecked = messageGroup.sent === 'yes' ? 'checked' : '';
-            const replyChecked = messageGroup.gotReply === 'yes' ? 'checked' : '';
-            const sentLabel = messageGroup.sent === 'yes' ? 'YES' : (messageGroup.sent === 'no' ? 'NO' : 'PENDING');
-            const replyLabel = messageGroup.gotReply === 'yes' ? 'YES' : (messageGroup.gotReply === 'no' ? 'NO' : 'PENDING');
-            const sentLabelClass = messageGroup.sent === 'yes' ? 'yes' : (messageGroup.sent === 'no' ? 'no' : 'pending');
-            const replyLabelClass = messageGroup.gotReply === 'yes' ? 'yes' : (messageGroup.gotReply === 'no' ? 'no' : 'pending');
             
             let html = '';
             
@@ -4039,51 +4031,97 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 // Set date and message text
                 let dateStr = 'N/A';
-                let messageText = 'No message sent yet';
+                let messageText = '';
+                let messageId = null;
                 
-                if (hasMessage && actualMessage.created_at) {
-                    dateStr = new Date(actualMessage.created_at).toLocaleDateString();
-                    messageText = actualMessage.message || 'No content';
+                if (hasMessage) {
+                    messageId = actualMessage.id;
+                    // Format date properly like "(Oct 20)"
+                    if (actualMessage.created_at) {
+                        const date = new Date(actualMessage.created_at);
+                        const month = date.toLocaleDateString('en-US', { month: 'short' });
+                        const day = date.getDate();
+                        dateStr = `(${month} ${day})`;
+                    }
+                    // Get actual message text and clean it
+                    messageText = cleanMessageText(actualMessage.message) || '';
                 }
                 
                 const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
                 
+                // Determine toggle states from messageGroup
+                const sentStatus = messageGroup.sent === 'yes' ? 'yes' : (messageGroup.sent === 'no' ? 'no' : 'pending');
+                const replyStatus = messageGroup.gotReply === 'yes' ? 'yes' : (messageGroup.gotReply === 'no' ? 'no' : 'pending');
+                
+                const sentChecked = messageGroup.sent === 'yes' ? 'checked' : '';
+                const replyChecked = messageGroup.gotReply === 'yes' ? 'checked' : '';
+                
+                // Status icons for header (always show)
+                const sentIcon = sentStatus === 'yes' ? '<i class="fas fa-check-circle" style="color: #10B981;"></i>' : 
+                                 (sentStatus === 'no' ? '<i class="fas fa-times-circle" style="color: #EF4444;"></i>' : 
+                                 '<i class="fas fa-question-circle" style="color: #9CA3AF;"></i>');
+                const replyIcon = replyStatus === 'yes' ? '<i class="fas fa-check-circle" style="color: #10B981;"></i>' : 
+                                  (replyStatus === 'no' ? '<i class="fas fa-times-circle" style="color: #EF4444;"></i>' : 
+                                  '<i class="fas fa-question-circle" style="color: #9CA3AF;"></i>');
+                
                 html += `
-                    <div class="history-timeline-item ${isDisabled ? 'history-item-disabled' : ''}">
-                        <div class="history-item-header" onclick="${!isDisabled ? `toggleHistoryItem('${uniqueId}')` : ''}">
-                            <i class="fas fa-chevron-right chevron-toggle" id="chevron-${uniqueId}"></i>
-                            <i class="${msgType.icon} history-type-icon"></i>
-                            <span class="history-type-text">${msgType.label}</span>
-                            <span class="history-date-text">${dateStr}</span>
+                    <div class="history-timeline-item ${isDisabled ? 'history-item-disabled' : ''}" style="margin-bottom: 0.5rem;">
+                        <div class="history-item-header" onclick="${!isDisabled ? `toggleHistoryItem('${uniqueId}')` : ''}" style="cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; opacity: ${isDisabled ? '0.6' : '1'}; padding: 0.75rem 1rem; background: ${isDisabled ? '#F9FAFB' : '#F3F4F6'}; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-chevron-right chevron-toggle" id="chevron-${uniqueId}" style="transition: transform 0.2s; color: #6B7280; font-size: 0.8rem;"></i>
+                                <i class="${msgType.icon}" style="color: ${isDisabled ? '#9CA3AF' : 'var(--primary-purple)'};"></i>
+                                <span style="font-weight: 600; color: ${isDisabled ? '#9CA3AF' : '#1F2937'};">${msgType.label}</span>
+                                <span style="color: #9CA3AF; font-size: 0.9rem;">${dateStr}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <span style="font-size: 0.85rem; color: #6B7280;">Message Sent</span>
+                                ${sentIcon}
+                                <span style="font-size: 0.85rem; color: #6B7280;">Got Reply</span>
+                                ${replyIcon}
+                            </div>
                         </div>
-                        <div class="history-item-body" id="${uniqueId}">
-                            <div class="message-preview-text">${messageText}</div>
+                        <div class="history-item-body" id="${uniqueId}" style="display: none; padding: 1.5rem; background: white; border-left: 4px solid var(--primary-purple); margin-left: 0.5rem;">
                             ${hasMessage ? `
-                                <div class="history-item-actions">
-                                    <button class="history-action-btn" onclick="copyMessageText('${uniqueId}-text', this)">
+                                <div class="message-text-display" style="font-style: italic; line-height: 1.8; color: #374151; white-space: pre-wrap; margin-bottom: 1.5rem;">
+                                    ${messageText}
+                                </div>
+                                <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem;">
+                                    <button onclick="editMessage('${msgType.type}', ${messageId}); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                    <button onclick="copyMessageToClipboard(\`${messageText.replace(/`/g, '\\`')}\`, this); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
                                         <i class="fas fa-copy"></i> Copy
                                     </button>
                                 </div>
-                                <div class="message-status-toggles">
-                                    <div class="status-toggle-compact">
-                                        <label>Sent:</label>
-                                        <label class="toggle-switch-compact">
-                                            <input type="checkbox" ${sentChecked} onchange="toggleMessageSent(${messageGroup.id}, this.checked)">
-                                            <span class="toggle-slider-compact"></span>
+                                <div style="display: flex; gap: 3rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
+                                    <div style="display: flex; align-items: center; gap: 1rem;">
+                                        <span style="font-weight: 700; color: #374151; font-size: 0.85rem; letter-spacing: 0.5px;">MESSAGE SENT</span>
+                                        <label style="position: relative; display: inline-block; width: 60px; height: 32px;">
+                                            <input type="checkbox" ${sentChecked} onchange="toggleMessageSent(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
+                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.4s; border-radius: 32px;"></span>
+                                            <span style="position: absolute; content: ''; height: 24px; width: 24px; left: ${sentStatus === 'yes' ? 'calc(100% - 28px)' : '4px'}; bottom: 4px; background-color: white; transition: 0.4s; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')};">
+                                                ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '')}
+                                            </span>
                                         </label>
-                                        <span class="toggle-status-label ${sentLabelClass}">${sentLabel}</span>
+                                        <span style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem;">
+                                            ${sentStatus === 'yes' ? 'YES' : (sentStatus === 'no' ? 'NO' : 'PENDING')}
+                                        </span>
                                     </div>
-                                    <div class="status-toggle-compact">
-                                        <label>Got Reply:</label>
-                                        <label class="toggle-switch-compact">
-                                            <input type="checkbox" ${replyChecked} onchange="toggleGotReply(${messageGroup.id}, this.checked)">
-                                            <span class="toggle-slider-compact"></span>
+                                    <div style="display: flex; align-items: center; gap: 1rem;">
+                                        <span style="font-weight: 700; color: #374151; font-size: 0.85rem; letter-spacing: 0.5px;">GOT REPLY</span>
+                                        <label style="position: relative; display: inline-block; width: 60px; height: 32px;">
+                                            <input type="checkbox" ${replyChecked} onchange="toggleGotReply(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
+                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.4s; border-radius: 32px;"></span>
+                                            <span style="position: absolute; content: ''; height: 24px; width: 24px; left: ${replyStatus === 'yes' ? 'calc(100% - 28px)' : '4px'}; bottom: 4px; background-color: white; transition: 0.4s; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')};">
+                                                ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '')}
+                                            </span>
                                         </label>
-                                        <span class="toggle-status-label ${replyLabelClass}">${replyLabel}</span>
+                                        <span style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem;">
+                                            ${replyStatus === 'yes' ? 'YES' : (replyStatus === 'no' ? 'NO' : 'PENDING')}
+                                        </span>
                                     </div>
                                 </div>
                             ` : ''}
-                            <span id="${uniqueId}-text" style="display: none;">${messageText}</span>
                         </div>
                     </div>
                 `;
@@ -4097,26 +4135,39 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const chevron = document.getElementById('chevron-' + itemId);
             
             if (body && chevron) {
-                body.classList.toggle('expanded');
-                chevron.classList.toggle('rotated');
+                const isExpanded = body.style.display === 'block';
+                
+                if (isExpanded) {
+                    body.style.display = 'none';
+                    chevron.style.transform = 'rotate(0deg)';
+                } else {
+                    body.style.display = 'block';
+                    chevron.style.transform = 'rotate(90deg)';
+                }
             }
         }
 
-        function copyMessageText(textElementId, button) {
-            const textElement = document.getElementById(textElementId);
-            if (textElement) {
-                const text = textElement.textContent;
-                navigator.clipboard.writeText(text).then(() => {
-                    const originalHTML = button.innerHTML;
-                    button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                    button.classList.add('copied');
-                    
-                    setTimeout(() => {
-                        button.innerHTML = originalHTML;
-                        button.classList.remove('copied');
-                    }, 2000);
-                });
-            }
+        function copyMessageToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.style.background = '#10B981';
+                button.style.color = 'white';
+                button.style.borderColor = '#10B981';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.style.background = 'white';
+                    button.style.color = '#374151';
+                    button.style.borderColor = '#D1D5DB';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+            });
+        }
+
+        function editMessage(type, messageId) {
+            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
         }
 
         function copyEmailAddress(email, button) {
