@@ -4068,14 +4068,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
                 
-                // Determine toggle states from messageGroup
-                const sentStatus = messageGroup.sent === 'yes' ? 'yes' : (messageGroup.sent === 'no' ? 'no' : 'pending');
-                const replyStatus = messageGroup.gotReply === 'yes' ? 'yes' : (messageGroup.gotReply === 'no' ? 'no' : 'pending');
+                // CRITICAL FIX: Get status from INDIVIDUAL MESSAGE, not messageGroup!
+                let sentStatus = 'pending';
+                let replyStatus = 'pending';
                 
-                console.log(`[TIMELINE] Computed statuses - sent: "${sentStatus}", reply: "${replyStatus}"`);
+                if (hasMessage && actualMessage) {
+                    // Use the individual message's sent/gotReply status
+                    sentStatus = actualMessage.sent === 'yes' ? 'yes' : (actualMessage.sent === 'no' ? 'no' : 'pending');
+                    replyStatus = actualMessage.gotReply === 'yes' ? 'yes' : (actualMessage.gotReply === 'no' ? 'no' : 'pending');
+                    
+                    console.log(`[TIMELINE] Message ${messageId} statuses - sent: "${sentStatus}", reply: "${replyStatus}"`);
+                } else {
+                    console.log(`[TIMELINE] No message for ${msgType.type}, using pending status`);
+                }
                 
-                const sentChecked = messageGroup.sent === 'yes' ? 'checked' : '';
-                const replyChecked = messageGroup.gotReply === 'yes' ? 'checked' : '';
+                const sentChecked = sentStatus === 'yes' ? 'checked' : '';
+                const replyChecked = replyStatus === 'yes' ? 'checked' : '';
                 
                 // Status icons for header (always show)
                 const sentIcon = sentStatus === 'yes' ? '<i class="fas fa-check-circle" style="color: #10B981;"></i>' : 
@@ -4117,23 +4125,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <div style="display: flex; flex-direction: column; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
                                     <div style="display: flex; align-items: center; gap: 1rem;">
                                         <span style="font-weight: 700; color: #1F2937; font-size: 0.8rem; letter-spacing: 0.5px; min-width: 100px;">MESSAGE SENT</span>
-                                        <div class="toggle-switch ${sentStatus}" data-message-id="${messageGroup.id}" data-field="sent" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
+                                        <div class="toggle-switch ${sentStatus}" data-message-id="${messageId}" data-field="sent" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
                                             <div class="toggle-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: ${sentStatus === 'yes' ? '27px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '?')}
                                             </div>
                                         </div>
-                                        <span class="status-label-sent" style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.85rem; min-width: 65px;">
+                                        <span class="status-label-sent" data-message-id="${messageId}" style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.85rem; min-width: 65px;">
                                             ${sentStatus === 'yes' ? 'YES' : (sentStatus === 'no' ? 'NO' : 'PENDING')}
                                         </span>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 1rem;">
                                         <span style="font-weight: 700; color: #1F2937; font-size: 0.8rem; letter-spacing: 0.5px; min-width: 100px;">GOT REPLY</span>
-                                        <div class="toggle-switch ${replyStatus}" data-message-id="${messageGroup.id}" data-field="gotReply" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
+                                        <div class="toggle-switch ${replyStatus}" data-message-id="${messageId}" data-field="gotReply" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
                                             <div class="toggle-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: ${replyStatus === 'yes' ? '27px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '?')}
                                             </div>
                                         </div>
-                                        <span class="status-label-gotReply" style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.85rem; min-width: 65px;">
+                                        <span class="status-label-gotReply" data-message-id="${messageId}" style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.85rem; min-width: 65px;">
                                             ${replyStatus === 'yes' ? 'YES' : (replyStatus === 'no' ? 'NO' : 'PENDING')}
                                         </span>
                                     </div>
@@ -4251,48 +4259,61 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function toggleStatus(messageId, field) {
             console.log('[TOGGLE] toggleStatus called - messageId:', messageId, 'field:', field);
-            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
-            if (!messageGroup) {
-                console.error('[TOGGLE] messageGroup not found for ID:', messageId);
+            
+            // Find the actual message in the groupedMessages structure
+            let foundMessage = null;
+            let foundGroup = null;
+            
+            for (const group of Object.values(groupedMessages)) {
+                // Check all message types
+                const allMessages = [
+                    ...group.messages.linkedin.map(m => ({...m, type: 'linkedin'})),
+                    ...group.messages.email.map(m => ({...m, type: 'email'})),
+                    ...group.messages.connection.map(m => ({...m, type: 'connection'}))
+                ];
+                
+                foundMessage = allMessages.find(m => m.id === messageId);
+                if (foundMessage) {
+                    foundGroup = group;
+                    break;
+                }
+            }
+            
+            if (!foundMessage) {
+                console.error('[TOGGLE] Message not found for ID:', messageId);
                 return;
             }
             
-            console.log('[TOGGLE] Current status:', messageGroup[field]);
+            console.log('[TOGGLE] Found message:', foundMessage.type, 'Current status:', foundMessage[field]);
             
             // Cycle through: pending → yes → no → pending
-            switch(messageGroup[field]) {
+            switch(foundMessage[field]) {
                 case 'pending':
                 case null:
                 case undefined:
-                    messageGroup[field] = 'yes';
+                    foundMessage[field] = 'yes';
                     break;
                 case 'yes':
-                    messageGroup[field] = 'no';
+                    foundMessage[field] = 'no';
                     break;
                 case 'no':
-                    messageGroup[field] = 'pending';
+                    foundMessage[field] = 'pending';
                     break;
             }
             
-            console.log('[TOGGLE] New status:', messageGroup[field]);
+            console.log('[TOGGLE] New status:', foundMessage[field]);
             
-            markMessageModified(messageId);
-            updateToggleDisplay(messageId, field, messageGroup[field]);
+            // Mark this individual message as modified
+            markIndividualMessageModified(messageId, foundGroup.id);
+            updateToggleDisplay(messageId, field, foundMessage[field]);
             updateMessagesStats();
         }
 
         function updateToggleDisplay(messageId, field, status) {
             console.log('[TOGGLE] updateToggleDisplay - messageId:', messageId, 'field:', field, 'status:', status);
             
-            // Find the card
-            const card = document.querySelector(`[data-target-id="${messageId}"]`);
-            if (!card) {
-                console.error('[TOGGLE] Card not found for messageId:', messageId);
-                return;
-            }
-            
-            // Find all toggle switches for this message and field
-            const toggles = card.querySelectorAll(`.toggle-switch[data-message-id="${messageId}"][data-field="${field}"]`);
+            // Find all toggle switches for this specific message and field
+            const toggles = document.querySelectorAll(`.toggle-switch[data-message-id="${messageId}"][data-field="${field}"]`);
             console.log('[TOGGLE] Found', toggles.length, 'toggles to update');
             
             toggles.forEach(toggle => {
@@ -4309,14 +4330,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     slider.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
                     slider.innerHTML = getStatusIcon(status);
                 }
-                
-                // Update the status label
-                const labelClass = field === 'sent' ? '.status-label-sent' : '.status-label-gotReply';
-                const label = toggle.parentElement.querySelector(labelClass);
-                if (label) {
-                    label.textContent = getStatusLabel(status);
-                    label.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
-                }
+            });
+            
+            // Update status labels for this message
+            const labelClass = field === 'sent' ? '.status-label-sent' : '.status-label-gotReply';
+            const labels = document.querySelectorAll(`${labelClass}[data-message-id="${messageId}"]`);
+            labels.forEach(label => {
+                label.textContent = getStatusLabel(status);
+                label.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
             });
             
             console.log('[TOGGLE] Display updated');
@@ -4440,6 +4461,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             commentFields.forEach(field => field.classList.add('modified'));
         }
 
+        // Track individual message changes separately
+        const pendingMessageChanges = new Map(); // messageId -> groupId
+
+        function markIndividualMessageModified(messageId, groupId) {
+            console.log('[SAVE] Marking individual message modified:', messageId, 'in group:', groupId);
+            pendingMessageChanges.set(messageId, groupId);
+            
+            // Also mark the group as modified for UI purposes
+            markMessageModified(groupId);
+        }
+
         function markMessageModified(messageId) {
             if (!pendingChanges.has(messageId)) {
                 pendingChanges.set(messageId, true);
@@ -4449,11 +4481,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             saveButtons.forEach(btn => btn.classList.add('modified'));
         }
 
-        async function saveMessage(messageId) {
-            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
-            if (!messageGroup || !pendingChanges.has(messageId)) return;
+        async function saveMessage(groupId) {
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === groupId);
+            if (!messageGroup || !pendingChanges.has(groupId)) return;
             
-            const saveButtons = document.querySelectorAll(`#save-${messageId}`);
+            const saveButtons = document.querySelectorAll(`#save-${groupId}`);
             
             try {
                 saveButtons.forEach(btn => {
@@ -4467,34 +4499,72 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
                 
-                const response = await fetch(`/messages/${messageId}`, {
+                // Collect all modified individual messages for this group
+                const modifiedMessages = [];
+                
+                for (const [messageId, relatedGroupId] of pendingMessageChanges.entries()) {
+                    if (relatedGroupId === groupId) {
+                        // Find the message
+                        const allMessages = [
+                            ...messageGroup.messages.linkedin,
+                            ...messageGroup.messages.email,
+                            ...messageGroup.messages.connection
+                        ];
+                        
+                        const message = allMessages.find(m => m.id === messageId);
+                        if (message) {
+                            modifiedMessages.push({
+                                id: message.id,
+                                sent: message.sent,
+                                got_reply: message.gotReply
+                            });
+                        }
+                    }
+                }
+                
+                console.log('[SAVE] Saving', modifiedMessages.length, 'modified messages');
+                
+                // Save all modified messages
+                const savePromises = modifiedMessages.map(async (msg) => {
+                    const response = await fetch(`/messages/individual/${msg.id}`, {
+                        method: 'PUT',
+                        headers: { 
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            sent: msg.sent,
+                            got_reply: msg.got_reply
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to save message ${msg.id}`);
+                    }
+                    
+                    return response.json();
+                });
+                
+                // Also save group-level data (comments)
+                const groupResponse = await fetch(`/messages/${groupId}`, {
                     method: 'PUT',
                     headers: { 
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        sent_status: messageGroup.sent,
-                        reply_status: messageGroup.gotReply,
                         comments: messageGroup.comments
                     })
                 });
                 
-                if (response.status === 401) {
+                if (groupResponse.status === 401) {
                     localStorage.removeItem('authToken');
                     window.location.href = '/login';
                     return;
                 }
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error(result.error || 'Failed to save message');
-                }
+                // Wait for all saves to complete
+                await Promise.all([...savePromises, groupResponse]);
                 
                 saveButtons.forEach(btn => {
                     btn.classList.remove('saving', 'modified');
@@ -4502,7 +4572,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
                 });
                 
-                pendingChanges.delete(messageId);
+                // Clear pending changes
+                pendingChanges.delete(groupId);
+                for (const [messageId, relatedGroupId] of pendingMessageChanges.entries()) {
+                    if (relatedGroupId === groupId) {
+                        pendingMessageChanges.delete(messageId);
+                    }
+                }
                 
                 setTimeout(() => {
                     saveButtons.forEach(btn => {
