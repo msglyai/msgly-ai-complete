@@ -4096,43 +4096,39 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 ${replyIcon}
                             </div>
                         </div>
-                        <div class="history-item-body" id="${uniqueId}" style="display: none; padding: 2.5rem 3rem; background: white; border-left: 4px solid var(--primary-purple); margin-left: 0.5rem;">
+                        <div class="history-item-body" id="${uniqueId}" style="display: none; padding: 1rem; background: white; border-left: 4px solid var(--primary-purple); margin-left: 0.5rem;">
                             ${hasMessage ? `
-                                <div style="font-style: italic; font-size: 1rem; line-height: 1.8; color: #4B5563; white-space: pre-wrap; margin-bottom: 2rem;">
+                                <div style="font-style: normal; font-size: 0.9rem; line-height: 1.6; color: #374151; white-space: pre-wrap; margin-bottom: 1rem; text-align: left;">
                                     ${messageText}
                                 </div>
-                                <div style="display: flex; gap: 0.75rem; margin-bottom: 2rem;">
-                                    <button onclick="editMessage('${msgType.type}', ${messageId}); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
+                                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; padding-top: 0.75rem; border-top: 1px solid #E5E7EB;">
+                                    <button onclick="editMessage('${msgType.type}', ${messageId}); event.stopPropagation();" style="padding: 0.4rem 0.8rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: #374151; font-weight: 500;">
                                         <i class="fas fa-edit"></i> Edit
                                     </button>
-                                    <button onclick="copyMessageToClipboard(\`${messageText.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, this); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
+                                    <button onclick="copyMessageToClipboard(\`${messageText.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, this); event.stopPropagation();" style="padding: 0.4rem 0.8rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: #374151; font-weight: 500;">
                                         <i class="fas fa-copy"></i> Copy
                                     </button>
                                 </div>
-                                <div style="display: flex; gap: 3rem; padding-top: 1.5rem; border-top: 1px solid #E5E7EB;">
-                                    <div style="display: flex; align-items: center; gap: 1.5rem;">
-                                        <span style="font-weight: 700; color: #1F2937; font-size: 0.875rem; letter-spacing: 0.5px; min-width: 110px;">MESSAGE SENT</span>
-                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;" onclick="toggleStatus(${messageGroup.id}, 'sent'); event.stopPropagation();">
-                                            <input type="checkbox" ${sentChecked} onchange="event.stopPropagation();" style="opacity: 0; width: 0; height: 0; pointer-events: none;">
-                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 30px;"></span>
-                                            <span style="position: absolute; content: ''; height: 22px; width: 22px; left: ${sentStatus === 'yes' ? '30px' : '4px'}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
+                                <div style="display: flex; gap: 2rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
+                                    <div style="display: flex; align-items: center; gap: 1rem;">
+                                        <span style="font-weight: 700; color: #1F2937; font-size: 0.8rem; letter-spacing: 0.5px; min-width: 100px;">MESSAGE SENT</span>
+                                        <div class="toggle-switch ${sentStatus}" onclick="toggleStatus(${messageGroup.id}, 'sent'); event.stopPropagation();" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
+                                            <div class="toggle-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: ${sentStatus === 'yes' ? '27px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '?')}
-                                            </span>
-                                        </label>
-                                        <span style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem; min-width: 70px;">
+                                            </div>
+                                        </div>
+                                        <span style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.85rem; min-width: 65px;">
                                             ${sentStatus === 'yes' ? 'YES' : (sentStatus === 'no' ? 'NO' : 'PENDING')}
                                         </span>
                                     </div>
-                                    <div style="display: flex; align-items: center; gap: 1.5rem;">
-                                        <span style="font-weight: 700; color: #1F2937; font-size: 0.875rem; letter-spacing: 0.5px; min-width: 110px;">GOT REPLY</span>
-                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;" onclick="toggleStatus(${messageGroup.id}, 'gotReply'); event.stopPropagation();">
-                                            <input type="checkbox" ${replyChecked} onchange="event.stopPropagation();" style="opacity: 0; width: 0; height: 0; pointer-events: none;">
-                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 30px;"></span>
-                                            <span style="position: absolute; content: ''; height: 22px; width: 22px; left: ${replyStatus === 'yes' ? '30px' : '4px'}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
+                                    <div style="display: flex; align-items: center; gap: 1rem;">
+                                        <span style="font-weight: 700; color: #1F2937; font-size: 0.8rem; letter-spacing: 0.5px; min-width: 100px;">GOT REPLY</span>
+                                        <div class="toggle-switch ${replyStatus}" onclick="toggleStatus(${messageGroup.id}, 'gotReply'); event.stopPropagation();" style="position: relative; display: inline-block; width: 50px; height: 26px; cursor: pointer; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 26px;">
+                                            <div class="toggle-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: ${replyStatus === 'yes' ? '27px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '?')}
-                                            </span>
-                                        </label>
-                                        <span style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem; min-width: 70px;">
+                                            </div>
+                                        </div>
+                                        <span style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.85rem; min-width: 65px;">
                                             ${replyStatus === 'yes' ? 'YES' : (replyStatus === 'no' ? 'NO' : 'PENDING')}
                                         </span>
                                     </div>
@@ -4251,53 +4247,49 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function updateToggleDisplay(messageId, field, status) {
             console.log('[TOGGLE] updateToggleDisplay - messageId:', messageId, 'field:', field, 'status:', status);
             
-            // Find all toggle elements for this message and field
+            // Find the card
             const card = document.querySelector(`[data-target-id="${messageId}"]`);
             if (!card) {
                 console.error('[TOGGLE] Card not found for messageId:', messageId);
                 return;
             }
             
-            // Update all instances of this toggle in the card
-            const allToggles = card.querySelectorAll(`input[onchange*="toggleStatus(${messageId}, '${field}')"]`);
-            console.log('[TOGGLE] Found', allToggles.length, 'toggle inputs');
+            // Find all toggle switches for this field
+            const allDivs = card.querySelectorAll('div[onclick*="toggleStatus"]');
+            console.log('[TOGGLE] Found', allDivs.length, 'divs with toggleStatus');
             
-            allToggles.forEach(toggle => {
-                const label = toggle.closest('label');
-                if (!label) return;
-                
-                // Update checkbox state
-                toggle.checked = (status === 'yes');
-                
-                // Update toggle background color
-                const bgSpan = label.querySelector('span:first-of-type');
-                if (bgSpan) {
-                    bgSpan.style.backgroundColor = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#D1D5DB');
-                }
-                
-                // Update toggle knob position and icon
-                const knobSpan = label.querySelector('span:last-of-type');
-                if (knobSpan) {
-                    knobSpan.style.left = status === 'yes' ? '30px' : '4px';
-                    knobSpan.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
-                    knobSpan.innerHTML = getStatusIcon(status);
-                }
-                
-                // Update status label text
-                const statusLabel = label.parentElement.querySelector('span:last-child');
-                if (statusLabel) {
-                    statusLabel.textContent = getStatusLabel(status);
-                    statusLabel.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
+            allDivs.forEach(div => {
+                const onclickAttr = div.getAttribute('onclick');
+                if (onclickAttr && onclickAttr.includes(`toggleStatus(${messageId}, '${field}')`)) {
+                    console.log('[TOGGLE] Updating toggle div');
+                    
+                    // Update the toggle switch background
+                    div.className = `toggle-switch ${status}`;
+                    div.style.backgroundColor = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#D1D5DB');
+                    
+                    // Update the slider (knob)
+                    const slider = div.querySelector('.toggle-slider');
+                    if (slider) {
+                        slider.style.left = status === 'yes' ? '27px' : '3px';
+                        slider.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
+                        slider.innerHTML = getStatusIcon(status);
+                    }
+                    
+                    // Update the label text next to toggle
+                    let labelSpan = div.nextElementSibling;
+                    while (labelSpan && labelSpan.tagName === 'SPAN') {
+                        // Check if it's the status label (has min-width: 65px)
+                        if (labelSpan.style.minWidth === '65px') {
+                            labelSpan.textContent = getStatusLabel(status);
+                            labelSpan.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
+                            break;
+                        }
+                        labelSpan = labelSpan.nextElementSibling;
+                    }
                 }
             });
             
-            // Also update header icons
-            const headerIcons = card.querySelectorAll('.history-item-header');
-            headerIcons.forEach(header => {
-                // This will be updated on next render
-            });
-            
-            console.log('[TOGGLE] Display updated successfully');
+            console.log('[TOGGLE] Display updated');
         }
 
         function toggleMessageSent(messageId, isChecked) {
