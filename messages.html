@@ -4112,11 +4112,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <div style="display: flex; gap: 3rem; padding-top: 1.5rem; border-top: 1px solid #E5E7EB;">
                                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                                         <span style="font-weight: 700; color: #1F2937; font-size: 0.875rem; letter-spacing: 0.5px; min-width: 110px;">MESSAGE SENT</span>
-                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;">
-                                            <input type="checkbox" ${sentChecked} onchange="console.log('[TOGGLE] MESSAGE SENT clicked. ID:', ${messageGroup.id}, 'checked:', this.checked); toggleMessageSent(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
+                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;" onclick="toggleStatus(${messageGroup.id}, 'sent'); event.stopPropagation();">
+                                            <input type="checkbox" ${sentChecked} onchange="event.stopPropagation();" style="opacity: 0; width: 0; height: 0; pointer-events: none;">
                                             <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 30px;"></span>
                                             <span style="position: absolute; content: ''; height: 22px; width: 22px; left: ${sentStatus === 'yes' ? '30px' : '4px'}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
-                                                ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '')}
+                                                ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '?')}
                                             </span>
                                         </label>
                                         <span style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem; min-width: 70px;">
@@ -4125,11 +4125,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                                         <span style="font-weight: 700; color: #1F2937; font-size: 0.875rem; letter-spacing: 0.5px; min-width: 110px;">GOT REPLY</span>
-                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;">
-                                            <input type="checkbox" ${replyChecked} onchange="console.log('[TOGGLE] GOT REPLY clicked. ID:', ${messageGroup.id}, 'checked:', this.checked); toggleGotReply(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
+                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;" onclick="toggleStatus(${messageGroup.id}, 'gotReply'); event.stopPropagation();">
+                                            <input type="checkbox" ${replyChecked} onchange="event.stopPropagation();" style="opacity: 0; width: 0; height: 0; pointer-events: none;">
                                             <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 30px;"></span>
                                             <span style="position: absolute; content: ''; height: 22px; width: 22px; left: ${replyStatus === 'yes' ? '30px' : '4px'}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
-                                                ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '')}
+                                                ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '?')}
                                             </span>
                                         </label>
                                         <span style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem; min-width: 70px;">
@@ -4198,6 +4198,106 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     button.classList.remove('copied');
                 }, 2000);
             });
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'yes': return '✓';
+                case 'no': return '✗';
+                default: return '?';
+            }
+        }
+
+        function getStatusLabel(status) {
+            switch(status) {
+                case 'yes': return 'YES';
+                case 'no': return 'NO';
+                default: return 'PENDING';
+            }
+        }
+
+        function toggleStatus(messageId, field) {
+            console.log('[TOGGLE] toggleStatus called - messageId:', messageId, 'field:', field);
+            const messageGroup = Object.values(groupedMessages).find(group => group.id === messageId);
+            if (!messageGroup) {
+                console.error('[TOGGLE] messageGroup not found for ID:', messageId);
+                return;
+            }
+            
+            console.log('[TOGGLE] Current status:', messageGroup[field]);
+            
+            // Cycle through: pending → yes → no → pending
+            switch(messageGroup[field]) {
+                case 'pending':
+                case null:
+                case undefined:
+                    messageGroup[field] = 'yes';
+                    break;
+                case 'yes':
+                    messageGroup[field] = 'no';
+                    break;
+                case 'no':
+                    messageGroup[field] = 'pending';
+                    break;
+            }
+            
+            console.log('[TOGGLE] New status:', messageGroup[field]);
+            
+            markMessageModified(messageId);
+            updateToggleDisplay(messageId, field, messageGroup[field]);
+            updateMessagesStats();
+        }
+
+        function updateToggleDisplay(messageId, field, status) {
+            console.log('[TOGGLE] updateToggleDisplay - messageId:', messageId, 'field:', field, 'status:', status);
+            
+            // Find all toggle elements for this message and field
+            const card = document.querySelector(`[data-target-id="${messageId}"]`);
+            if (!card) {
+                console.error('[TOGGLE] Card not found for messageId:', messageId);
+                return;
+            }
+            
+            // Update all instances of this toggle in the card
+            const allToggles = card.querySelectorAll(`input[onchange*="toggleStatus(${messageId}, '${field}')"]`);
+            console.log('[TOGGLE] Found', allToggles.length, 'toggle inputs');
+            
+            allToggles.forEach(toggle => {
+                const label = toggle.closest('label');
+                if (!label) return;
+                
+                // Update checkbox state
+                toggle.checked = (status === 'yes');
+                
+                // Update toggle background color
+                const bgSpan = label.querySelector('span:first-of-type');
+                if (bgSpan) {
+                    bgSpan.style.backgroundColor = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#D1D5DB');
+                }
+                
+                // Update toggle knob position and icon
+                const knobSpan = label.querySelector('span:last-of-type');
+                if (knobSpan) {
+                    knobSpan.style.left = status === 'yes' ? '30px' : '4px';
+                    knobSpan.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
+                    knobSpan.innerHTML = getStatusIcon(status);
+                }
+                
+                // Update status label text
+                const statusLabel = label.parentElement.querySelector('span:last-child');
+                if (statusLabel) {
+                    statusLabel.textContent = getStatusLabel(status);
+                    statusLabel.style.color = status === 'yes' ? '#10B981' : (status === 'no' ? '#EF4444' : '#9CA3AF');
+                }
+            });
+            
+            // Also update header icons
+            const headerIcons = card.querySelectorAll('.history-item-header');
+            headerIcons.forEach(header => {
+                // This will be updated on next render
+            });
+            
+            console.log('[TOGGLE] Display updated successfully');
         }
 
         function toggleMessageSent(messageId, isChecked) {
