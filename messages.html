@@ -1096,6 +1096,49 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             text-align: center;
         }
 
+        /* Email Not Found - Clean Design */
+        .email-not-found-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 0;
+        }
+
+        .email-try-again-btn {
+            width: 100%;
+            max-width: 500px;
+            padding: 0.85rem 1.5rem;
+            background: #F59E0B;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .email-try-again-btn i {
+            font-size: 0.9rem;
+        }
+
+        .email-try-again-btn:hover {
+            background: #D97706;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(245, 158, 11, 0.2);
+        }
+
+        .email-not-found-text {
+            font-size: 0.85rem;
+            color: var(--gray);
+            text-align: center;
+        }
+
         /* Message Types Section */
         .message-types-section {
             margin-bottom: 1.5rem;
@@ -1513,10 +1556,34 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .email-section-new {
             padding: 1rem 1.5rem;
             border-bottom: 2px solid #ede9fe;
+            border-left: 4px solid #10B981;  /* Default green */
             background: linear-gradient(135deg, var(--light-purple) 0%, #FAF6FF 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
+        }
+
+        /* Status-based left border colors */
+        .email-section-new[data-email-status="valid"],
+        .email-section-new[data-email-status="verified"] {
+            border-left-color: #10B981;  /* Green */
+        }
+
+        .email-section-new[data-email-status="unknown"],
+        .email-section-new[data-email-status="catch_all"],
+        .email-section-new[data-email-status="found"] {
+            border-left-color: #F59E0B;  /* Orange */
+        }
+
+        .email-section-new[data-email-status="invalid"],
+        .email-section-new[data-email-status="not_valid"],
+        .email-section-new[data-email-status="not_found"],
+        .email-section-new[data-email-status="error"] {
+            border-left-color: #EF4444;  /* Red */
+        }
+
+        .email-section-new[data-email-status="none"] {
+            border-left-color: #8B5CF6;  /* Purple - no status yet */
         }
 
         .email-section-content {
@@ -3257,7 +3324,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </div>
 
                 <!-- SECTION 2: EMAIL FINDER & VERIFICATION -->
-                <div class="email-section-new">
+                <div class="email-section-new" data-email-status="${messageGroup.emailStatus || 'none'}">
                     <div class="email-section-title">
                         <i class="fas fa-envelope-open-text"></i>
                         <span>EMAIL FINDER & VERIFICATION</span>
@@ -3496,32 +3563,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     </div>`;
                     
                 case 'not_found':
-                    return `<div class="email-not-found-container">
-                        <div class="email-header-row">
-                            <div class="email-label error">
-                                <i class="fas fa-times-circle"></i> Email Not Found
-                            </div>
-                        </div>
-                        <div class="email-verification">
-                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.3rem; text-align: center;">
-                                No public email found for this contact
-                            </div>
-                            ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem;">Searched: ${verifiedDate}</div>` : ''}
+                    return `<div class="email-not-found-display">
+                        <button class="email-try-again-btn" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
+                            <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
+                        </button>
+                        <div class="email-not-found-text">
+                            Email not found. Click to search again.
                         </div>
                     </div>`;
                     
                 case 'error':
-                    return `<div class="email-not-found-container">
-                        <div class="email-header-row">
-                            <div class="email-label error">
-                                <i class="fas fa-exclamation-triangle"></i> Search Error
-                            </div>
-                        </div>
-                        <div class="email-verification">
-                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.3rem; text-align: center;">
-                                An error occurred during the email search
-                            </div>
-                            ${verifiedDate ? `<div class="email-verified-date" style="margin-top: 0.5rem;">Attempted: ${verifiedDate}</div>` : ''}
+                    return `<div class="email-not-found-display">
+                        <button class="email-try-again-btn" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
+                            <i class="fas fa-redo"></i> Try Again (2 Snov.io Credits)
+                        </button>
+                        <div class="email-not-found-text">
+                            An error occurred during the email search
                         </div>
                     </div>`;
                     
