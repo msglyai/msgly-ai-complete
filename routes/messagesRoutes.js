@@ -159,6 +159,113 @@ router.put('/messages/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// PUT /messages/individual/:messageId - Update individual message status (NEW: For per-message toggles)
+router.put('/messages/individual/:messageId', authenticateToken, async (req, res) => {
+    try {
+        const messageId = parseInt(req.params.messageId);
+        const { sent, got_reply } = req.body;
+        const userId = req.user.id;
+        
+        logger.info(`[INDIVIDUAL_MESSAGE] Updating message ${messageId} for user ${userId}`);
+        logger.info(`[INDIVIDUAL_MESSAGE] New status: sent=${sent}, got_reply=${got_reply}`);
+        
+        // Validate input
+        const validStatuses = ['yes', 'no', 'pending'];
+        if (sent && !validStatuses.includes(sent)) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Invalid sent status. Must be: yes, no, or pending' 
+            });
+        }
+        if (got_reply && !validStatuses.includes(got_reply)) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Invalid got_reply status. Must be: yes, no, or pending' 
+            });
+        }
+        
+        // Verify message exists and belongs to user
+        const checkResult = await pool.query(
+            'SELECT id FROM message_logs WHERE id = $1 AND user_id = $2',
+            [messageId, userId]
+        );
+        
+        if (checkResult.rows.length === 0) {
+            logger.warn(`[INDIVIDUAL_MESSAGE] Message ${messageId} not found for user ${userId}`);
+            return res.status(404).json({
+                success: false,
+                error: 'Message not found'
+            });
+        }
+        
+        // Build update query dynamically based on provided fields
+        const updateFields = [];
+        const updateValues = [];
+        let paramCounter = 1;
+        
+        if (sent !== undefined) {
+            updateFields.push(`sent_status = $${paramCounter}::varchar`);
+            updateValues.push(sent);
+            
+            // Set sent_date if status is 'yes' and date is not set
+            updateFields.push(`sent_date = CASE WHEN $${paramCounter}::varchar = 'yes' AND sent_date IS NULL THEN NOW() ELSE sent_date END`);
+            paramCounter++;
+        }
+        
+        if (got_reply !== undefined) {
+            updateFields.push(`reply_status = $${paramCounter}::varchar`);
+            updateValues.push(got_reply);
+            
+            // Set reply_date if status is 'yes' and date is not set
+            updateFields.push(`reply_date = CASE WHEN $${paramCounter}::varchar = 'yes' AND reply_date IS NULL THEN NOW() ELSE reply_date END`);
+            paramCounter++;
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'No fields to update. Provide sent or got_reply.' 
+            });
+        }
+        
+        // Add WHERE clause parameters
+        updateValues.push(messageId, userId);
+        const messageIdParam = paramCounter;
+        const userIdParam = paramCounter + 1;
+        
+        // Execute update
+        const updateQuery = `
+            UPDATE message_logs 
+            SET ${updateFields.join(', ')}
+            WHERE id = $${messageIdParam} AND user_id = $${userIdParam}
+            RETURNING id, sent_status, reply_status, sent_date, reply_date
+        `;
+        
+        const result = await pool.query(updateQuery, updateValues);
+        
+        if (result.rows.length === 0) {
+            return res.status(500).json({
+                success: false,
+                error: 'Update failed'
+            });
+        }
+        
+        logger.success(`[INDIVIDUAL_MESSAGE] Successfully updated message ${messageId}`);
+        
+        res.json({
+            success: true,
+            message: result.rows[0]
+        });
+        
+    } catch (error) {
+        logger.error('[INDIVIDUAL_MESSAGE] Error updating message:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to update message. Please try again.' 
+        });
+    }
+});
+
 // ==================== EMAIL FINDER ENDPOINT ====================
 
 // POST /api/ask-email - FIXED: Waits for verification to complete before responding
