@@ -4013,6 +4013,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function createOutreachTimeline(messages, messageGroup) {
+            console.log('[TIMELINE] ====== Creating timeline for messageGroup:', messageGroup.id, '======');
+            console.log('[TIMELINE] messageGroup.sent:', messageGroup.sent, 'type:', typeof messageGroup.sent);
+            console.log('[TIMELINE] messageGroup.gotReply:', messageGroup.gotReply, 'type:', typeof messageGroup.gotReply);
+            console.log('[TIMELINE] messages array:', messages);
+            
             // Always show all 3 message types in order
             const allMessageTypes = [
                 { type: 'linkedin', label: 'LinkedIn Message', icon: 'fab fa-linkedin' },
@@ -4029,6 +4034,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 const hasMessage = !!actualMessage;
                 const isDisabled = !hasMessage;
                 
+                console.log(`[TIMELINE] ${msgType.type}: hasMessage=${hasMessage}`, actualMessage);
+                
                 // Set date and message text
                 let dateStr = 'N/A';
                 let messageText = '';
@@ -4036,15 +4043,32 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 if (hasMessage) {
                     messageId = actualMessage.id;
+                    console.log(`[TIMELINE] Message ID: ${messageId}`);
+                    
                     // Format date properly like "(Oct 20)"
                     if (actualMessage.created_at) {
-                        const date = new Date(actualMessage.created_at);
-                        const month = date.toLocaleDateString('en-US', { month: 'short' });
-                        const day = date.getDate();
-                        dateStr = `(${month} ${day})`;
+                        try {
+                            const date = new Date(actualMessage.created_at);
+                            console.log(`[TIMELINE] Date string: "${actualMessage.created_at}", parsed:`, date, 'isValid:', !isNaN(date.getTime()));
+                            
+                            if (!isNaN(date.getTime())) {
+                                const month = date.toLocaleDateString('en-US', { month: 'short' });
+                                const day = date.getDate();
+                                dateStr = `(${month} ${day})`;
+                                console.log(`[TIMELINE] Formatted date: ${dateStr}`);
+                            } else {
+                                console.warn('[TIMELINE] Invalid date object');
+                            }
+                        } catch (e) {
+                            console.error('[TIMELINE] Date parsing error:', e);
+                        }
+                    } else {
+                        console.warn('[TIMELINE] No created_at date for message');
                     }
+                    
                     // Get actual message text and clean it
                     messageText = cleanMessageText(actualMessage.message) || '';
+                    console.log(`[TIMELINE] Message text length: ${messageText.length} chars`);
                 }
                 
                 const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
@@ -4052,6 +4076,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 // Determine toggle states from messageGroup
                 const sentStatus = messageGroup.sent === 'yes' ? 'yes' : (messageGroup.sent === 'no' ? 'no' : 'pending');
                 const replyStatus = messageGroup.gotReply === 'yes' ? 'yes' : (messageGroup.gotReply === 'no' ? 'no' : 'pending');
+                
+                console.log(`[TIMELINE] Computed statuses - sent: "${sentStatus}", reply: "${replyStatus}"`);
                 
                 const sentChecked = messageGroup.sent === 'yes' ? 'checked' : '';
                 const replyChecked = messageGroup.gotReply === 'yes' ? 'checked' : '';
@@ -4080,43 +4106,43 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 ${replyIcon}
                             </div>
                         </div>
-                        <div class="history-item-body" id="${uniqueId}" style="display: none; padding: 1.5rem; background: white; border-left: 4px solid var(--primary-purple); margin-left: 0.5rem;">
+                        <div class="history-item-body" id="${uniqueId}" style="display: none; padding: 2.5rem 3rem; background: white; border-left: 4px solid var(--primary-purple); margin-left: 0.5rem;">
                             ${hasMessage ? `
-                                <div class="message-text-display" style="font-style: italic; line-height: 1.8; color: #374151; white-space: pre-wrap; margin-bottom: 1.5rem;">
+                                <div style="font-style: italic; font-size: 1rem; line-height: 1.8; color: #4B5563; white-space: pre-wrap; margin-bottom: 2rem;">
                                     ${messageText}
                                 </div>
-                                <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem;">
+                                <div style="display: flex; gap: 0.75rem; margin-bottom: 2rem;">
                                     <button onclick="editMessage('${msgType.type}', ${messageId}); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
                                         <i class="fas fa-edit"></i> Edit
                                     </button>
-                                    <button onclick="copyMessageToClipboard(\`${messageText.replace(/`/g, '\\`')}\`, this); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
+                                    <button onclick="copyMessageToClipboard(\`${messageText.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, this); event.stopPropagation();" style="padding: 0.6rem 1.2rem; background: white; border: 1.5px solid #D1D5DB; border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #374151; font-weight: 500; transition: all 0.2s;">
                                         <i class="fas fa-copy"></i> Copy
                                     </button>
                                 </div>
-                                <div style="display: flex; gap: 3rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
-                                    <div style="display: flex; align-items: center; gap: 1rem;">
-                                        <span style="font-weight: 700; color: #374151; font-size: 0.85rem; letter-spacing: 0.5px;">MESSAGE SENT</span>
-                                        <label style="position: relative; display: inline-block; width: 60px; height: 32px;">
-                                            <input type="checkbox" ${sentChecked} onchange="toggleMessageSent(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
-                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.4s; border-radius: 32px;"></span>
-                                            <span style="position: absolute; content: ''; height: 24px; width: 24px; left: ${sentStatus === 'yes' ? 'calc(100% - 28px)' : '4px'}; bottom: 4px; background-color: white; transition: 0.4s; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')};">
+                                <div style="display: flex; gap: 3rem; padding-top: 1.5rem; border-top: 1px solid #E5E7EB;">
+                                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                                        <span style="font-weight: 700; color: #1F2937; font-size: 0.875rem; letter-spacing: 0.5px; min-width: 110px;">MESSAGE SENT</span>
+                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;">
+                                            <input type="checkbox" ${sentChecked} onchange="console.log('[TOGGLE] MESSAGE SENT clicked. ID:', ${messageGroup.id}, 'checked:', this.checked); toggleMessageSent(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
+                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 30px;"></span>
+                                            <span style="position: absolute; content: ''; height: 22px; width: 22px; left: ${sentStatus === 'yes' ? '30px' : '4px'}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${sentStatus === 'yes' ? '✓' : (sentStatus === 'no' ? '✕' : '')}
                                             </span>
                                         </label>
-                                        <span style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem;">
+                                        <span style="font-weight: 600; color: ${sentStatus === 'yes' ? '#10B981' : (sentStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem; min-width: 70px;">
                                             ${sentStatus === 'yes' ? 'YES' : (sentStatus === 'no' ? 'NO' : 'PENDING')}
                                         </span>
                                     </div>
-                                    <div style="display: flex; align-items: center; gap: 1rem;">
-                                        <span style="font-weight: 700; color: #374151; font-size: 0.85rem; letter-spacing: 0.5px;">GOT REPLY</span>
-                                        <label style="position: relative; display: inline-block; width: 60px; height: 32px;">
-                                            <input type="checkbox" ${replyChecked} onchange="toggleGotReply(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
-                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.4s; border-radius: 32px;"></span>
-                                            <span style="position: absolute; content: ''; height: 24px; width: 24px; left: ${replyStatus === 'yes' ? 'calc(100% - 28px)' : '4px'}; bottom: 4px; background-color: white; transition: 0.4s; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')};">
+                                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                                        <span style="font-weight: 700; color: #1F2937; font-size: 0.875rem; letter-spacing: 0.5px; min-width: 110px;">GOT REPLY</span>
+                                        <label style="position: relative; display: inline-block; width: 56px; height: 30px; cursor: pointer;">
+                                            <input type="checkbox" ${replyChecked} onchange="console.log('[TOGGLE] GOT REPLY clicked. ID:', ${messageGroup.id}, 'checked:', this.checked); toggleGotReply(${messageGroup.id}, this.checked); event.stopPropagation();" style="opacity: 0; width: 0; height: 0;">
+                                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#D1D5DB')}; transition: 0.3s; border-radius: 30px;"></span>
+                                            <span style="position: absolute; content: ''; height: 22px; width: 22px; left: ${replyStatus === 'yes' ? '30px' : '4px'}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-weight: bold;">
                                                 ${replyStatus === 'yes' ? '✓' : (replyStatus === 'no' ? '✕' : '')}
                                             </span>
                                         </label>
-                                        <span style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem;">
+                                        <span style="font-weight: 600; color: ${replyStatus === 'yes' ? '#10B981' : (replyStatus === 'no' ? '#EF4444' : '#9CA3AF')}; font-size: 0.9rem; min-width: 70px;">
                                             ${replyStatus === 'yes' ? 'YES' : (replyStatus === 'no' ? 'NO' : 'PENDING')}
                                         </span>
                                     </div>
@@ -4127,6 +4153,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 `;
             });
             
+            console.log('[TIMELINE] ====== Timeline creation complete ======');
             return html || '<div class="no-outreach-yet">No outreach messages yet</div>';
         }
 
