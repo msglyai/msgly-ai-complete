@@ -1955,10 +1955,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: white;
             border-top: 1px solid #e0e0e0;
             display: none;
+            overflow: hidden !important;
+            max-width: 100% !important;
         }
 
         .history-item-body.expanded {
             display: block;
+        }
+        
+        .history-item-body > div:first-child {
+            text-align: left !important;
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
         }
 
         .message-preview-text {
