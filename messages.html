@@ -4045,25 +4045,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     messageId = actualMessage.id;
                     console.log(`[TIMELINE] Message ID: ${messageId}`);
                     
-                    // Format date properly like "(Oct 20)"
-                    if (actualMessage.created_at) {
-                        try {
-                            const date = new Date(actualMessage.created_at);
-                            console.log(`[TIMELINE] Date string: "${actualMessage.created_at}", parsed:`, date, 'isValid:', !isNaN(date.getTime()));
-                            
-                            if (!isNaN(date.getTime())) {
-                                const month = date.toLocaleDateString('en-US', { month: 'short' });
-                                const day = date.getDate();
-                                dateStr = `(${month} ${day})`;
-                                console.log(`[TIMELINE] Formatted date: ${dateStr}`);
-                            } else {
-                                console.warn('[TIMELINE] Invalid date object');
-                            }
-                        } catch (e) {
-                            console.error('[TIMELINE] Date parsing error:', e);
-                        }
+                    // Use formatMessageDate function that already exists and works
+                    if (actualMessage.created_at || actualMessage.createdAt) {
+                        const dateValue = actualMessage.created_at || actualMessage.createdAt;
+                        console.log(`[TIMELINE] Date value: "${dateValue}"`);
+                        const formattedDate = formatMessageDate(dateValue);
+                        console.log(`[TIMELINE] Formatted date: "${formattedDate}"`);
+                        dateStr = `(${formattedDate})`;
                     } else {
-                        console.warn('[TIMELINE] No created_at date for message');
+                        console.warn('[TIMELINE] No date available for message');
                     }
                     
                     // Get actual message text and clean it
