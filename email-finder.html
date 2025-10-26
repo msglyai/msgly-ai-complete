@@ -3260,7 +3260,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             try {
                 const token = localStorage.getItem('token');
                 if (!token) {
-                    window.location.href = '/login';
+                    window.location.href = '/login?returnUrl=/email-finder';
                     return;
                 }
 
@@ -3274,7 +3274,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 if (!response.ok) {
                     if (response.status === 401) {
                         localStorage.removeItem('token');
-                        window.location.href = '/login';
+                        window.location.href = '/login?returnUrl=/email-finder';
                         return;
                     }
                     throw new Error('Failed to load profile');
