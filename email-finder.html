@@ -3258,7 +3258,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         // Load user data (auth, credits, plan)
         async function loadUserData() {
             try {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('authToken');
                 if (!token) {
                     window.location.href = '/login?returnUrl=/email-finder';
                     return;
@@ -3273,7 +3273,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 if (!response.ok) {
                     if (response.status === 401) {
-                        localStorage.removeItem('token');
+                        localStorage.removeItem('authToken');
                         window.location.href = '/login?returnUrl=/email-finder';
                         return;
                     }
@@ -3406,7 +3406,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         // Check for duplicate search
         async function checkDuplicate(url) {
             try {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('authToken');
                 const response = await fetch(`/api/email-finder-page/check-duplicate?url=${encodeURIComponent(url)}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -3511,7 +3511,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
 
             try {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('authToken');
                 const response = await fetch('/api/email-finder-page/search', {
                     method: 'POST',
                     headers: {
@@ -3569,7 +3569,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             resultsGrid.style.display = 'none';
 
             try {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('authToken');
                 const response = await fetch(`/api/email-finder-page/history?sort=${currentSort}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -3767,7 +3767,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         // Logout function
         function logout() {
-            localStorage.removeItem('token');
+            localStorage.removeItem('authToken');
             window.location.href = '/login';
         }
 
