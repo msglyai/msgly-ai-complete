@@ -2954,13 +2954,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 const data = await response.json();
                 
+                // Extract user data from API response
+                const user = data.success ? data.data.user : data;
+                
                 // Update sidebar (which also updates userCredits)
-                updateSidebar(data);
+                updateSidebar(user);
                 
-                // Store user plan
-                userPlan = data.plan.toLowerCase();
+                // Store user plan - get from planCode field
+                const planCode = user.planCode || user.plan_code || 'free';
+                userPlan = planCode.split('-')[0].toLowerCase(); // Extract plan level: "platinum-monthly" → "platinum"
                 
-                console.log('User data loaded:', { plan: userPlan, credits: userCredits });
+                console.log('User data loaded:', { 
+                    planCode: planCode,
+                    planLevel: userPlan, 
+                    credits: userCredits 
+                });
 
             } catch (error) {
                 console.error('Error loading user data:', error);
