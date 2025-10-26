@@ -414,7 +414,7 @@
             if (!returnUrl) return null;
             
             // Security: Only allow internal paths (prevent open redirect attacks)
-            const allowedPaths = ['/dashboard', '/messages', '/msgly-profile', '/contexts', '/upgrade'];
+            const allowedPaths = ['/dashboard', '/messages', '/msgly-profile', '/contexts', '/upgrade', '/email-finder'];
             const isValidPath = allowedPaths.some(path => returnUrl.startsWith(path));
             
             if (isValidPath) {
