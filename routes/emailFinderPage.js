@@ -34,7 +34,8 @@ async function checkPlanAccess(req, res, next) {
         }
 
         const userPlan = result.rows[0].plan.toLowerCase();
-        const allowedPlans = ['silver', 'gold', 'platinum'];
+        // Match messages.html allowed plans - includes billing type
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payasyougo', 'gold-payasyougo', 'platinum-payasyougo'];
 
         if (!allowedPlans.includes(userPlan)) {
             return res.status(403).json({
