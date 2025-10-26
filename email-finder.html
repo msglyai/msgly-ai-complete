@@ -3416,8 +3416,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
 
-            // Step 1: Show credit confirmation
-            showCreditConfirmation(url);
+            // Show credit confirmation modal immediately (matches messages.html pattern)
+            showCreditWarning(url);
         }
 
         // Validate LinkedIn URL
@@ -3431,41 +3431,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             }
         }
 
-        // Show credit confirmation modal
-        function showCreditConfirmation(url) {
-            // Check if already searched
-            checkDuplicate(url).then(isDuplicate => {
-                if (isDuplicate.exists) {
-                    showDuplicateWarning(url, isDuplicate.lastSearch);
-                } else {
-                    showCreditWarning(url);
-                }
-            });
-        }
-
-        // Check for duplicate search
-        async function checkDuplicate(url) {
-            try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/email-finder-page/check-duplicate?url=${encodeURIComponent(url)}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (!response.ok) {
-                    console.error('Duplicate check failed');
-                    return { exists: false };
-                }
-
-                return await response.json();
-            } catch (error) {
-                console.error('Error checking duplicate:', error);
-                return { exists: false };
-            }
-        }
-
-        // Show credit warning modal (first popup)
+        // Show credit warning modal (confirmation popup)
         function showCreditWarning(url) {
             const userCredits = currentUserPlan ? currentUserPlan.totalCredits : 0;
             const modal = document.createElement('div');
@@ -3492,57 +3458,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         // Show duplicate warning modal (second popup)
-        function showDuplicateWarning(url, lastSearch) {
-            const userCredits = currentUserPlan ? currentUserPlan.totalCredits : 0;
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
-            modal.id = 'duplicateWarningModal';
-            
-            const searchDate = new Date(lastSearch.searchDate).toLocaleDateString();
-            
-            modal.innerHTML = `
-                <div class="modal">
-                    <div class="modal-header">
-                        <div class="modal-title">⚠️ Already Searched</div>
-                    </div>
-                    <div class="modal-body">
-                        <p><strong>This LinkedIn URL was already searched</strong></p>
-                        <p>Last search: <strong>${searchDate}</strong></p>
-                        <p>Email found: <strong>${lastSearch.email || 'Not found'}</strong></p>
-                        <br>
-                        <p>Searching again will use <strong>2 more credits</strong>.</p>
-                        <p>Current balance: <strong>${userCredits.toFixed(2)} credits</strong></p>
-                    </div>
-                    <div class="modal-actions">
-                        <button class="modal-btn secondary" onclick="closeDuplicateWarning()">Cancel</button>
-                        <button class="modal-btn primary" onclick="proceedWithSearch('${escapeHtml(url)}')">Search Again</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        }
-
         // Close credit warning
         function closeCreditWarning() {
             const modal = document.getElementById('creditWarningModal');
             if (modal) modal.remove();
         }
 
-        // Close duplicate warning
-        function closeDuplicateWarning() {
-            const modal = document.getElementById('duplicateWarningModal');
-            if (modal) modal.remove();
-        }
-
         // Confirm search (from credit warning)
         function confirmSearch(url) {
             closeCreditWarning();
-            performSearch(url);
-        }
-
-        // Proceed with search (from duplicate warning)
-        function proceedWithSearch(url) {
-            closeDuplicateWarning();
             performSearch(url);
         }
 
