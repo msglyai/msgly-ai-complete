@@ -132,7 +132,17 @@ router.post('/search', authenticateToken, async (req, res) => {
         logger.info(`[EMAIL_FINDER_PAGE] Starting email search for URL: ${linkedin_url}`);
         logger.info(`[EMAIL_FINDER_PAGE] User ID: ${req.user.id}, Plan: ${userPlan}`);
 
+        // Check if email finder is enabled (matches messagesRoutes.js)
+        if (!isEmailFinderEnabled()) {
+            return res.status(503).json({
+                success: false,
+                error: 'email_finder_disabled',
+                message: 'Email finder feature is currently disabled'
+            });
+        }
+
         // Call email finder (handles credits internally)
+        logger.info('[EMAIL_FINDER_PAGE] Finding email...');
         const emailResult = await findEmailWithLinkedInUrl(req.user.id, linkedin_url);
 
         if (!emailResult.success) {
@@ -155,6 +165,12 @@ router.post('/search', authenticateToken, async (req, res) => {
         }
 
         logger.success(`[EMAIL_FINDER_PAGE] Email found: ${emailResult.email}`);
+
+        // ADDED: Wait for verification to complete (matches messagesRoutes.js)
+        logger.info('[EMAIL_FINDER_PAGE] Waiting for verification to complete...');
+        
+        // Wait 16 seconds for verification (email finding ~3s + verification ~12s + buffer ~1s)
+        await new Promise(resolve => setTimeout(resolve, 16000));
 
         // Save to email_finder_searches table
         const saveResult = await pool.query(`
@@ -189,6 +205,25 @@ router.post('/search', authenticateToken, async (req, res) => {
 
         logger.success(`[EMAIL_FINDER_PAGE] Search saved to database: ID ${searchId}`);
 
+        // Get final verification status from database (matches messagesRoutes.js)
+        logger.info('[EMAIL_FINDER_PAGE] Retrieving final verification status...');
+        const statusResult = await pool.query(`
+            SELECT verification_status, verification_reason
+            FROM email_finder_searches
+            WHERE id = $1 AND user_id = $2
+        `, [searchId, req.user.id]);
+
+        let finalVerificationStatus = 'pending';
+        let verificationReason = null;
+        
+        if (statusResult.rows.length > 0) {
+            finalVerificationStatus = statusResult.rows[0].verification_status || 'pending';
+            verificationReason = statusResult.rows[0].verification_reason;
+            logger.success(`[EMAIL_FINDER_PAGE] Complete result: email=${emailResult.email}, status=${finalVerificationStatus}`);
+        } else {
+            logger.warn('[EMAIL_FINDER_PAGE] Could not retrieve verification status from DB');
+        }
+
         // Get updated credit balance
         const creditsResult = await pool.query(`
             SELECT 
@@ -199,7 +234,7 @@ router.post('/search', authenticateToken, async (req, res) => {
 
         const creditsRemaining = parseFloat(creditsResult.rows[0]?.total_credits || 0);
 
-        // Return success response
+        // Return success response with final verification status
         return res.json({
             success: true,
             data: {
@@ -211,7 +246,8 @@ router.post('/search', authenticateToken, async (req, res) => {
                 jobTitle: emailResult.position || emailResult.jobTitle,
                 company: emailResult.company,
                 email: emailResult.email,
-                verificationStatus: 'pending', // Will be updated by emailVerifier.js
+                verificationStatus: finalVerificationStatus, // Now has actual verification result
+                verificationReason: verificationReason,
                 searchDate: searchDate
             },
             creditsUsed: emailResult.creditsCharged || 2,
