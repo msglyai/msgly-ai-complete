@@ -60,9 +60,10 @@ CHANGELOG - server.js:
 53. 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
 54. 🔧 DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility
 55. 🔧 LINKEDIN URL DECOUPLING STAGE 3: Updated OAuth callback, /complete-registration, /store-pending-registration endpoints and traffic light status to remove LinkedIn URL dependency
+56. EMAIL FINDER PAGE: Added email finder page routes registration to enable Snov.io email finding functionality (1 line added)
 */
 
-// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO RAILWAY COOKIE FIX + LINKEDIN URL DECOUPLING STAGE 3
+// server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO RAILWAY COOKIE FIX + LINKEDIN URL DECOUPLING STAGE 3 + EMAIL FINDER PAGE
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
 // ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
 // ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
@@ -107,6 +108,7 @@ CHANGELOG - server.js:
 // 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
 // 🔧 DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility
 // 🔧 LINKEDIN URL DECOUPLING STAGE 3: OAuth callback, registration, and traffic light updated for LinkedIn URL independence
+// ✅ EMAIL FINDER PAGE: Registered email finder page routes for Snov.io integration - enables standalone email finding functionality
 
 const express = require('express');
 const cors = require('cors');
@@ -1357,6 +1359,9 @@ app.use('/', require('./routes/billingRoutes'));
 
 // NEW: Mount contexts routes
 app.use('/', require('./routes/contextsRoutes'));
+
+// EMAIL FINDER PAGE: Mount email finder page routes
+app.use('/api/email-finder-page', require('./routes/emailFinderPage'));
 
 // ADMIN DASHBOARD: Mount admin routes
 app.use('/', adminRoutes);
