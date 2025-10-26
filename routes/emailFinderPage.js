@@ -15,58 +15,28 @@ const { verifyEmail } = require('../emailVerifier');
 // Note: Credit management is handled inside findEmailWithLinkedInUrl()
 // No need to import credit functions here
 
-// ==================== MIDDLEWARE ====================
-
-// Check if user has correct plan (Silver+)
-async function checkPlanAccess(req, res, next) {
-    try {
-        const result = await pool.query(
-            'SELECT plan FROM users WHERE id = $1',
-            [req.user.id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'user_not_found',
-                message: 'User not found'
-            });
-        }
-
-        const userPlan = result.rows[0].plan.toLowerCase();
-        // Match messages.html allowed plans - includes billing type
-        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payasyougo', 'gold-payasyougo', 'platinum-payasyougo'];
-
-        if (!allowedPlans.includes(userPlan)) {
-            return res.status(403).json({
-                success: false,
-                error: 'plan_required',
-                message: 'Email Finder requires Silver plan or above',
-                currentPlan: userPlan,
-                requiredPlans: allowedPlans
-            });
-        }
-
-        req.userPlan = userPlan;
-        next();
-    } catch (error) {
-        logger.error('[EMAIL_FINDER_PAGE] Plan check error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'server_error',
-            message: 'Failed to check plan access'
-        });
-    }
-}
-
-// Note: Credit checking is done inside findEmailWithLinkedInUrl()
+// Note: Plan checking done INSIDE each route - matches messagesRoutes.js pattern
 // No separate middleware needed
 
 // ==================== API ENDPOINTS ====================
 
 // GET /api/email-finder-page/check-duplicate - Check if URL was already searched
-router.get('/check-duplicate', authenticateToken, checkPlanAccess, async (req, res) => {
+router.get('/check-duplicate', authenticateToken, async (req, res) => {
     try {
+        // Plan check - matches messagesRoutes.js pattern
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+        const userPlan = req.user.plan_code?.toLowerCase();
+        
+        if (!allowedPlans.includes(userPlan)) {
+            return res.status(403).json({
+                success: false,
+                error: 'plan_required',
+                message: 'Email Finder requires Silver plan or above',
+                currentPlan: req.user.plan_code,
+                requiredPlans: ['Silver', 'Gold', 'Platinum']
+            });
+        }
+
         const { url } = req.query;
 
         if (!url) {
@@ -133,8 +103,22 @@ router.get('/check-duplicate', authenticateToken, checkPlanAccess, async (req, r
 });
 
 // POST /api/email-finder-page/search - Search for email by LinkedIn URL
-router.post('/search', authenticateToken, checkPlanAccess, async (req, res) => {
+router.post('/search', authenticateToken, async (req, res) => {
     try {
+        // Plan check - matches messagesRoutes.js pattern
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+        const userPlan = req.user.plan_code?.toLowerCase();
+        
+        if (!allowedPlans.includes(userPlan)) {
+            return res.status(403).json({
+                success: false,
+                error: 'plan_required',
+                message: 'Email Finder requires Silver plan or above',
+                currentPlan: req.user.plan_code,
+                requiredPlans: ['Silver', 'Gold', 'Platinum']
+            });
+        }
+
         const { linkedin_url } = req.body;
 
         if (!linkedin_url) {
@@ -146,7 +130,7 @@ router.post('/search', authenticateToken, checkPlanAccess, async (req, res) => {
         }
 
         logger.info(`[EMAIL_FINDER_PAGE] Starting email search for URL: ${linkedin_url}`);
-        logger.info(`[EMAIL_FINDER_PAGE] User ID: ${req.user.id}, Plan: ${req.userPlan}`);
+        logger.info(`[EMAIL_FINDER_PAGE] User ID: ${req.user.id}, Plan: ${userPlan}`);
 
         // Call email finder (handles credits internally)
         const emailResult = await findEmailWithLinkedInUrl(req.user.id, linkedin_url);
@@ -246,8 +230,22 @@ router.post('/search', authenticateToken, checkPlanAccess, async (req, res) => {
 });
 
 // GET /api/email-finder-page/history - Get search history for user
-router.get('/history', authenticateToken, checkPlanAccess, async (req, res) => {
+router.get('/history', authenticateToken, async (req, res) => {
     try {
+        // Plan check - matches messagesRoutes.js pattern
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+        const userPlan = req.user.plan_code?.toLowerCase();
+        
+        if (!allowedPlans.includes(userPlan)) {
+            return res.status(403).json({
+                success: false,
+                error: 'plan_required',
+                message: 'Email Finder requires Silver plan or above',
+                currentPlan: req.user.plan_code,
+                requiredPlans: ['Silver', 'Gold', 'Platinum']
+            });
+        }
+
         const { sort = 'recent_first' } = req.query;
 
         // Determine sort order
@@ -333,8 +331,22 @@ router.get('/history', authenticateToken, checkPlanAccess, async (req, res) => {
 });
 
 // GET /api/email-finder-page/stats - Get statistics for user
-router.get('/stats', authenticateToken, checkPlanAccess, async (req, res) => {
+router.get('/stats', authenticateToken, async (req, res) => {
     try {
+        // Plan check - matches messagesRoutes.js pattern
+        const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payg', 'gold-payg', 'platinum-payg'];
+        const userPlan = req.user.plan_code?.toLowerCase();
+        
+        if (!allowedPlans.includes(userPlan)) {
+            return res.status(403).json({
+                success: false,
+                error: 'plan_required',
+                message: 'Email Finder requires Silver plan or above',
+                currentPlan: req.user.plan_code,
+                requiredPlans: ['Silver', 'Gold', 'Platinum']
+            });
+        }
+
         const result = await pool.query(`
             SELECT 
                 COUNT(*) as total_searches,
