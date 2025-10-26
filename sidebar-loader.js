@@ -209,6 +209,18 @@
 
         // Update credits
         updateCreditsDisplay(userData.totalCredits);
+        
+        // Show/hide upgrade button based on plan (only show for free users)
+        const upgradeSection = document.getElementById('upgradeSection');
+        if (upgradeSection) {
+            if (userData.planCode === 'free') {
+                upgradeSection.style.display = 'block';
+                console.log('[SIDEBAR] Showing upgrade button for free user');
+            } else {
+                upgradeSection.style.display = 'none';
+                console.log('[SIDEBAR] Hiding upgrade button for paid user:', userData.planCode);
+            }
+        }
     }
 
     /**
