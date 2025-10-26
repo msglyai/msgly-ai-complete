@@ -2954,12 +2954,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 const data = await response.json();
                 
-                // Update sidebar
+                // Update sidebar (which also updates userCredits)
                 updateSidebar(data);
                 
-                // Store user info
+                // Store user plan
                 userPlan = data.plan.toLowerCase();
-                userCredits = data.credits || 0;
                 
                 console.log('User data loaded:', { plan: userPlan, credits: userCredits });
 
@@ -2975,9 +2974,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             // Only update header credits (not in sidebar)
             const headerCreditsEl = document.getElementById('headerCreditsNumber');
             
-            // Credits in header
-            const credits = userData.credits || 0;
-            if (headerCreditsEl) headerCreditsEl.textContent = credits;
+            // Calculate total credits same way as sidebar-loader.js
+            const renewableCredits = parseFloat(userData.renewableCredits) || 0;
+            const payasyougoCredits = parseFloat(userData.payasyougoCredits) || 0;
+            const totalCredits = renewableCredits + payasyougoCredits;
+            
+            if (headerCreditsEl) {
+                headerCreditsEl.textContent = totalCredits.toFixed(2);
+            }
+            
+            // Also update the global userCredits variable
+            userCredits = totalCredits;
+            
+            console.log('[EMAIL-FINDER] Credits updated:', {
+                renewable: renewableCredits,
+                payasyougo: payasyougoCredits,
+                total: totalCredits
+            });
         }
 
         // Handle input changes
