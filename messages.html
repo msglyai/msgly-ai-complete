@@ -4204,12 +4204,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             console.log('[TOGGLE] Found', allToggles.length, 'toggle switches');
             
             allToggles.forEach(toggle => {
-                // Remove existing listener if any
-                const newToggle = toggle.cloneNode(true);
-                toggle.parentNode.replaceChild(newToggle, toggle);
+                // Check if already has handler (prevent duplicate listeners)
+                if (toggle.dataset.handlerAttached === 'true') {
+                    console.log('[TOGGLE] Handler already attached, skipping');
+                    return;
+                }
+                
+                // Mark as having handler
+                toggle.dataset.handlerAttached = 'true';
                 
                 // Add click handler
-                newToggle.addEventListener('click', function(e) {
+                toggle.addEventListener('click', function(e) {
                     e.stopPropagation();
                     
                     const messageId = parseInt(this.getAttribute('data-message-id'));
@@ -4303,18 +4308,30 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             // Find the actual message in the groupedMessages structure
             let foundMessage = null;
             let foundGroup = null;
+            let messageType = null;
             
             for (const group of Object.values(groupedMessages)) {
-                // Check all message types
-                const allMessages = [
-                    ...group.messages.linkedin.map(m => ({...m, type: 'linkedin'})),
-                    ...group.messages.email.map(m => ({...m, type: 'email'})),
-                    ...group.messages.connection.map(m => ({...m, type: 'connection'}))
-                ];
-                
-                foundMessage = allMessages.find(m => m.id === messageId);
+                // Check linkedin messages
+                foundMessage = group.messages.linkedin.find(m => m.id === messageId);
                 if (foundMessage) {
                     foundGroup = group;
+                    messageType = 'linkedin';
+                    break;
+                }
+                
+                // Check email messages
+                foundMessage = group.messages.email.find(m => m.id === messageId);
+                if (foundMessage) {
+                    foundGroup = group;
+                    messageType = 'email';
+                    break;
+                }
+                
+                // Check connection messages
+                foundMessage = group.messages.connection.find(m => m.id === messageId);
+                if (foundMessage) {
+                    foundGroup = group;
+                    messageType = 'connection';
                     break;
                 }
             }
@@ -4324,7 +4341,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
             
-            console.log('[TOGGLE] Found message:', foundMessage.type, 'Current status:', foundMessage[field]);
+            console.log('[TOGGLE] Found message:', messageType, 'Current status:', foundMessage[field]);
             
             // Cycle through: pending → yes → no → pending
             switch(foundMessage[field]) {
