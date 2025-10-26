@@ -306,16 +306,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             margin-left: 280px;
             min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-x: hidden;
+            width: calc(100% - 280px);
         }
 
         .main-content {
             padding: 1.5rem;
             max-width: 1400px;
+            width: 100%;
             margin: 0 auto;
+            box-sizing: border-box;
         }
 
         .container {
-            max-width: 1400px;
+            width: 100%;
             margin: 0 auto;
         }
 
