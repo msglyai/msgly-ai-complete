@@ -52,6 +52,253 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         /* Side Navigation */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar-header {
+            padding: 2rem 1.5rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: var(--white);
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-logo i {
+            font-size: 2rem;
+            margin-right: 12px;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+        }
+
+        .sidebar-logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-logo-main {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .sidebar-logo-sub {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .sidebar-user-avatar {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .sidebar-user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .sidebar-user-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-user-email {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-user-plan {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* NEW: Credits Display in Sidebar */
+        .sidebar-user-credits {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-user-credits i {
+            font-size: 0.9rem;
+            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+        }
+
+        .sidebar-user-credits.updating {
+            animation: pulse 0.6s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); background: rgba(255, 255, 255, 0.25); }
+        }
+
+        .sidebar-nav {
+            padding: 1.5rem 0;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            padding: 0 1.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--white);
+            box-shadow: inset 4px 0 0 var(--white);
+        }
+
+        .nav-item i {
+            width: 20px;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+
+        .nav-item-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .nav-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-badge.new {
+            background: var(--accent-pink);
+            color: var(--white);
+        }
+
+        .nav-badge.soon {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: var(--white);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        /* Mobile Sidebar Toggle */
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background: var(--primary-purple);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
 
         /* Main Content */
         .main-wrapper {
@@ -2392,7 +2639,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .linkedin-url-input {
             width: 100%;
             padding: 1rem 3rem 1rem 3rem;
-            border: 2px solid var(--primary-purple);
+            border: 2px solid var(--light-gray);
             border-radius: 12px;
             font-size: 1rem;
             transition: all 0.3s ease;
@@ -2730,6 +2977,87 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5CNT3VV9"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
+    <!-- Mobile Sidebar Toggle -->
+    <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Side Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="https://api.msgly.ai/dashboard" class="sidebar-logo">
+                <i class="fas fa-comments"></i>
+                <div class="sidebar-logo-text">
+                    <div class="sidebar-logo-main">Msgly.AI</div>
+                    <div class="sidebar-logo-sub">By Chopa AI LTD</div>
+                </div>
+            </a>
+            
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar" id="sidebarUserAvatar">??</div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
+                    <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
+                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
+                    <!-- NEW: Credits Display in Sidebar -->
+                    <div class="sidebar-user-credits" id="sidebarUserCredits">
+                        <i class="fas fa-coins"></i>
+                        <span id="sidebarCreditsNumber">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main Menu</div>
+                <a href="https://api.msgly.ai/dashboard" class="nav-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span class="nav-item-text">Dashboard</span>
+                </a>
+                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="nav-item-text">Msgly Profile</span>
+                </a>
+                <a href="https://api.msgly.ai/messages" class="nav-item">
+                    <i class="fas fa-envelope"></i>
+                    <span class="nav-item-text">Messages</span>
+                </a>
+                <a href="https://api.msgly.ai/email-finder" class="nav-item active">
+                    <i class="fas fa-search"></i>
+                    <span class="nav-item-text">Email Finder</span>
+                </a>
+                <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
+                    <i class="fas fa-chart-line"></i>
+                    <span class="nav-item-text">Analytics</span>
+                    <span class="nav-badge soon">Soon</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
+                    <i class="fas fa-credit-card"></i>
+                    <span class="nav-item-text">Billing</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Support</div>
+                <a href="#" class="nav-item" onclick="alert('Help Center coming soon!')">
+                    <i class="fas fa-question-circle"></i>
+                    <span class="nav-item-text">Help Center</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <a href="#" class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </a>
+        </div>
+    </nav>
 
     <!-- Email Finder Modals -->
     <!-- 1. UPGRADE REQUIRED MODAL -->
@@ -2905,8 +3233,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         // Global state
         let searchHistory = [];
         let currentSort = 'recent_first';
-        let userCredits = 0;
-        let userPlan = 'free';
+        let currentUserPlan = null; // Matches messages.html structure
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async () => {
@@ -2936,7 +3263,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
 
-                // Get user profile (same endpoint as sidebar-loader.js)
+                // Get user profile - using same endpoint as messages.html
                 const response = await fetch('/profile', {
                     method: 'GET',
                     headers: {
@@ -2945,62 +3272,73 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     }
                 });
 
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login?returnUrl=/email-finder';
+                    return;
+                }
+
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        localStorage.removeItem('authToken');
-                        window.location.href = '/login?returnUrl=/email-finder';
-                        return;
-                    }
-                    throw new Error('Failed to load profile');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 const data = await response.json();
                 
-                // Extract user data from API response
-                const user = data.success ? data.data.user : data;
+                if (data.success) {
+                    const user = data.data.user;
+                    
+                    // Use dual-credit calculation like messages.html
+                    const renewableCredits = parseFloat(user.renewableCredits || 0);
+                    const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
+                    const totalCredits = renewableCredits + payasyougoCredits;
+                    
+                    console.log('[EMAIL_FINDER] Renewable:', renewableCredits.toFixed(2));
+                    console.log('[EMAIL_FINDER] PayAsYouGo:', payasyougoCredits.toFixed(2));
+                    console.log('[EMAIL_FINDER] Total:', totalCredits.toFixed(2));
+                    
+                    currentUserPlan = {
+                        planCode: user.planCode || user.plan_code || 'free',
+                        totalCredits: totalCredits,
+                        planName: user.planName || user.plan_name || 'Free'
+                    };
+                    
+                    console.log('[EMAIL_FINDER] User data loaded:', currentUserPlan);
+                    
+                    // Update credit displays
+                    updateCreditDisplay(currentUserPlan.totalCredits);
+                    
+                    // Sidebar is updated by sidebar-loader.js automatically
+                } else {
+                    throw new Error(data.error || 'Failed to load profile');
+                }
                 
-                // Update sidebar (which also updates userCredits)
-                updateSidebar(user);
-                
-                // Store user plan - get from planCode field
-                const planCode = user.planCode || user.plan_code || 'free';
-                userPlan = planCode.split('-')[0].toLowerCase(); // Extract plan level: "platinum-monthly" → "platinum"
-                
-                console.log('User data loaded:', { 
-                    planCode: planCode,
-                    planLevel: userPlan, 
-                    credits: userCredits 
-                });
-
             } catch (error) {
-                console.error('Error loading user data:', error);
-                showError('Failed to load user data');
+                console.error('[EMAIL_FINDER] Error loading user data:', error);
+                updateCreditDisplay(0);
             }
         }
 
-        // Update sidebar with user info
-        function updateSidebar(userData) {
-            // Sidebar is now updated by sidebar-loader.js automatically
-            // Only update header credits (not in sidebar)
-            const headerCreditsEl = document.getElementById('headerCreditsNumber');
+        // Update credit display (matches messages.html)
+        function updateCreditDisplay(credits) {
+            const creditsValue = Math.max(0, parseFloat(credits) || 0);
+            const formattedCredits = creditsValue.toFixed(2);
             
-            // Calculate total credits same way as sidebar-loader.js
-            const renewableCredits = parseFloat(userData.renewableCredits) || 0;
-            const payasyougoCredits = parseFloat(userData.payasyougoCredits) || 0;
-            const totalCredits = renewableCredits + payasyougoCredits;
-            
-            if (headerCreditsEl) {
-                headerCreditsEl.textContent = totalCredits.toFixed(2);
+            // Update sidebar credits
+            const sidebarCredits = document.getElementById('sidebarCreditsNumber');
+            if (sidebarCredits) {
+                sidebarCredits.textContent = formattedCredits;
             }
             
-            // Also update the global userCredits variable
-            userCredits = totalCredits;
+            // Update header credits
+            const headerCredits = document.getElementById('headerCreditsNumber');
+            if (headerCredits) {
+                headerCredits.textContent = formattedCredits;
+            }
             
-            console.log('[EMAIL-FINDER] Credits updated:', {
-                renewable: renewableCredits,
-                payasyougo: payasyougoCredits,
-                total: totalCredits
-            });
+            // Update global variable
+            if (currentUserPlan) {
+                currentUserPlan.totalCredits = creditsValue;
+            }
         }
 
         // Handle input changes
@@ -3046,17 +3384,37 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 return;
             }
 
-            // Check plan
-            if (!['silver', 'gold', 'platinum'].includes(userPlan)) {
+            console.log('[EMAIL_FINDER] Find Email clicked for URL:', url);
+            
+            // Check if user plan data is loaded
+            if (!currentUserPlan) {
+                console.log('[EMAIL_FINDER] No user plan data');
+                document.getElementById('currentPlanDisplay').textContent = 'Unknown';
                 showUpgradeModal();
                 return;
             }
-
+            
+            // Check plan - matches messages.html logic
+            const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payasyougo', 'gold-payasyougo', 'platinum-payasyougo'];
+            const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
+            
+            if (!allowedPlans.includes(userPlan)) {
+                console.log(`[EMAIL_FINDER] Plan validation failed: ${userPlan} not in allowed plans`);
+                document.getElementById('currentPlanDisplay').textContent = currentUserPlan.planName || 'Free';
+                showUpgradeModal();
+                return;
+            }
+            
             // Check credits
+            const userCredits = currentUserPlan.totalCredits || 0;
+            
             if (userCredits < 2) {
+                console.log(`[EMAIL_FINDER] Credit validation failed: ${userCredits} < 2`);
                 showInsufficientCreditsModal();
                 return;
             }
+            
+            console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
 
             // Step 1: Show credit confirmation
             showCreditConfirmation(url);
@@ -3109,6 +3467,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         // Show credit warning modal (first popup)
         function showCreditWarning(url) {
+            const userCredits = currentUserPlan ? currentUserPlan.totalCredits : 0;
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'creditWarningModal';
@@ -3120,8 +3479,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="modal-body">
                         <p><strong>This will use 2 credits</strong></p>
                         <p>Email finding and verification will consume 2 credits from your account.</p>
-                        <p>Current balance: <strong>${userCredits} credits</strong></p>
-                        <p>After search: <strong>${userCredits - 2} credits</strong></p>
+                        <p>Current balance: <strong>${userCredits.toFixed(2)} credits</strong></p>
+                        <p>After search: <strong>${(userCredits - 2).toFixed(2)} credits</strong></p>
                     </div>
                     <div class="modal-actions">
                         <button class="modal-btn secondary" onclick="closeCreditWarning()">Cancel</button>
@@ -3134,6 +3493,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         // Show duplicate warning modal (second popup)
         function showDuplicateWarning(url, lastSearch) {
+            const userCredits = currentUserPlan ? currentUserPlan.totalCredits : 0;
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'duplicateWarningModal';
@@ -3151,7 +3511,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <p>Email found: <strong>${lastSearch.email || 'Not found'}</strong></p>
                         <br>
                         <p>Searching again will use <strong>2 more credits</strong>.</p>
-                        <p>Current balance: <strong>${userCredits} credits</strong></p>
+                        <p>Current balance: <strong>${userCredits.toFixed(2)} credits</strong></p>
                     </div>
                     <div class="modal-actions">
                         <button class="modal-btn secondary" onclick="closeDuplicateWarning()">Cancel</button>
@@ -3219,13 +3579,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 // Success!
                 showSuccess('Email found successfully!');
                 
-                // Update credits display in header and refresh sidebar
-                userCredits = data.creditsRemaining;
-                document.getElementById('headerCreditsNumber').textContent = userCredits;
-                
-                // Refresh sidebar credits (handled by sidebar-loader.js)
-                if (window.refreshSidebarCredits) {
-                    await window.refreshSidebarCredits();
+                // Update credits using updateCreditDisplay like messages.html
+                if (data.creditsRemaining !== undefined) {
+                    updateCreditDisplay(data.creditsRemaining);
                 }
                 
                 // Clear input
@@ -3256,10 +3612,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             try {
                 const token = localStorage.getItem('authToken');
-                if (!token) {
-                    throw new Error('Not authenticated');
-                }
-
                 const response = await fetch(`/api/email-finder-page/history?sort=${currentSort}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -3267,12 +3619,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 });
 
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        // Token expired, redirect to login
-                        window.location.href = '/login?returnUrl=/email-finder';
-                        return;
-                    }
-                    throw new Error(`Server error: ${response.status}`);
+                    throw new Error('Failed to load history');
                 }
 
                 const data = await response.json();
@@ -3292,10 +3639,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 console.error('Error loading history:', error);
                 loadingState.style.display = 'none';
                 emptyState.style.display = 'block';
-                // Only show error if it's not a redirect
-                if (error.message !== 'Not authenticated') {
-                    showError('Unable to load search history. Please try refreshing the page.');
-                }
+                showError('Failed to load search history');
             }
         }
 
@@ -3463,7 +3807,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             return div.innerHTML;
         }
 
-        // logout() now handled by sidebar-loader.js
+        // Logout function
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        }
 
         // Add CSS animation
         const style = document.createElement('style');
@@ -3481,8 +3829,5 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         `;
         document.head.appendChild(style);
     </script>
-
-    <!-- Load Shared Sidebar -->
-    <script src="/sidebar-loader.js"></script>
 </body>
 </html>
