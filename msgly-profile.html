@@ -1266,14 +1266,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function populateProfile() {
-            // Update sidebar user info
-            const nameData = extractFirstLastName(currentProfileData);
-            const displayName = nameData.firstName || currentUserData.displayName || currentUserData.email;
-            document.getElementById('sidebarUserName').textContent = displayName;
-            document.getElementById('sidebarUserEmail').textContent = currentUserData.email;
-            document.getElementById('sidebarUserPlan').textContent = currentUserData.plan || 'Free Plan';
-            const sidebarInitials = getInitials(displayName);
-            document.getElementById('sidebarUserAvatar').textContent = sidebarInitials;
+            // Sidebar is now updated by sidebar-loader.js automatically
+            // Keeping this code commented for reference:
+            // const nameData = extractFirstLastName(currentProfileData);
+            // const displayName = nameData.firstName || currentUserData.displayName || currentUserData.email;
+            // document.getElementById('sidebarUserName').textContent = displayName;
+            // document.getElementById('sidebarUserEmail').textContent = currentUserData.email;
+            // document.getElementById('sidebarUserPlan').textContent = currentUserData.plan || 'Free Plan';
 
             // Populate each section
             populateBasicInfo();
@@ -2101,7 +2100,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             document.getElementById('errorState').style.display = 'block';
         }
 
-        // Navigation functions
+        // Navigation functions (toggleSidebar and logout now handled by sidebar-loader.js)
+
         function showComingSoon(feature) {
             alert(`${feature} section coming soon!`);
         }
