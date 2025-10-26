@@ -3455,6 +3455,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </div>
             `;
             document.body.appendChild(modal);
+            // Add active class to make modal visible (matches messages.html CSS)
+            setTimeout(() => modal.classList.add('active'), 10);
         }
 
         // Show duplicate warning modal (second popup)
