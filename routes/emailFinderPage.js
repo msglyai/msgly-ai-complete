@@ -12,9 +12,13 @@ const logger = require('../utils/logger');
 const { findEmailWithLinkedInUrl, isEmailFinderEnabled } = require('../emailFinder');
 const { verifyEmail } = require('../emailVerifier');
 
-// Import credit system
-const CreditManager = require('../credits');
-const creditManager = new CreditManager();
+// Import credit system functions (not a class)
+const {
+    checkCredits,
+    createHold,
+    releaseHold,
+    completeOperation
+} = require('../credits');
 
 // ==================== MIDDLEWARE ====================
 
@@ -62,7 +66,7 @@ async function checkPlanAccess(req, res, next) {
 // Check if user has enough credits
 async function checkCreditAvailability(req, res, next) {
     try {
-        const creditCheck = await creditManager.checkCredits(req.user.id, 'email_verification');
+        const creditCheck = await checkCredits(req.user.id, 'email_verification');
 
         if (!creditCheck.success) {
             return res.status(500).json({
@@ -183,7 +187,7 @@ router.post('/search', authenticateToken, checkPlanAccess, checkCreditAvailabili
         logger.info(`[EMAIL_FINDER_PAGE] User ID: ${req.user.id}, Plan: ${req.userPlan}`);
 
         // Step 1: Create credit hold
-        const holdResult = await creditManager.createHold(
+        const holdResult = await createHold(
             req.user.id,
             'email_verification',
             {
@@ -208,7 +212,7 @@ router.post('/search', authenticateToken, checkPlanAccess, checkCreditAvailabili
 
             if (!emailResult.success) {
                 // Release hold on failure
-                await creditManager.releaseHold(req.user.id, holdResult.holdId);
+                await releaseHold(req.user.id, holdResult.holdId);
                 
                 return res.status(400).json({
                     success: false,
@@ -221,7 +225,7 @@ router.post('/search', authenticateToken, checkPlanAccess, checkCreditAvailabili
             logger.success(`[EMAIL_FINDER_PAGE] Email found: ${emailResult.email}`);
 
             // Step 3: Complete operation and deduct credits
-            const completeResult = await creditManager.completeOperation(
+            const completeResult = await completeOperation(
                 req.user.id,
                 holdResult.holdId,
                 {
@@ -304,7 +308,7 @@ router.post('/search', authenticateToken, checkPlanAccess, checkCreditAvailabili
 
         } catch (error) {
             // Release hold on error
-            await creditManager.releaseHold(req.user.id, holdResult.holdId);
+            await releaseHold(req.user.id, holdResult.holdId);
             throw error;
         }
 
