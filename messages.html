@@ -3622,20 +3622,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                 case 'not_found':
                     return `<div class="email-content-box" data-status="not_found">
-                        <div class="email-address-row" style="margin-bottom: 0.8rem;">
-                            <i class="fas fa-search" style="color: #EF4444; font-size: 1.2rem;"></i>
-                            <span class="email-text" style="flex: none; font-size: 0.9rem; font-weight: 500; color: #374151;">Email not found in Snov.io database</span>
-                        </div>
-                        <div class="email-address-row" style="margin-bottom: 0.6rem;">
+                        <div class="email-address-row">
+                            <i class="fas fa-search"></i>
+                            <span class="email-text">Email not found</span>
                             <span class="verified-check invalid"><i class="fas fa-times-circle"></i> Not Found</span>
                         </div>
                         <div class="email-status-info">
                             <span class="email-searched-date">
-                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate || 'Recently'}
+                                <i class="fas fa-calendar-alt"></i> Searched: ${verifiedDate}
                             </span>
                         </div>
                         <div class="email-buttons-row">
-                            <button class="email-btn-new" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)" style="background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple)); color: white; border: none; width: 100%;">
+                            <button class="email-btn-new" onclick="askEmailClick(${messageGroup.id})" title="Search again (2 credits)" style="background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple)); color: white; border: none; width: 100%;">
                                 <i class="fas fa-search"></i> Search Again
                             </button>
                         </div>
