@@ -77,9 +77,10 @@ class EmailFinderForPage {
                     job_title, 
                     company, 
                     email, 
-                    verification_status, 
-                    searched_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+                    verification_status,
+                    search_date,
+                    credits_used
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, 2)
                 RETURNING id, full_name, email, verification_status
             `, [
                 userId,
@@ -90,7 +91,7 @@ class EmailFinderForPage {
                 profileData.jobTitle || null,
                 profileData.company || null,
                 profileData.email || null,
-                profileData.verificationStatus || 'unknown'
+                profileData.verificationStatus || 'pending'
             ]);
             
             logger.success(`[EMAIL_FINDER_PAGE] ✅ Saved to email_finder_searches:`, result.rows[0]);
@@ -125,7 +126,7 @@ class EmailFinderForPage {
     async checkDuplicateSearch(userId, linkedinUrl) {
         try {
             const result = await pool.query(`
-                SELECT id, email, verification_status, searched_at 
+                SELECT id, email, verification_status, search_date 
                 FROM email_finder_searches 
                 WHERE user_id = $1 AND linkedin_url = $2
                 LIMIT 1
@@ -248,7 +249,7 @@ class EmailFinderForPage {
                     logger.success(`[EMAIL_FINDER_PAGE] ✅ Search complete (${this.costPerSearch} credits charged)`);
 
                     // Wait for email verification if email found
-                    let verificationStatus = profileData.verificationStatus || 'unknown';
+                    let verificationStatus = profileData.verificationStatus || 'pending';
                     if (profileData.email) {
                         try {
                             const { emailVerifier } = require('./emailVerifier');
