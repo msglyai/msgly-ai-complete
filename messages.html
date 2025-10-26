@@ -3361,7 +3361,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
             
             const emailAddress = messageGroup.emailFound || target.email || '';
-            const hasEmailStatus = messageGroup.emailStatus && messageGroup.emailStatus !== 'not_found' && messageGroup.emailStatus !== 'error';
+            const hasEmailStatus = messageGroup.emailStatus && messageGroup.emailStatus !== 'none';
             
             card.innerHTML = `
                 <!-- SECTION 1: TARGET PROFILE INFO -->
@@ -3389,7 +3389,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <span class="snov-powered">Powered by Snov.io</span>
                     </div>
                     <div class="email-section-content">
-                        ${hasEmailStatus && emailAddress ? createEmailVerificationDisplay(messageGroup) : createEmailFinderButton(messageGroup)}
+                        ${hasEmailStatus ? createEmailVerificationDisplay(messageGroup) : createEmailFinderButton(messageGroup)}
                     </div>
                 </div>
 
