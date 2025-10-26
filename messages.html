@@ -1987,7 +1987,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: #374151;
             white-space: pre-wrap;
             margin-bottom: 1rem;
-            text-align: left;
+            text-align: left !important;
             word-wrap: break-word;
             overflow-wrap: break-word;
             word-break: break-word;
@@ -2009,6 +2009,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             word-wrap: break-word;
             overflow-wrap: break-word;
             word-break: break-word;
+            text-align: left !important;
         }
 
         .history-item-actions {
@@ -3621,9 +3622,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     
                 case 'not_found':
                     return `<div class="email-content-box" data-status="not_found">
-                        <div class="email-address-row">
-                            <span class="email-text">Email not found</span>
-                            <span class="verified-check invalid"><i class="fas fa-minus-circle"></i> Not Found</span>
+                        <div class="email-address-row" style="margin-bottom: 0.8rem;">
+                            <i class="fas fa-search" style="color: #EF4444; font-size: 1.2rem;"></i>
+                            <span class="email-text" style="flex: none; font-size: 0.9rem; font-weight: 500; color: #374151;">Email not found in Snov.io database</span>
+                        </div>
+                        <div class="email-address-row" style="margin-bottom: 0.6rem;">
+                            <span class="verified-check invalid"><i class="fas fa-times-circle"></i> Not Found</span>
                         </div>
                         <div class="email-status-info">
                             <span class="email-searched-date">
@@ -3631,8 +3635,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             </span>
                         </div>
                         <div class="email-buttons-row">
-                            <button class="email-btn-new search-again" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)">
-                                <i class="fas fa-redo"></i> Try Again
+                            <button class="email-btn-new" onclick="askEmailClick(${messageGroup.id})" title="Try again (2 credits)" style="background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple)); color: white; border: none; width: 100%;">
+                                <i class="fas fa-search"></i> Search Again
                             </button>
                         </div>
                     </div>`;
