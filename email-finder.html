@@ -2936,10 +2936,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     return;
                 }
 
-                // Get user profile
-                const response = await fetch('/api/auth/profile', {
+                // Get user profile (same endpoint as sidebar-loader.js)
+                const response = await fetch('/profile', {
+                    method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
