@@ -217,6 +217,40 @@
             color: rgba(255, 255, 255, 0.8);
         }
 
+        /* Upgrade Button Special Styling */
+        .upgrade-section {
+            display: none; /* Hidden by default, shown only for free users */
+        }
+
+        .upgrade-btn {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, var(--warning-orange) 100%) !important;
+            color: var(--white) !important;
+            margin: 0 1rem !important;
+            border-radius: 12px !important;
+            box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3) !important;
+            animation: upgradePulse 2s infinite;
+            font-weight: 600 !important;
+        }
+
+        .upgrade-btn:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(255, 35, 112, 0.5) !important;
+            background: linear-gradient(135deg, var(--warning-orange) 0%, var(--accent-pink) 100%) !important;
+        }
+
+        .upgrade-btn i {
+            font-size: 1.2rem !important;
+        }
+
+        @keyframes upgradePulse {
+            0%, 100% { 
+                box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3);
+            }
+            50% { 
+                box-shadow: 0 4px 15px rgba(255, 35, 112, 0.6);
+            }
+        }
+
         .sidebar-footer {
             position: absolute;
             bottom: 0;
@@ -337,6 +371,15 @@
                     <i class="fas fa-chart-line"></i>
                     <span class="nav-item-text">Analytics</span>
                     <span class="nav-badge soon">Soon</span>
+                </a>
+            </div>
+
+            <!-- Upgrade Section (Only shown for free users) -->
+            <div class="nav-section upgrade-section" id="upgradeSection">
+                <a href="https://api.msgly.ai/upgrade" class="nav-item upgrade-btn">
+                    <i class="fas fa-rocket"></i>
+                    <span class="nav-item-text">Upgrade Plan</span>
+                    <span class="nav-badge new">New</span>
                 </a>
             </div>
 
