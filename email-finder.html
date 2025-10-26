@@ -2639,7 +2639,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .linkedin-url-input {
             width: 100%;
             padding: 1rem 3rem 1rem 3rem;
-            border: 2px solid var(--light-gray);
+            border: 2px solid var(--primary-purple);
             border-radius: 12px;
             font-size: 1rem;
             transition: all 0.3s ease;
@@ -3570,6 +3570,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             try {
                 const token = localStorage.getItem('authToken');
+                if (!token) {
+                    throw new Error('Not authenticated');
+                }
+
                 const response = await fetch(`/api/email-finder-page/history?sort=${currentSort}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -3577,7 +3581,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to load history');
+                    if (response.status === 401) {
+                        // Token expired, redirect to login
+                        window.location.href = '/login?returnUrl=/email-finder';
+                        return;
+                    }
+                    throw new Error(`Server error: ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -3597,7 +3606,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 console.error('Error loading history:', error);
                 loadingState.style.display = 'none';
                 emptyState.style.display = 'block';
-                showError('Failed to load search history');
+                // Only show error if it's not a redirect
+                if (error.message !== 'Not authenticated') {
+                    showError('Unable to load search history. Please try refreshing the page.');
+                }
             }
         }
 
