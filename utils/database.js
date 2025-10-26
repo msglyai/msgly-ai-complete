@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + EMAIL REQUESTS
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + EMAIL REQUESTS + EMAIL FINDER SEARCHES
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -187,6 +187,61 @@ const ensureEmailRequestsTable = async () => {
         
     } catch (error) {
         console.error('[ERROR] Failed to ensure email_requests table:', error);
+        throw error;
+    }
+};
+
+// 🆕 NEW: Ensure email_finder_searches table exists (standalone email finder page)
+const ensureEmailFinderSearchesTable = async () => {
+    try {
+        console.log('[INIT] Creating email_finder_searches table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS email_finder_searches (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                linkedin_url TEXT NOT NULL,
+                
+                -- Data from Snov.io
+                full_name TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                job_title TEXT,
+                company TEXT,
+                email TEXT,
+                
+                -- Verification status (from emailVerifier.js)
+                verification_status TEXT DEFAULT 'pending',
+                verification_reason TEXT,
+                
+                -- Metadata
+                search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                credits_used INTEGER DEFAULT 2,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_email_finder_user_id 
+                ON email_finder_searches(user_id);
+                CREATE INDEX IF NOT EXISTS idx_email_finder_search_date 
+                ON email_finder_searches(search_date DESC);
+                CREATE INDEX IF NOT EXISTS idx_email_finder_linkedin_url 
+                ON email_finder_searches(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_email_finder_user_url 
+                ON email_finder_searches(user_id, linkedin_url);
+            `);
+            console.log('[SUCCESS] Created email_finder_searches indexes');
+        } catch (err) {
+            console.log('[INFO] Email finder searches indexes might already exist:', err.message);
+        }
+        
+        console.log('[SUCCESS] email_finder_searches table ensured');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure email_finder_searches table:', error);
         throw error;
     }
 };
@@ -1136,6 +1191,9 @@ const initDB = async () => {
         
         // 🆕 NEW: EMAIL_REQUESTS TABLE for per-user email visibility
         await ensureEmailRequestsTable();
+        
+        // ✅ NEW: Ensure email_finder_searches table exists (standalone email finder page)
+        await ensureEmailFinderSearchesTable();
         
         // ✅ NEW: CONTEXT ADDON TABLES for extra slot subscriptions
         await ensureContextAddonTables();
@@ -2601,6 +2659,8 @@ module.exports = {
     ensureContextAddonTables, // ✅ NEW: Context addon tables function
     ensurePendingRegistrationsTable,
     ensureAdminAuditTable, // 🔒 NEW: Admin audit table function
+    ensureEmailRequestsTable, // 📧 NEW: Email requests table function
+    ensureEmailFinderSearchesTable, // 🔍 NEW: Email finder searches table function
     fixPromptVersionColumn,
     initializeContextSlots, // 🆕 NEW: Initialize context slots function
     setupInitialAdmin, // 🔒 NEW: Secure initial admin setup function
