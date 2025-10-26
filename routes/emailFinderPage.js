@@ -12,13 +12,8 @@ const logger = require('../utils/logger');
 const { findEmailWithLinkedInUrl, isEmailFinderEnabled } = require('../emailFinder');
 const { verifyEmail } = require('../emailVerifier');
 
-// Import credit system functions (not a class)
-const {
-    checkCredits,
-    createHold,
-    releaseHold,
-    completeOperation
-} = require('../credits');
+// Note: Credit management is handled inside findEmailWithLinkedInUrl()
+// No need to import credit functions here
 
 // ==================== MIDDLEWARE ====================
 
@@ -63,42 +58,8 @@ async function checkPlanAccess(req, res, next) {
     }
 }
 
-// Check if user has enough credits
-async function checkCreditAvailability(req, res, next) {
-    try {
-        const creditCheck = await checkCredits(req.user.id, 'email_verification');
-
-        if (!creditCheck.success) {
-            return res.status(500).json({
-                success: false,
-                error: 'credit_check_failed',
-                message: 'Failed to check credits'
-            });
-        }
-
-        if (!creditCheck.hasCredits) {
-            return res.status(403).json({
-                success: false,
-                error: 'insufficient_credits',
-                message: 'Not enough credits',
-                creditsNeeded: creditCheck.requiredCredits,
-                creditsAvailable: creditCheck.currentCredits,
-                renewableCredits: creditCheck.renewableCredits,
-                payasyougoCredits: creditCheck.payasyougoCredits
-            });
-        }
-
-        req.creditInfo = creditCheck;
-        next();
-    } catch (error) {
-        logger.error('[EMAIL_FINDER_PAGE] Credit check error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'server_error',
-            message: 'Failed to check credits'
-        });
-    }
-}
+// Note: Credit checking is done inside findEmailWithLinkedInUrl()
+// No separate middleware needed
 
 // ==================== API ENDPOINTS ====================
 
@@ -171,7 +132,7 @@ router.get('/check-duplicate', authenticateToken, checkPlanAccess, async (req, r
 });
 
 // POST /api/email-finder-page/search - Search for email by LinkedIn URL
-router.post('/search', authenticateToken, checkPlanAccess, checkCreditAvailability, async (req, res) => {
+router.post('/search', authenticateToken, checkPlanAccess, async (req, res) => {
     try {
         const { linkedin_url } = req.body;
 
@@ -186,131 +147,91 @@ router.post('/search', authenticateToken, checkPlanAccess, checkCreditAvailabili
         logger.info(`[EMAIL_FINDER_PAGE] Starting email search for URL: ${linkedin_url}`);
         logger.info(`[EMAIL_FINDER_PAGE] User ID: ${req.user.id}, Plan: ${req.userPlan}`);
 
-        // Step 1: Create credit hold
-        const holdResult = await createHold(
-            req.user.id,
-            'email_verification',
-            {
-                linkedin_url: linkedin_url,
-                source: 'email_finder_page'
-            }
-        );
+        // Call email finder (handles credits internally)
+        const emailResult = await findEmailWithLinkedInUrl(req.user.id, linkedin_url);
 
-        if (!holdResult.success) {
-            return res.status(403).json({
+        if (!emailResult.success) {
+            logger.warn(`[EMAIL_FINDER_PAGE] Email finder failed: ${emailResult.error}`);
+            return res.status(400).json({
                 success: false,
-                error: holdResult.error,
-                message: holdResult.userMessage || 'Failed to hold credits'
+                error: 'email_finder_failed',
+                message: emailResult.error || 'Failed to find email',
+                details: emailResult
             });
         }
 
-        logger.info(`[EMAIL_FINDER_PAGE] Credit hold created: ${holdResult.holdId}`);
-
-        try {
-            // Step 2: Call email finder (existing service)
-            const emailResult = await findEmailWithLinkedInUrl(linkedin_url, req.user.id);
-
-            if (!emailResult.success) {
-                // Release hold on failure
-                await releaseHold(req.user.id, holdResult.holdId);
-                
-                return res.status(400).json({
-                    success: false,
-                    error: 'email_finder_failed',
-                    message: emailResult.error || 'Failed to find email',
-                    details: emailResult
-                });
-            }
-
-            logger.success(`[EMAIL_FINDER_PAGE] Email found: ${emailResult.email}`);
-
-            // Step 3: Complete operation and deduct credits
-            const completeResult = await completeOperation(
-                req.user.id,
-                holdResult.holdId,
-                {
-                    email: emailResult.email,
-                    firstName: emailResult.firstName,
-                    lastName: emailResult.lastName,
-                    success: true
-                }
-            );
-
-            if (!completeResult.success) {
-                logger.error('[EMAIL_FINDER_PAGE] Failed to complete credit deduction:', completeResult.error);
-                // Continue anyway - email was found
-            }
-
-            // Step 4: Save to email_finder_searches table
-            const saveResult = await pool.query(`
-                INSERT INTO email_finder_searches (
-                    user_id,
-                    linkedin_url,
-                    full_name,
-                    first_name,
-                    last_name,
-                    job_title,
-                    company,
-                    email,
-                    verification_status,
-                    search_date,
-                    credits_used
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 2)
-                RETURNING id, search_date
-            `, [
-                req.user.id,
-                linkedin_url,
-                emailResult.fullName || `${emailResult.firstName || ''} ${emailResult.lastName || ''}`.trim(),
-                emailResult.firstName,
-                emailResult.lastName,
-                emailResult.position || emailResult.jobTitle,
-                emailResult.company,
-                emailResult.email,
-                'pending' // Will be updated by emailVerifier.js automatically
-            ]);
-
-            const searchId = saveResult.rows[0].id;
-            const searchDate = saveResult.rows[0].search_date;
-
-            logger.success(`[EMAIL_FINDER_PAGE] Search saved to database: ID ${searchId}`);
-
-            // Step 5: Get updated credit balance
-            const creditsResult = await pool.query(`
-                SELECT 
-                    COALESCE(renewable_credits, 0) + COALESCE(payasyougo_credits, 0) as total_credits
-                FROM users
-                WHERE id = $1
-            `, [req.user.id]);
-
-            const creditsRemaining = parseFloat(creditsResult.rows[0]?.total_credits || 0);
-
-            // Step 6: Email verification will be triggered automatically by emailVerifier.js
-            // We'll update the verification status asynchronously
-
-            // Return success response
+        if (!emailResult.email) {
+            logger.warn('[EMAIL_FINDER_PAGE] No email found');
             return res.json({
-                success: true,
-                data: {
-                    id: searchId,
-                    linkedinUrl: linkedin_url,
-                    fullName: emailResult.fullName || `${emailResult.firstName || ''} ${emailResult.lastName || ''}`.trim(),
-                    firstName: emailResult.firstName,
-                    lastName: emailResult.lastName,
-                    jobTitle: emailResult.position || emailResult.jobTitle,
-                    company: emailResult.company,
-                    email: emailResult.email,
-                    verificationStatus: 'pending', // Will be updated by emailVerifier.js
-                    searchDate: searchDate
-                },
-                creditsUsed: 2,
-                creditsRemaining: creditsRemaining
+                success: false,
+                error: 'email_not_found',
+                message: 'No email found for this LinkedIn profile'
             });
-
-        } catch (error) {
-            // Release hold on error
-            await releaseHold(req.user.id, holdResult.holdId);
-            throw error;
         }
+
+        logger.success(`[EMAIL_FINDER_PAGE] Email found: ${emailResult.email}`);
+
+        // Save to email_finder_searches table
+        const saveResult = await pool.query(`
+            INSERT INTO email_finder_searches (
+                user_id,
+                linkedin_url,
+                full_name,
+                first_name,
+                last_name,
+                job_title,
+                company,
+                email,
+                verification_status,
+                search_date,
+                credits_used
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 2)
+            RETURNING id, search_date
+        `, [
+            req.user.id,
+            linkedin_url,
+            emailResult.fullName || `${emailResult.firstName || ''} ${emailResult.lastName || ''}`.trim(),
+            emailResult.firstName,
+            emailResult.lastName,
+            emailResult.position || emailResult.jobTitle,
+            emailResult.company,
+            emailResult.email,
+            'pending' // Will be updated by emailVerifier.js automatically
+        ]);
+
+        const searchId = saveResult.rows[0].id;
+        const searchDate = saveResult.rows[0].search_date;
+
+        logger.success(`[EMAIL_FINDER_PAGE] Search saved to database: ID ${searchId}`);
+
+        // Get updated credit balance
+        const creditsResult = await pool.query(`
+            SELECT 
+                COALESCE(renewable_credits, 0) + COALESCE(payasyougo_credits, 0) as total_credits
+            FROM users
+            WHERE id = $1
+        `, [req.user.id]);
+
+        const creditsRemaining = parseFloat(creditsResult.rows[0]?.total_credits || 0);
+
+        // Return success response
+        return res.json({
+            success: true,
+            data: {
+                id: searchId,
+                linkedinUrl: linkedin_url,
+                fullName: emailResult.fullName || `${emailResult.firstName || ''} ${emailResult.lastName || ''}`.trim(),
+                firstName: emailResult.firstName,
+                lastName: emailResult.lastName,
+                jobTitle: emailResult.position || emailResult.jobTitle,
+                company: emailResult.company,
+                email: emailResult.email,
+                verificationStatus: 'pending', // Will be updated by emailVerifier.js
+                searchDate: searchDate
+            },
+            creditsUsed: emailResult.creditsCharged || 2,
+            creditsRemaining: creditsRemaining
+        });
 
     } catch (error) {
         logger.error('[EMAIL_FINDER_PAGE] Search error:', error);
