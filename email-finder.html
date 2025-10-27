@@ -2639,16 +2639,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .linkedin-url-input {
             width: 100%;
             padding: 1rem 3rem 1rem 3rem;
-            border: 2px solid var(--light-gray);
+            border: 2px solid #d1d5db; /* Always visible gray border */
             border-radius: 12px;
             font-size: 1rem;
             transition: all 0.3s ease;
+            background-color: #ffffff;
         }
 
         .linkedin-url-input:focus {
             outline: none;
             border-color: var(--primary-purple);
             box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
+        }
+
+        .linkedin-url-input:hover {
+            border-color: #9ca3af; /* Darker gray on hover */
         }
 
         .clear-btn {
