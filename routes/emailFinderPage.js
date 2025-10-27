@@ -87,8 +87,8 @@ router.get('/history', authenticateToken, async (req, res) => {
 
         logger.info(`[EMAIL_FINDER_PAGE_ROUTE] Getting history - User: ${userId}, Sort: ${sort}`);
 
-        // Determine sort order
-        const orderBy = sort === 'oldest_first' ? 'searched_at ASC' : 'searched_at DESC';
+        // Determine sort order using search_date
+        const orderBy = sort === 'oldest_first' ? 'search_date ASC' : 'search_date DESC';
 
         const result = await pool.query(`
             SELECT 
@@ -101,7 +101,7 @@ router.get('/history', authenticateToken, async (req, res) => {
                 company,
                 email,
                 verification_status,
-                searched_at
+                search_date
             FROM email_finder_searches
             WHERE user_id = $1
             ORDER BY ${orderBy}
@@ -146,7 +146,7 @@ router.post('/check-duplicate', authenticateToken, async (req, res) => {
                 full_name,
                 email,
                 verification_status,
-                searched_at
+                search_date
             FROM email_finder_searches
             WHERE user_id = $1 AND linkedin_url = $2
             LIMIT 1
