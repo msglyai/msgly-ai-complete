@@ -213,6 +213,11 @@
         }
 
         .nav-badge.soon {
+            background: var(--success-green);
+            color: var(--white);
+        }
+
+        .nav-badge.premium {
             background: rgba(255, 255, 255, 0.2);
             color: rgba(255, 255, 255, 0.8);
         }
@@ -363,10 +368,13 @@
                 <a href="https://api.msgly.ai/target-profiles" class="nav-item" data-page="target-profiles">
                     <i class="fas fa-bullseye"></i>
                     <span class="nav-item-text">Target Profiles</span>
+                    <span class="nav-badge new" id="targetProfilesBadge" style="display: none;">New</span>
                 </a>
                 <a href="https://api.msgly.ai/email-finder" class="nav-item" data-page="email-finder">
                     <i class="fas fa-search"></i>
                     <span class="nav-item-text">Email Finder</span>
+                    <span class="nav-badge new" id="emailFinderNewBadge" style="display: none;">New</span>
+                    <span class="nav-badge premium" id="emailFinderPremiumBadge" style="display: none;">Silver+</span>
                 </a>
                 <a href="#" class="nav-item" data-page="analytics" onclick="alert('Analytics coming soon!'); return false;">
                     <i class="fas fa-chart-line"></i>
