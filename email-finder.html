@@ -2925,9 +2925,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--success-green);
         }
 
-        .verification-badge.invalid {
+        .verification-badge.invalid,
+        .verification-badge.not_valid {
             background: rgba(239, 68, 68, 0.1);
             color: var(--error-red);
+        }
+
+        .verification-badge.catch_all {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-orange);
         }
 
         .verification-badge.unknown {
@@ -2936,6 +2942,27 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .verification-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-orange);
+        }
+
+        .verification-badge.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-red);
+        }
+
+        .verification-badge.verified {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-green);
+        }
+
+        .verification-badge.not-found,
+        .verification-badge.not_found {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-red);
+        }
+
+        .verification-badge.found {
             background: rgba(245, 158, 11, 0.1);
             color: var(--warning-orange);
         }
