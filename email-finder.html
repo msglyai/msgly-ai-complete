@@ -3307,7 +3307,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     // Update credit displays
                     updateCreditDisplay(currentUserPlan.totalCredits);
                     
-                    // Sidebar is updated by sidebar-loader.js automatically
+                    // Update sidebar user info
+                    const sidebarUserName = document.getElementById('sidebarUserName');
+                    const sidebarUserEmail = document.getElementById('sidebarUserEmail');
+                    const sidebarUserPlan = document.getElementById('sidebarUserPlan');
+                    
+                    if (sidebarUserName) {
+                        sidebarUserName.textContent = user.name || user.email || 'User';
+                    }
+                    if (sidebarUserEmail) {
+                        sidebarUserEmail.textContent = user.email || '';
+                    }
+                    if (sidebarUserPlan) {
+                        sidebarUserPlan.textContent = currentUserPlan.planName;
+                    }
                 } else {
                     throw new Error(data.error || 'Failed to load profile');
                 }
