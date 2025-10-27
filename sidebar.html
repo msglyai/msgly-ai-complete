@@ -121,14 +121,14 @@
         /* Plan Badge */
         .sidebar-user-plan-badge {
             flex: 1;
-            font-size: 0.65rem;
+            font-size: 0.7rem;
             font-weight: 700;
             padding: 0.5rem 0.75rem;
             background: linear-gradient(135deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 165, 0, 0.2) 100%);
             border-radius: 8px;
             display: flex;
             align-items: center;
-            gap: 0.4rem;
+            justify-content: center;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 215, 0, 0.3);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -137,12 +137,6 @@
             text-overflow: ellipsis;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-        }
-
-        .sidebar-user-plan-badge i {
-            font-size: 0.8rem;
-            color: #FFD700;
-            filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
         }
 
         /* Credits Badge */
@@ -402,7 +396,6 @@
                     <!-- Side-by-side Badges -->
                     <div class="sidebar-user-badges">
                         <div class="sidebar-user-plan-badge" id="sidebarUserPlan">
-                            <i class="fas fa-crown"></i>
                             <span id="sidebarPlanText">Loading...</span>
                         </div>
                         <div class="sidebar-user-credits" id="sidebarUserCredits">
