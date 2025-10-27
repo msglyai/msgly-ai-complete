@@ -221,6 +221,49 @@
                 console.log('[SIDEBAR] Hiding upgrade button for paid user:', userData.planCode);
             }
         }
+        
+        // Update feature badges based on plan
+        updateFeatureBadges(userData.planCode);
+    }
+
+    /**
+     * Update feature badges based on user plan
+     * Free users: Show "Silver+" badge on Email Finder, "NEW" on Target Profiles
+     * Paid users: Show "NEW" badge on both features
+     */
+    function updateFeatureBadges(planCode) {
+        const isFreeUser = planCode === 'free';
+        
+        // Target Profiles - Always show "NEW" badge for all users
+        const targetProfilesBadge = document.getElementById('targetProfilesBadge');
+        if (targetProfilesBadge) {
+            targetProfilesBadge.style.display = 'inline-block';
+            console.log('[SIDEBAR] Showing NEW badge on Target Profiles');
+        }
+        
+        // Email Finder - Show different badges based on plan
+        const emailFinderNewBadge = document.getElementById('emailFinderNewBadge');
+        const emailFinderPremiumBadge = document.getElementById('emailFinderPremiumBadge');
+        
+        if (isFreeUser) {
+            // Free users: Show "Silver+" badge
+            if (emailFinderNewBadge) {
+                emailFinderNewBadge.style.display = 'none';
+            }
+            if (emailFinderPremiumBadge) {
+                emailFinderPremiumBadge.style.display = 'inline-block';
+                console.log('[SIDEBAR] Showing Silver+ badge on Email Finder for free user');
+            }
+        } else {
+            // Paid users: Show "NEW" badge
+            if (emailFinderNewBadge) {
+                emailFinderNewBadge.style.display = 'inline-block';
+                console.log('[SIDEBAR] Showing NEW badge on Email Finder for paid user');
+            }
+            if (emailFinderPremiumBadge) {
+                emailFinderPremiumBadge.style.display = 'none';
+            }
+        }
     }
 
     /**
