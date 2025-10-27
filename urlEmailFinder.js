@@ -3,12 +3,13 @@
 // API: Snov.io v2 LinkedIn Profile Enrichment + v2 Email Finder (2 separate calls)
 // Database: Saves to email_finder_searches table (not target_profiles)
 // Credits: ALWAYS 2 credits per search (managed internally)
-// Version: 2.0.0 - Fixed to use correct 2-API-call approach
+// Version: 2.1.0 - Added automatic email verification trigger (urlEmailVerifier)
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
 const logger = require('./utils/logger');
 const axios = require('axios');
+const { verifyEmailForUrlFinder } = require('./urlEmailVerifier');
 
 class EmailFinderForPage {
     constructor() {
@@ -300,6 +301,19 @@ class EmailFinderForPage {
             logger.info(`[EMAIL_FINDER_PAGE] 💳 Completing credit operation - Hold ID: ${creditHoldId}`);
             await completeOperation(creditHoldId);
             logger.success('[EMAIL_FINDER_PAGE] ✅ Credits charged: 2 credits');
+
+            // Trigger email verification in background (if email was found)
+            if (completeData.email) {
+                logger.info('[EMAIL_FINDER_PAGE] 🔍 Triggering background email verification...');
+                // Don't await - let it run in background
+                verifyEmailForUrlFinder(completeData.email, userId, linkedinUrl)
+                    .then(result => {
+                        logger.success('[EMAIL_FINDER_PAGE] ✅ Background verification completed:', result.status);
+                    })
+                    .catch(err => {
+                        logger.warn('[EMAIL_FINDER_PAGE] ⚠️ Background verification failed:', err.message);
+                    });
+            }
 
             // Return success with complete data
             return {
