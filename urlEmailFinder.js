@@ -354,6 +354,9 @@ class EmailFinderForPage {
             
             // Step 1: Start profile enrichment
             logger.info('[EMAIL_FINDER_PAGE] 📤 Step 1: Starting profile enrichment...');
+            console.log('[DEBUG] 🔍 Calling Snov.io START endpoint:', `${this.snovBaseUrl}/v2/li-profiles-by-urls/start`);
+            console.log('[DEBUG] 🔍 Request body:', { 'urls[]': [linkedinUrl] });
+            
             const startResponse = await axios.post(
                 `${this.snovBaseUrl}/v2/li-profiles-by-urls/start`,
                 {
@@ -369,19 +372,30 @@ class EmailFinderForPage {
             );
             
             logger.success('[EMAIL_FINDER_PAGE] ✅ Step 1 complete: Enrichment started');
+            console.log('[DEBUG] 🔍 START Response - Full object:', JSON.stringify(startResponse.data, null, 2));
             logger.debug('[EMAIL_FINDER_PAGE] Start response:', startResponse.data);
             
             const taskHash = startResponse.data?.data?.task_hash;
+            console.log('[DEBUG] 🔍 Extracted task_hash:', taskHash);
+            
             if (!taskHash) {
+                console.log('[DEBUG] ❌ No task_hash found in response!');
+                console.log('[DEBUG] 🔍 Response structure:', Object.keys(startResponse.data));
+                console.log('[DEBUG] 🔍 Response.data structure:', startResponse.data.data ? Object.keys(startResponse.data.data) : 'data is null/undefined');
                 throw new Error('No task_hash returned from Snov.io');
             }
             
             // Wait for Snov.io to process (v2 API needs more time)
             logger.info('[EMAIL_FINDER_PAGE] ⏳ Waiting 8 seconds for Snov.io to process...');
+            console.log('[DEBUG] ⏳ Starting 8-second wait...');
             await new Promise(resolve => setTimeout(resolve, 8000)); // 8 second delay
+            console.log('[DEBUG] ✅ Wait complete, fetching results...');
             
             // Step 2: Get enrichment results
             logger.info('[EMAIL_FINDER_PAGE] 📥 Step 2: Retrieving enrichment results...');
+            console.log('[DEBUG] 🔍 Calling Snov.io RESULT endpoint:', `${this.snovBaseUrl}/v2/li-profiles-by-urls/result`);
+            console.log('[DEBUG] 🔍 Query params:', { task_hash: taskHash });
+            
             const resultResponse = await axios.get(
                 `${this.snovBaseUrl}/v2/li-profiles-by-urls/result`,
                 {
@@ -394,15 +408,26 @@ class EmailFinderForPage {
             );
             
             logger.success('[EMAIL_FINDER_PAGE] ✅ Step 2 complete: Results received');
+            console.log('[DEBUG] 🔍 RESULT Response - Full object:', JSON.stringify(resultResponse.data, null, 2));
             logger.debug('[EMAIL_FINDER_PAGE] Result response:', resultResponse.data);
             
             const responseData = resultResponse.data;
+            console.log('[DEBUG] 🔍 Response data structure:', {
+                success: responseData.success,
+                hasData: !!responseData.data,
+                dataKeys: responseData.data ? Object.keys(responseData.data) : 'no data',
+                status: responseData.data?.status
+            });
             
             // Check if processing is complete
             if (responseData.data?.status === 'in_progress') {
                 logger.warn('[EMAIL_FINDER_PAGE] ⚠️ Still processing - need to wait longer');
+                console.log('[DEBUG] ⚠️ Status is in_progress, waiting additional 5 seconds...');
+                
                 // Wait additional time and retry
                 await new Promise(resolve => setTimeout(resolve, 5000));
+                
+                console.log('[DEBUG] 🔍 Retrying RESULT endpoint after additional wait...');
                 const retryResponse = await axios.get(
                     `${this.snovBaseUrl}/v2/li-profiles-by-urls/result`,
                     {
@@ -411,9 +436,12 @@ class EmailFinderForPage {
                         timeout: this.timeoutMs
                     }
                 );
+                
+                console.log('[DEBUG] 🔍 RETRY Response - Full object:', JSON.stringify(retryResponse.data, null, 2));
                 return this.parseProfileData(retryResponse.data);
             }
             
+            console.log('[DEBUG] ✅ Processing complete or no in_progress status, parsing data...');
             return this.parseProfileData(responseData);
             
         } catch (error) {
@@ -425,9 +453,16 @@ class EmailFinderForPage {
     // Parse Snov.io v2 API response and extract profile data
     parseProfileData(responseData) {
         try {
+            console.log('[DEBUG] 📊 ========== PARSING PROFILE DATA ==========');
+            console.log('[DEBUG] 🔍 Input responseData:', JSON.stringify(responseData, null, 2));
+            
             logger.info('[EMAIL_FINDER_PAGE] 📊 Parsing profile data...');
             
+            console.log('[DEBUG] 🔍 Checking responseData.success:', responseData.success);
+            console.log('[DEBUG] 🔍 Checking responseData.data exists:', !!responseData.data);
+            
             if (!responseData.success || !responseData.data) {
+                console.log('[DEBUG] ❌ Response success is false or data is missing');
                 logger.warn('[EMAIL_FINDER_PAGE] ⚠️ No data in response');
                 return {
                     success: false,
@@ -436,7 +471,11 @@ class EmailFinderForPage {
             }
             
             const profiles = responseData.data.profiles || [];
+            console.log('[DEBUG] 🔍 Profiles array:', JSON.stringify(profiles, null, 2));
+            console.log('[DEBUG] 🔍 Number of profiles:', profiles.length);
+            
             if (profiles.length === 0) {
+                console.log('[DEBUG] ❌ Profiles array is empty');
                 logger.warn('[EMAIL_FINDER_PAGE] ⚠️ No profiles returned');
                 return {
                     success: false,
@@ -445,24 +484,36 @@ class EmailFinderForPage {
             }
             
             const profile = profiles[0]; // Get first profile
+            console.log('[DEBUG] 🔍 First profile object:', JSON.stringify(profile, null, 2));
             
             // Extract data from response
             const firstName = profile.firstName || null;
             const lastName = profile.lastName || null;
             const fullName = profile.name || (firstName && lastName ? `${firstName} ${lastName}` : null);
             
+            console.log('[DEBUG] 🔍 Extracted name data:', { firstName, lastName, fullName });
+            
             // Get job title and company from currentJob array
             const currentJob = profile.currentJob?.[0] || {};
+            console.log('[DEBUG] 🔍 Current job object:', JSON.stringify(currentJob, null, 2));
+            
             const jobTitle = currentJob.position || profile.position || null;
             const company = currentJob.companyName || profile.companyName || null;
             
+            console.log('[DEBUG] 🔍 Extracted job data:', { jobTitle, company });
+            
             // Get email and verification status
             const emails = profile.emails || [];
+            console.log('[DEBUG] 🔍 Emails array:', JSON.stringify(emails, null, 2));
+            console.log('[DEBUG] 🔍 Number of emails:', emails.length);
+            
             let email = null;
             let emailStatus = 'unknown';
             
             if (emails.length > 0) {
                 const primaryEmail = emails[0];
+                console.log('[DEBUG] 🔍 Primary email object:', JSON.stringify(primaryEmail, null, 2));
+                
                 email = primaryEmail.email || null;
                 
                 // Map Snov.io status to our status
@@ -473,6 +524,10 @@ class EmailFinderForPage {
                 } else {
                     emailStatus = 'unknown';
                 }
+                
+                console.log('[DEBUG] 🔍 Extracted email data:', { email, emailStatus, originalStatus: primaryEmail.emailStatus });
+            } else {
+                console.log('[DEBUG] ⚠️ No emails in array');
             }
             
             const profileData = {
@@ -490,8 +545,11 @@ class EmailFinderForPage {
                 companyDomain: profile.companyDomain || null
             };
             
+            console.log('[DEBUG] 🔍 Final profileData object:', JSON.stringify(profileData, null, 2));
             logger.success('[EMAIL_FINDER_PAGE] ✅ Profile data parsed successfully');
             logger.debug('[EMAIL_FINDER_PAGE] Parsed data:', profileData);
+            
+            console.log('[DEBUG] 📊 ========== PARSING COMPLETE ==========');
             
             return {
                 success: true,
@@ -499,6 +557,9 @@ class EmailFinderForPage {
             };
             
         } catch (error) {
+            console.log('[DEBUG] ❌ ========== PARSING ERROR ==========');
+            console.log('[DEBUG] ❌ Error:', error.message);
+            console.log('[DEBUG] ❌ Stack:', error.stack);
             logger.error('[EMAIL_FINDER_PAGE] Error parsing profile data:', error);
             return {
                 success: false,
