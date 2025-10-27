@@ -152,7 +152,7 @@
 
         .sidebar-nav {
             padding: 1.5rem 0;
-            padding-bottom: 100px; /* Space for logout button */
+            padding-bottom: 120px; /* Space for logout button + extra buffer */
         }
 
         .nav-section {
@@ -265,6 +265,8 @@
             right: 0;
             padding: 1.5rem;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: linear-gradient(180deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            z-index: 10;
         }
 
         .logout-btn {
