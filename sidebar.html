@@ -289,6 +289,35 @@
             transform: translateY(-1px);
         }
 
+        /* Chrome Extension Download Button */
+        .extension-download-btn {
+            display: block;
+            margin: 0 1rem 1rem 1rem;
+            padding: 0.9rem 1.2rem;
+            background: var(--white);
+            border: 2px solid var(--primary-purple);
+            border-radius: 12px;
+            color: var(--primary-purple);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 700;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .extension-download-btn:hover {
+            background: var(--light-purple);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.2);
+        }
+
+        .extension-download-btn i {
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+        }
+
         /* Mobile Sidebar Toggle */
         .sidebar-toggle {
             display: none;
@@ -407,6 +436,15 @@
                     <span class="nav-item-text">Help Center</span>
                 </a>
             </div>
+
+            <!-- Chrome Extension Download Button -->
+            <a href="https://chromewebstore.google.com/detail/msglyai-linkedin-message/gbnbbcbiimefgolddbfgplhedbijkgod" 
+               class="extension-download-btn" 
+               target="_blank"
+               rel="noopener noreferrer">
+                <i class="fab fa-chrome"></i>
+                Download Chrome Extension
+            </a>
         </div>
 
         <div class="sidebar-footer">
