@@ -192,19 +192,20 @@
             emailEl.textContent = userData.email;
         }
 
-        // Update plan
+        // Update plan badge
         const planEl = document.getElementById('sidebarUserPlan');
-        if (planEl) {
+        const planTextEl = document.getElementById('sidebarPlanText');
+        if (planEl && planTextEl) {
             const planNames = {
-                'free': 'Free Plan',
-                'silver-monthly': 'Silver Monthly',
-                'silver-payasyougo': 'Silver Pay-as-you-go',
-                'gold-monthly': 'Gold Monthly',
-                'gold-payasyougo': 'Gold Pay-as-you-go',
-                'platinum-monthly': 'Platinum Monthly',
-                'platinum-payasyougo': 'Platinum Pay-as-you-go'
+                'free': 'Free',
+                'silver-monthly': 'Silver',
+                'silver-payasyougo': 'Silver',
+                'gold-monthly': 'Gold',
+                'gold-payasyougo': 'Gold',
+                'platinum-monthly': 'Platinum',
+                'platinum-payasyougo': 'Platinum'
             };
-            planEl.textContent = planNames[userData.planCode] || userData.planName;
+            planTextEl.textContent = planNames[userData.planCode] || userData.planName;
         }
 
         // Update credits
@@ -297,11 +298,11 @@
     function showDefaultValues() {
         const nameEl = document.getElementById('sidebarUserName');
         const emailEl = document.getElementById('sidebarUserEmail');
-        const planEl = document.getElementById('sidebarUserPlan');
+        const planTextEl = document.getElementById('sidebarPlanText');
         
         if (nameEl) nameEl.textContent = 'User';
         if (emailEl) emailEl.textContent = 'Loading...';
-        if (planEl) planEl.textContent = 'Free Plan';
+        if (planTextEl) planTextEl.textContent = 'Free';
         
         updateCreditsDisplay(0);
     }
