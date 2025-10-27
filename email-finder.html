@@ -2639,21 +2639,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .linkedin-url-input {
             width: 100%;
             padding: 1rem 3rem 1rem 3rem;
-            border: 2px solid #d1d5db; /* Always visible gray border */
+            border: 2px solid var(--light-gray);
             border-radius: 12px;
             font-size: 1rem;
             transition: all 0.3s ease;
-            background-color: #ffffff;
         }
 
         .linkedin-url-input:focus {
             outline: none;
             border-color: var(--primary-purple);
             box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
-        }
-
-        .linkedin-url-input:hover {
-            border-color: #9ca3af; /* Darker gray on hover */
         }
 
         .clear-btn {
@@ -3549,8 +3544,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     }
                 });
 
+                console.log('[EMAIL_FINDER] History response status:', response.status);
+                console.log('[EMAIL_FINDER] History response ok:', response.ok);
+
                 if (!response.ok) {
-                    throw new Error('Failed to load history');
+                    const errorText = await response.text();
+                    console.error('[EMAIL_FINDER] Error response:', errorText);
+                    throw new Error(`Failed to load history: ${response.status} - ${errorText}`);
                 }
 
                 const data = await response.json();
@@ -3568,9 +3568,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             } catch (error) {
                 console.error('Error loading history:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    response: error.response,
+                    stack: error.stack
+                });
                 loadingState.style.display = 'none';
                 emptyState.style.display = 'block';
-                showError('Failed to load search history');
+                showError('Failed to load search history. Check console for details.');
             }
         }
 
@@ -3590,20 +3595,31 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const card = document.createElement('div');
             card.className = 'email-result-card';
 
-            const verificationStatus = search.verificationStatus || 'pending';
+            // Map database fields (snake_case) to variables
+            const fullName = search.full_name || search.fullName;
+            const jobTitle = search.job_title || search.jobTitle;
+            const company = search.company;
+            const email = search.email;
+            const linkedinUrl = search.linkedin_url || search.linkedinUrl;
+            const verificationStatus = search.verification_status || search.verificationStatus || 'pending';
+            const searchDate = search.search_date || search.searchDate;
+
             const verificationClass = verificationStatus === 'valid' ? 'valid' :
                                      verificationStatus === 'not_valid' ? 'invalid' :
+                                     verificationStatus === 'invalid' ? 'invalid' :
                                      verificationStatus === 'pending' ? 'pending' : 'unknown';
             
             const verificationIcon = verificationStatus === 'valid' ? 'check-circle' :
                                     verificationStatus === 'not_valid' ? 'times-circle' :
+                                    verificationStatus === 'invalid' ? 'times-circle' :
                                     verificationStatus === 'pending' ? 'clock' : 'question-circle';
             
             const verificationText = verificationStatus === 'valid' ? 'Verified' :
                                     verificationStatus === 'not_valid' ? 'Invalid' :
+                                    verificationStatus === 'invalid' ? 'Invalid' :
                                     verificationStatus === 'pending' ? 'Verifying...' : 'Unknown';
 
-            const searchDate = new Date(search.searchDate).toLocaleDateString('en-US', {
+            const formattedDate = new Date(searchDate).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric'
@@ -3611,9 +3627,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
             card.innerHTML = `
                 <div class="result-card-header">
-                    <div class="result-card-name">${escapeHtml(search.fullName || 'Unknown')}</div>
-                    <div class="result-card-title">${escapeHtml(search.jobTitle || 'Professional')}</div>
-                    <div class="result-card-company">${escapeHtml(search.company || 'Company')}</div>
+                    <div class="result-card-name">${escapeHtml(fullName || 'Unknown')}</div>
+                    <div class="result-card-title">${escapeHtml(jobTitle || 'Professional')}</div>
+                    <div class="result-card-company">${escapeHtml(company || 'Company')}</div>
                 </div>
                 <div class="result-card-body">
                     <div class="result-field">
@@ -3622,7 +3638,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                         <div class="result-field-content">
                             <div class="result-field-label">Email Address</div>
-                            <div class="result-field-value email">${escapeHtml(search.email || 'Not found')}</div>
+                            <div class="result-field-value email">${escapeHtml(email || 'Not found')}</div>
                         </div>
                     </div>
                     <div class="result-field">
@@ -3645,7 +3661,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                         <div class="result-field-content">
                             <div class="result-field-label">Search Date</div>
-                            <div class="result-field-value">${searchDate}</div>
+                            <div class="result-field-value">${formattedDate}</div>
                         </div>
                     </div>
                     <div class="result-field">
@@ -3655,7 +3671,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="result-field-content">
                             <div class="result-field-label">LinkedIn URL</div>
                             <div class="result-field-value">
-                                <a href="${escapeHtml(search.linkedinUrl)}" target="_blank" style="color: var(--primary-purple); text-decoration: none;">
+                                <a href="${escapeHtml(linkedinUrl)}" target="_blank" style="color: var(--primary-purple); text-decoration: none;">
                                     View Profile <i class="fas fa-external-link-alt" style="font-size: 0.8rem;"></i>
                                 </a>
                             </div>
