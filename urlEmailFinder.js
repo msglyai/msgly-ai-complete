@@ -1,9 +1,9 @@
-// emailFinderForPage.js - Email Finder for Email Finder Page
+// urlEmailFinder.js - Email Finder for Email Finder Page
 // Purpose: Find emails + full profile data (name, title, company) from LinkedIn URLs
-// API: Snov.io v2 LinkedIn Profile Enrichment (/v2/li-profiles-by-urls/*)
+// API: Snov.io v2 LinkedIn Profile Enrichment + v2 Email Finder (2 separate calls)
 // Database: Saves to email_finder_searches table (not target_profiles)
-// Credits: 2 credits per search (managed internally)
-// Version: 1.0.0
+// Credits: ALWAYS 2 credits per search (managed internally)
+// Version: 2.0.0 - Fixed to use correct 2-API-call approach
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
@@ -14,8 +14,8 @@ class EmailFinderForPage {
     constructor() {
         // Feature flags from environment
         this.enabled = process.env.EMAIL_FINDER_ENABLED === 'true';
-        this.timeoutMs = parseInt(process.env.EMAIL_FINDER_TIMEOUT_MS) || 15000; // Longer timeout for v2 API
-        this.costPerSearch = parseFloat(process.env.EMAIL_FINDER_COST_PER_SUCCESS_CREDITS) || 2.0;
+        this.timeoutMs = parseInt(process.env.EMAIL_FINDER_TIMEOUT_MS) || 15000;
+        this.costPerSearch = 2.0; // ALWAYS 2 credits
         
         // Snov.io API configuration
         this.snovClientId = process.env.SNOV_CLIENT_ID;
@@ -26,14 +26,14 @@ class EmailFinderForPage {
         // Check if we have credentials
         this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
         
-        logger.success('🚀 Email Finder For Page initialized (v2 LinkedIn Profile Enrichment)');
+        logger.success('🚀 Email Finder For Page initialized (v2 Profile + Email API)');
         console.log('Email Finder For Page Config:', {
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
             timeoutMs: this.timeoutMs,
             costPerSearch: this.costPerSearch,
             authMethod: this.snovApiKey ? 'API Key' : 'OAuth',
-            apiVersion: 'v2 - LinkedIn Profile Enrichment',
+            apiVersion: 'v2 - Profile Enrichment + Email Finder',
             database: 'email_finder_searches table'
         });
     }
@@ -41,7 +41,7 @@ class EmailFinderForPage {
     // Get Snov.io access token
     async getSnovAccessToken() {
         if (this.snovApiKey) {
-            return this.snovApiKey; // Direct API key
+            return this.snovApiKey;
         }
         
         if (!this.snovClientId || !this.snovClientSecret) {
@@ -81,7 +81,7 @@ class EmailFinderForPage {
                     search_date,
                     credits_used
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, 2)
-                RETURNING id, full_name, email, verification_status
+                RETURNING id, full_name, job_title, company, email, verification_status
             `, [
                 userId,
                 linkedinUrl,
@@ -91,7 +91,7 @@ class EmailFinderForPage {
                 profileData.jobTitle || null,
                 profileData.company || null,
                 profileData.email || null,
-                profileData.verificationStatus || 'pending'
+                profileData.verificationStatus || 'not_found'
             ]);
             
             logger.success(`[EMAIL_FINDER_PAGE] ✅ Saved to email_finder_searches:`, result.rows[0]);
@@ -104,7 +104,7 @@ class EmailFinderForPage {
 
         } catch (error) {
             // Check for duplicate entry
-            if (error.code === '23505') { // Unique constraint violation
+            if (error.code === '23505') {
                 logger.warn(`[EMAIL_FINDER_PAGE] ⚠️ Duplicate entry - user already searched this URL`);
                 return {
                     success: false,
@@ -126,7 +126,7 @@ class EmailFinderForPage {
     async checkDuplicateSearch(userId, linkedinUrl) {
         try {
             const result = await pool.query(`
-                SELECT id, email, verification_status, search_date 
+                SELECT id, full_name, email, verification_status, search_date 
                 FROM email_finder_searches 
                 WHERE user_id = $1 AND linkedin_url = $2
                 LIMIT 1
@@ -143,14 +143,16 @@ class EmailFinderForPage {
 
         } catch (error) {
             logger.error('[EMAIL_FINDER_PAGE] Error checking duplicate:', error);
-            return { isDuplicate: false }; // Allow search on error
+            return { isDuplicate: false };
         }
     }
 
     // Main function: Find email + profile data from LinkedIn URL
     async findEmailForPage(userId, linkedinUrl) {
+        let creditHoldId = null;
+
         try {
-            logger.info(`[EMAIL_FINDER_PAGE] Starting search - User ${userId}, URL ${linkedinUrl}`);
+            logger.info(`[EMAIL_FINDER_PAGE] 🔍 Starting search - User ${userId}, URL ${linkedinUrl}`);
 
             // Check if feature is enabled
             if (!this.enabled) {
@@ -170,7 +172,7 @@ class EmailFinderForPage {
                 };
             }
 
-            // Check for duplicate search
+            // Check for duplicate search BEFORE holding credits
             const duplicateCheck = await this.checkDuplicateSearch(userId, linkedinUrl);
             if (duplicateCheck.isDuplicate) {
                 logger.warn(`[EMAIL_FINDER_PAGE] ⚠️ Duplicate search detected`);
@@ -188,180 +190,166 @@ class EmailFinderForPage {
                 return {
                     success: false,
                     error: 'insufficient_credits',
-                    message: `You need ${this.costPerSearch} credits to find an email. You have ${creditCheck.currentCredits || 0} credits.`,
-                    currentCredits: creditCheck.currentCredits || 0,
-                    requiredCredits: this.costPerSearch
+                    message: 'Insufficient credits. Please purchase more credits to continue.',
+                    availableCredits: creditCheck.availableCredits || 0
                 };
             }
 
-            // Create credit hold
-            logger.info(`[EMAIL_FINDER_PAGE] 💳 Creating credit hold for ${this.costPerSearch} credits`);
-            const holdResult = await createCreditHold(userId, 'email_verification', {
-                linkedinUrl: linkedinUrl
-            });
+            // Hold 2 credits (ALWAYS 2 credits regardless of outcome)
+            logger.info(`[EMAIL_FINDER_PAGE] 💳 Holding 2 credits for user ${userId}`);
+            const holdResult = await createCreditHold(
+                userId,
+                this.costPerSearch,
+                'email_verification',
+                'Email Finder Page search'
+            );
 
             if (!holdResult.success) {
+                logger.error('[EMAIL_FINDER_PAGE] Failed to hold credits:', holdResult.error);
                 return {
                     success: false,
                     error: 'credit_hold_failed',
-                    message: holdResult.error === 'insufficient_credits' 
-                        ? `Insufficient credits: need ${this.costPerSearch}, have ${holdResult.currentCredits}`
-                        : 'Failed to reserve credits for this operation'
+                    message: 'Failed to reserve credits for search'
                 };
             }
 
-            const holdId = holdResult.holdId;
-            logger.success(`[EMAIL_FINDER_PAGE] ✅ Credit hold created: ${holdId}`);
+            creditHoldId = holdResult.holdId;
+            logger.success(`[EMAIL_FINDER_PAGE] ✅ Credits held - Hold ID: ${creditHoldId}`);
 
-            try {
-                // Call Snov.io v2 LinkedIn Profile Enrichment API
-                logger.success('[EMAIL_FINDER_PAGE] 🚀 Calling Snov.io v2 API...');
-                const profileResult = await this.enrichLinkedInProfile(linkedinUrl);
+            // Get Snov.io access token
+            const accessToken = await this.getSnovAccessToken();
 
-                if (profileResult.success && profileResult.profileData) {
-                    const profileData = profileResult.profileData;
-                    
-                    // Save complete profile data to email_finder_searches
-                    const saveResult = await this.saveToEmailFinderSearches(
-                        userId,
-                        linkedinUrl,
-                        profileData
-                    );
+            // STEP 1: Get profile data from LinkedIn URL (v2 Profile Enrichment API)
+            logger.info('[EMAIL_FINDER_PAGE] 📋 Step 1/2: Getting profile data...');
+            const profileResult = await this.enrichProfileFromLinkedIn(linkedinUrl, accessToken);
 
-                    if (!saveResult.success) {
-                        // If save failed due to duplicate, release hold and return error
-                        if (saveResult.error === 'duplicate_search') {
-                            await releaseCreditHold(userId, holdId, 'duplicate_search');
-                            return {
-                                success: false,
-                                error: 'duplicate_search',
-                                message: saveResult.message
-                            };
-                        }
-                    }
-
-                    // Complete payment and charge credits
-                    const paymentResult = await completeOperation(userId, holdId, {
-                        profileData: profileData,
-                        saved: saveResult.success
-                    });
-
-                    logger.success(`[EMAIL_FINDER_PAGE] ✅ Search complete (${this.costPerSearch} credits charged)`);
-
-                    // Wait for email verification if email found
-                    let verificationStatus = profileData.verificationStatus || 'pending';
-                    if (profileData.email) {
-                        try {
-                            const { emailVerifier } = require('./emailVerifier');
-                            logger.info(`[EMAIL_FINDER_PAGE] ⏳ Verifying email...`);
-                            const verifyResult = await emailVerifier.verifyEmail(profileData.email, userId, linkedinUrl);
-                            verificationStatus = verifyResult.status || 'unknown';
-                            
-                            // Update verification status in database
-                            await pool.query(`
-                                UPDATE email_finder_searches 
-                                SET verification_status = $1 
-                                WHERE user_id = $2 AND linkedin_url = $3
-                            `, [verificationStatus, userId, linkedinUrl]);
-                            
-                            logger.success(`[EMAIL_FINDER_PAGE] ✅ Verification complete: ${verificationStatus}`);
-                        } catch (verifierError) {
-                            logger.error('[EMAIL_FINDER_PAGE] Verification failed:', verifierError);
-                            verificationStatus = 'unknown';
-                        }
-                    }
-
-                    return {
-                        success: true,
-                        profileData: {
-                            ...profileData,
-                            verificationStatus: verificationStatus
-                        },
-                        creditsCharged: this.costPerSearch,
-                        newBalance: paymentResult.newBalance || creditCheck.currentCredits - this.costPerSearch,
-                        message: 'Profile data and email found successfully',
-                        saved: saveResult.success
-                    };
-
-                } else {
-                    // No profile data found - still charge credits
-                    logger.info(`[EMAIL_FINDER_PAGE] ⚠️ Profile data not found - charging credits`);
-                    
-                    // Save "not found" result
-                    await this.saveToEmailFinderSearches(userId, linkedinUrl, {
-                        fullName: null,
-                        firstName: null,
-                        lastName: null,
-                        jobTitle: null,
-                        company: null,
-                        email: null,
-                        verificationStatus: 'not_found'
-                    });
-                    
-                    // Charge credits
-                    const paymentResult = await completeOperation(userId, holdId, {
-                        status: 'not_found',
-                        message: 'Search completed - no profile data found'
-                    });
-
-                    logger.info(`[EMAIL_FINDER_PAGE] ⚠️ Profile not found (${this.costPerSearch} credits charged)`);
-
-                    return {
-                        success: true,
-                        error: 'profile_not_found',
-                        status: 'not_found',
-                        creditsCharged: this.costPerSearch,
-                        newBalance: paymentResult.newBalance,
-                        message: 'Search completed - no profile data found for this LinkedIn URL'
-                    };
+            if (!profileResult.success || !profileResult.profileData) {
+                logger.error('[EMAIL_FINDER_PAGE] Failed to get profile data');
+                
+                // Release credits on failure
+                if (creditHoldId) {
+                    await releaseCreditHold(creditHoldId);
+                    logger.info('[EMAIL_FINDER_PAGE] 💳 Credits released due to profile data failure');
                 }
-
-            } catch (processingError) {
-                // Processing error: Release credit hold
-                logger.error('[EMAIL_FINDER_PAGE] 🚨 Processing error:', processingError);
-                await releaseCreditHold(userId, holdId, 'processing_error');
 
                 return {
                     success: false,
-                    error: 'processing_error',
-                    message: 'Temporary issue finding profile data. Please try again.',
-                    creditsCharged: 0,
-                    errorDetails: processingError.message
+                    error: 'profile_not_found',
+                    message: 'Could not find profile data for this LinkedIn URL'
                 };
             }
 
+            const profileData = profileResult.profileData;
+            logger.success('[EMAIL_FINDER_PAGE] ✅ Profile data retrieved:', {
+                name: profileData.fullName,
+                title: profileData.jobTitle,
+                company: profileData.company
+            });
+
+            // STEP 2: Find email using name + company domain (v2 Email Finder API)
+            logger.info('[EMAIL_FINDER_PAGE] 📧 Step 2/2: Finding email address...');
+            
+            let emailData = {
+                email: null,
+                verificationStatus: 'not_found'
+            };
+
+            // Only try to find email if we have the required data
+            if (profileData.firstName && profileData.lastName && profileData.companyDomain) {
+                const emailResult = await this.findEmailByNameAndDomain(
+                    profileData.firstName,
+                    profileData.lastName,
+                    profileData.companyDomain,
+                    accessToken
+                );
+
+                if (emailResult.success && emailResult.email) {
+                    emailData = {
+                        email: emailResult.email,
+                        verificationStatus: emailResult.verificationStatus
+                    };
+                    logger.success('[EMAIL_FINDER_PAGE] ✅ Email found:', emailData.email);
+                } else {
+                    logger.warn('[EMAIL_FINDER_PAGE] ⚠️ Email not found - will save profile with status "not_found"');
+                }
+            } else {
+                logger.warn('[EMAIL_FINDER_PAGE] ⚠️ Missing data for email search (need firstName, lastName, companyDomain)');
+            }
+
+            // Combine profile data + email data
+            const completeData = {
+                ...profileData,
+                email: emailData.email,
+                verificationStatus: emailData.verificationStatus
+            };
+
+            // Save to database (ALWAYS save even if email not found)
+            const saveResult = await this.saveToEmailFinderSearches(userId, linkedinUrl, completeData);
+
+            if (!saveResult.success) {
+                // Release credits if save failed
+                if (creditHoldId) {
+                    await releaseCreditHold(creditHoldId);
+                    logger.info('[EMAIL_FINDER_PAGE] 💳 Credits released due to save failure');
+                }
+
+                return saveResult;
+            }
+
+            // Complete the credit operation (consume the 2 credits)
+            logger.info(`[EMAIL_FINDER_PAGE] 💳 Completing credit operation - Hold ID: ${creditHoldId}`);
+            await completeOperation(creditHoldId);
+            logger.success('[EMAIL_FINDER_PAGE] ✅ Credits charged: 2 credits');
+
+            // Return success with complete data
+            return {
+                success: true,
+                message: emailData.email 
+                    ? 'Email and profile data found successfully'
+                    : 'Profile data saved. Email not found.',
+                data: {
+                    id: saveResult.data.id,
+                    fullName: completeData.fullName,
+                    firstName: completeData.firstName,
+                    lastName: completeData.lastName,
+                    jobTitle: completeData.jobTitle,
+                    company: completeData.company,
+                    email: completeData.email,
+                    verificationStatus: completeData.verificationStatus,
+                    creditsUsed: 2
+                }
+            };
+
         } catch (error) {
-            logger.error('[EMAIL_FINDER_PAGE] System error:', error);
+            logger.error('[EMAIL_FINDER_PAGE] ❌ Error in findEmailForPage:', error);
+
+            // Release credits on error
+            if (creditHoldId) {
+                try {
+                    await releaseCreditHold(creditHoldId);
+                    logger.info('[EMAIL_FINDER_PAGE] 💳 Credits released due to error');
+                } catch (releaseError) {
+                    logger.error('[EMAIL_FINDER_PAGE] Error releasing credits:', releaseError);
+                }
+            }
+
             return {
                 success: false,
-                error: 'system_error',
-                message: 'System error occurred. Please try again.',
-                details: error.message
+                error: 'search_failed',
+                message: 'An error occurred during the search. Please try again.'
             };
         }
     }
 
-    // Snov.io v2 LinkedIn Profile Enrichment API
-    async enrichLinkedInProfile(linkedinUrl) {
-        logger.info('[EMAIL_FINDER_PAGE] 🌐 Enriching LinkedIn profile with Snov.io v2 API...');
-        logger.info(`[EMAIL_FINDER_PAGE] LinkedIn URL: ${linkedinUrl}`);
-        
+    // API Call #1: Enrich profile from LinkedIn URL (v2 LinkedIn Profile Enrichment)
+    async enrichProfileFromLinkedIn(linkedinUrl, accessToken) {
         try {
-            // Get access token
-            logger.info('[EMAIL_FINDER_PAGE] 📝 Getting Snov.io access token...');
-            const accessToken = await this.getSnovAccessToken();
-            logger.success('[EMAIL_FINDER_PAGE] ✅ Access token retrieved');
-            
-            // Step 1: Start profile enrichment
-            logger.info('[EMAIL_FINDER_PAGE] 📤 Step 1: Starting profile enrichment...');
-            console.log('[DEBUG] 🔍 Calling Snov.io START endpoint:', `${this.snovBaseUrl}/v2/li-profiles-by-urls/start`);
-            console.log('[DEBUG] 🔍 Request body:', { 'urls[]': [linkedinUrl] });
-            
+            logger.info('[EMAIL_FINDER_PAGE] 🔄 Calling Snov.io v2 Profile Enrichment API...');
+
+            // Step 1: Start the enrichment task
             const startResponse = await axios.post(
                 `${this.snovBaseUrl}/v2/li-profiles-by-urls/start`,
-                {
-                    'urls[]': [linkedinUrl]
-                },
+                { 'urls[]': [linkedinUrl] },
                 {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
@@ -370,64 +358,35 @@ class EmailFinderForPage {
                     timeout: this.timeoutMs
                 }
             );
-            
-            logger.success('[EMAIL_FINDER_PAGE] ✅ Step 1 complete: Enrichment started');
-            console.log('[DEBUG] 🔍 START Response - Full object:', JSON.stringify(startResponse.data, null, 2));
-            logger.debug('[EMAIL_FINDER_PAGE] Start response:', startResponse.data);
-            
+
             const taskHash = startResponse.data?.data?.task_hash;
-            console.log('[DEBUG] 🔍 Extracted task_hash:', taskHash);
-            
             if (!taskHash) {
-                console.log('[DEBUG] ❌ No task_hash found in response!');
-                console.log('[DEBUG] 🔍 Response structure:', Object.keys(startResponse.data));
-                console.log('[DEBUG] 🔍 Response.data structure:', startResponse.data.data ? Object.keys(startResponse.data.data) : 'data is null/undefined');
-                throw new Error('No task_hash returned from Snov.io');
+                logger.error('[EMAIL_FINDER_PAGE] No task hash returned from start endpoint');
+                return { success: false, profileData: null };
             }
-            
-            // Wait for Snov.io to process (v2 API needs more time)
-            logger.info('[EMAIL_FINDER_PAGE] ⏳ Waiting 8 seconds for Snov.io to process...');
-            console.log('[DEBUG] ⏳ Starting 8-second wait...');
-            await new Promise(resolve => setTimeout(resolve, 8000)); // 8 second delay
-            console.log('[DEBUG] ✅ Wait complete, fetching results...');
-            
-            // Step 2: Get enrichment results
-            logger.info('[EMAIL_FINDER_PAGE] 📥 Step 2: Retrieving enrichment results...');
-            console.log('[DEBUG] 🔍 Calling Snov.io RESULT endpoint:', `${this.snovBaseUrl}/v2/li-profiles-by-urls/result`);
-            console.log('[DEBUG] 🔍 Query params:', { task_hash: taskHash });
-            
+
+            logger.info(`[EMAIL_FINDER_PAGE] Task started - Hash: ${taskHash}`);
+
+            // Step 2: Wait for processing (5-10 seconds typical)
+            await new Promise(resolve => setTimeout(resolve, 8000));
+
+            // Step 3: Get results
             const resultResponse = await axios.get(
                 `${this.snovBaseUrl}/v2/li-profiles-by-urls/result`,
                 {
                     params: { task_hash: taskHash },
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    },
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
                     timeout: this.timeoutMs
                 }
             );
-            
-            logger.success('[EMAIL_FINDER_PAGE] ✅ Step 2 complete: Results received');
-            console.log('[DEBUG] 🔍 RESULT Response - Full object:', JSON.stringify(resultResponse.data, null, 2));
-            logger.debug('[EMAIL_FINDER_PAGE] Result response:', resultResponse.data);
-            
+
             const responseData = resultResponse.data;
-            console.log('[DEBUG] 🔍 Response data structure:', {
-                success: responseData.success,
-                hasData: !!responseData.data,
-                dataKeys: responseData.data ? Object.keys(responseData.data) : 'no data',
-                status: responseData.data?.status
-            });
-            
-            // Check if processing is complete
-            if (responseData.data?.status === 'in_progress') {
-                logger.warn('[EMAIL_FINDER_PAGE] ⚠️ Still processing - need to wait longer');
-                console.log('[DEBUG] ⚠️ Status is in_progress, waiting additional 5 seconds...');
-                
-                // Wait additional time and retry
+
+            // Check if still processing
+            if (responseData.status === 'in_progress') {
+                logger.warn('[EMAIL_FINDER_PAGE] Still processing, waiting additional 5 seconds...');
                 await new Promise(resolve => setTimeout(resolve, 5000));
-                
-                console.log('[DEBUG] 🔍 Retrying RESULT endpoint after additional wait...');
+
                 const retryResponse = await axios.get(
                     `${this.snovBaseUrl}/v2/li-profiles-by-urls/result`,
                     {
@@ -436,135 +395,212 @@ class EmailFinderForPage {
                         timeout: this.timeoutMs
                     }
                 );
-                
-                console.log('[DEBUG] 🔍 RETRY Response - Full object:', JSON.stringify(retryResponse.data, null, 2));
-                return this.parseProfileData(retryResponse.data);
+
+                return this.parseLinkedInProfileResponse(retryResponse.data);
             }
-            
-            console.log('[DEBUG] ✅ Processing complete or no in_progress status, parsing data...');
-            return this.parseProfileData(responseData);
-            
+
+            return this.parseLinkedInProfileResponse(responseData);
+
         } catch (error) {
             logger.error('[EMAIL_FINDER_PAGE] Error enriching profile:', error.response?.data || error.message);
-            throw error;
+            return { success: false, profileData: null };
         }
     }
 
-    // Parse Snov.io v2 API response and extract profile data
-    parseProfileData(responseData) {
+    // Parse LinkedIn Profile Enrichment API response
+    parseLinkedInProfileResponse(responseData) {
         try {
-            console.log('[DEBUG] 📊 ========== PARSING PROFILE DATA ==========');
-            console.log('[DEBUG] 🔍 Input responseData:', JSON.stringify(responseData, null, 2));
-            
-            logger.info('[EMAIL_FINDER_PAGE] 📊 Parsing profile data...');
-            
-            console.log('[DEBUG] 🔍 Checking responseData.success:', responseData.success);
-            console.log('[DEBUG] 🔍 Checking responseData.data exists:', !!responseData.data);
-            
-            if (!responseData.success || !responseData.data) {
-                console.log('[DEBUG] ❌ Response success is false or data is missing');
-                logger.warn('[EMAIL_FINDER_PAGE] ⚠️ No data in response');
-                return {
-                    success: false,
-                    profileData: null
-                };
+            logger.info('[EMAIL_FINDER_PAGE] 📊 Parsing LinkedIn profile response...');
+
+            if (responseData.status !== 'completed') {
+                logger.warn('[EMAIL_FINDER_PAGE] Response status not completed:', responseData.status);
+                return { success: false, profileData: null };
             }
-            
-            const profiles = responseData.data.profiles || [];
-            console.log('[DEBUG] 🔍 Profiles array:', JSON.stringify(profiles, null, 2));
-            console.log('[DEBUG] 🔍 Number of profiles:', profiles.length);
-            
-            if (profiles.length === 0) {
-                console.log('[DEBUG] ❌ Profiles array is empty');
-                logger.warn('[EMAIL_FINDER_PAGE] ⚠️ No profiles returned');
-                return {
-                    success: false,
-                    profileData: null
-                };
+
+            if (!responseData.data || !Array.isArray(responseData.data) || responseData.data.length === 0) {
+                logger.warn('[EMAIL_FINDER_PAGE] No profile data in response');
+                return { success: false, profileData: null };
             }
-            
-            const profile = profiles[0]; // Get first profile
-            console.log('[DEBUG] 🔍 First profile object:', JSON.stringify(profile, null, 2));
-            
-            // Extract data from response
-            const firstName = profile.firstName || null;
-            const lastName = profile.lastName || null;
-            const fullName = profile.name || (firstName && lastName ? `${firstName} ${lastName}` : null);
-            
-            console.log('[DEBUG] 🔍 Extracted name data:', { firstName, lastName, fullName });
-            
-            // Get job title and company from currentJob array
-            const currentJob = profile.currentJob?.[0] || {};
-            console.log('[DEBUG] 🔍 Current job object:', JSON.stringify(currentJob, null, 2));
-            
-            const jobTitle = currentJob.position || profile.position || null;
-            const company = currentJob.companyName || profile.companyName || null;
-            
-            console.log('[DEBUG] 🔍 Extracted job data:', { jobTitle, company });
-            
-            // Get email and verification status
-            const emails = profile.emails || [];
-            console.log('[DEBUG] 🔍 Emails array:', JSON.stringify(emails, null, 2));
-            console.log('[DEBUG] 🔍 Number of emails:', emails.length);
-            
-            let email = null;
-            let emailStatus = 'unknown';
-            
-            if (emails.length > 0) {
-                const primaryEmail = emails[0];
-                console.log('[DEBUG] 🔍 Primary email object:', JSON.stringify(primaryEmail, null, 2));
+
+            const profileItem = responseData.data[0];
+            const result = profileItem.result;
+
+            if (!result) {
+                logger.warn('[EMAIL_FINDER_PAGE] No result object in profile data');
+                return { success: false, profileData: null };
+            }
+
+            // Extract profile data
+            const firstName = result.first_name || null;
+            const lastName = result.last_name || null;
+            const fullName = result.name || (firstName && lastName ? `${firstName} ${lastName}` : null);
+
+            // Get current position (job title and company)
+            let jobTitle = null;
+            let company = null;
+            let companyDomain = null;
+
+            if (result.positions && Array.isArray(result.positions) && result.positions.length > 0) {
+                const currentPosition = result.positions[0];
+                jobTitle = currentPosition.title || null;
+                company = currentPosition.name || null;
                 
-                email = primaryEmail.email || null;
-                
-                // Map Snov.io status to our status
-                if (primaryEmail.emailStatus === 'valid') {
-                    emailStatus = 'valid';
-                } else if (primaryEmail.emailStatus === 'invalid' || primaryEmail.emailStatus === 'not_valid') {
-                    emailStatus = 'invalid';
-                } else {
-                    emailStatus = 'unknown';
+                // Extract domain from company URL
+                if (currentPosition.url) {
+                    try {
+                        const url = new URL(currentPosition.url);
+                        companyDomain = url.hostname.replace('www.', '');
+                    } catch (e) {
+                        logger.warn('[EMAIL_FINDER_PAGE] Could not parse company URL');
+                    }
                 }
-                
-                console.log('[DEBUG] 🔍 Extracted email data:', { email, emailStatus, originalStatus: primaryEmail.emailStatus });
-            } else {
-                console.log('[DEBUG] ⚠️ No emails in array');
             }
-            
+
             const profileData = {
                 fullName,
                 firstName,
                 lastName,
                 jobTitle,
                 company,
-                email,
-                verificationStatus: emailStatus,
-                industry: profile.industry || null,
-                country: profile.country || null,
-                locality: profile.locality || null,
-                companyLinkedInUrl: profile.companyLinkedInUrl || null,
-                companyDomain: profile.companyDomain || null
+                companyDomain,
+                industry: result.industry || null,
+                country: result.country || null,
+                location: result.location || null
             };
-            
-            console.log('[DEBUG] 🔍 Final profileData object:', JSON.stringify(profileData, null, 2));
-            logger.success('[EMAIL_FINDER_PAGE] ✅ Profile data parsed successfully');
-            logger.debug('[EMAIL_FINDER_PAGE] Parsed data:', profileData);
-            
-            console.log('[DEBUG] 📊 ========== PARSING COMPLETE ==========');
-            
+
+            logger.success('[EMAIL_FINDER_PAGE] ✅ Profile parsed:', profileData);
+
             return {
                 success: true,
                 profileData: profileData
             };
-            
+
         } catch (error) {
-            console.log('[DEBUG] ❌ ========== PARSING ERROR ==========');
-            console.log('[DEBUG] ❌ Error:', error.message);
-            console.log('[DEBUG] ❌ Stack:', error.stack);
-            logger.error('[EMAIL_FINDER_PAGE] Error parsing profile data:', error);
+            logger.error('[EMAIL_FINDER_PAGE] Error parsing LinkedIn profile response:', error);
+            return { success: false, profileData: null };
+        }
+    }
+
+    // API Call #2: Find email by name and domain (v2 Email Finder API)
+    async findEmailByNameAndDomain(firstName, lastName, domain, accessToken) {
+        try {
+            logger.info('[EMAIL_FINDER_PAGE] 🔄 Calling Snov.io v2 Email Finder API...');
+            logger.info(`[EMAIL_FINDER_PAGE] Search params: ${firstName} ${lastName} @ ${domain}`);
+
+            // Step 1: Start the email search
+            const startResponse = await axios.post(
+                `${this.snovBaseUrl}/v2/emails-by-domain-by-name/start`,
+                {
+                    rows: [{
+                        first_name: firstName,
+                        last_name: lastName,
+                        domain: domain
+                    }]
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: this.timeoutMs
+                }
+            );
+
+            const taskHash = startResponse.data?.data?.task_hash;
+            if (!taskHash) {
+                logger.error('[EMAIL_FINDER_PAGE] No task hash returned from email finder start');
+                return { success: false, email: null };
+            }
+
+            logger.info(`[EMAIL_FINDER_PAGE] Email search started - Hash: ${taskHash}`);
+
+            // Step 2: Wait for processing
+            await new Promise(resolve => setTimeout(resolve, 6000));
+
+            // Step 3: Get results
+            const resultResponse = await axios.get(
+                `${this.snovBaseUrl}/v2/emails-by-domain-by-name/result`,
+                {
+                    params: { task_hash: taskHash },
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                    timeout: this.timeoutMs
+                }
+            );
+
+            const responseData = resultResponse.data;
+
+            // Check if still processing
+            if (responseData.status === 'in_progress') {
+                logger.warn('[EMAIL_FINDER_PAGE] Email search still processing, waiting additional 4 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 4000));
+
+                const retryResponse = await axios.get(
+                    `${this.snovBaseUrl}/v2/emails-by-domain-by-name/result`,
+                    {
+                        params: { task_hash: taskHash },
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        timeout: this.timeoutMs
+                    }
+                );
+
+                return this.parseEmailFinderResponse(retryResponse.data);
+            }
+
+            return this.parseEmailFinderResponse(responseData);
+
+        } catch (error) {
+            logger.error('[EMAIL_FINDER_PAGE] Error finding email:', error.response?.data || error.message);
+            return { success: false, email: null };
+        }
+    }
+
+    // Parse Email Finder API response
+    parseEmailFinderResponse(responseData) {
+        try {
+            logger.info('[EMAIL_FINDER_PAGE] 📧 Parsing email finder response...');
+
+            if (responseData.status !== 'completed') {
+                logger.warn('[EMAIL_FINDER_PAGE] Email search status not completed:', responseData.status);
+                return { success: false, email: null };
+            }
+
+            if (!responseData.data || !Array.isArray(responseData.data) || responseData.data.length === 0) {
+                logger.warn('[EMAIL_FINDER_PAGE] No email data in response');
+                return { success: false, email: null };
+            }
+
+            const personData = responseData.data[0];
+            
+            if (!personData.result || !Array.isArray(personData.result) || personData.result.length === 0) {
+                logger.warn('[EMAIL_FINDER_PAGE] No email results for person');
+                return { success: false, email: null };
+            }
+
+            const emailResult = personData.result[0];
+            const email = emailResult.email;
+            const smtpStatus = emailResult.smtp_status;
+
+            // Map SMTP status to our verification status
+            let verificationStatus = 'unknown';
+            if (smtpStatus === 'valid') {
+                verificationStatus = 'valid';
+            } else if (smtpStatus === 'invalid' || smtpStatus === 'not_valid') {
+                verificationStatus = 'invalid';
+            } else {
+                verificationStatus = 'unknown';
+            }
+
+            logger.success('[EMAIL_FINDER_PAGE] ✅ Email found:', email, 'Status:', verificationStatus);
+
             return {
-                success: false,
-                profileData: null
+                success: true,
+                email: email,
+                verificationStatus: verificationStatus
             };
+
+        } catch (error) {
+            logger.error('[EMAIL_FINDER_PAGE] Error parsing email finder response:', error);
+            return { success: false, email: null };
         }
     }
 
@@ -574,8 +610,9 @@ class EmailFinderForPage {
             service: 'email_finder_for_page',
             enabled: this.enabled,
             hasCredentials: this.hasCredentials,
-            apiVersion: 'v2',
-            database: 'email_finder_searches'
+            apiVersion: 'v2 - Profile + Email (2 calls)',
+            database: 'email_finder_searches',
+            costPerSearch: this.costPerSearch
         };
     }
 }
