@@ -2982,82 +2982,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <i class="fas fa-bars"></i>
     </button>
 
-    <!-- Side Navigation -->
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <a href="https://api.msgly.ai/dashboard" class="sidebar-logo">
-                <i class="fas fa-comments"></i>
-                <div class="sidebar-logo-text">
-                    <div class="sidebar-logo-main">Msgly.AI</div>
-                    <div class="sidebar-logo-sub">By Chopa AI LTD</div>
-                </div>
-            </a>
-            
-            <div class="sidebar-user">
-                <div class="sidebar-user-avatar" id="sidebarUserAvatar">??</div>
-                <div class="sidebar-user-info">
-                    <div class="sidebar-user-name" id="sidebarUserName">Loading...</div>
-                    <div class="sidebar-user-email" id="sidebarUserEmail">Loading...</div>
-                    <div class="sidebar-user-plan" id="sidebarUserPlan">Loading...</div>
-                    <!-- NEW: Credits Display in Sidebar -->
-                    <div class="sidebar-user-credits" id="sidebarUserCredits">
-                        <i class="fas fa-coins"></i>
-                        <span id="sidebarCreditsNumber">0</span>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="sidebar-nav">
-            <div class="nav-section">
-                <div class="nav-section-title">Main Menu</div>
-                <a href="https://api.msgly.ai/dashboard" class="nav-item">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span class="nav-item-text">Dashboard</span>
-                </a>
-                <a href="https://api.msgly.ai/msgly-profile.html" class="nav-item">
-                    <i class="fas fa-user-circle"></i>
-                    <span class="nav-item-text">Msgly Profile</span>
-                </a>
-                <a href="https://api.msgly.ai/messages" class="nav-item">
-                    <i class="fas fa-envelope"></i>
-                    <span class="nav-item-text">Messages</span>
-                </a>
-                <a href="https://api.msgly.ai/email-finder" class="nav-item active">
-                    <i class="fas fa-search"></i>
-                    <span class="nav-item-text">Email Finder</span>
-                </a>
-                <a href="#" class="nav-item" onclick="alert('Analytics coming soon!')">
-                    <i class="fas fa-chart-line"></i>
-                    <span class="nav-item-text">Analytics</span>
-                    <span class="nav-badge soon">Soon</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Account</div>
-                <a href="https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main" class="nav-item" target="_blank">
-                    <i class="fas fa-credit-card"></i>
-                    <span class="nav-item-text">Billing</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Support</div>
-                <a href="#" class="nav-item" onclick="alert('Help Center coming soon!')">
-                    <i class="fas fa-question-circle"></i>
-                    <span class="nav-item-text">Help Center</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="sidebar-footer">
-            <a href="#" class="logout-btn" onclick="logout()">
-                <i class="fas fa-sign-out-alt"></i>
-                Logout
-            </a>
-        </div>
-    </nav>
+    <!-- Sidebar will be injected by sidebar-loader.js -->
 
     <!-- Email Finder Modals -->
     <!-- 1. UPGRADE REQUIRED MODAL -->
@@ -3307,20 +3233,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     // Update credit displays
                     updateCreditDisplay(currentUserPlan.totalCredits);
                     
-                    // Update sidebar user info
-                    const sidebarUserName = document.getElementById('sidebarUserName');
-                    const sidebarUserEmail = document.getElementById('sidebarUserEmail');
-                    const sidebarUserPlan = document.getElementById('sidebarUserPlan');
-                    
-                    if (sidebarUserName) {
-                        sidebarUserName.textContent = user.name || user.email || 'User';
-                    }
-                    if (sidebarUserEmail) {
-                        sidebarUserEmail.textContent = user.email || '';
-                    }
-                    if (sidebarUserPlan) {
-                        sidebarUserPlan.textContent = currentUserPlan.planName;
-                    }
+                    // Note: Sidebar user info (name, email, plan) is handled by sidebar-loader.js
                 } else {
                     throw new Error(data.error || 'Failed to load profile');
                 }
@@ -3789,5 +3702,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         `;
         document.head.appendChild(style);
     </script>
+    
+    <!-- Load Shared Sidebar -->
+    <script src="/sidebar-loader.js"></script>
 </body>
 </html>
