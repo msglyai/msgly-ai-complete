@@ -1153,8 +1153,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const creditsElement = document.getElementById('creditsAmount');
             const creditsDisplay = document.getElementById('creditsDisplay');
             
-            if (creditsElement) {
-                creditsElement.textContent = credits.toFixed(2);
+            if (creditsElement && creditsDisplay) {
+                // Get user plan data for renewable and payasyougo credits
+                const renewable = currentUserPlan?.creditsRenewable || 0;
+                const payasyougo = currentUserPlan?.creditsPayAsYouGo || 0;
+                const total = renewable + payasyougo;
+                
+                creditsElement.textContent = total.toFixed(2);
                 creditsDisplay.classList.add('updating');
                 setTimeout(() => creditsDisplay.classList.remove('updating'), 600);
             }
@@ -1333,13 +1338,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const tbody = document.getElementById('messagesTableBody');
             tbody.innerHTML = '';
             
+            console.log('[RENDER] Rendering', messages.length, 'messages');
+            
             messages.forEach(msg => {
+                console.log('[RENDER] Message:', msg.id, 'Sent:', msg.sent, 'Reply:', msg.gotReply);
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="message-cell">
                         <div class="message-date">${formatMessageDate(msg.date)}</div>
                         <div class="message-preview">
-                            <span class="message-preview-text">${truncateText(msg.message, 80)}</span>
+                            <span class="message-preview-text">${msg.message}</span>
                             <a href="#" class="send-more-link" onclick="alert('Feature coming soon!'); return false;">
                                 Send more... <i class="fas fa-arrow-right"></i>
                             </a>
@@ -1491,9 +1500,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function renderToggleSwitch(messageId, type, value) {
             const isChecked = value === 'yes';
+            const checkboxId = `toggle-${type}-${messageId}`;
             return `
                 <label class="toggle-switch">
-                    <input type="checkbox" ${isChecked ? 'checked' : ''} 
+                    <input type="checkbox" id="${checkboxId}" ${isChecked ? 'checked' : ''} 
                         onchange="toggleStatus(${messageId}, '${type}', this.checked)">
                     <span class="toggle-slider">
                         <span class="toggle-label yes">YES</span>
