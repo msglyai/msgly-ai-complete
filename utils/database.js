@@ -1,4 +1,4 @@
-// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + EMAIL REQUESTS + EMAIL FINDER SEARCHES
+// ENHANCED database.js - Added Plans Table + Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE LOGGING + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + SECURE ADMIN MANAGEMENT + EMAIL FINDER + EMAIL REQUESTS + EMAIL FINDER SEARCHES + EDIT MESSAGE FEATURE
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
@@ -21,6 +21,7 @@
 // 🔧 PLAN NAME FIX: Added automatic plan name correction in initDB function
 // 📧 EMAIL FINDER v2: Added email finder columns to message_logs table for easy persistence
 // 🆕 EMAIL REQUESTS: Added email_requests table for per-user email visibility control
+// ✏️ EDIT MESSAGE: Added edited_message, edited_at, edit_count columns for message editing with original preservation
 
 const { Pool } = require('pg');
 require('dotenv').config();
@@ -1338,7 +1339,7 @@ const initDB = async () => {
                 }
             }
 
-            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS
+            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS + ✏️ EDIT MESSAGE COLUMNS
             const gpt5MessageColumns = [
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_profile_url TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS context_text TEXT',
@@ -1366,10 +1367,15 @@ const initDB = async () => {
                 // 📧 NEW: Email finder columns (same field names as target_profiles for easy mapping)
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_found TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_status TEXT CHECK (email_status IN (\'verified\', \'not_found\', NULL))',
-                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ'
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ',
+                
+                // ✏️ NEW: Edit message columns (stores user edits while preserving original)
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS edited_message TEXT',
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP',
+                'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS edit_count INTEGER DEFAULT 0'
             ];
 
-            console.log('-- ✅ NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS');
+            console.log('-- ✅ NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS + ✏️ EDIT MESSAGE COLUMNS');
             
             for (const columnQuery of gpt5MessageColumns) {
                 try {
@@ -1397,6 +1403,16 @@ const initDB = async () => {
                     }
                     if (columnQuery.includes('email_verified_at')) {
                         console.log('📧 EMAIL FINDER: Added email_verified_at column to message_logs');
+                    }
+                    // Log successful addition of edit message columns
+                    if (columnQuery.includes('edited_message')) {
+                        console.log('✏️ EDIT MESSAGE: Added edited_message column to message_logs');
+                    }
+                    if (columnQuery.includes('edited_at')) {
+                        console.log('✏️ EDIT MESSAGE: Added edited_at column to message_logs');
+                    }
+                    if (columnQuery.includes('edit_count')) {
+                        console.log('✏️ EDIT MESSAGE: Added edit_count column to message_logs');
                     }
                 } catch (err) {
                     console.log(`GPT-5 column might already exist: ${err.message}`);
@@ -1504,7 +1520,7 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_user_events ON context_slot_events(user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_event_type ON context_slot_events(event_type, created_at);
                 
-                -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE + CAMPAIGN TRACKING
+                -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE + CAMPAIGN TRACKING + ✏️ EDIT MESSAGE
                 CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_model_name ON message_logs(model_name);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at);
@@ -1512,13 +1528,14 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_message_type ON message_logs(message_type);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_sent_status ON message_logs(sent_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
+                CREATE INDEX IF NOT EXISTS idx_message_logs_edited_at ON message_logs(edited_at) WHERE edited_at IS NOT NULL;
                 
                 -- 🔒 ADMIN: Admin audit indexes for security tracking
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log(action, created_at);
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_log(performed_by_user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔒 Admin security indexes + ✅ Email finder indexes + 📧 Message logs email indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔒 Admin security indexes + ✅ Email finder indexes + 📧 Message logs email indexes + ✏️ Edit message indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -2643,7 +2660,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔒 SECURE ADMIN MANAGEMENT + ✅ EMAIL FINDER + 🔧 PLAN NAME FIX + 📧 EMAIL FINDER IN MESSAGE_LOGS
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔒 SECURE ADMIN MANAGEMENT + ✅ EMAIL FINDER + 🔧 PLAN NAME FIX + 📧 EMAIL FINDER IN MESSAGE_LOGS + ✏️ EDIT MESSAGE FEATURE
 module.exports = {
     // Database connection
     pool,
