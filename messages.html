@@ -1501,21 +1501,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         function renderToggleSwitch(messageId, type, value) {
             const status = value; // 'yes' or 'no'
-            const bgColor = status === 'yes' ? '#10B981' : '#EF4444';
-            const sliderPos = status === 'yes' ? '27px' : '3px';
-            const textColor = status === 'yes' ? '#10B981' : '#EF4444';
-            const statusText = status === 'yes' ? 'YES' : 'NO';
+            const isYes = status === 'yes';
+            const bgColor = isYes ? '#10B981' : '#EF4444';
+            const sliderPos = isYes ? 'calc(100% - 26px)' : '4px';
+            const statusText = isYes ? 'YES' : 'NO';
             
             return `
                 <div class="toggle-switch ${status}" 
                      data-message-id="${messageId}" 
                      data-field="${type}" 
                      onclick="toggleStatusClick(this, ${messageId}, '${type}')"
-                     style="position: relative; display: inline-block; width: 60px; height: 30px; cursor: pointer; background-color: ${bgColor}; transition: 0.3s; border-radius: 30px;">
+                     style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 70px; height: 32px; cursor: pointer; background-color: ${bgColor}; transition: all 0.3s ease; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                     <div class="toggle-slider" 
-                         style="position: absolute; height: 22px; width: 22px; left: ${sliderPos}; bottom: 4px; background-color: white; transition: 0.3s; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: bold;">
+                         style="position: absolute; height: 24px; width: 24px; left: ${sliderPos}; background-color: white; transition: all 0.3s ease; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                     </div>
-                    <span style="position: absolute; top: 50%; transform: translateY(-50%); left: ${status === 'yes' ? '8px' : 'auto'}; right: ${status === 'no' ? '8px' : 'auto'}; font-size: 0.65rem; font-weight: 700; color: white; letter-spacing: 0.3px; pointer-events: none;">
+                    <span style="font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px; z-index: 1; pointer-events: none;">
                         ${statusText}
                     </span>
                 </div>
@@ -1577,20 +1577,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             element.classList.remove('yes', 'no');
             element.classList.add(newStatus);
             
-            const bgColor = newStatus === 'yes' ? '#10B981' : '#EF4444';
-            const sliderPos = newStatus === 'yes' ? '27px' : '3px';
-            const statusText = newStatus === 'yes' ? 'YES' : 'NO';
+            const isYes = newStatus === 'yes';
+            const bgColor = isYes ? '#10B981' : '#EF4444';
+            const sliderPos = isYes ? 'calc(100% - 26px)' : '4px';
+            const statusText = isYes ? 'YES' : 'NO';
             
             element.style.backgroundColor = bgColor;
+            
             const slider = element.querySelector('.toggle-slider');
             if (slider) {
                 slider.style.left = sliderPos;
             }
+            
             const label = element.querySelector('span');
             if (label) {
                 label.textContent = statusText;
-                label.style.left = newStatus === 'yes' ? '8px' : 'auto';
-                label.style.right = newStatus === 'no' ? '8px' : 'auto';
             }
             
             // Update the data
