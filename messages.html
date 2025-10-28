@@ -667,6 +667,47 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: var(--success-green);
         }
 
+        /* Edit and Copy Buttons */
+        .edit-btn, .copy-btn {
+            background: var(--light-gray);
+            border: 1px solid var(--gray);
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--dark-gray);
+        }
+
+        .edit-btn:hover {
+            background: var(--warning-orange);
+            color: var(--white);
+            border-color: var(--warning-orange);
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-purple);
+            color: var(--white);
+            border-color: var(--primary-purple);
+        }
+
+        .copy-btn.copied {
+            background: var(--success-green);
+            color: var(--white);
+            border-color: var(--success-green);
+        }
+
+        .message-actions-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
         /* Pagination */
         .pagination-container {
             display: flex;
@@ -1368,6 +1409,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="message-preview">
                             <span class="message-preview-text">${msg.message}</span>
                         </div>
+                        <div class="message-actions-row">
+                            <button class="edit-btn" onclick="editMessage(${msg.id})" title="Edit message">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="copy-btn" onclick="copyMessageText(${msg.id}, this)" title="Copy to clipboard">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
                     </td>
                     <td>
                         ${renderMessageTypeBadge(msg.messageType)}
@@ -1635,8 +1684,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 label.textContent = statusText;
             }
             
-            // Update the data
-            toggleStatus(messageId, type, newStatus === 'yes');
+            // Update the data in the message object
+            const message = filteredMessages.find(m => m.id === messageId);
+            if (message) {
+                if (type === 'sent') {
+                    message.sent = newStatus;
+                } else if (type === 'reply') {
+                    message.gotReply = newStatus;
+                }
+            }
+            
+            // Mark as modified to show save button
+            markMessageModified(messageId);
         }
 
         // Toggle Status
@@ -1774,6 +1833,41 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             } catch (error) {
                 console.error('[DELETE] Error:', error);
                 alert('Failed to delete message');
+            }
+        }
+
+        // Edit Message
+        function editMessage(messageId) {
+            alert('Edit functionality will be implemented in a future update.');
+        }
+
+        // Copy Message Text
+        async function copyMessageText(messageId, button) {
+            try {
+                const message = filteredMessages.find(m => m.id === messageId);
+                if (!message || !message.message) {
+                    throw new Error('Message not found');
+                }
+                
+                await navigator.clipboard.writeText(message.message);
+                
+                const originalHTML = button.innerHTML;
+                button.classList.add('copied');
+                button.innerHTML = '<i class="fas fa-check"></i> Copied';
+                
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    button.innerHTML = originalHTML;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('[COPY] Error:', error);
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                }, 2000);
             }
         }
 
