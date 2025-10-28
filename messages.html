@@ -1129,7 +1129,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         async function loadUserProfile() {
             try {
                 const token = getAuthToken();
-                const response = await fetch('/user/profile', {
+                const response = await fetch('/profile', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -1164,26 +1164,42 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         async function loadMessagesData() {
             try {
                 const token = getAuthToken();
-                const response = await fetch('/messages', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await fetch('/messages/history', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
 
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
-                    window.location.href = '/login';
+                    window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
 
-                if (response.ok) {
-                    const data = await response.json();
-                    allMessages = data.messages || [];
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    allMessages = data.data || [];
                     processMessages();
                 } else {
-                    console.error('[MESSAGES] Failed to load messages');
-                    showEmptyState();
+                    throw new Error(data.error || 'Failed to load messages');
                 }
+                
             } catch (error) {
                 console.error('[MESSAGES] Error loading messages:', error);
+                
+                if (error.message && error.message.includes('401')) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 showEmptyState();
             }
         }
@@ -1193,26 +1209,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             const messagesList = [];
             
             allMessages.forEach(msg => {
-                const target = msg.target_profile || {};
-                const messageType = normalizeMessageType(msg.message_type);
+                const target = msg.targetProfile || {};
+                const messageType = normalizeMessageType(msg.message_type || msg.messageType);
                 
                 messagesList.push({
                     id: msg.id,
-                    groupId: msg.target_profile_id,
-                    date: msg.created_at,
+                    groupId: msg.target_profile_id || msg.targetProfileId,
+                    date: msg.created_at || msg.createdAt,
                     message: msg.message || '',
                     messageType: messageType,
                     target: {
-                        firstName: target.first_name || 'Unknown',
-                        lastName: target.last_name || '',
+                        firstName: target.firstName || 'Unknown',
+                        lastName: target.lastName || '',
                         role: target.role || '',
                         company: target.company || '',
                         email: target.email || ''
                     },
-                    emailFound: msg.email_found || target.email || null,
-                    emailVerificationStatus: msg.email_verification_status || null,
+                    emailFound: msg.emailFound || target.email || null,
+                    emailVerificationStatus: msg.emailStatus || msg.emailVerificationStatus || null,
                     sent: msg.sent ? 'yes' : 'no',
-                    gotReply: msg.got_reply ? 'yes' : 'no',
+                    gotReply: msg.gotReply ? 'yes' : 'no',
                     comments: msg.comments || ''
                 });
             });
@@ -1706,7 +1722,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             try {
                 const token = getAuthToken();
-                const response = await fetch('/email/find', {
+                const response = await fetch('/api/ask-email', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
