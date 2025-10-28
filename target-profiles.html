@@ -3852,11 +3852,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     // Get actual message text and clean it - use edited version if available
                     const rawMessage = actualMessage.editedMessage || actualMessage.message || '';
                     messageText = cleanMessageText(rawMessage);
-                    const isEdited = !!actualMessage.editedMessage;
+                    isEdited = !!actualMessage.editedMessage;
                     console.log(`[TIMELINE] Message text length: ${messageText.length} chars, isEdited: ${isEdited}`);
                 }
                 
                 const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
+                
+                // Initialize variables that will be used in template
+                let isEdited = false;
                 
                 // CRITICAL FIX: Get status from INDIVIDUAL MESSAGE, not messageGroup!
                 let sentStatus = 'pending';
