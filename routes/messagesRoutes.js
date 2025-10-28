@@ -36,6 +36,9 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.target_title as "targetProfile.role", 
                 ml.target_company as "targetProfile.company",
                 ml.generated_message as message,
+                ml.edited_message,
+                ml.edited_at,
+                ml.edit_count,
                 ml.message_type,
                 ml.context_text as context,
                 ml.created_at,
@@ -75,6 +78,9 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 linkedinUrl: row.linkedinUrl
             },
             message: row.message || '',
+            editedMessage: row.edited_message,
+            editedAt: row.edited_at,
+            editCount: row.edit_count || 0,
             message_type: row.message_type,
             context: row.context || 'No context available',
             sent: row.sent,
@@ -262,6 +268,80 @@ router.put('/messages/individual/:messageId', authenticateToken, async (req, res
         res.status(500).json({ 
             success: false, 
             error: 'Failed to update message. Please try again.' 
+        });
+    }
+});
+
+// PUT /messages/individual/:messageId/edit - Edit message content (NEW: Saves to edited_message column)
+router.put('/messages/individual/:messageId/edit', authenticateToken, async (req, res) => {
+    try {
+        const messageId = parseInt(req.params.messageId);
+        const { edited_message } = req.body;
+        const userId = req.user.id;
+        
+        logger.info(`[EDIT_MESSAGE] Editing message ${messageId} for user ${userId}`);
+        
+        // Validate input
+        if (!edited_message || typeof edited_message !== 'string') {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'edited_message is required and must be a string' 
+            });
+        }
+        
+        if (edited_message.trim().length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'edited_message cannot be empty' 
+            });
+        }
+        
+        // Verify message exists and belongs to user
+        const checkResult = await pool.query(
+            'SELECT id, generated_message, edit_count FROM message_logs WHERE id = $1 AND user_id = $2',
+            [messageId, userId]
+        );
+        
+        if (checkResult.rows.length === 0) {
+            logger.warn(`[EDIT_MESSAGE] Message ${messageId} not found for user ${userId}`);
+            return res.status(404).json({
+                success: false,
+                error: 'Message not found'
+            });
+        }
+        
+        const currentEditCount = checkResult.rows[0].edit_count || 0;
+        
+        // Update message with edited content
+        const result = await pool.query(`
+            UPDATE message_logs 
+            SET 
+                edited_message = $1::text,
+                edited_at = NOW(),
+                edit_count = $2
+            WHERE id = $3 AND user_id = $4
+            RETURNING id, generated_message, edited_message, edited_at, edit_count
+        `, [edited_message.trim(), currentEditCount + 1, messageId, userId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(500).json({
+                success: false,
+                error: 'Update failed'
+            });
+        }
+        
+        logger.success(`[EDIT_MESSAGE] Successfully edited message ${messageId} (edit count: ${currentEditCount + 1})`);
+        
+        res.json({
+            success: true,
+            message: result.rows[0]
+        });
+        
+    } catch (error) {
+        logger.error('[EDIT_MESSAGE] Error editing message:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to edit message. Please try again.' 
         });
     }
 });
