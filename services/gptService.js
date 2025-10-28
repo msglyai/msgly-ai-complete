@@ -29,7 +29,7 @@ CHANGELOG - services/gptService.js:
 13. UPDATED CONNECTION REQUEST PROMPT: New personalized prompt with sender name requirement
 14. ✅ ADDED COLD EMAIL: New cold email generation with 400 char limit, subject + body format
 15. ✅ DYNAMIC CHARACTER LIMITS: LinkedIn message 170-270 chars, Cold Email 400-550 chars with AI optimization
-16. ✅ COLD EMAIL FORMAT: Added "Subject: / Body:" output format (labels don't count toward limit)
+16. ✅ COLD EMAIL FORMAT: Added "Subject: / Body:" output format with blank line separator (labels don't count toward limit)
 17. ✅ COLD EMAIL GREETING: Added required "Hi [TARGET_FIRSTNAME]," greeting to match LinkedIn message
 */
 
@@ -197,8 +197,10 @@ Please build the most **personalized cold email**.
 * Email body must start with an **ICEBREAKER**: a friendly, natural fact from the TARGET PROFILE, recent activity, or a relevant topical comment. It must never feel pushy, rude, or offensive.
 * Output format must be:
   Subject: [your subject line]
+  
   Body: [your email body starting with "Hi [TARGET_FIRSTNAME],"]
-* The labels "Subject:" and "Body:" are formatting only and do NOT count toward your 550-character budget.
+* Include one blank line between "Subject:" and "Body:" for clear separation.
+* The labels "Subject:" and "Body:" and the blank line are formatting only and do NOT count toward your 550-character budget.
 * Always begin with a natural ice-breaker line based on the target’s most recent and relevant context. It must feel authentic and specific, never generic like “Hope you’re well.”
 * If the target’s most recent role started within the last 3 months → congratulate naturally on the new role (e.g., “Congrats on your new role at [COMPANY]!”). The model may rephrase, but must keep it clear and friendly.
 * If they were recently promoted → acknowledge the promotion briefly and positively.
