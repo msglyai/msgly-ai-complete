@@ -3822,6 +3822,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             
             // Loop through all 3 message types - always display all
             allMessageTypes.forEach((msgType, index) => {
+                // Initialize variables that will be used in template
+                let isEdited = false;
+                
                 // Find if this message type exists in actual messages
                 const actualMessage = messages && messages.find(m => m.type === msgType.type);
                 const hasMessage = !!actualMessage;
@@ -3857,9 +3860,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 }
                 
                 const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
-                
-                // Initialize variables that will be used in template
-                let isEdited = false;
                 
                 // CRITICAL FIX: Get status from INDIVIDUAL MESSAGE, not messageGroup!
                 let sentStatus = 'pending';
