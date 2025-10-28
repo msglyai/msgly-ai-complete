@@ -22,6 +22,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             --electric-purple: #6A1B9A;
             --light-purple: #F5EDFF;
             --accent-pink: #FF2370;
+            --selected-pink: #E91E63;
             --success-green: #10B981;
             --warning-orange: #F59E0B;
             --black: #111827;
@@ -324,9 +325,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .package-card.selected {
-            border-color: var(--primary-purple);
-            background: var(--white);
-            box-shadow: var(--glow-shadow);
+            background: var(--selected-pink);
+            border-color: var(--selected-pink);
+            color: var(--white);
+            box-shadow: 0 8px 24px rgba(233, 30, 99, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .package-card.selected .plan-name,
+        .package-card.selected .plan-price,
+        .package-card.selected .plan-credits {
+            color: var(--white);
+        }
+        
+        .package-card.selected .plan-price span {
+            color: rgba(255, 255, 255, 0.9);
         }
 
         .package-card.current {
