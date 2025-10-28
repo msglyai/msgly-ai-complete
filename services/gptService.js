@@ -28,6 +28,9 @@ CHANGELOG - services/gptService.js:
 12. FIXED DATABASE TRUNCATION: Changed to 40-char limit for extra safety
 13. UPDATED CONNECTION REQUEST PROMPT: New personalized prompt with sender name requirement
 14. ✅ ADDED COLD EMAIL: New cold email generation with 400 char limit, subject + body format
+15. ✅ DYNAMIC CHARACTER LIMITS: LinkedIn message 170-270 chars, Cold Email 400-550 chars with AI optimization
+16. ✅ COLD EMAIL FORMAT: Added "Subject: / Body:" output format (labels don't count toward limit)
+17. ✅ COLD EMAIL GREETING: Added required "Hi [TARGET_FIRSTNAME]," greeting to match LinkedIn message
 */
 
 // server/services/gptService.js - GPT-5 Integration Service with Rich Profile Data & Comprehensive Debugging - FULL DATA VERSION
@@ -183,9 +186,19 @@ I send you:
 3. The CONTEXT (business or conversational goal)
 Please build the most **personalized cold email**.
 **Rules:**
-* Absolute maximum: **400 characters** (subject + body combined).
+* Character budget: **400-550 characters** (subject + body content only, excluding format labels).
+* ABSOLUTE MAXIMUM: **550 characters** - NEVER exceed this limit.
+* Optimize for brevity: Use only the characters needed for a complete, compelling message.
+* Aim for 400-500 characters for most cases.
+* Use 500-550 characters ONLY when additional context genuinely adds value.
+* A tight, effective 420-character email beats a padded 550-character one.
 * Include a short SUBJECT line — must be relevant to CONTEXT, interesting, natural, never salesy or spammy.
+* Email body must start with: **"Hi [TARGET_FIRSTNAME],"**
 * Email body must start with an **ICEBREAKER**: a friendly, natural fact from the TARGET PROFILE, recent activity, or a relevant topical comment. It must never feel pushy, rude, or offensive.
+* Output format must be:
+  Subject: [your subject line]
+  Body: [your email body starting with "Hi [TARGET_FIRSTNAME],"]
+* The labels "Subject:" and "Body:" are formatting only and do NOT count toward your 550-character budget.
 * Always begin with a natural ice-breaker line based on the target’s most recent and relevant context. It must feel authentic and specific, never generic like “Hope you’re well.”
 * If the target’s most recent role started within the last 3 months → congratulate naturally on the new role (e.g., “Congrats on your new role at [COMPANY]!”). The model may rephrase, but must keep it clear and friendly.
 * If they were recently promoted → acknowledge the promotion briefly and positively.
@@ -223,7 +236,12 @@ I send you:
 3. The CONTEXT (business or conversational goal)
 Please build the most **personalized LinkedIn inbox message**.
 **Rules:**
-* Absolute maximum: **220 characters**.
+* Character budget: **170-270 characters**.
+* ABSOLUTE MAXIMUM: **270 characters** - NEVER exceed this limit.
+* Optimize for brevity: Use only the characters needed for a complete, compelling message.
+* Aim for 200-250 characters for most cases.
+* Use 250-270 characters ONLY when additional context genuinely adds value.
+* A tight, effective 200-character message beats a padded 270-character one.
 * Always start with: **"Hi [TARGET_FIRSTNAME],"**
 * Always end with sender's first name (e.g., "... Thanks, Ziv").
 * Must reference at least **1 detail from USER PROFILE** and **1 detail from TARGET PROFILE**.
@@ -884,7 +902,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
             console.log(`[GPT] Token usage: ${tokenUsage.input_tokens} input, ${tokenUsage.output_tokens} output, ${tokenUsage.total_tokens} total`);
             console.log(`[GPT] Generated message: "${generatedMessage}"`);
             console.log(`[GPT] Message length: ${generatedMessage.length} characters`);
-            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : messageType === 'cold_email' ? 400 : 220) ? 'âœ…' : 'âŒ'}`);
+            console.log(`[GPT] Message within limit: ${generatedMessage.length <= (messageType === 'connection_request' ? 150 : messageType === 'intro_request' ? 370 : messageType === 'cold_email' ? 550 : 270) ? '✅' : '❌'}`);
 
             // Extract target metadata
             const targetMetadata = this.extractTargetMetadata(targetProfile);
@@ -909,7 +927,7 @@ Generate the ${messageType === 'connection_request' ? 'connection request' : mes
                     primary_model: this.model,
                     fallback_triggered: fallbackTriggered,
                     primary_error: primaryError,
-                    prompt_version: messageType === 'connection_request' ? 'connection_request_v3_sender_name_full_data' : messageType === 'cold_email' ? 'cold_email_v1_icebreaker_400_chars' : 'inbox_message_target_centric_v4_natural_human_full_data',
+                    prompt_version: messageType === 'connection_request' ? 'connection_request_v3_sender_name_full_data' : messageType === 'cold_email' ? 'cold_email_v2_dynamic_400_550_with_format' : 'inbox_message_v5_dynamic_170_270',
                     latency_ms: latencyMs,
                     ...targetMetadata
                 },
