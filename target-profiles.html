@@ -2382,6 +2382,58 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     </div>
 
+    <!-- Edit Message Modal -->
+    <div class="modal-overlay" id="editMessageModal">
+        <div class="modal" style="max-width: 700px; width: 90%;">
+            <div class="modal-header">
+                <div class="modal-title">✏️ Edit <span id="editMessageType">Message</span></div>
+            </div>
+            <div class="modal-body">
+                <textarea id="editMessageTextarea" style="width: 100%; min-height: 250px; padding: 1rem; border: 2px solid #E5E7EB; border-radius: 8px; font-size: 0.95rem; font-family: inherit; line-height: 1.6; resize: vertical;"></textarea>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: #6B7280;">
+                    <i class="fas fa-info-circle"></i> Your original AI-generated message will be preserved. You can always view it later.
+                </p>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeEditMessageModal()">Cancel</button>
+                <button class="modal-btn secondary" id="viewOriginalMessage" style="background: #8B5CF6; color: white; display: none;">
+                    <i class="fas fa-eye"></i> View Original
+                </button>
+                <button class="modal-btn primary" id="saveEditedMessage">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Original Message Modal -->
+    <div class="modal-overlay" id="viewOriginalModal">
+        <div class="modal" style="max-width: 800px; width: 90%;">
+            <div class="modal-header">
+                <div class="modal-title">📝 Original vs Edited Message</div>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div>
+                        <h4 style="margin: 0 0 0.75rem 0; color: #059669; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fas fa-robot"></i> Original AI-Generated
+                        </h4>
+                        <div style="background: #F0FDF4; padding: 1rem; border-radius: 8px; border-left: 4px solid #059669; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9rem; line-height: 1.6; color: #374151; max-height: 400px; overflow-y: auto;" id="originalMessageText"></div>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0 0 0.75rem 0; color: #8B5CF6; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fas fa-user-edit"></i> Your Edited Version
+                        </h4>
+                        <div style="background: #F5F3FF; padding: 1rem; border-radius: 8px; border-left: 4px solid #8B5CF6; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9rem; line-height: 1.6; color: #374151; max-height: 400px; overflow-y: auto;" id="editedMessageText"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn primary" onclick="closeViewOriginalModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content Wrapper -->
     <div class="main-wrapper">
         <main class="main-content">
@@ -3674,7 +3726,34 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function editMessage(type, messageId) {
-            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
+            // Find the message in groupedMessages
+            let targetMessage = null;
+            let messageText = '';
+            
+            Object.values(groupedMessages).forEach(group => {
+                ['linkedin', 'connection', 'email'].forEach(messageType => {
+                    const messages = group.messages[messageType];
+                    if (Array.isArray(messages)) {
+                        const found = messages.find(m => m.id === messageId);
+                        if (found) {
+                            targetMessage = found;
+                            // Use edited version if it exists, otherwise use original
+                            messageText = found.editedMessage || found.message || '';
+                        }
+                    }
+                });
+            });
+            
+            if (!targetMessage) {
+                alert('Message not found');
+                return;
+            }
+            
+            // Clean the message text
+            messageText = cleanMessageText(messageText);
+            
+            // Show edit modal
+            showEditMessageModal(messageId, type, messageText, targetMessage);
         }
 
         async function copyMessage(type, messageId, button) {
@@ -3770,9 +3849,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         console.warn('[TIMELINE] No date available for message');
                     }
                     
-                    // Get actual message text and clean it
-                    messageText = cleanMessageText(actualMessage.message) || '';
-                    console.log(`[TIMELINE] Message text length: ${messageText.length} chars`);
+                    // Get actual message text and clean it - use edited version if available
+                    const rawMessage = actualMessage.editedMessage || actualMessage.message || '';
+                    messageText = cleanMessageText(rawMessage);
+                    const isEdited = !!actualMessage.editedMessage;
+                    console.log(`[TIMELINE] Message text length: ${messageText.length} chars, isEdited: ${isEdited}`);
                 }
                 
                 const uniqueId = `msg-${messageGroup.id}-${msgType.type}`;
@@ -3820,6 +3901,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         </div>
                         <div class="history-item-body" id="${uniqueId}">
                             ${hasMessage ? `
+                                ${isEdited ? '<div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.8rem; background: #F5F3FF; border-radius: 6px; margin-bottom: 0.75rem; font-size: 0.8rem; color: #8B5CF6; font-weight: 600;"><i class="fas fa-edit"></i> Edited Version</div>' : ''}
                                 <div class="message-text-content">
                                     ${messageText}
                                 </div>
@@ -3939,7 +4021,158 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function editMessage(type, messageId) {
-            alert(`Edit functionality for ${type} message (ID: ${messageId}) will be implemented in a future update.`);
+            // Find the message in groupedMessages
+            let targetMessage = null;
+            let messageText = '';
+            
+            Object.values(groupedMessages).forEach(group => {
+                ['linkedin', 'connection', 'email'].forEach(messageType => {
+                    const messages = group.messages[messageType];
+                    if (Array.isArray(messages)) {
+                        const found = messages.find(m => m.id === messageId);
+                        if (found) {
+                            targetMessage = found;
+                            // Use edited version if it exists, otherwise use original
+                            messageText = found.editedMessage || found.message || '';
+                        }
+                    }
+                });
+            });
+            
+            if (!targetMessage) {
+                alert('Message not found');
+                return;
+            }
+            
+            // Clean the message text
+            messageText = cleanMessageText(messageText);
+            
+            // Show edit modal
+            showEditMessageModal(messageId, type, messageText, targetMessage);
+        }
+
+        function showEditMessageModal(messageId, type, messageText, originalMessage) {
+            const modal = document.getElementById('editMessageModal');
+            const textarea = document.getElementById('editMessageTextarea');
+            const saveBtn = document.getElementById('saveEditedMessage');
+            const messageTypeLabel = document.getElementById('editMessageType');
+            const viewOriginalBtn = document.getElementById('viewOriginalMessage');
+            
+            // Set modal content
+            textarea.value = messageText;
+            messageTypeLabel.textContent = type.charAt(0).toUpperCase() + type.slice(1) + ' Message';
+            
+            // Setup save button
+            saveBtn.onclick = () => saveEditedMessage(messageId, type);
+            
+            // Setup view original button
+            if (originalMessage.editedMessage) {
+                viewOriginalBtn.style.display = 'inline-flex';
+                viewOriginalBtn.onclick = () => showOriginalMessage(originalMessage.message, originalMessage.editedMessage);
+            } else {
+                viewOriginalBtn.style.display = 'none';
+            }
+            
+            // Show modal
+            modal.classList.add('active');
+        }
+
+        function showOriginalMessage(originalText, editedText) {
+            const cleanOriginal = cleanMessageText(originalText);
+            const cleanEdited = cleanMessageText(editedText);
+            
+            const modal = document.getElementById('viewOriginalModal');
+            document.getElementById('originalMessageText').textContent = cleanOriginal;
+            document.getElementById('editedMessageText').textContent = cleanEdited;
+            modal.classList.add('active');
+        }
+
+        function closeEditMessageModal() {
+            document.getElementById('editMessageModal').classList.remove('active');
+        }
+
+        function closeViewOriginalModal() {
+            document.getElementById('viewOriginalModal').classList.remove('active');
+        }
+
+        async function saveEditedMessage(messageId, type) {
+            const textarea = document.getElementById('editMessageTextarea');
+            const editedMessage = textarea.value.trim();
+            
+            if (!editedMessage) {
+                alert('Message cannot be empty');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('saveEditedMessage');
+            const originalHTML = saveBtn.innerHTML;
+            
+            try {
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                saveBtn.disabled = true;
+                
+                const token = getAuthToken();
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const response = await fetch(`/messages/individual/${messageId}/edit`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        edited_message: editedMessage
+                    })
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update local data
+                    Object.values(groupedMessages).forEach(group => {
+                        ['linkedin', 'connection', 'email'].forEach(messageType => {
+                            const messages = group.messages[messageType];
+                            if (Array.isArray(messages)) {
+                                const found = messages.find(m => m.id === messageId);
+                                if (found) {
+                                    found.editedMessage = editedMessage;
+                                    found.editedAt = new Date().toISOString();
+                                    found.editCount = (found.editCount || 0) + 1;
+                                }
+                            }
+                        });
+                    });
+                    
+                    // Re-render messages
+                    renderMessages();
+                    
+                    // Close modal
+                    closeEditMessageModal();
+                    
+                    // Show success message
+                    console.log('[EDIT] Message edited successfully');
+                    
+                } else {
+                    alert(`Failed to save: ${result.error || 'Unknown error'}`);
+                    saveBtn.innerHTML = originalHTML;
+                    saveBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('[EDIT] Error saving edited message:', error);
+                alert('Failed to save edited message. Please try again.');
+                saveBtn.innerHTML = originalHTML;
+                saveBtn.disabled = false;
+            }
         }
 
         function copyEmailAddress(email, button) {
