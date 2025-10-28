@@ -63,7 +63,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .main-content {
             padding: 1.5rem;
-            max-width: 1600px;
+            max-width: 2000px;
             width: 100%;
             margin: 0 auto;
             box-sizing: border-box;
@@ -307,7 +307,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .messages-table td {
-            padding: 1rem;
+            padding: 1.2rem;
             vertical-align: top;
             font-size: 0.9rem;
         }
@@ -636,7 +636,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             background: var(--success-green);
             color: var(--white);
             border: none;
-            padding: 0.5rem 1rem;
+            padding: 0.6rem;
             border-radius: 8px;
             cursor: pointer;
             font-size: 0.85rem;
@@ -644,8 +644,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
+            justify-content: center;
+            gap: 0.3rem;
+            width: 36px;
+            height: 36px;
         }
 
         .save-btn:hover {
@@ -655,7 +657,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .save-btn.modified {
             background: var(--warning-orange);
-            animation: pulse 2s infinite;
         }
 
         .save-btn.saving {
@@ -665,11 +666,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .save-btn.saved {
             background: var(--success-green);
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
         }
 
         /* Pagination */
@@ -1400,14 +1396,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             placeholder="Add notes..."
                             onchange="updateComment(${msg.id}, this.value)"
                         >${msg.comments}</textarea>
-                        <button class="save-btn" id="save-${msg.id}" onclick="saveMessage(${msg.id})" style="display: none;">
-                            <i class="fas fa-save"></i> Save
-                        </button>
                     </td>
                     <td class="actions-cell">
-                        <button class="delete-btn" onclick="deleteMessage(${msg.id})" title="Delete message">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: center;">
+                            <button class="save-btn" id="save-${msg.id}" onclick="saveMessage(${msg.id})" style="display: none;">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button class="delete-btn" onclick="deleteMessage(${msg.id})" title="Delete message">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -1522,21 +1520,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         function renderToggleSwitch(messageId, type, value) {
-            const status = value; // 'yes' or 'no'
+            const status = value || 'pending'; // 'yes', 'no', or 'pending'
             const isYes = status === 'yes';
-            const bgColor = isYes ? '#10B981' : '#EF4444';
-            const sliderPos = isYes ? 'calc(100% - 26px)' : '4px';
-            const statusText = isYes ? 'YES' : 'NO';
+            const isNo = status === 'no';
+            const isPending = status === 'pending' || (!isYes && !isNo);
+            
+            let bgColor, statusText;
+            if (isYes) {
+                bgColor = '#10B981'; // Green
+                statusText = 'YES';
+            } else if (isNo) {
+                bgColor = '#EF4444'; // Red
+                statusText = 'NO';
+            } else {
+                bgColor = '#9CA3AF'; // Gray
+                statusText = 'PENDING';
+            }
             
             return `
                 <div class="toggle-switch ${status}" 
                      data-message-id="${messageId}" 
                      data-field="${type}" 
                      onclick="toggleStatusClick(this, ${messageId}, '${type}')"
-                     style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 70px; height: 32px; cursor: pointer; background-color: ${bgColor}; transition: all 0.3s ease; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                    <div class="toggle-slider" 
-                         style="position: absolute; height: 24px; width: 24px; left: ${sliderPos}; background-color: white; transition: all 0.3s ease; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                    </div>
+                     style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: ${isPending ? '95px' : '75px'}; height: 34px; cursor: pointer; background-color: ${bgColor}; transition: all 0.3s ease; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                     <span style="font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px; z-index: 1; pointer-events: none;">
                         ${statusText}
                     </span>
@@ -1592,24 +1598,41 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         // Toggle Status with Click
         function toggleStatusClick(element, messageId, type) {
-            const currentStatus = element.classList.contains('yes') ? 'yes' : 'no';
-            const newStatus = currentStatus === 'yes' ? 'no' : 'yes';
+            const currentStatus = element.classList.contains('yes') ? 'yes' : 
+                                 element.classList.contains('no') ? 'no' : 'pending';
+            
+            // Cycle: yes -> no -> pending -> yes
+            let newStatus;
+            if (currentStatus === 'yes') {
+                newStatus = 'no';
+            } else if (currentStatus === 'no') {
+                newStatus = 'pending';
+            } else {
+                newStatus = 'yes';
+            }
             
             // Update the visual toggle
-            element.classList.remove('yes', 'no');
+            element.classList.remove('yes', 'no', 'pending');
             element.classList.add(newStatus);
             
             const isYes = newStatus === 'yes';
-            const bgColor = isYes ? '#10B981' : '#EF4444';
-            const sliderPos = isYes ? 'calc(100% - 26px)' : '4px';
-            const statusText = isYes ? 'YES' : 'NO';
+            const isNo = newStatus === 'no';
+            const isPending = newStatus === 'pending';
+            
+            let bgColor, statusText;
+            if (isYes) {
+                bgColor = '#10B981';
+                statusText = 'YES';
+            } else if (isNo) {
+                bgColor = '#EF4444';
+                statusText = 'NO';
+            } else {
+                bgColor = '#9CA3AF';
+                statusText = 'PENDING';
+            }
             
             element.style.backgroundColor = bgColor;
-            
-            const slider = element.querySelector('.toggle-slider');
-            if (slider) {
-                slider.style.left = sliderPos;
-            }
+            element.style.width = isPending ? '95px' : '75px';
             
             const label = element.querySelector('span');
             if (label) {
@@ -1698,7 +1721,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     saveButtons.forEach(btn => {
                         btn.classList.remove('saving', 'modified');
                         btn.classList.add('saved');
-                        btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
+                        btn.innerHTML = '<i class="fas fa-check"></i>';
                     });
                     
                     pendingChanges.delete(messageId);
@@ -1718,13 +1741,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 saveButtons.forEach(btn => {
                     btn.classList.remove('saving');
-                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                    btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
                 });
                 
                 setTimeout(() => {
                     saveButtons.forEach(btn => {
                         btn.classList.add('modified');
-                        btn.innerHTML = '<i class="fas fa-save"></i> Save';
+                        btn.innerHTML = '<i class="fas fa-save"></i>';
                     });
                 }, 3000);
             }
