@@ -1131,36 +1131,58 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             try {
                 const token = getAuthToken();
                 const response = await fetch('/profile', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
 
                 if (response.status === 401) {
                     localStorage.removeItem('authToken');
-                    window.location.href = '/login';
+                    window.location.href = '/login?returnUrl=/messages';
                     return;
                 }
 
-                if (response.ok) {
-                    const data = await response.json();
-                    currentUserPlan = data;
-                    updateCreditsDisplay(data.totalCredits || 0);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const user = data.data.user;
+                    
+                    // Use dual-credit calculation
+                    const renewableCredits = parseFloat(user.renewableCredits || 0);
+                    const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
+                    const totalCredits = renewableCredits + payasyougoCredits;
+                    
+                    console.log('[CREDITS] Renewable:', renewableCredits.toFixed(2));
+                    console.log('[CREDITS] PayAsYouGo:', payasyougoCredits.toFixed(2));
+                    console.log('[CREDITS] Total:', totalCredits.toFixed(2));
+                    
+                    currentUserPlan = {
+                        planCode: user.planCode || user.plan_code || 'free',
+                        planName: user.planName || user.plan_name || 'Free',
+                        totalCredits: totalCredits,
+                        renewableCredits: renewableCredits,
+                        payasyougoCredits: payasyougoCredits
+                    };
+                    
+                    updateCreditsDisplay(totalCredits);
                 }
             } catch (error) {
                 console.error('[USER_PROFILE] Error:', error);
             }
         }
 
-        function updateCreditsDisplay(credits) {
+        function updateCreditsDisplay(totalCredits) {
             const creditsElement = document.getElementById('creditsAmount');
             const creditsDisplay = document.getElementById('creditsDisplay');
             
             if (creditsElement && creditsDisplay) {
-                // Get user plan data for renewable and payasyougo credits
-                const renewable = currentUserPlan?.creditsRenewable || 0;
-                const payasyougo = currentUserPlan?.creditsPayAsYouGo || 0;
-                const total = renewable + payasyougo;
-                
-                creditsElement.textContent = total.toFixed(2);
+                creditsElement.textContent = totalCredits.toFixed(2);
                 creditsDisplay.classList.add('updating');
                 setTimeout(() => creditsDisplay.classList.remove('updating'), 600);
             }
