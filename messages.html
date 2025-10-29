@@ -1272,9 +1272,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function processMessages() {
             const messagesList = [];
             
+            console.log('[PROCESS] Raw messages from DB:', allMessages.length);
+            
             allMessages.forEach(msg => {
                 const target = msg.targetProfile || {};
                 const messageType = normalizeMessageType(msg.message_type || msg.messageType);
+                
+                // Convert database values to yes/no/pending format
+                // Database might have: true/false (boolean), 'yes'/'no' (string), or null
+                const convertStatus = (value) => {
+                    if (value === true || value === 'yes') return 'yes';
+                    if (value === false || value === 'no') return 'no';
+                    return 'pending';
+                };
+                
+                const sentStatus = convertStatus(msg.sent);
+                const replyStatus = convertStatus(msg.gotReply);
+                
+                console.log(`[PROCESS] Message ${msg.id}: sent=${msg.sent} -> ${sentStatus}, gotReply=${msg.gotReply} -> ${replyStatus}`);
                 
                 messagesList.push({
                     id: msg.id,
@@ -1291,8 +1306,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     },
                     emailFound: msg.emailFound || target.email || null,
                     emailVerificationStatus: msg.emailStatus || msg.emailVerificationStatus || null,
-                    sent: msg.sent ? 'yes' : 'no',
-                    gotReply: msg.gotReply ? 'yes' : 'no',
+                    sent: sentStatus,
+                    gotReply: replyStatus,
                     comments: msg.comments || ''
                 });
             });
@@ -1760,8 +1775,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        sent: message.sent === 'yes',
-                        got_reply: message.gotReply === 'yes',
+                        sent: message.sent,
+                        got_reply: message.gotReply,
                         comments: message.comments
                     })
                 });
