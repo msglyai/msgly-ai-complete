@@ -7,6 +7,7 @@
 // CRITICAL FIX: NaN corruption bug that was destroying user credits
 // CRITICAL FIX: Added missing 'unified_generation' operation type
 // STAGE 3 ADD: Added email_verification operation type for email finder feature
+// 🆕 BRIGHTDATA ADD: Added brightdata_analysis and web_message_generation operation types
 
 const { pool } = require('./utils/database');
 
@@ -19,7 +20,9 @@ class CreditManager {
             'connection_generation': 1.0,
             'cold_email_generation': 1.0, // ADDED: Cold email generation support
             'unified_generation': 1.0,    // CRITICAL FIX: Added missing unified_generation
-            'email_verification': 2.0     // STAGE 3 ADD: Email verification operation (2 credits per successful verification)
+            'email_verification': 2.0,    // STAGE 3 ADD: Email verification operation (2 credits per successful verification)
+            'brightdata_analysis': 1.0,   // 🆕 BrightData LinkedIn profile analysis
+            'web_message_generation': 1.0 // 🆕 Web-based message generation
         };
     }
 
