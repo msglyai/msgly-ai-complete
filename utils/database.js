@@ -247,6 +247,92 @@ const ensureEmailFinderSearchesTable = async () => {
     }
 };
 
+// 🆕 NEW: Ensure brightdata_profiles table exists (web-based LinkedIn profile analysis)
+const ensureBrightDataProfilesTable = async () => {
+    try {
+        console.log('[INIT] Creating brightdata_profiles table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS brightdata_profiles (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                linkedin_url TEXT NOT NULL,
+                profile_data JSONB NOT NULL,
+                snapshot_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                UNIQUE(user_id, linkedin_url)
+            );
+        `);
+        
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_brightdata_profiles_user_id 
+                ON brightdata_profiles(user_id);
+                CREATE INDEX IF NOT EXISTS idx_brightdata_profiles_linkedin_url 
+                ON brightdata_profiles(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_brightdata_profiles_created_at 
+                ON brightdata_profiles(created_at);
+            `);
+            console.log('[SUCCESS] Created brightdata_profiles indexes');
+        } catch (err) {
+            console.log('[INFO] BrightData profiles indexes might already exist:', err.message);
+        }
+        
+        console.log('[SUCCESS] brightdata_profiles table ensured');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure brightdata_profiles table:', error);
+        throw error;
+    }
+};
+
+// 🆕 NEW: Ensure web_generated_messages table exists (messages generated via web interface)
+const ensureWebGeneratedMessagesTable = async () => {
+    try {
+        console.log('[INIT] Creating web_generated_messages table...');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS web_generated_messages (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                brightdata_profile_id INTEGER REFERENCES brightdata_profiles(id) ON DELETE SET NULL,
+                linkedin_url TEXT NOT NULL,
+                message_type VARCHAR(50) NOT NULL CHECK (message_type IN ('linkedin_message', 'connection_request', 'cold_email')),
+                generated_message TEXT NOT NULL,
+                profile_summary TEXT,
+                credits_used DECIMAL(10, 2) DEFAULT 1.0,
+                context_name VARCHAR(100),
+                context_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        try {
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_web_messages_user_id 
+                ON web_generated_messages(user_id);
+                CREATE INDEX IF NOT EXISTS idx_web_messages_linkedin_url 
+                ON web_generated_messages(linkedin_url);
+                CREATE INDEX IF NOT EXISTS idx_web_messages_type 
+                ON web_generated_messages(message_type);
+                CREATE INDEX IF NOT EXISTS idx_web_messages_created_at 
+                ON web_generated_messages(created_at);
+            `);
+            console.log('[SUCCESS] Created web_generated_messages indexes');
+        } catch (err) {
+            console.log('[INFO] Web generated messages indexes might already exist:', err.message);
+        }
+        
+        console.log('[SUCCESS] web_generated_messages table ensured');
+        
+    } catch (error) {
+        console.error('[ERROR] Failed to ensure web_generated_messages table:', error);
+        throw error;
+    }
+};
+
 // ✅ NEW: Ensure context addon tables exist
 const ensureContextAddonTables = async () => {
     try {
@@ -1195,6 +1281,12 @@ const initDB = async () => {
         
         // ✅ NEW: Ensure email_finder_searches table exists (standalone email finder page)
         await ensureEmailFinderSearchesTable();
+        
+        // 🆕 NEW: BRIGHTDATA_PROFILES TABLE for web-based LinkedIn profile analysis
+        await ensureBrightDataProfilesTable();
+        
+        // 🆕 NEW: WEB_GENERATED_MESSAGES TABLE for web-based message generation
+        await ensureWebGeneratedMessagesTable();
         
         // ✅ NEW: CONTEXT ADDON TABLES for extra slot subscriptions
         await ensureContextAddonTables();
@@ -2678,6 +2770,8 @@ module.exports = {
     ensureAdminAuditTable, // 🔒 NEW: Admin audit table function
     ensureEmailRequestsTable, // 📧 NEW: Email requests table function
     ensureEmailFinderSearchesTable, // 🔍 NEW: Email finder searches table function
+    ensureBrightDataProfilesTable, // 🆕 NEW: BrightData profiles table function
+    ensureWebGeneratedMessagesTable, // 🆕 NEW: Web generated messages table function
     fixPromptVersionColumn,
     initializeContextSlots, // 🆕 NEW: Initialize context slots function
     setupInitialAdmin, // 🔒 NEW: Secure initial admin setup function
