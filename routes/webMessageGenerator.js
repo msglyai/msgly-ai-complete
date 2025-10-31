@@ -3,10 +3,9 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../database');
+const { pool, spendUserCredits } = require('../utils/database');
 const brightDataService = require('../services/brightDataService');
 const webMessageGPTService = require('../services/webMessageGPTService');
-const { spendUserCredits } = require('../database');
 
 /**
  * POST /api/web-message-generator/analyze-profile
