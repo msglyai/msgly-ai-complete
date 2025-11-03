@@ -1,3736 +1,545 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-5CNT3VV9');</script>
-<!-- End Google Tag Manager -->
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Finder - Msgly AI</title>
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-purple: #8039DF;
-            --dark-purple: #3E0075;
-            --glow-purple: #9F4EFF;
-            --neon-purple: #7B2CBF;
-            --electric-purple: #6A1B9A;
-            --light-purple: #F5EDFF;
-            --accent-pink: #FF2370;
-            --success-green: #10B981;
-            --warning-orange: #F59E0B;
-            --error-red: #EF4444;
-            --black: #111827;
-            --charcoal: #1F2937;
-            --dark-gray: #374151;
-            --gray: #6B7280;
-            --light-gray: #F9FAFB;
-            --white: #FFFFFF;
-            --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
-            --glow-shadow: 0 0 30px rgba(128, 57, 223, 0.25);
-            --intense-glow: 0 0 45px rgba(128, 57, 223, 0.35);
-            --neon-glow: 0 0 60px rgba(128, 57, 223, 0.25);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--light-gray);
-            min-height: 100vh;
-            display: flex;
-        }
-
-        /* Side Navigation */
-        .sidebar {
-            width: 280px;
-            background: linear-gradient(180deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            position: fixed;
-            height: 100vh;
-            left: 0;
-            top: 0;
-            z-index: 1000;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-            box-shadow: var(--shadow-lg);
-        }
-
-        .sidebar-header {
-            padding: 2rem 1.5rem 1.5rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .sidebar-logo {
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-            color: var(--white);
-            margin-bottom: 1rem;
-        }
-
-        .sidebar-logo i {
-            font-size: 2rem;
-            margin-right: 12px;
-            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
-        }
-
-        .sidebar-logo-text {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .sidebar-logo-main {
-            font-size: 1.5rem;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .sidebar-logo-sub {
-            font-size: 0.7rem;
-            opacity: 0.8;
-            font-weight: 400;
-        }
-
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-        }
-
-        .sidebar-user-avatar {
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .sidebar-user-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .sidebar-user-name {
-            font-weight: 600;
-            font-size: 0.9rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .sidebar-user-email {
-            font-size: 0.75rem;
-            opacity: 0.8;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .sidebar-user-plan {
-            font-size: 0.7rem;
-            opacity: 0.7;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* NEW: Credits Display in Sidebar */
-        .sidebar-user-credits {
-            font-size: 0.85rem;
-            font-weight: 700;
-            margin-top: 0.5rem;
-            padding: 0.4rem 0.8rem;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        .sidebar-user-credits i {
-            font-size: 0.9rem;
-            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
-        }
-
-        .sidebar-user-credits.updating {
-            animation: pulse 0.6s ease-in-out;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); background: rgba(255, 255, 255, 0.25); }
-        }
-
-        .sidebar-nav {
-            padding: 1.5rem 0;
-        }
-
-        .nav-section {
-            margin-bottom: 2rem;
-        }
-
-        .nav-section-title {
-            padding: 0 1.5rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 0.5rem;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1.5rem;
-            color: rgba(255, 255, 255, 0.8);
-            text-decoration: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .nav-item:hover, .nav-item.active {
-            background: rgba(255, 255, 255, 0.15);
-            color: var(--white);
-            box-shadow: inset 4px 0 0 var(--white);
-        }
-
-        .nav-item i {
-            width: 20px;
-            margin-right: 12px;
-            font-size: 1.1rem;
-        }
-
-        .nav-item-text {
-            font-size: 0.9rem;
-            font-weight: 500;
-            flex: 1;
-        }
-
-        .nav-badge {
-            background: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 0.7rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .nav-badge.new {
-            background: var(--accent-pink);
-            color: var(--white);
-        }
-
-        .nav-badge.soon {
-            background: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        .sidebar-footer {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 1.5rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .logout-btn {
-            width: 100%;
-            padding: 0.75rem;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            color: var(--white);
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .logout-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
-        }
-
-        /* Mobile Sidebar Toggle */
-        .sidebar-toggle {
-            display: none;
-            position: fixed;
-            top: 1rem;
-            left: 1rem;
-            z-index: 1001;
-            background: var(--primary-purple);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            padding: 0.75rem;
-            cursor: pointer;
-            box-shadow: var(--shadow);
-        }
-
-        /* Main Content */
-        .main-wrapper {
-            flex: 1;
-            margin-left: 280px;
-            min-height: 100vh;
-            transition: margin-left 0.3s ease;
-            overflow-x: hidden;
-            width: calc(100% - 280px);
-        }
-
-        .main-content {
-            padding: 1.5rem;
-            max-width: 1400px;
-            width: 100%;
-            margin: 0 auto;
-            box-sizing: border-box;
-        }
-
-        .container {
-            width: 100%;
-            margin: 0 auto;
-        }
-
-        .page-header {
-            margin-bottom: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        .page-header-left {
-            flex: 1;
-        }
-
-        .page-title {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: var(--black);
-        }
-
-        .page-subtitle {
-            color: var(--gray);
-            font-size: 1rem;
-            margin-top: 0.4rem;
-        }
-
-        /* NEW: Credits Badge in Header */
-        .page-header-credits {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            padding: 0.8rem 1.5rem;
-            border-radius: 25px;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 1.1rem;
-            font-weight: 700;
-            box-shadow: var(--glow-shadow);
-            transition: all 0.3s ease;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .page-header-credits i {
-            font-size: 1.3rem;
-            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5));
-        }
-
-        .page-header-credits.updating {
-            animation: creditPulse 0.6s ease-in-out;
-        }
-
-        @keyframes creditPulse {
-            0%, 100% { transform: scale(1); }
-            50% { 
-                transform: scale(1.08); 
-                box-shadow: 0 0 40px rgba(128, 57, 223, 0.5);
-            }
-        }
-
-        .messages-controls {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .search-box {
-            flex: 1;
-            min-width: 300px;
-            position: relative;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 0.8rem 1rem 0.8rem 3rem;
-            border: 2px solid var(--light-gray);
-            border-radius: 25px;
-            font-size: 0.9rem;
-            background: var(--white);
-            transition: all 0.3s ease;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-            box-shadow: 0 0 15px rgba(128, 57, 223, 0.15);
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--gray);
-            font-size: 1.1rem;
-        }
-
-        .messages-stats {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .stat-item {
-            text-align: center;
-            padding: 0.8rem 1.2rem;
-            background: var(--white);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            min-width: 100px;
-            position: relative;
-        }
-
-        .stat-number {
-            font-size: 1.5rem;
-            font-weight: 900;
-            color: var(--primary-purple);
-            margin-bottom: 0.2rem;
-        }
-
-        .stat-label {
-            font-size: 0.7rem;
-            color: var(--gray);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-        }
-
-        .messages-filters {
-            display: flex;
-            gap: 0.8rem;
-            margin-bottom: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-section {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .filter-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 0.8rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 0.6rem 1rem;
-            border: 2px solid var(--light-gray);
-            background: var(--white);
-            color: var(--gray);
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .filter-btn:hover {
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-        }
-
-        .filter-btn.active {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border-color: var(--primary-purple);
-        }
-
-        /* CARD-BASED LAYOUT */
-        .messages-cards-container {
-            background: var(--white);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            border: 1px solid rgba(128, 57, 223, 0.08);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .messages-cards-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
-        }
-
-        .pagination-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--light-gray);
-        }
-
-        .showing-info {
-            font-size: 0.9rem;
-            color: var(--dark-gray);
-            font-weight: 500;
-        }
-
-        .load-more-btn {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            padding: 0.8rem 1.5rem;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            box-shadow: var(--glow-shadow);
-        }
-
-        .load-more-btn:hover {
-            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-1px);
-        }
-
-        .load-more-btn:disabled {
-            background: var(--gray);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* Bottom pagination styling */
-        .bottom-pagination {
-            display: flex;
-            justify-content: center;
-            padding: 2rem 1rem 1rem;
-            border-top: 1px solid var(--light-gray);
-            margin-top: 2rem;
-        }
-
-        .bottom-pagination .load-more-btn {
-            padding: 1rem 2rem;
-            font-size: 1rem;
-            min-width: 200px;
-            justify-content: center;
-        }
-
-        .messages-cards-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.25rem;
-            margin-top: 1rem;
-            align-items: stretch;
-            width: 100%;
-            min-width: 0;
-        }
+// emailFinder.js - FIXED: Per-user email visibility + charge for not_found + await verification
+// Direct integration with Snov.io API using LinkedIn URLs
+// Handles email finding with "charge on search" policy (found OR not_found = charged)
+// Enhanced with target_profiles persistence - ONE email per profile
+// SEPARATED: Verification moved to emailVerifier.js (but awaited before returning)
+// NEW: email_requests table tracks which users requested email
+// Version: 1.3.1 - FIXED: URL normalization + ALWAYS update DB regardless of Snov.io result
+
+const { pool } = require('./utils/database');
+const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
+const logger = require('./utils/logger');
+const axios = require('axios');
+
+class EmailFinder {
+    constructor() {
+        // Feature flags from environment
+        this.enabled = process.env.EMAIL_FINDER_ENABLED === 'true';
+        this.timeoutMs = parseInt(process.env.EMAIL_FINDER_TIMEOUT_MS) || 10000;
+        this.costPerSuccess = parseFloat(process.env.EMAIL_FINDER_COST_PER_SUCCESS_CREDITS) || 2.0;
         
-        @media (max-width: 1600px) {
-            .messages-cards-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
+        // Snov.io API configuration
+        this.snovClientId = process.env.SNOV_CLIENT_ID;
+        this.snovClientSecret = process.env.SNOV_CLIENT_SECRET;
+        this.snovApiKey = process.env.SNOV_API_KEY;
+        this.snovBaseUrl = 'https://api.snov.io';
         
-        @media (max-width: 900px) {
-            .messages-cards-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .message-card {
-            background: var(--white);
-            border: 3px solid var(--light-gray);
-            border-radius: 16px;
-            padding: 0;
-            transition: all 0.3s ease;
-            position: relative;
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            max-width: 100%;
-            min-width: 0;
-            overflow: hidden;
-        }
-
-        .message-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-purple);
-        }
-
-        .message-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .message-card:hover::before {
-            opacity: 1;
-        }
-
-        /* Target Profile Header */
-        .card-profile-header {
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--light-gray);
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 1rem;
-        }
-
-        .profile-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .profile-name {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--black);
-            margin-bottom: 0.4rem;
-        }
-
-        .profile-role {
-            font-size: 1rem;
-            color: var(--dark-gray);
-            font-weight: 500;
-            margin-bottom: 0.3rem;
-        }
-
-        .profile-company {
-            font-size: 0.9rem;
-            color: var(--gray);
-        }
-
-        .email-finder-header-section {
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.8rem;
-            padding: 0.5rem;
-        }
-
-        .email-finder-description {
-            font-size: 0.7rem;
-            color: var(--primary-purple);
-            font-weight: 500;
-            text-align: center;
-            opacity: 0.8;
-        }
-
-        /* Enhanced Email Display */
-        .email-found-container {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-            border: 2px solid var(--success-green);
-            border-radius: 12px;
-            padding: 1rem;
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
-            animation: emailFoundPulse 0.6s ease-out;
-        }
-
-        @keyframes emailFoundPulse {
-            0% { transform: scale(0.95); opacity: 0.8; }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* Unknown/Catch-all - Yellow Warning State */
-        .email-unknown-container {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
-            border: 2px solid var(--warning-orange);
-            border-radius: 12px;
-            padding: 1rem;
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
-            animation: emailFoundPulse 0.6s ease-out;
-        }
-
-        .email-not-found-container {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.03) 100%);
-            border: 2px solid rgba(239, 68, 68, 0.3);
-            border-radius: 12px;
-            padding: 1rem;
-            width: 100%;
-        }
-
-        .email-header-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 0.6rem;
-        }
-
-        .email-label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--success-green);
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .email-label.warning {
-            color: var(--warning-orange);
-        }
-
-        .email-label.error {
-            color: var(--error-red);
-        }
-
-        .email-address-display {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            word-break: break-all;
-            margin-bottom: 0.6rem;
-            padding: 0.6rem;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 8px;
-            border-left: 4px solid var(--success-green);
-        }
-
-        .email-address-display.warning {
-            border-left-color: var(--warning-orange);
-        }
-
-        .email-actions-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-        }
-
-        .copy-email-btn {
-            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            padding: 0.6rem 1rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            flex: 1;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
-        }
-
-        .copy-email-btn:hover {
-            background: linear-gradient(135deg, #059669 0%, var(--success-green) 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
-        }
-
-        .copy-email-btn.copied {
-            background: var(--primary-purple);
-            animation: copySuccess 0.4s ease-out;
-        }
-
-        .copy-email-btn.warning {
-            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
-        }
-
-        .copy-email-btn.warning:hover {
-            background: linear-gradient(135deg, #D97706 0%, var(--warning-orange) 100%);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
-        }
-
-        @keyframes copySuccess {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        /* Email Finder Section */
-        .email-finder-section {
-            background: rgba(128, 57, 223, 0.03);
-            border: 1px solid rgba(128, 57, 223, 0.1);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .email-finder-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.8rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--primary-purple);
-        }
-
-        .email-finder-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-        }
-
-        .email-ask-btn {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            padding: 0.7rem 1.2rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            box-shadow: var(--glow-shadow);
-            white-space: nowrap;
-        }
-
-        .email-ask-btn:hover:not(:disabled) {
-            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
-        }
-
-        .email-ask-btn:disabled {
-            background: var(--gray);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-            opacity: 0.6;
-        }
-
-        .email-ask-btn.loading {
-            background: var(--warning-orange);
-            cursor: wait;
-        }
-
-        .email-ask-btn.search-again {
-            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-        }
-
-        .email-ask-btn.search-again:hover {
-            background: linear-gradient(135deg, #D97706 0%, var(--warning-orange) 100%);
-            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
-        }
-
-        .email-verification {
-            display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
-            font-size: 0.8rem;
-        }
-
-        .email-address {
-            color: var(--dark-gray);
-            font-weight: 600;
-            word-break: break-all;
-        }
-
-        .email-status {
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .email-status.valid {
-            color: var(--success-green);
-        }
-
-        .email-status.invalid,
-        .email-status.not_valid {
-            color: var(--error-red);
-        }
-
-        .email-status.catch_all {
-            color: var(--warning-orange);
-        }
-
-        .email-status.unknown {
-            color: var(--gray);
-        }
-
-        .email-status.error {
-            color: var(--error-red);
-        }
-
-        .email-status.verified {
-            color: var(--success-green);
-        }
-
-        .email-status.not-found,
-        .email-status.not_found {
-            color: var(--error-red);
-        }
-
-        .email-status.found {
-            color: var(--warning-orange);
-        }
-
-        .email-verified-date {
-            font-size: 0.7rem;
-            color: var(--gray);
-        }
-
-        .email-not-available {
-            color: var(--gray);
-            font-style: italic;
-            font-size: 0.8rem;
-        }
-
-        /* EXACT MOCK DESIGN - Email Display */
-        .email-address-row {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 0.5rem;
-            margin-bottom: 0.4rem;
-            width: 100%;
-        }
-
-        .email-address-row i.fas.fa-envelope {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-        }
-
-        .email-text {
-            flex: 1;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--black);
-            font-family: 'Courier New', monospace;
-        }
-
-        .verified-check {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            background: var(--success-green);
-            color: white;
-            padding: 0.25rem 0.55rem;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .verified-check i {
-            font-size: 0.75rem;
-        }
-
-        .verified-check.unknown {
-            background: #F59E0B;
-            color: white;
-        }
-
-        .verified-check.catch-all {
-            background: #F59E0B;
-            color: white;
-        }
-
-        .verified-check.invalid {
-            background: #EF4444;
-            color: white;
-        }
-
-        .verified-check.verifying {
-            background: #3B82F6;
-            color: white;
-        }
-
-        .email-status-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-top: 0.4rem;
-            font-size: 0.65rem;
-            width: 100%;
-        }
-
-        .email-searched-date {
-            color: var(--gray);
-            font-size: 0.65rem;
-            margin-left: 0;
-            text-align: center;
-        }
-
-        .email-searched-date i {
-            margin-right: 0.25rem;
-            color: var(--primary-purple);
-            font-size: 0.6rem;
-        }
-
-        .email-buttons-row {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.65rem;
-            justify-content: center;
-            width: 100%;
-        }
-
-        .email-btn-new {
-            padding: 0.5rem 0.9rem;
-            border: 1.5px solid var(--primary-purple);
-            background: white;
-            color: var(--primary-purple);
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.35rem;
-            white-space: nowrap;
-        }
-
-        .email-btn-new i {
-            font-size: 0.75rem;
-        }
-
-        .email-btn-new:hover {
-            background: var(--primary-purple);
-            color: white;
-            transform: translateY(-1px);
-        }
-
-        .email-btn-new.copy {
-            border-color: var(--primary-purple);
-        }
-
-        .email-btn-new.search-again {
-            border-color: var(--gray);
-            color: var(--gray);
-            background: #E5E7EB;
-        }
-
-        .email-btn-new.search-again:hover {
-            background: var(--gray);
-            color: white;
-        }
-
-        .email-explanation-text {
-            font-size: 0.75rem;
-            color: var(--gray);
-            line-height: 1.4;
-            margin-top: 0.65rem;
-            text-align: center;
-        }
-
-        /* Email Not Found - Clean Design */
-        .email-not-found-display {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem 0;
-        }
-
-        .email-try-again-btn {
-            width: 100%;
-            max-width: 500px;
-            padding: 0.85rem 1.5rem;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            box-shadow: var(--glow-shadow);
-        }
-
-        .email-try-again-btn i {
-            font-size: 0.9rem;
-        }
-
-        .email-try-again-btn:hover {
-            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(128, 57, 223, 0.4);
-        }
-
-        .email-not-found-text {
-            font-size: 0.85rem;
-            color: var(--gray);
-            text-align: center;
-        }
-
-        /* White box wrapper for email content with status-based colored border */
-        .email-content-box {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            border-left: 4px solid #10B981;  /* Default green */
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            width: 100%;
-            max-width: 600px;
-        }
-
-        /* Status-based left border colors for white box */
-        .email-content-box[data-status="valid"],
-        .email-content-box[data-status="verified"] {
-            border-left-color: #10B981;  /* Green */
-        }
-
-        .email-content-box[data-status="unknown"],
-        .email-content-box[data-status="catch_all"],
-        .email-content-box[data-status="found"] {
-            border-left-color: #F59E0B;  /* Orange */
-        }
-
-        .email-content-box[data-status="invalid"],
-        .email-content-box[data-status="not_valid"],
-        .email-content-box[data-status="not_found"],
-        .email-content-box[data-status="error"] {
-            border-left-color: #EF4444;  /* Red */
-        }
-
-        .email-content-box[data-status="none"] {
-            border-left-color: #8B5CF6;  /* Purple - no status yet */
-        }
-
-        /* Message Types Section */
-        .message-types-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .message-type-block {
-            margin-bottom: 1rem;
-            padding: 1rem;
-            border: 1px solid var(--light-gray);
-            border-radius: 12px;
-            background: rgba(128, 57, 223, 0.01);
-        }
-
-        .message-type-block.linkedin {
-            border-left: 4px solid #0077B5;
-        }
-
-        .message-type-block.connection {
-            border-left: 4px solid var(--accent-pink);
-        }
-
-        .message-type-block.email {
-            border-left: 4px solid var(--warning-orange);
-        }
-
-        .message-type-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 0.8rem;
-        }
-
-        .message-type-label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-
-        .message-type-label i {
-            font-size: 1rem;
-        }
-
-        .message-type-label.linkedin { color: #0077B5; }
-        .message-type-label.connection { color: var(--accent-pink); }
-        .message-type-label.email { color: var(--warning-orange); }
-
-        .message-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .expand-btn, .edit-btn, .copy-btn {
-            background: var(--light-gray);
-            border: 1px solid var(--gray);
-            border-radius: 6px;
-            padding: 0.4rem 0.8rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-            color: var(--dark-gray);
-        }
-
-        .expand-btn:hover {
-            background: #0077B5;
-            color: var(--white);
-            border-color: #0077B5;
-        }
-
-        .edit-btn:hover {
-            background: var(--warning-orange);
-            color: var(--white);
-            border-color: var(--warning-orange);
-        }
-
-        .copy-btn:hover {
-            background: var(--primary-purple);
-            color: var(--white);
-            border-color: var(--primary-purple);
-        }
-
-        .copy-btn.copied {
-            background: var(--success-green);
-            color: var(--white);
-            border-color: var(--success-green);
-        }
-
-        .message-text {
-            font-size: 0.85rem;
-            line-height: 1.5;
-            color: var(--dark-gray);
-            background: rgba(128, 57, 223, 0.03);
-            padding: 0.8rem;
-            border-radius: 8px;
-            white-space: pre-wrap;
-            display: none;
-        }
-
-        .message-text.expanded {
-            display: block;
-        }
-
-        .message-text.empty {
-            color: var(--gray);
-            font-style: italic;
-            text-align: center;
-            padding: 1.5rem;
-            display: block;
-        }
-
-        .message-preview {
-            font-size: 0.85rem;
-            color: var(--dark-gray);
-            line-height: 1.4;
-            display: block;
-        }
-
-        .message-preview.hidden {
-            display: none;
-        }
-
-        .message-history-item {
-            margin-bottom: 0.8rem;
-            padding: 0.6rem;
-            border: 1px solid var(--light-gray);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.5);
-            transition: all 0.3s ease;
-        }
-
-        .message-history-item.latest {
-            border-color: var(--primary-purple);
-            background: rgba(128, 57, 223, 0.05);
-        }
-
-        .message-history-item.collapsed {
-            background: var(--light-gray);
-            cursor: pointer;
-        }
-
-        .message-history-item.collapsed:hover {
-            background: rgba(128, 57, 223, 0.08);
-        }
-
-        .message-timestamp {
-            font-size: 0.7rem;
-            color: var(--gray);
-            font-weight: 600;
-            margin-bottom: 0.4rem;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .message-content-preview {
-            font-size: 0.85rem;
-            color: var(--dark-gray);
-            line-height: 1.4;
-        }
-
-        .message-version-count {
-            font-size: 0.75rem;
-            color: var(--primary-purple);
-            font-weight: 600;
-            margin-left: 0.5rem;
-            padding: 0.2rem 0.5rem;
-            background: rgba(128, 57, 223, 0.1);
-            border-radius: 10px;
-        }
-
-        /* Status and Comments Section */
-        .card-status-section {
-            padding: 1rem;
-            background: rgba(128, 57, 223, 0.02);
-            border-radius: 12px;
-            border: 1px solid rgba(128, 57, 223, 0.08);
-        }
-
-        .status-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .status-item {
-            text-align: center;
-        }
-
-        .status-label {
-            font-size: 0.75rem;
-            color: var(--gray);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
-        }
-
-        .toggle-switch {
-            width: 60px;
-            height: 28px;
-            background: var(--light-gray);
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: 2px solid transparent;
-            position: relative;
-            margin: 0 auto 0.5rem;
-        }
-
-        .toggle-switch.pending {
-            background: var(--light-gray);
-        }
-
-        .toggle-switch.yes {
-            background: linear-gradient(135deg, var(--success-green) 0%, #059669 100%);
-            border-color: var(--success-green);
-            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
-        }
-
-        .toggle-switch.no {
-            background: linear-gradient(135deg, var(--error-red) 0%, #DC2626 100%);
-            border-color: var(--error-red);
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
-        }
-
-        .toggle-slider {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 20px;
-            height: 20px;
-            background: var(--white);
-            border-radius: 50%;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
-            font-weight: 700;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .toggle-switch.pending .toggle-slider {
-            background: var(--gray);
-            color: var(--white);
-        }
-
-        .toggle-switch.yes .toggle-slider {
-            transform: translateX(32px);
-            background: var(--white);
-            color: var(--success-green);
-        }
-
-        .toggle-switch.no .toggle-slider {
-            background: var(--white);
-            color: var(--error-red);
-        }
-
-        .toggle-label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-
-        .toggle-switch.pending + .toggle-label {
-            color: var(--gray);
-        }
-
-        .toggle-switch.yes + .toggle-label {
-            color: var(--success-green);
-        }
-
-        .toggle-switch.no + .toggle-label {
-            color: var(--error-red);
-        }
-
-        .comment-field {
-            width: 100%;
-            min-height: 60px;
-            max-height: 120px;
-            padding: 0.8rem;
-            border: 2px solid var(--light-gray);
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-family: inherit;
-            resize: vertical;
-            transition: all 0.3s ease;
-        }
-
-        .comment-field:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-            box-shadow: 0 0 0 2px rgba(128, 57, 223, 0.1);
-        }
-
-        .save-btn {
-            width: 100%;
-            padding: 0.8rem;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            margin-top: 1rem;
-            opacity: 0.6;
-            transform: scale(0.98);
-        }
-
-        .save-btn.modified {
-            opacity: 1;
-            transform: scale(1);
-            box-shadow: 0 4px 15px rgba(128, 57, 223, 0.3);
-        }
-
-        .save-btn:hover.modified {
-            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-1px) scale(1);
-        }
-
-        .save-btn.saving {
-            background: var(--warning-orange);
-            cursor: not-allowed;
-        }
-
-        .save-btn.saved {
-            background: var(--success-green);
-        }
-
-        /* ========== NEW 4-SECTION CARD DESIGN ========== */
+        // Check if we have credentials
+        this.hasCredentials = !!(this.snovApiKey || (this.snovClientId && this.snovClientSecret));
         
-        /* SECTION 1: PROFILE */
-        .profile-section-new {
-            padding: 1.25rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            border-bottom: 2px solid #ede9fe;
-            background: linear-gradient(135deg, #fdfcff 0%, #f9f7ff 100%);
-        }
-
-        .profile-details-wrapper {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .profile-fullname {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--black);
-            margin: 0 0 0.35rem 0;
-            line-height: 1.2;
-            text-align: center;
-        }
-
-        .profile-meta-info {
-            font-size: 0.9rem;
-            color: var(--gray);
-            margin-bottom: 0.5rem;
-            text-align: center;
-        }
-
-        .meta-role {
-            font-weight: 500;
-            color: var(--dark-gray);
-        }
-
-        .meta-dot {
-            margin: 0 0.5rem;
-            color: var(--gray);
-        }
-
-        .meta-company {
-            font-weight: 500;
-            color: var(--dark-gray);
-        }
-
-        .linkedin-url-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--primary-purple);
-            text-decoration: none;
-            font-size: 0.95rem;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }
-
-        .linkedin-url-link:hover {
-            color: var(--neon-purple);
-            text-decoration: underline;
-        }
-
-        .linkedin-url-link i {
-            font-size: 1.1rem;
-        }
-
-        /* SECTION 2: EMAIL FINDER */
-        .email-section-new {
-            padding: 1rem 1.5rem;
-            border-bottom: 2px solid #ede9fe;
-            background: linear-gradient(135deg, var(--light-purple) 0%, #FAF6FF 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        /* Email content gets white box with colored left border */
-        .email-section-content {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 120px;
-            justify-content: center;
-        }
-
-        .email-section-title {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            flex-wrap: nowrap;
-        }
-
-        .email-section-title i {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-            flex-shrink: 0;
-        }
-
-        .email-section-title span:first-of-type {
-            white-space: nowrap;
-            flex-shrink: 1;
-            min-width: 0;
-        }
-
-        .snov-powered {
-            margin-left: auto;
-            font-size: 0.65rem;
-            color: #9333ea;
-            font-weight: 600;
-            text-transform: none;
-            background: #f3e8ff;
-            padding: 0.2rem 0.6rem;
-            border-radius: 10px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .find-email-big-btn {
-            width: 100%;
-            max-width: 400px;
-            padding: 0.6rem 1rem;
-            background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple));
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(128, 57, 223, 0.2);
-        }
-
-        .find-email-big-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(128, 57, 223, 0.3);
-        }
-
-        .find-email-big-btn i {
-            margin-right: 0.35rem;
-        }
-
-        .find-email-big-btn.search-again {
-            background: linear-gradient(135deg, var(--warning-orange) 0%, #D97706 100%);
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
-        }
-
-        .find-email-big-btn.search-again:hover {
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-        }
-
-        .email-hint-text {
-            text-align: center;
-            color: var(--gray);
-            font-size: 0.65rem;
-            margin-top: 0.35rem;
-        }
-
-        .email-found-display {
-            background: white;
-            border: 1px solid #d1fae5;
-            border-left: 3px solid var(--success-green);
-            border-radius: 8px;
-            padding: 0.75rem 0.85rem;
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .email-address-row {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 0.5rem;
-            margin-bottom: 0.4rem;
-            width: 100%;
-        }
-
-        .email-address-row i.fas.fa-envelope {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-        }
-
-        .email-text {
-            flex: 1;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--black);
-            font-family: 'Courier New', monospace;
-            text-align: left;
-        }
-
-        .verified-check {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            background: var(--success-green);
-            color: white;
-            padding: 0.25rem 0.55rem;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .verified-check i {
-            font-size: 0.75rem;
-        }
-
-        .verified-check.warning {
-            background: var(--warning-orange);
-        }
-
-        .verified-check.error {
-            background: var(--error-red);
-        }
-
-        .email-buttons-row {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.65rem;
-            justify-content: center;
-            width: 100%;
-        }
-
-        .email-btn-new {
-            padding: 0.5rem 0.9rem;
-            border: 1.5px solid var(--primary-purple);
-            background: white;
-            color: var(--primary-purple);
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.35rem;
-            white-space: nowrap;
-        }
-
-        .email-btn-new i {
-            font-size: 0.75rem;
-        }
-
-        .email-btn-new:hover {
-            background: var(--primary-purple);
-            color: white;
-            transform: translateY(-1px);
-        }
-
-        .email-btn-new.copy.copied {
-            background: var(--success-green);
-            color: white;
-            border-color: var(--success-green);
-        }
-
-        .email-btn-new.search-again {
-            border-color: var(--gray);
-            color: var(--gray);
-        }
-
-        .email-btn-new.search-again:hover {
-            background: var(--gray);
-            color: white;
-        }
-
-        .email-status-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-top: 0.4rem;
-            font-size: 0.65rem;
-            width: 100%;
-        }
-
-        .email-searched-date {
-            color: var(--gray);
-            font-size: 0.65rem;
-            text-align: center;
-        }
-
-        .email-searched-date i {
-            margin-right: 0.25rem;
-            color: var(--primary-purple);
-            font-size: 0.6rem;
-        }
-
-        .email-not-available {
-            color: var(--gray);
-            font-style: italic;
-            font-size: 0.8rem;
-            text-align: center;
-        }
-
-        /* SECTION 3: OUTREACH HISTORY */
-        .outreach-section-new {
-            padding: 0.5rem 0.5rem;
-            border-bottom: 2px solid #ede9fe;
-            background: linear-gradient(135deg, var(--light-gray) 0%, #FCFCFD 100%);
-        }
-
-        .outreach-section-title {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            flex-wrap: nowrap;
-        }
-
-        .outreach-section-title i {
-            color: var(--primary-purple);
-            font-size: 0.95rem;
-            flex-shrink: 0;
-        }
-
-        .outreach-timeline-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-
-        .no-outreach-yet {
-            text-align: center;
-            padding: 2rem;
-            color: var(--gray);
-            font-style: italic;
-        }
-
-        .history-timeline-item {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-            transition: all 0.2s ease;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-
-        .history-timeline-item:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-
-        .history-timeline-item.history-item-disabled {
-            opacity: 0.5;
-            background: #fafafa;
-        }
-
-        .history-timeline-item.history-item-disabled .history-item-header {
-            cursor: not-allowed;
-            background: #f5f5f5;
-        }
-
-        .history-timeline-item.history-item-disabled:hover {
-            box-shadow: none;
-        }
-
-        .history-timeline-item.history-item-disabled .history-item-header:hover {
-            background: #f5f5f5;
-        }
-
-        .history-item-header {
-            padding: 0.75rem 1rem;
-            background: var(--light-gray);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 0.85rem;
-            transition: background 0.2s ease;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .history-timeline-item:not(.history-item-disabled) .history-item-header {
-            background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
-            border-left: 3px solid var(--primary-purple);
-        }
-
-        .history-timeline-item:not(.history-item-disabled) .history-item-header:hover {
-            background: linear-gradient(135deg, #e8f0fe 0%, #dbe7fc 100%);
-        }
-
-        .history-item-header:hover {
-            background: #f0f0f0;
-        }
-
-        .chevron-toggle {
-            color: var(--gray);
-            font-size: 0.8rem;
-            transition: transform 0.2s ease;
-            flex-shrink: 0;
-        }
-
-        .chevron-toggle.rotated {
-            transform: rotate(90deg);
-        }
-
-        .history-type-icon {
-            color: var(--primary-purple);
-            font-size: 0.95rem;
-            flex-shrink: 0;
-        }
-
-        .history-type-text {
-            font-weight: 600;
-            color: var(--black);
-            font-size: 0.85rem;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .history-date-text {
-            color: var(--gray);
-            font-size: 0.8rem;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .history-item-body {
-            padding: 0.5rem;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-            border-left: 4px solid var(--primary-purple);
-            display: none;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-
-        .history-item-body.expanded {
-            display: block;
-        }
-        
-        .message-text-content {
-            font-style: normal;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            color: #374151;
-            white-space: pre-wrap;
-            margin-bottom: 1rem;
-            text-align: left !important;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            word-break: break-word;
-            display: block;
-            width: 100%;
-            max-width: 100%;
-        }
-        
-        .history-item-body * {
-            box-sizing: border-box;
-        }
-
-        .message-preview-text {
-            color: var(--dark-gray);
-            font-size: 0.85rem;
-            line-height: 1.5;
-            margin-bottom: 0.65rem;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            word-break: break-word;
-            text-align: left !important;
-        }
-
-        .history-item-actions {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.5rem;
-        }
-
-        .history-action-btn {
-            padding: 0.5rem 0.75rem;
-            background: white;
-            border: 1px solid #d1d5db;
-            color: var(--dark-gray);
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            min-width: auto;
-            white-space: nowrap;
-        }
-
-        .history-action-btn:hover {
-            background: var(--light-purple);
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-        }
-
-        .history-action-btn.copied {
-            background: var(--success-green);
-            color: white;
-            border-color: var(--success-green);
-        }
-
-        .history-action-btn i {
-            font-size: 0.9rem;
-        }
-
-        /* Compact Status Toggles */
-        .message-status-toggles {
-            display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
-            margin: 0.5rem auto 0 auto;
-            padding-top: 0.5rem;
-            border-top: 1px solid #e5e7eb;
-            max-width: 220px;
-            width: fit-content;
-        }
-
-        .status-toggle-compact {
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-            justify-content: flex-start;
-        }
-
-        .status-toggle-compact label {
-            font-size: 0.65rem;
-            color: var(--dark-gray);
-            font-weight: 600;
-            text-transform: uppercase;
-            white-space: nowrap;
-            min-width: 80px;
-        }
-
-        .toggle-switch-compact {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            display: inline-block;
-            cursor: pointer;
-        }
-
-        .toggle-switch-compact input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider-compact {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #9ca3af;
-            border-radius: 12px;
-            transition: 0.3s;
-        }
-
-        .toggle-slider-compact::before {
-            content: "?";
-            position: absolute;
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            top: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.65rem;
-            font-weight: bold;
-            color: #6b7280;
-        }
-
-        .toggle-switch-compact input:checked + .toggle-slider-compact {
-            background: var(--success-green);
-        }
-
-        .toggle-switch-compact input:checked + .toggle-slider-compact::before {
-            content: "✓";
-            transform: translateX(20px);
-            color: var(--success-green);
-        }
-
-        .toggle-status-label {
-            font-size: 0.62rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin-left: 0.3rem;
-        }
-
-        .toggle-status-label.yes {
-            color: var(--success-green);
-        }
-
-        .toggle-status-label.no {
-            color: #ef4444;
-        }
-
-        /* SECTION 4: TAGS & NOTES */
-        .tags-notes-section-new {
-            padding: 1rem 1.5rem 1.5rem 1.5rem;
-            background: linear-gradient(135deg, var(--white) 0%, #FEFCFF 100%);
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .tags-notes-content {
-            flex: 1;
-        }
-
-        .tags-notes-title {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-            flex-wrap: nowrap;
-        }
-
-        .tags-notes-title i {
-            color: var(--primary-purple);
-            font-size: 0.95rem;
-            flex-shrink: 0;
-        }
-
-        .tags-display-area {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-bottom: 0.85rem;
-            justify-content: center;
-        }
-
-        .prospect-tag {
-            padding: 0.35rem 0.75rem;
-            border-radius: 15px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .prospect-tag.hot-tag {
-            background: #FFE5E5;
-            color: #D32F2F;
-        }
-
-        .prospect-tag.decision-tag {
-            background: #FFF4E5;
-            color: #F57C00;
-        }
-
-        .prospect-tag.followup-tag {
-            background: #E3F2FD;
-            color: #1976D2;
-        }
-
-        .add-tag-button {
-            padding: 0.35rem 0.75rem;
-            background: white;
-            border: 1.5px dashed var(--gray);
-            color: var(--gray);
-            border-radius: 15px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .add-tag-button:hover {
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-            background: var(--light-purple);
-        }
-
-        .notes-input-area {
-            margin-bottom: 0.85rem;
-        }
-
-        .notes-input-label {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .notes-input-label i {
-            color: var(--primary-purple);
-            font-size: 0.85rem;
-        }
-
-        .notes-textarea {
-            width: 100%;
-            height: 80px;
-            padding: 0.75rem;
-            border: 1.5px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-family: inherit;
-            color: var(--dark-gray);
-            resize: none;
-            transition: border-color 0.2s ease;
-        }
-
-        .notes-textarea:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-        }
-
-        .notes-textarea::placeholder {
-            color: var(--gray);
-            font-style: italic;
-        }
-
-        .save-all-btn {
-            width: 100%;
-            padding: 0.7rem 1rem;
-            background: linear-gradient(135deg, var(--primary-purple), var(--neon-purple));
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.4rem;
-            box-shadow: 0 3px 12px rgba(128, 57, 223, 0.25);
-            margin-top: auto;
-        }
-
-        .save-all-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 5px 16px rgba(128, 57, 223, 0.35);
-        }
-
-        .save-all-btn.modified {
-            background: linear-gradient(135deg, var(--warning-orange), #FF9800);
-            animation: pulse-orange 0.6s ease-in-out;
-        }
-
-        .save-all-btn.saving {
-            background: var(--gray);
-            cursor: wait;
-        }
-
-        .save-all-btn.saved {
-            background: linear-gradient(135deg, var(--success-green), #34D399);
-        }
-
-        @keyframes pulse-orange {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-        }
-
-        /* MODAL STYLES */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            backdrop-filter: blur(4px);
-        }
-
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        .modal {
-            background: var(--white);
-            border-radius: 16px;
-            padding: 2rem;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: var(--shadow-lg);
-            transform: scale(0.9);
-            transition: all 0.3s ease;
-            border: 1px solid rgba(128, 57, 223, 0.1);
-        }
-
-        .modal-overlay.active .modal {
-            transform: scale(1);
-        }
-
-        .modal-header {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .modal-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--black);
-            margin-bottom: 0.5rem;
-        }
-
-        .modal-body {
-            text-align: center;
-            margin-bottom: 2rem;
-            color: var(--dark-gray);
-            line-height: 1.5;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-        }
-
-        .modal-btn {
-            padding: 0.8rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .modal-btn.primary {
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            box-shadow: var(--glow-shadow);
-        }
-
-        .modal-btn.primary:hover {
-            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
-            transform: translateY(-1px);
-        }
-
-        .modal-btn.secondary {
-            background: var(--light-gray);
-            color: var(--dark-gray);
-            border: 2px solid var(--light-gray);
-        }
-
-        .modal-btn.secondary:hover {
-            border-color: var(--primary-purple);
-            color: var(--primary-purple);
-        }
-
-        /* Loading & Empty States */
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 300px;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--light-gray);
-            border-top: 3px solid var(--primary-purple);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 3rem 2rem;
-            color: var(--gray);
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: var(--primary-purple);
-            opacity: 0.3;
-        }
-
-        .empty-state h3 {
-            font-size: 1.2rem;
-            margin-bottom: 0.6rem;
-            color: var(--dark-gray);
-        }
-
-        .empty-state p {
-            font-size: 0.9rem;
-            line-height: 1.4;
-            max-width: 400px;
-            margin: 0 auto;
-        }
-
-        .refresh-btn {
-            background: none;
-            border: none;
-            color: var(--gray);
-            cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            font-size: 1.1rem;
-        }
-
-        .refresh-btn:hover {
-            background: var(--light-purple);
-            color: var(--primary-purple);
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Mobile Responsive */
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.active {
-                transform: translateX(0);
-            }
-
-            .sidebar-toggle {
-                display: block;
-            }
-
-            .main-wrapper {
-                margin-left: 0;
-            }
-
-            .main-content {
-                padding: 1rem;
-                margin-top: 4rem;
-            }
-
-            .messages-controls {
-                flex-direction: column;
-            }
-
-            .search-box {
-                min-width: auto;
-            }
-
-            .messages-stats {
-                justify-content: center;
-                flex-wrap: wrap;
-            }
-
-            .messages-cards-grid {
-                grid-template-columns: 1fr;
-                gap: 1.5rem;
-            }
-
-            .status-row {
-                grid-template-columns: 1fr;
-                gap: 0.8rem;
-            }
-
-            .modal {
-                max-width: 350px;
-                padding: 1.5rem;
-            }
-
-            .filter-buttons {
-                justify-content: center;
-            }
-
-            .page-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .page-header-credits {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-
-        @media (min-width: 769px) and (max-width: 1200px) {
-            .messages-cards-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (min-width: 1201px) {
-            .messages-cards-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        /* ======================== EMAIL FINDER CUSTOM STYLES ======================== */
-        
-        .email-finder-search-section {
-            background: var(--white);
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow);
-        }
-
-        .search-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .search-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .search-header h2 {
-            font-size: 1.75rem;
-            color: var(--charcoal);
-            margin-bottom: 0.5rem;
-        }
-
-        .search-header p {
-            color: var(--gray);
-            font-size: 1rem;
-        }
-
-        .powered-by {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-top: 1rem;
-            padding: 0.5rem 1rem;
-            background: var(--light-purple);
-            color: var(--primary-purple);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .powered-by i {
-            font-size: 0.9rem;
-        }
-
-        .search-input-group {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .input-wrapper {
-            flex: 1;
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .input-icon {
-            position: absolute;
-            left: 1rem;
-            color: var(--gray);
-            font-size: 1.1rem;
-        }
-
-        .linkedin-url-input {
-            width: 100%;
-            padding: 1rem 3rem 1rem 3rem;
-            border: 2px solid #D1D5DB;
-            border-radius: 12px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .linkedin-url-input:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-            box-shadow: 0 0 0 3px rgba(128, 57, 223, 0.1);
-        }
-
-        .clear-btn {
-            position: absolute;
-            right: 1rem;
-            background: none;
-            border: none;
-            color: var(--gray);
-            cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 50%;
-            transition: all 0.2s ease;
-        }
-
-        .clear-btn:hover {
-            background: var(--light-gray);
-            color: var(--charcoal);
-        }
-
-        .find-email-btn {
-            padding: 1rem 2rem;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--electric-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-        }
-
-        .find-email-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(128, 57, 223, 0.3);
-        }
-
-        .find-email-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .search-info {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            flex-wrap: wrap;
-        }
-
-        .info-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--gray);
-            font-size: 0.9rem;
-        }
-
-        .info-item i {
-            color: var(--primary-purple);
-        }
-
-        .email-finder-results-section {
-            margin-top: 2rem;
-        }
-
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .results-header h3 {
-            font-size: 1.5rem;
-            color: var(--charcoal);
-        }
-
-        .results-controls {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .sort-dropdown {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .sort-dropdown label {
-            color: var(--gray);
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .sort-dropdown select {
-            padding: 0.5rem 1rem;
-            border: 2px solid var(--light-gray);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            background: var(--white);
-            transition: all 0.2s ease;
-        }
-
-        .sort-dropdown select:focus {
-            outline: none;
-            border-color: var(--primary-purple);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
-            background: var(--white);
-            border-radius: 16px;
-            box-shadow: var(--shadow);
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            color: var(--gray);
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-
-        .empty-state h3 {
-            font-size: 1.5rem;
-            color: var(--charcoal);
-            margin-bottom: 0.5rem;
-        }
-
-        .empty-state p {
-            color: var(--gray);
-            font-size: 1rem;
-        }
-
-        .loading-state {
-            text-align: center;
-            padding: 4rem 2rem;
-        }
-
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--light-gray);
-            border-top-color: var(--primary-purple);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading-state p {
-            color: var(--gray);
-            font-size: 1rem;
-        }
-
-        /* Email Finder Result Card */
-        .email-result-card {
-            background: var(--white);
-            border: 3px solid var(--light-gray);
-            border-radius: 16px;
-            padding: 0;
-            transition: all 0.3s ease;
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .email-result-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-purple);
-        }
-
-        .result-card-header {
-            padding: 1.5rem;
-            border-bottom: 2px solid var(--light-gray);
-        }
-
-        .result-card-name {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--charcoal);
-            margin-bottom: 0.5rem;
-        }
-
-        .result-card-title {
-            color: var(--gray);
-            font-size: 0.95rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .result-card-company {
-            color: var(--primary-purple);
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .result-card-body {
-            padding: 1.5rem;
-        }
-
-        .result-field {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid var(--light-gray);
-        }
-
-        .result-field:last-child {
-            border-bottom: none;
-        }
-
-        .result-field-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--light-purple);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary-purple);
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-
-        .result-field-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .result-field-label {
-            font-size: 0.75rem;
-            color: var(--gray);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.25rem;
-        }
-
-        .result-field-value {
-            font-size: 0.95rem;
-            color: var(--charcoal);
-            word-break: break-all;
-        }
-
-        .result-field-value.email {
-            color: var(--primary-purple);
-            font-weight: 600;
-        }
-
-        .verification-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.4rem 0.8rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .verification-badge.valid {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success-green);
-        }
-
-        .verification-badge.invalid,
-        .verification-badge.not_valid {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--error-red);
-        }
-
-        .verification-badge.catch_all {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning-orange);
-        }
-
-        .verification-badge.unknown {
-            background: rgba(107, 114, 128, 0.1);
-            color: var(--gray);
-        }
-
-        .verification-badge.pending {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning-orange);
-        }
-
-        .verification-badge.error {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--error-red);
-        }
-
-        .verification-badge.verified {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success-green);
-        }
-
-        .verification-badge.not-found,
-        .verification-badge.not_found {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--error-red);
-        }
-
-        .verification-badge.found {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning-orange);
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .search-input-group {
-                flex-direction: column;
-            }
-
-            .find-email-btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .search-info {
-                flex-direction: column;
-                gap: 1rem;
-            }
-
-            .results-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 1rem;
-            }
-
-            .sort-dropdown {
-                width: 100%;
-            }
-
-            .sort-dropdown select {
-                flex: 1;
-            }
-        }
-    </style>
-</head>
-<body>
-<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5CNT3VV9"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
-    <!-- Mobile Sidebar Toggle -->
-    <button class="sidebar-toggle" onclick="toggleSidebar()">
-        <i class="fas fa-bars"></i>
-    </button>
-
-
-    <!-- Sidebar will be injected by sidebar-loader.js -->
-
-    <!-- Email Finder Modals -->
-    <!-- 1. UPGRADE REQUIRED MODAL -->
-    <div class="modal-overlay" id="upgradeModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">🚀 Upgrade Required</div>
-            </div>
-            <div class="modal-body">
-                <strong>Email finder is available for Silver, Gold, and Platinum subscribers.</strong><br><br>
-                Your current plan: <span id="currentPlanDisplay">Free</span><br><br>
-                Upgrade your plan to unlock this feature and find verified email addresses for your LinkedIn contacts.
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeUpgradeModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Upgrade Plan</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 2. INSUFFICIENT CREDITS MODAL -->
-    <div class="modal-overlay" id="insufficientCreditsModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">💳 Not Enough Credits</div>
-            </div>
-            <div class="modal-body">
-                <strong>You need at least 2 credits to use the email finder.</strong><br><br>
-                You currently have <strong><span id="currentCredits">0</span> credits</strong>.<br><br>
-                Purchase more credits to continue finding email addresses.
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeInsufficientCreditsModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="window.open('https://chopa.chargebeeportal.com/portal/v2/login?forward=portal_main', '_blank')">Buy Credits</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. EMAIL FINDER CONFIRMATION MODAL -->
-    <div class="modal-overlay" id="emailFinderModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">🔍 Find & Verify Email</div>
-            </div>
-            <div class="modal-body">
-                We'll search for this contact's email address using Snov.io. <strong>You'll only be charged 2 credits if we successfully find and verify an email.</strong><br><br>
-                No charge if email is not found. Continue?
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-btn primary">Yes, Find Email</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content Wrapper -->
-    <div class="main-wrapper">
-        <main class="main-content">
-            <div class="container">
-        <div class="page-header">
-            <div class="page-header-left">
-                <h1 class="page-title">Email Finder & Verification</h1>
-                <p class="page-subtitle">Find and verify professional email addresses from LinkedIn profiles</p>
-            </div>
-            <!-- Credits Badge in Header -->
-            <div class="page-header-credits" id="headerCredits">
-                <i class="fas fa-coins"></i>
-                <span id="headerCreditsNumber">0</span>
-                <span style="font-size: 0.9rem; font-weight: 500;">Credits</span>
-            </div>
-        </div>
-
-        <!-- SEARCH SECTION -->
-        <div class="email-finder-search-section">
-            <div class="search-container">
-                <div class="search-header">
-                    <h2>Find Professional Email</h2>
-                    <p>Enter a LinkedIn URL to find and verify the email address</p>
-                    <div class="powered-by">
-                        <i class="fas fa-bolt"></i>
-                        Powered by Snov.io
-                    </div>
-                </div>
-                
-                <div class="search-input-group">
-                    <div class="input-wrapper">
-                        <i class="fas fa-link input-icon"></i>
-                        <input 
-                            type="url" 
-                            id="linkedinUrlInput" 
-                            class="linkedin-url-input" 
-                            placeholder="https://www.linkedin.com/in/john-smith"
-                            onpaste="handlePaste(event)"
-                        >
-                        <button class="clear-btn" id="clearBtn" onclick="clearInput()" style="display: none;">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <button class="find-email-btn" id="findEmailBtn" onclick="startEmailSearch()">
-                        <i class="fas fa-search"></i>
-                        Find Email
-                    </button>
-                </div>
-                
-                <div class="search-info">
-                    <div class="info-item">
-                        <i class="fas fa-coins"></i>
-                        <span>2 credits per search</span>
-                    </div>
-                    <div class="info-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Email verification included</span>
-                    </div>
-                    <div class="info-item">
-                        <i class="fas fa-clock"></i>
-                        <span>Results in ~10 seconds</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- RESULTS SECTION -->
-        <div class="email-finder-results-section">
-            <div class="results-header">
-                <h3>Your Searches</h3>
-                <div class="results-controls">
-                    <div class="sort-dropdown">
-                        <label for="sortSelect">
-                            <i class="fas fa-sort"></i>
-                            Sort by:
-                        </label>
-                        <select id="sortSelect" onchange="sortResults(this.value)">
-                            <option value="recent_first">Most Recent First</option>
-                            <option value="oldest_first">Oldest First</option>
-                            <option value="name_az">Name A-Z</option>
-                            <option value="name_za">Name Z-A</option>
-                            <option value="company_az">Company A-Z</option>
-                            <option value="company_za">Company Z-A</option>
-                            <option value="verified_first">Verified First</option>
-                            <option value="unverified_first">Unverified First</option>
-                        </select>
-                    </div>
-                    <button class="refresh-btn" onclick="loadSearchHistory()" title="Refresh Results">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Empty State -->
-            <div id="emptyState" class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <h3>No searches yet</h3>
-                <p>Start by entering a LinkedIn URL above</p>
-            </div>
-
-            <!-- Loading State -->
-            <div id="loadingState" class="loading-state" style="display: none;">
-                <div class="loading-spinner"></div>
-                <p>Loading your searches...</p>
-            </div>
-
-            <!-- Results Grid -->
-            <div id="resultsGrid" class="messages-cards-grid" style="display: none;">
-                <!-- Cards will be inserted here dynamically -->
-            </div>
-        </div>
-        </div>
-    </div>
-
-    <script>
-        // ================ EMAIL FINDER PAGE JAVASCRIPT ================
-        
-        // Global state
-        let searchHistory = [];
-        let currentSort = 'recent_first';
-        let currentUserPlan = null; // Matches messages.html structure
-
-        // Initialize page
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('Email Finder page loading...');
-            await loadUserData();
-            await loadSearchHistory();
-            setupEventListeners();
+        logger.success('🚀 NO CACHE MODE - Snov.io Email Finder initialized');
+        console.log('Email Finder Config:', {
+            enabled: this.enabled,
+            hasCredentials: this.hasCredentials,
+            timeoutMs: this.timeoutMs,
+            costPerSuccess: this.costPerSuccess,
+            authMethod: this.snovApiKey ? 'API Key' : 'OAuth',
+            persistenceMode: 'target_profiles',
+            cacheMode: '❌ DISABLED - Always calls Snov.io',
+            verificationMode: 'separated_auto_trigger'
         });
+    }
 
-        // Setup event listeners
-        function setupEventListeners() {
-            const input = document.getElementById('linkedinUrlInput');
-            input.addEventListener('input', handleInputChange);
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    startEmailSearch();
-                }
-            });
+    // Get Snov.io access token
+    async getSnovAccessToken() {
+        if (this.snovApiKey) {
+            return this.snovApiKey; // Direct API key
         }
+        
+        if (!this.snovClientId || !this.snovClientSecret) {
+            throw new Error('Missing Snov.io credentials');
+        }
+        
+        try {
+            const response = await axios.post(`${this.snovBaseUrl}/v1/oauth/access_token`, {
+                grant_type: 'client_credentials',
+                client_id: this.snovClientId,
+                client_secret: this.snovClientSecret
+            });
+            
+            return response.data.access_token;
+        } catch (error) {
+            logger.error('Failed to get Snov.io access token:', error.response?.data || error.message);
+            throw new Error('Failed to authenticate with Snov.io');
+        }
+    }
 
-        // Load user data (auth, credits, plan)
-        async function loadUserData() {
+    // NEW: Normalize LinkedIn URL - handle all variations (https, www, trailing slash)
+    normalizeLinkedInUrl(url) {
+        if (!url) return url;
+        
+        // Remove trailing slash
+        let normalized = url.replace(/\/$/, '');
+        
+        // Remove protocol (http:// or https://)
+        normalized = normalized.replace(/^https?:\/\//, '');
+        
+        // Remove www.
+        normalized = normalized.replace(/^www\./, '');
+        
+        return normalized;
+    }
+
+    // NEW: UNIFIED function to save email results to target_profiles (handles ALL cases)
+    // This function ALWAYS updates the database regardless of whether email was found or not
+    async saveEmailResultToTargetProfiles(linkedinUrl, email, status, userId) {
+        try {
+            // Normalize URL for consistent matching
+            const normalizedUrl = this.normalizeLinkedInUrl(linkedinUrl);
+            logger.info(`[EMAIL_FINDER] Saving result to target_profiles - URL: ${normalizedUrl}, Email: ${email || 'N/A'}, Status: ${status}`);
+            
+            // FIXED: Check if record exists with flexible URL matching (with or without trailing slash)
+            const existingProfile = await pool.query(`
+                SELECT id FROM target_profiles 
+                WHERE linkedin_url = $1 OR linkedin_url = $2
+            `, [normalizedUrl, normalizedUrl + '/']);
+
+            if (existingProfile.rows.length === 0) {
+                // Record doesn't exist - should have been created by Chrome extension
+                logger.error(`[EMAIL_FINDER] ❌ No target_profile found for ${normalizedUrl}`);
+                return {
+                    success: false,
+                    error: 'profile_not_found',
+                    message: 'Target profile must be created via Chrome extension before finding email'
+                };
+            }
+            
+            // FIXED: Update existing record with flexible URL matching
+            // ALWAYS set email_status and email_verified_at
+            // Set email_found only if email is provided (COALESCE handles NULL properly)
+            const result = await pool.query(`
+                UPDATE target_profiles 
+                SET 
+                    email_found = COALESCE($1, email_found),
+                    email_status = $2,
+                    email_verified_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE linkedin_url = $3 OR linkedin_url = $4
+                RETURNING id, email_found, email_status
+            `, [email, status, normalizedUrl, normalizedUrl + '/']);
+            
+            logger.success(`[EMAIL_FINDER] ✅ Updated target_profile:`, result.rows[0]);
+
+            return {
+                success: true,
+                data: result.rows[0],
+                message: 'Email result saved to target_profiles successfully'
+            };
+
+        } catch (error) {
+            logger.error('[EMAIL_FINDER] Error saving to target_profiles:', error);
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to save email result to target_profiles'
+            };
+        }
+    }
+
+    // NEW: Mark user as requested (add to email_requests table)
+    async markUserRequested(userId, linkedinUrl) {
+        try {
+            logger.info(`[EMAIL_FINDER] 🔍 Marking user ${userId} as requested for ${linkedinUrl}`);
+            
+            // Insert or update email_requests (UPSERT)
+            await pool.query(`
+                INSERT INTO email_requests (user_id, linkedin_url, requested_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id, linkedin_url) 
+                DO UPDATE SET requested_at = CURRENT_TIMESTAMP
+            `, [userId, linkedinUrl]);
+            
+            logger.success(`[EMAIL_FINDER] ✅ User ${userId} marked as requested`);
+            return { success: true };
+            
+        } catch (error) {
+            logger.error('[EMAIL_FINDER] Error marking user as requested:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Main LinkedIn URL email finder (VERIFICATION REMOVED - Auto-triggered separately)
+    async findEmailWithLinkedInUrl(userId, linkedinUrl) {
+        try {
+            logger.info(`[EMAIL_FINDER] LinkedIn URL email finder: User ${userId}, URL ${linkedinUrl}`);
+
+            // Check if feature is enabled
+            if (!this.enabled) {
+                return {
+                    success: false,
+                    error: 'email_finder_disabled',
+                    message: 'Email finder feature is currently disabled'
+                };
+            }
+
+            // Check if we have Snov.io credentials
+            if (!this.hasCredentials) {
+                return {
+                    success: false,
+                    error: 'snov_not_configured',
+                    message: 'Snov.io API credentials not configured'
+                };
+            }
+
+            // ❌ CACHE REMOVED - ALWAYS calls Snov.io
+            logger.info(`[EMAIL_FINDER] ⚠️ NO CACHE - Going directly to Snov.io for every request`);
+
+            // Check user credits before processing
+            const creditCheck = await checkUserCredits(userId, 'email_verification');
+            if (!creditCheck.success || !creditCheck.hasCredits) {
+                return {
+                    success: false,
+                    error: 'insufficient_credits',
+                    message: `You need ${this.costPerSuccess} credits to verify an email. You have ${creditCheck.currentCredits || 0} credits.`,
+                    currentCredits: creditCheck.currentCredits || 0,
+                    requiredCredits: this.costPerSuccess
+                };
+            }
+
+            // Create credit hold
+            logger.info(`[EMAIL_FINDER] 💳 Creating credit hold for ${this.costPerSuccess} credits`);
+            const holdResult = await createCreditHold(userId, 'email_verification', {
+                linkedinUrl: linkedinUrl
+            });
+
+            if (!holdResult.success) {
+                return {
+                    success: false,
+                    error: 'credit_hold_failed',
+                    message: holdResult.error === 'insufficient_credits' 
+                        ? `Insufficient credits: need ${this.costPerSuccess}, have ${holdResult.currentCredits}`
+                        : 'Failed to reserve credits for this operation'
+                };
+            }
+
+            const holdId = holdResult.holdId;
+            logger.success(`[EMAIL_FINDER] ✅ Credit hold created: ${holdId}`);
+
             try {
-                const token = localStorage.getItem('authToken');
-                if (!token) {
-                    window.location.href = '/login?returnUrl=/email-finder';
-                    return;
-                }
+                // Find email using Snov.io v1 API with delay
+                console.log('🚀🚀🚀 [EMAIL_FINDER] Calling Snov.io API NOW...');
+                logger.success('[EMAIL_FINDER] 🚀 Calling Snov.io API NOW...');
+                const emailResult = await this.findEmailWithSnovV1(linkedinUrl);
 
-                // Get user profile - using same endpoint as messages.html
-                const response = await fetch('/profile', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+                if (emailResult.success && emailResult.email) {
+                    // FIXED: Save email with status using unified function
+                    const saveResult = await this.saveEmailResultToTargetProfiles(
+                        linkedinUrl, 
+                        emailResult.email,
+                        'found', // Status when email is found
+                        userId
+                    );
+                    logger.debug(`[EMAIL_FINDER] Save result:`, saveResult);
+
+                    // Success: Complete payment and charge credits
+                    const paymentResult = await completeOperation(userId, holdId, {
+                        email: emailResult.email,
+                        verificationStatus: 'pending_verification',
+                        snovResponse: emailResult.snovData,
+                        saved: saveResult.success
+                    });
+
+                    logger.success(`[EMAIL_FINDER] ✅ Email found: ${emailResult.email} (${this.costPerSuccess} credits charged)`);
+
+                    // NEW: Mark user as requested (user paid, user can see result)
+                    await this.markUserRequested(userId, linkedinUrl);
+
+                    // FIXED: AWAIT VERIFICATION (not fire-and-forget)
+                    let verificationStatus = 'unknown';
+                    try {
+                        const { emailVerifier } = require('./emailVerifier');
+                        logger.info(`[EMAIL_FINDER] ⏳ Waiting for verification to complete...`);
+                        const verifyResult = await emailVerifier.verifyEmail(emailResult.email, userId, linkedinUrl);
+                        verificationStatus = verifyResult.status || 'unknown';
+                        logger.success(`[EMAIL_FINDER] ✅ Verification complete: ${verificationStatus}`);
+                    } catch (verifierError) {
+                        logger.error('[EMAIL_FINDER] Verification failed:', verifierError);
+                        verificationStatus = 'unknown';
                     }
-                });
 
-                if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login?returnUrl=/email-finder';
-                    return;
-                }
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    const user = data.data.user;
-                    
-                    // Use dual-credit calculation like messages.html
-                    const renewableCredits = parseFloat(user.renewableCredits || 0);
-                    const payasyougoCredits = parseFloat(user.payasyougoCredits || 0);
-                    const totalCredits = renewableCredits + payasyougoCredits;
-                    
-                    console.log('[EMAIL_FINDER] Renewable:', renewableCredits.toFixed(2));
-                    console.log('[EMAIL_FINDER] PayAsYouGo:', payasyougoCredits.toFixed(2));
-                    console.log('[EMAIL_FINDER] Total:', totalCredits.toFixed(2));
-                    
-                    currentUserPlan = {
-                        planCode: user.planCode || user.plan_code || 'free',
-                        totalCredits: totalCredits,
-                        planName: user.planName || user.plan_name || 'Free'
+                    return {
+                        success: true,
+                        email: emailResult.email,
+                        status: verificationStatus,  // Return actual verification status
+                        creditsCharged: this.costPerSuccess,
+                        newBalance: paymentResult.newBalance || creditCheck.currentCredits - this.costPerSuccess,
+                        message: 'Email found and verified',
+                        saved: saveResult.success
                     };
-                    
-                    console.log('[EMAIL_FINDER] User data loaded:', currentUserPlan);
-                    
-                    // Update credit displays
-                    updateCreditDisplay(currentUserPlan.totalCredits);
-                    
-                    // Note: Sidebar user info (name, email, plan) is handled by sidebar-loader.js
+
                 } else {
-                    throw new Error(data.error || 'Failed to load profile');
+                    // FIXED: Not found = Save not_found status + Charge 2 credits + mark user as requested
+                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found - saving not_found status and charging credits`);
+                    
+                    // NEW: Save not_found status to target_profiles using unified function
+                    const saveResult = await this.saveEmailResultToTargetProfiles(
+                        linkedinUrl,
+                        null, // No email
+                        'not_found', // Status
+                        userId
+                    );
+                    logger.debug(`[EMAIL_FINDER] Save not_found result:`, saveResult);
+                    
+                    // Charge credits (user paid for search even if not found)
+                    const paymentResult = await completeOperation(userId, holdId, {
+                        status: 'not_found',
+                        message: 'Search completed - no email found',
+                        saved: saveResult.success
+                    });
+                    
+                    // NEW: Mark user as requested (user paid, user can see "not found")
+                    await this.markUserRequested(userId, linkedinUrl);
+
+                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found (${this.costPerSuccess} credits charged)`);
+
+                    return {
+                        success: true,  // Search was successful (just no email found)
+                        error: 'email_not_found',
+                        status: 'not_found',
+                        creditsCharged: this.costPerSuccess,
+                        newBalance: paymentResult.newBalance,
+                        message: 'Search completed - no email found for this LinkedIn profile',
+                        saved: saveResult.success
+                    };
                 }
+
+            } catch (processingError) {
+                // Processing error: Release credit hold (no status saved)
+                logger.error('[EMAIL_FINDER] 🚨 Processing error:', processingError);
+                logger.error('[EMAIL_FINDER] Error details:', processingError.message);
+                logger.error('[EMAIL_FINDER] Stack trace:', processingError.stack);
                 
-            } catch (error) {
-                console.error('[EMAIL_FINDER] Error loading user data:', error);
-                updateCreditDisplay(0);
+                await releaseCreditHold(userId, holdId, 'processing_error');
+
+                return {
+                    success: false,
+                    error: 'processing_error',
+                    message: 'Failed to process email search. Please try again.',
+                    creditsCharged: 0,
+                    errorDetails: processingError.message
+                };
             }
+
+        } catch (error) {
+            logger.error('[EMAIL_FINDER] System error:', error);
+            return {
+                success: false,
+                error: 'system_error',
+                message: 'System error occurred. Please try again.',
+                details: error.message
+            };
+        }
+    }
+
+    // Snov.io v1 API implementation with proper delay - NO CATCH, let errors throw
+    async findEmailWithSnovV1(linkedinUrl) {
+        logger.info('[EMAIL_FINDER] 🌐 Finding email with Snov.io v1 LinkedIn URL API...');
+        logger.info(`[EMAIL_FINDER] LinkedIn URL: ${linkedinUrl}`);
+        
+        // Get access token (will throw if fails)
+        logger.info('[EMAIL_FINDER] 🔑 Step 0: Getting Snov.io access token...');
+        const accessToken = await this.getSnovAccessToken();
+        logger.success('[EMAIL_FINDER] ✅ Access token retrieved');
+        
+        // Step 1: Add LinkedIn URL for search
+        logger.info('[EMAIL_FINDER] 📤 Step 1: Adding LinkedIn URL to Snov.io...');
+        const addUrlResponse = await axios.post(`${this.snovBaseUrl}/v1/add-url-for-search`, {
+            access_token: accessToken,
+            url: linkedinUrl
+        }, {
+            timeout: this.timeoutMs
+        });
+        
+        logger.success('[EMAIL_FINDER] ✅ Step 1 complete: URL added to Snov.io');
+        logger.debug('[EMAIL_FINDER] Response:', addUrlResponse.data);
+        
+        // CRITICAL: Wait for Snov.io to process the LinkedIn URL
+        logger.info('[EMAIL_FINDER] ⏳ Waiting 4 seconds for Snov.io to process...');
+        await new Promise(resolve => setTimeout(resolve, 4000)); // 4 second delay
+        
+        // Step 2: Get emails from the URL
+        logger.info('[EMAIL_FINDER] 📥 Step 2: Retrieving emails from Snov.io...');
+        const emailsResponse = await axios.post(`${this.snovBaseUrl}/v1/get-emails-from-url`, {
+            access_token: accessToken,
+            url: linkedinUrl
+        }, {
+            timeout: this.timeoutMs
+        });
+        
+        logger.success('[EMAIL_FINDER] ✅ Step 2 complete: Response received from Snov.io');
+        logger.debug('[EMAIL_FINDER] Snov.io response:', emailsResponse.data);
+        
+        const responseData = emailsResponse.data;
+        
+        if (!responseData.success) {
+            logger.warn('[EMAIL_FINDER] ⚠️ Snov.io API returned success: false');
+            return {
+                success: false,
+                email: null,
+                snovData: responseData
+            };
         }
 
-        // Update credit display (matches messages.html)
-        function updateCreditDisplay(credits) {
-            const creditsValue = Math.max(0, parseFloat(credits) || 0);
-            const formattedCredits = creditsValue.toFixed(2);
+        const emails = responseData.data?.emails || [];
+        
+        if (emails && emails.length > 0) {
+            const validEmail = emails.find(emailObj => 
+                emailObj.email && 
+                emailObj.email.includes('@') &&
+                emailObj.email !== ''
+            );
             
-            // Update sidebar credits
-            const sidebarCredits = document.getElementById('sidebarCreditsNumber');
-            if (sidebarCredits) {
-                sidebarCredits.textContent = formattedCredits;
-            }
-            
-            // Update header credits
-            const headerCredits = document.getElementById('headerCreditsNumber');
-            if (headerCredits) {
-                headerCredits.textContent = formattedCredits;
-            }
-            
-            // Update global variable
-            if (currentUserPlan) {
-                currentUserPlan.totalCredits = creditsValue;
-            }
-        }
-
-        // Handle input changes
-        function handleInputChange() {
-            const input = document.getElementById('linkedinUrlInput');
-            const clearBtn = document.getElementById('clearBtn');
-            
-            if (input.value.trim()) {
-                clearBtn.style.display = 'block';
-            } else {
-                clearBtn.style.display = 'none';
-            }
-        }
-
-        // Clear input
-        function clearInput() {
-            const input = document.getElementById('linkedinUrlInput');
-            input.value = '';
-            handleInputChange();
-            input.focus();
-        }
-
-        // Handle paste event
-        function handlePaste(event) {
-            setTimeout(() => {
-                handleInputChange();
-            }, 10);
-        }
-
-        // Start email search
-        async function startEmailSearch() {
-            const input = document.getElementById('linkedinUrlInput');
-            const url = input.value.trim();
-
-            if (!url) {
-                showError('Please enter a LinkedIn URL');
-                return;
-            }
-
-            // Validate LinkedIn URL format
-            if (!isValidLinkedInUrl(url)) {
-                showError('Please enter a valid LinkedIn URL (e.g., https://www.linkedin.com/in/john-smith)');
-                return;
-            }
-
-            console.log('[EMAIL_FINDER] Find Email clicked for URL:', url);
-            
-            // Check if user plan data is loaded
-            if (!currentUserPlan) {
-                console.log('[EMAIL_FINDER] No user plan data');
-                document.getElementById('currentPlanDisplay').textContent = 'Unknown';
-                showUpgradeModal();
-                return;
-            }
-            
-            // Check plan - matches messages.html logic
-            const allowedPlans = ['silver-monthly', 'gold-monthly', 'platinum-monthly', 'silver-payasyougo', 'gold-payasyougo', 'platinum-payasyougo'];
-            const userPlan = (currentUserPlan.planCode || 'free').toLowerCase();
-            
-            if (!allowedPlans.includes(userPlan)) {
-                console.log(`[EMAIL_FINDER] Plan validation failed: ${userPlan} not in allowed plans`);
-                document.getElementById('currentPlanDisplay').textContent = currentUserPlan.planName || 'Free';
-                showUpgradeModal();
-                return;
-            }
-            
-            // Check credits
-            const userCredits = currentUserPlan.totalCredits || 0;
-            
-            if (userCredits < 2) {
-                console.log(`[EMAIL_FINDER] Credit validation failed: ${userCredits} < 2`);
-                showInsufficientCreditsModal();
-                return;
-            }
-            
-            console.log(`[EMAIL_FINDER] All validations passed. Plan: ${userPlan}, Credits: ${userCredits}`);
-
-            // Show credit confirmation modal immediately (matches messages.html pattern)
-            showCreditWarning(url);
-        }
-
-        // Validate LinkedIn URL
-        function isValidLinkedInUrl(url) {
-            try {
-                const urlObj = new URL(url);
-                return urlObj.hostname.includes('linkedin.com') && 
-                       (urlObj.pathname.includes('/in/') || urlObj.pathname.includes('/company/'));
-            } catch {
-                return false;
-            }
-        }
-
-        // Show credit warning modal (confirmation popup)
-        function showCreditWarning(url) {
-            const userCredits = currentUserPlan ? currentUserPlan.totalCredits : 0;
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
-            modal.id = 'creditWarningModal';
-            modal.innerHTML = `
-                <div class="modal">
-                    <div class="modal-header">
-                        <div class="modal-title">⚠️ Credit Confirmation</div>
-                    </div>
-                    <div class="modal-body">
-                        <p><strong>This will use 2 credits</strong></p>
-                        <p>Email finding and verification will consume 2 credits from your account.</p>
-                        <p>Current balance: <strong>${userCredits.toFixed(2)} credits</strong></p>
-                        <p>After search: <strong>${(userCredits - 2).toFixed(2)} credits</strong></p>
-                    </div>
-                    <div class="modal-actions">
-                        <button class="modal-btn secondary" onclick="closeCreditWarning()">Cancel</button>
-                        <button class="modal-btn primary" onclick="confirmSearch('${escapeHtml(url)}')">Continue</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            // Add active class to make modal visible (matches messages.html CSS)
-            setTimeout(() => modal.classList.add('active'), 10);
-        }
-
-        // Show duplicate warning modal (second popup)
-        // Close credit warning
-        function closeCreditWarning() {
-            const modal = document.getElementById('creditWarningModal');
-            if (modal) modal.remove();
-        }
-
-        // Confirm search (from credit warning)
-        function confirmSearch(url) {
-            closeCreditWarning();
-            performSearch(url);
-        }
-
-        // Perform the actual search
-        async function performSearch(url) {
-            const btn = document.getElementById('findEmailBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
-
-            try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/email-finder-page/search', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ linkedin_url: url })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    if (data.error === 'plan_required') {
-                        showUpgradeModal();
-                    } else if (data.error === 'insufficient_credits') {
-                        showInsufficientCreditsModal();
-                    } else {
-                        showError(data.message || 'Failed to find email');
-                    }
-                    return;
-                }
-
-                // Success!
-                showSuccess('Email found successfully!');
+            if (validEmail) {
+                logger.success(`[EMAIL_FINDER] ✅✅✅ Email found by Snov.io: ${validEmail.email}`);
                 
-                // Update credits using updateCreditDisplay like messages.html
-                if (data.creditsRemaining !== undefined) {
-                    updateCreditDisplay(data.creditsRemaining);
-                }
-                
-                // Clear input
-                clearInput();
-                
-                // Reload search history
-                await loadSearchHistory();
-
-            } catch (error) {
-                console.error('Search error:', error);
-                showError('Failed to search for email');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-search"></i> Find Email';
+                return {
+                    success: true,
+                    email: validEmail.email,
+                    snovData: responseData
+                };
             }
         }
+        
+        logger.info('[EMAIL_FINDER] ℹ️ No emails found by Snov.io');
+        return {
+            success: false,
+            email: null,
+            snovData: responseData
+        };
+    }
 
-        // Load search history
-        async function loadSearchHistory() {
-            const emptyState = document.getElementById('emptyState');
-            const loadingState = document.getElementById('loadingState');
-            const resultsGrid = document.getElementById('resultsGrid');
+    // BACKWARD COMPATIBILITY: Helper functions
+    extractDomainFromCompany(company) {
+        const cleanCompany = company.toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+            .replace(/(inc|ltd|llc|corp|corporation|company|co)$/, '');
+        
+        return `${cleanCompany}.com`;
+    }
 
-            // Show loading
-            emptyState.style.display = 'none';
-            loadingState.style.display = 'block';
-            resultsGrid.style.display = 'none';
+    async getTargetProfile(targetProfileId, userId) {
+        try {
+            const result = await pool.query(`
+                SELECT 
+                    id, user_id, linkedin_url, data_json,
+                    email_found, email_status, email_verified_at
+                FROM target_profiles 
+                WHERE id = $1 AND user_id = $2
+            `, [targetProfileId, userId]);
 
-            try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/email-finder-page/history?sort=${currentSort}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                console.log('[EMAIL_FINDER] History response status:', response.status);
-                console.log('[EMAIL_FINDER] History response ok:', response.ok);
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('[EMAIL_FINDER] Error response:', errorText);
-                    throw new Error(`Failed to load history: ${response.status} - ${errorText}`);
-                }
-
-                const data = await response.json();
-                searchHistory = data.searches || [];
-
-                // Hide loading
-                loadingState.style.display = 'none';
-
-                if (searchHistory.length === 0) {
-                    emptyState.style.display = 'block';
-                } else {
-                    resultsGrid.style.display = 'grid';
-                    renderSearchResults();
-                }
-
-            } catch (error) {
-                console.error('Error loading history:', error);
-                console.error('Error details:', {
-                    message: error.message,
-                    response: error.response,
-                    stack: error.stack
-                });
-                loadingState.style.display = 'none';
-                emptyState.style.display = 'block';
-                showError('Failed to load search history. Check console for details.');
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    error: 'target_not_found',
+                    message: 'Target profile not found'
+                };
             }
-        }
 
-        // Render search results
-        function renderSearchResults() {
-            const grid = document.getElementById('resultsGrid');
-            grid.innerHTML = '';
+            const profile = result.rows[0];
 
-            searchHistory.forEach(search => {
-                const card = createResultCard(search);
-                grid.appendChild(card);
-            });
-        }
-
-        // Create result card
-        function createResultCard(search) {
-            const card = document.createElement('div');
-            card.className = 'email-result-card';
-
-            // Map database fields (snake_case) to variables
-            const fullName = search.full_name || search.fullName;
-            const jobTitle = search.job_title || search.jobTitle;
-            const company = search.company;
-            const email = search.email;
-            const linkedinUrl = search.linkedin_url || search.linkedinUrl;
-            const verificationStatus = search.verification_status || search.verificationStatus || 'pending';
-            const searchDate = search.search_date || search.searchDate;
-
-            const verificationClass = verificationStatus === 'valid' ? 'valid' :
-                                     verificationStatus === 'not_valid' ? 'invalid' :
-                                     verificationStatus === 'invalid' ? 'invalid' :
-                                     verificationStatus === 'pending' ? 'pending' : 'unknown';
-            
-            const verificationIcon = verificationStatus === 'valid' ? 'check-circle' :
-                                    verificationStatus === 'not_valid' ? 'times-circle' :
-                                    verificationStatus === 'invalid' ? 'times-circle' :
-                                    verificationStatus === 'pending' ? 'clock' : 'question-circle';
-            
-            const verificationText = verificationStatus === 'valid' ? 'Verified' :
-                                    verificationStatus === 'not_valid' ? 'Invalid' :
-                                    verificationStatus === 'invalid' ? 'Invalid' :
-                                    verificationStatus === 'pending' ? 'Verifying...' : 'Unknown';
-
-            const formattedDate = new Date(searchDate).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-
-            card.innerHTML = `
-                <div class="result-card-header">
-                    <div class="result-card-name">${escapeHtml(fullName || 'Unknown')}</div>
-                    <div class="result-card-title">${escapeHtml(jobTitle || 'Professional')}</div>
-                    <div class="result-card-company">${escapeHtml(company || 'Company')}</div>
-                </div>
-                <div class="result-card-body">
-                    <div class="result-field">
-                        <div class="result-field-icon">
-                            <i class="fas fa-envelope"></i>
-                        </div>
-                        <div class="result-field-content">
-                            <div class="result-field-label">Email Address</div>
-                            <div class="result-field-value email">${escapeHtml(email || 'Not found')}</div>
-                        </div>
-                    </div>
-                    <div class="result-field">
-                        <div class="result-field-icon">
-                            <i class="fas fa-${verificationIcon}"></i>
-                        </div>
-                        <div class="result-field-content">
-                            <div class="result-field-label">Verification Status</div>
-                            <div class="result-field-value">
-                                <span class="verification-badge ${verificationClass}">
-                                    <i class="fas fa-${verificationIcon}"></i>
-                                    ${verificationText}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="result-field">
-                        <div class="result-field-icon">
-                            <i class="fas fa-calendar"></i>
-                        </div>
-                        <div class="result-field-content">
-                            <div class="result-field-label">Search Date</div>
-                            <div class="result-field-value">${formattedDate}</div>
-                        </div>
-                    </div>
-                    <div class="result-field">
-                        <div class="result-field-icon">
-                            <i class="fas fa-link"></i>
-                        </div>
-                        <div class="result-field-content">
-                            <div class="result-field-label">LinkedIn URL</div>
-                            <div class="result-field-value">
-                                <a href="${escapeHtml(linkedinUrl)}" target="_blank" style="color: var(--primary-purple); text-decoration: none;">
-                                    View Profile <i class="fas fa-external-link-alt" style="font-size: 0.8rem;"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            return card;
-        }
-
-        // Sort results
-        async function sortResults(sortValue) {
-            currentSort = sortValue;
-            await loadSearchHistory();
-        }
-
-        // Show upgrade modal
-        function showUpgradeModal() {
-            const modal = document.getElementById('upgradeModal');
-            if (modal) {
-                modal.style.display = 'flex';
-                const planDisplay = document.getElementById('currentPlanDisplay');
-                if (planDisplay) {
-                    planDisplay.textContent = userPlan.charAt(0).toUpperCase() + userPlan.slice(1);
+            return {
+                success: true,
+                data: {
+                    id: profile.id,
+                    user_id: profile.user_id,
+                    linkedin_url: profile.linkedin_url,
+                    profile_data: profile.data_json || {},
+                    email_found: profile.email_found,
+                    email_status: profile.email_status,
+                    email_verified_at: profile.email_verified_at
                 }
-            }
-        }
+            };
 
-        // Show insufficient credits modal
-        function showInsufficientCreditsModal() {
-            const modal = document.getElementById('insufficientCreditsModal');
-            if (modal) {
-                modal.style.display = 'flex';
-            }
+        } catch (error) {
+            logger.error('Error getting target profile:', error);
+            return {
+                success: false,
+                error: 'database_error',
+                message: 'Failed to retrieve target profile'
+            };
         }
+    }
 
-        // Close upgrade modal
-        function closeUpgradeModal() {
-            const modal = document.getElementById('upgradeModal');
-            if (modal) modal.style.display = 'none';
+    async updateEmailStatus(targetProfileId, email, status, verifiedAt) {
+        try {
+            await pool.query(`
+                UPDATE target_profiles 
+                SET 
+                    email_found = $2,
+                    email_status = $3,
+                    email_verified_at = $4,
+                    updated_at = NOW()
+                WHERE id = $1
+            `, [targetProfileId, email, status, verifiedAt]);
+
+            logger.debug(`Updated email status: Profile ${targetProfileId} -> ${status}`);
+            return { success: true };
+
+        } catch (error) {
+            logger.error('Error updating email status:', error);
+            return { success: false, error: error.message };
         }
+    }
 
-        // Close insufficient credits modal
-        function closeInsufficientCreditsModal() {
-            const modal = document.getElementById('insufficientCreditsModal');
-            if (modal) modal.style.display = 'none';
+    // Health check
+    async healthCheck() {
+        try {
+            const accessToken = await this.getSnovAccessToken();
+            return {
+                success: true,
+                message: 'Snov.io API connection successful',
+                hasCredentials: this.hasCredentials,
+                persistenceMode: 'target_profiles'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: 'Snov.io API connection failed',
+                error: error.message,
+                hasCredentials: this.hasCredentials
+            };
         }
+    }
 
-        // Show success message
-        function showSuccess(message) {
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-success';
-            alert.innerHTML = `
-                <i class="fas fa-check-circle"></i>
-                ${escapeHtml(message)}
-            `;
-            alert.style.cssText = 'position: fixed; top: 2rem; right: 2rem; z-index: 10000; padding: 1rem 1.5rem; background: var(--success-green); color: white; border-radius: 8px; box-shadow: var(--shadow-lg); animation: slideIn 0.3s ease;';
-            document.body.appendChild(alert);
-            setTimeout(() => alert.remove(), 3000);
-        }
+    getStatus() {
+        return {
+            enabled: this.enabled,
+            hasCredentials: this.hasCredentials,
+            costPerSuccess: this.costPerSuccess,
+            mode: 'snov_v1_target_profiles',
+            persistenceStrategy: 'target_profiles',
+            verificationMode: 'separated_auto_trigger'
+        };
+    }
+}
 
-        // Show error message
-        function showError(message) {
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-error';
-            alert.innerHTML = `
-                <i class="fas fa-exclamation-circle"></i>
-                ${escapeHtml(message)}
-            `;
-            alert.style.cssText = 'position: fixed; top: 2rem; right: 2rem; z-index: 10000; padding: 1rem 1.5rem; background: var(--error-red); color: white; border-radius: 8px; box-shadow: var(--shadow-lg); animation: slideIn 0.3s ease;';
-            document.body.appendChild(alert);
-            setTimeout(() => alert.remove(), 4000);
-        }
+// Create singleton instance
+const emailFinder = new EmailFinder();
 
-        // Escape HTML
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+// COMPLETE: Export all functions (including backward compatibility)
+async function findEmailForProfile(userId, targetProfileId) {
+    return await emailFinder.findEmail(userId, targetProfileId);
+}
 
-        // Logout function
-        function logout() {
-            localStorage.removeItem('authToken');
-            window.location.href = '/login';
-        }
+async function findEmailWithLinkedInUrl(userId, linkedinUrl) {
+    return await emailFinder.findEmailWithLinkedInUrl(userId, linkedinUrl);
+}
 
-        // Add CSS animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from {
-                    transform: translateX(100%);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    </script>
-    
-    <!-- Load Shared Sidebar -->
-    <script src="/sidebar-loader.js"></script>
-</body>
-</html>
+function getEmailFinderStatus() {
+    return emailFinder.getStatus();
+}
+
+function isEmailFinderEnabled() {
+    return emailFinder.enabled && emailFinder.hasCredentials;
+}
+
+module.exports = {
+    EmailFinder,
+    emailFinder,
+    findEmailForProfile,
+    findEmailWithLinkedInUrl,
+    getEmailFinderStatus,
+    isEmailFinderEnabled
+};
+
+logger.success('✅ Snov.io Email Finder loaded - NO CACHE MODE - Always searches Snov.io!');
