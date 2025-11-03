@@ -265,7 +265,7 @@ async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
     {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'OpenAI-Beta': 'responses-2024-12-17'
+      'OpenAI-Beta': 'responses=v1'
     }
   );
   
