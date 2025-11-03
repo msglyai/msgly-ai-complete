@@ -64,10 +64,20 @@ class EmailFinder {
         }
     }
 
-    // NEW: Normalize LinkedIn URL - remove trailing slash for consistent matching
+    // NEW: Normalize LinkedIn URL - handle all variations (https, www, trailing slash)
     normalizeLinkedInUrl(url) {
         if (!url) return url;
-        return url.replace(/\/$/, '');
+        
+        // Remove trailing slash
+        let normalized = url.replace(/\/$/, '');
+        
+        // Remove protocol (http:// or https://)
+        normalized = normalized.replace(/^https?:\/\//, '');
+        
+        // Remove www.
+        normalized = normalized.replace(/^www\./, '');
+        
+        return normalized;
     }
 
     // NEW: UNIFIED function to save email results to target_profiles (handles ALL cases)
