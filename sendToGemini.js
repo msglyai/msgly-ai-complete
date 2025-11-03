@@ -1,6 +1,14 @@
-// Enhanced sendToGemini.js - OpenAI GPT-5-nano ONLY - FIXED JSON Parsing + Token Tracking
+// Enhanced sendToGemini.js - OpenAI GPT-5-nano with GPT-5-mini Parallel Racing Fallback
 const axios = require('axios');
 const https = require('https');
+
+// ⚡ FALLBACK CONFIGURATION
+const FALLBACK_CONFIG = {
+    ATTEMPT_1_TIMEOUT: 150000,       // 150 seconds (2.5 minutes) for first attempt
+    ENABLE_PARALLEL_RETRY: true,     // Enable parallel racing on retry
+    MINI_MODEL: 'gpt-4o-mini',       // Fallback model (faster, cheaper)
+    MINI_TIMEOUT: 60000              // 60 seconds timeout for mini
+};
 
 // ✅ Rate limiting configuration (OpenAI GPT-5-nano)
 const RATE_LIMIT = {
@@ -217,379 +225,219 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ✅ ENHANCED: Extract token usage from OpenAI response
-function extractTokenUsage(response) {
+// ⚡ NEW: GPT-5-mini Fallback Function (FASTER MODEL)
+async function callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml }) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    const startTime = Date.now();
+    
+    console.log('⚡ Sending request to GPT-5-mini (FALLBACK)...');
+    
     try {
-        const data = response.data;
-        const usage = data.usage || {};
+        const response = await axios.post(
+            'https://api.openai.com/v1/chat/completions',
+            {
+                model: FALLBACK_CONFIG.MINI_MODEL,
+                messages: [
+                    { role: 'system', content: systemPrompt || '' },
+                    { role: 'user', content: userPrompt || '' },
+                    { role: 'user', content: preprocessedHtml || '' }
+                ],
+                response_format: { type: 'json_object' },
+                max_tokens: 16000,
+                temperature: 0.3
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: FALLBACK_CONFIG.MINI_TIMEOUT,
+                httpAgent: keepAliveAgent,
+                httpsAgent: keepAliveAgent
+            }
+        );
+        
+        const processingTime = Date.now() - startTime;
+        console.log(`⚡ GPT-5-mini response received in ${processingTime}ms`);
+        console.log(`📊 Response status: ${response.status}`);
+        
+        // Extract response
+        const rawResponse = response.data.choices[0].message.content.trim();
+        
+        // Extract token usage
+        const tokenUsage = {
+            inputTokens: response.data.usage?.prompt_tokens || null,
+            outputTokens: response.data.usage?.completion_tokens || null,
+            totalTokens: response.data.usage?.total_tokens || null
+        };
+        
+        console.log(`📊 Mini Token Usage: Input=${tokenUsage.inputTokens}, Output=${tokenUsage.outputTokens}, Total=${tokenUsage.totalTokens}`);
         
         return {
-            inputTokens: usage.input_tokens || usage.prompt_tokens || null,
-            outputTokens: usage.output_tokens || usage.completion_tokens || null,
-            totalTokens: usage.total_tokens || 
-                         ((usage.input_tokens || 0) + (usage.output_tokens || 0)) || 
-                         ((usage.prompt_tokens || 0) + (usage.completion_tokens || 0)) || null,
-            apiRequestId: response.headers?.['x-request-id'] || null
+            rawResponse,
+            tokenUsage,
+            processingTime,
+            model: 'gpt-4o-mini',
+            fallbackUsed: true,
+            apiRequestId: response.headers['x-request-id'] || null,
+            responseStatus: 'success'
         };
+        
     } catch (error) {
-        console.error('❌ Error extracting token usage:', error);
-        return {
-            inputTokens: null,
-            outputTokens: null,
-            totalTokens: null,
-            apiRequestId: null
-        };
+        console.error('❌ GPT-5-mini fallback failed:', error.message);
+        throw error;
     }
 }
 
-// ✅ FIXED: Send to OpenAI GPT-5-nano with ROBUST JSON parsing for TARGET profiles
+// ⚡ NEW: GPT-5-nano with Timeout Wrapper
+async function callGPT5NanoWithTimeout({ systemPrompt, userPrompt, preprocessedHtml }, timeoutMs) {
+    return new Promise(async (resolve, reject) => {
+        const timeoutHandle = setTimeout(() => {
+            reject(new Error(`GPT-5-nano timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+        
+        try {
+            const result = await sendToNano({ systemPrompt, userPrompt, preprocessedHtml });
+            clearTimeout(timeoutHandle);
+            resolve(result);
+        } catch (error) {
+            clearTimeout(timeoutHandle);
+            reject(error);
+        }
+    });
+}
+
+// ✅ OpenAI GPT-5-nano Responses API Call
 async function sendToNano({ systemPrompt, userPrompt, preprocessedHtml }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const startTime = Date.now();
-  
-  console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
-  
-  // EXACT original request structure from your working code
-  const response = await callOpenAIWithResilience(
-    'https://api.openai.com/v1/responses',
-    {
-      model: 'gpt-5-nano',
-      text: { format: { type: 'json_object' } },
-      max_output_tokens: 18000,
-      input: [
-        { role: 'system', content: systemPrompt ?? '' },
-        { role: 'user', content: userPrompt ?? '' },
-        { role: 'user', content: preprocessedHtml ?? '' }
-      ]
-    },
-    {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'responses=v1'
-    }
-  );
-  
-  const processingTime = Date.now() - startTime;
-  console.log('🔥 OpenAI API response received');
-  console.log(`📊 Response status: ${response.status}`);
-  console.log(`⏱️ Processing time: ${processingTime}ms`);
-  
-  // ✅ Extract token usage
-  const tokenUsage = extractTokenUsage(response);
-  
-  // ✅ CRITICAL FIX: ROBUST response extraction with multiple fallback methods
-  const data = response.data;
-  let rawResponse = '';
-  
-  try {
-    // Method 1: Standard extraction (works for most cases)
-    if (data.output_text) {
-      rawResponse = data.output_text;
-      console.log('✅ Extracted using method 1: output_text');
-    }
-    // Method 2: Array-based output extraction
-    else if (Array.isArray(data.output) && data.output.length > 0) {
-      rawResponse = data.output
-        .map(p => {
-          if (Array.isArray(p.content)) {
-            return p.content.map(c => c.text || '').join('');
-          }
-          return p.text || p.content || '';
-        })
-        .join('');
-      console.log('✅ Extracted using method 2: output array');
-    }
-    // Method 3: Direct content extraction for alternative API formats
-    else if (data.output && typeof data.output === 'object') {
-      const output = data.output;
-      rawResponse = output.text || 
-                   output.content || 
-                   (output.message && output.message.content) || 
-                   JSON.stringify(output);
-      console.log('✅ Extracted using method 3: direct object');
-    }
-    // Method 4: Choices-based extraction (ChatGPT format)
-    else if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
-      rawResponse = data.choices
-        .map(choice => choice.message?.content || choice.text || '')
-        .join('');
-      console.log('✅ Extracted using method 4: choices array');
-    }
-    // Method 5: Response field (alternative format)
-    else if (data.response) {
-      rawResponse = typeof data.response === 'string' ? data.response : JSON.stringify(data.response);
-      console.log('✅ Extracted using method 5: response field');
-    }
-    // Method 6: Last resort - stringify entire data
-    else {
-      console.log('⚠️ Using fallback method 6: full data stringify');
-      rawResponse = JSON.stringify(data);
+    const apiKey = process.env.OPENAI_API_KEY;
+    const startTime = Date.now();
+    
+    console.log('📤 Sending request to OpenAI GPT-5-nano Responses API...');
+    
+    const response = await callOpenAIWithResilience(
+        'https://api.openai.com/v1/responses',
+        {
+            model: 'gpt-5-nano',
+            text: {
+                format: { type: 'json_object' }
+            },
+            max_output_tokens: OPENAI_LIMITS.MAX_TOKENS_OUTPUT,
+            input: [
+                { role: 'system', content: systemPrompt || '' },
+                { role: 'user', content: userPrompt || '' },
+                { role: 'user', content: preprocessedHtml || '' }
+            ]
+        },
+        {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'responses=v1'
+        }
+    );
+    
+    const processingTime = Date.now() - startTime;
+    
+    console.log('🔥 OpenAI API response received');
+    console.log(`📊 Response status: ${response.status}`);
+    
+    // Extract the text response from the Responses API format
+    const outputArray = response.data?.output || [];
+    let cleanedResponse = '';
+    
+    for (let item of outputArray) {
+        if (item.type === 'text' && item.content) {
+            cleanedResponse += item.content;
+        }
     }
     
-  } catch (extractionError) {
-    console.error('❌ Response extraction failed:', extractionError);
-    console.log('🆘 Emergency fallback to raw data stringify');
-    rawResponse = JSON.stringify(data);
-  }
-  
-  console.log(`🔍 Extracted response length: ${rawResponse?.length || 0} characters`);
-  
-  // ✅ CRITICAL FIX: Robust JSON validation and cleanup
-  if (!rawResponse || rawResponse.length < 10) {
-    throw new Error('Empty or invalid response from OpenAI API');
-  }
-  
-  // Clean up response before parsing
-  let cleanedResponse = rawResponse.trim();
-  
-  // Remove common non-JSON prefixes/suffixes
-  if (cleanedResponse.startsWith('```json')) {
-    cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-  }
-  if (cleanedResponse.startsWith('```')) {
-    cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
-  }
-  
-  // Find JSON object boundaries
-  const firstBrace = cleanedResponse.indexOf('{');
-  const lastBrace = cleanedResponse.lastIndexOf('}');
-  
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
-  }
-  
-  console.log(`🧹 Cleaned response length: ${cleanedResponse.length} characters`);
-  console.log(`🔍 Response preview: ${cleanedResponse.substring(0, 200)}...`);
-  
-  return {
-    rawResponse: cleanedResponse,
-    tokenUsage,
-    processingTime,
-    apiRequestId: tokenUsage.apiRequestId,
-    responseStatus: 'success'
-  };
+    if (!cleanedResponse) {
+        throw new Error('No text output in response');
+    }
+    
+    // Clean up markdown code blocks if present
+    cleanedResponse = cleanedResponse
+        .replace(/^```json\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+    
+    console.log(`🔍 Extracted response length: ${cleanedResponse.length} characters`);
+    
+    // Extract token usage from Responses API format
+    const tokenUsage = {
+        inputTokens: response.data.usage?.input_tokens || null,
+        outputTokens: response.data.usage?.output_tokens || null,
+        totalTokens: (response.data.usage?.input_tokens || 0) + (response.data.usage?.output_tokens || 0)
+    };
+    
+    console.log(`📊 Nano Token Usage: Input=${tokenUsage.inputTokens}, Output=${tokenUsage.outputTokens}, Total=${tokenUsage.totalTokens}`);
+    
+    return {
+        rawResponse: cleanedResponse,
+        tokenUsage,
+        processingTime,
+        model: 'gpt-5-nano',
+        fallbackUsed: false,
+        apiRequestId: response.headers['x-request-id'] || null,
+        responseStatus: 'success'
+    };
 }
 
-// ✅ MAIN function to send data to OpenAI GPT-5-nano with FIXED JSON parsing + token tracking
-async function sendToGemini(inputData) {
+// ✅ Extract token usage helper
+function extractTokenUsage(response) {
+    return {
+        inputTokens: response.data.usage?.input_tokens || response.data.usage?.prompt_tokens || null,
+        outputTokens: response.data.usage?.output_tokens || response.data.usage?.completion_tokens || null,
+        totalTokens: response.data.usage?.total_tokens || 
+                     ((response.data.usage?.input_tokens || 0) + (response.data.usage?.output_tokens || 0)) ||
+                     ((response.data.usage?.prompt_tokens || 0) + (response.data.usage?.completion_tokens || 0)) ||
+                     null
+    };
+}
+
+// 🚀 MAIN FUNCTION: sendToGemini with Parallel Racing Fallback
+async function sendToGemini({ 
+    html, 
+    systemPrompt, 
+    userPrompt, 
+    inputType = 'user-profile',
+    optimizationMode = 'less_aggressive'
+}) {
     try {
-        const apiKey = process.env.OPENAI_API_KEY;
+        const overallStartTime = Date.now();
         
-        if (!apiKey) {
-            return { success: false, status: 500, userMessage: 'OPENAI_API_KEY not configured', transient: false };
-        }
+        console.log('🔥 === STARTING OPENAI GPT-5-NANO PROCESSING WITH PARALLEL FALLBACK ===');
+        console.log(`📊 Input type: ${inputType}`);
+        console.log(`📊 Optimization mode: ${optimizationMode}`);
+        console.log(`📊 HTML size: ${(html.length / 1024).toFixed(2)} KB`);
         
-        console.log('🤖 === OPENAI GPT-5-NANO WITH ENHANCED TOKEN TRACKING ===');
+        // Preprocess HTML
+        const preprocessedHtml = preprocessHTMLForGemini(html, optimizationMode);
         
-        // Determine input type and prepare data
-        let processedData;
-        let inputType;
-        let systemPrompt;
-        let userPrompt;
-        let preprocessedHtml;
-        
-        // Extract optimization mode from input - force same aggressive reduction for target profiles
-        let optimizationMode;
-        if (inputData.isUserProfile) {
-            // User profiles: respect their optimization preference
-            optimizationMode = inputData.optimization?.mode || 'less_aggressive';
-        } else {
-            // Target profiles: force same aggressive reduction as user profiles (95% reduction)
-            optimizationMode = 'less_aggressive';
-        }
-        console.log(`📊 Optimization mode: ${optimizationMode} (${inputData.isUserProfile ? 'USER' : 'TARGET'} profile)`);
-        
-        if (inputData.html) {
-            inputType = 'HTML from Chrome Extension';
-            console.log(`📄 Input type: ${inputType}`);
-            console.log(`🔍 Original HTML size: ${(inputData.html.length / 1024).toFixed(2)} KB`);
-            
-            const htmlSizeKB = inputData.html.length / 1024;
-            if (htmlSizeKB > OPENAI_LIMITS.MAX_SIZE_KB) {
-                return { 
-                    success: false, 
-                    status: 413, 
-                    userMessage: `HTML too large: ${htmlSizeKB.toFixed(2)} KB (max: ${OPENAI_LIMITS.MAX_SIZE_KB} KB)`,
-                    transient: false 
-                };
-            }
-            
-            // Preprocess HTML with optimization mode
-            preprocessedHtml = preprocessHTMLForGemini(inputData.html, optimizationMode);
-            
-            const estimatedTokens = estimateTokenCount(preprocessedHtml);
-            console.log(`🔢 Estimated tokens: ${estimatedTokens} (Max input: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`);
-            
-            if (estimatedTokens > OPENAI_LIMITS.MAX_TOKENS_INPUT) {
-                return { 
-                    success: false, 
-                    status: 413, 
-                    userMessage: `Content too large: ~${estimatedTokens} tokens (max: ${OPENAI_LIMITS.MAX_TOKENS_INPUT})`,
-                    transient: false 
-                };
-            }
-            
-            processedData = {
-                html: preprocessedHtml,
-                url: inputData.url || inputData.profileUrl,
-                isUserProfile: inputData.isUserProfile || false,
-                optimization: inputData.optimization || {}
+        if (preprocessedHtml.length > OPENAI_LIMITS.MAX_SIZE_KB * 1024) {
+            console.error(`❌ HTML too large: ${(preprocessedHtml.length / 1024).toFixed(2)} KB > ${OPENAI_LIMITS.MAX_SIZE_KB} KB`);
+            return {
+                success: false,
+                status: 400,
+                userMessage: 'Profile HTML is too large to process. Please try a different profile.',
+                transient: false
             };
-            
-            // System prompt for comprehensive data extraction
-            systemPrompt = `You are a LinkedIn profile data extraction expert. Your task is to analyze HTML content and extract comprehensive LinkedIn profile information into valid JSON format.
-
-CRITICAL EXTRACTION PRIORITY:
-🥇 TIER 1 (HIGHEST PRIORITY - Extract first):
-- Basic profile info: name, headline, currentRole, currentCompany, location, about
-- Experience/work history: ALL job entries with titles, companies, durations, descriptions
-- Education: ALL education entries with schools, degrees, fields, years, grades, activities  
-- Awards: ALL awards/honors/recognitions found
-- Certifications: ALL certifications/licenses found
-
-🥈 TIER 2 (SECONDARY PRIORITY - Extract after TIER 1):
-- Volunteer work: organizations, roles
-- Following data: companies followed, people followed
-- Activity content: recent posts and content
-- Social metrics: followers, connections, mutual connections
-
-CRITICAL REQUIREMENTS:
-1. PRIORITIZE TIER 1 DATA - Extract completely before moving to TIER 2
-2. Extract ALL available content from every section thoroughly
-3. Return ONLY valid JSON - no markdown, no explanations, no comments
-4. Use the exact JSON structure provided below
-5. Extract all available text content, ignore styling and layout elements
-6. If a section is empty, use empty array [] or empty string ""
-7. For arrays, extract EVERY item found - don't truncate due to length
-8. With optimization mode ${optimizationMode}, extract maximum data from all sections`;
-
-            userPrompt = `Extract comprehensive LinkedIn profile data from this HTML. Optimization mode: ${optimizationMode}
-
-Return as JSON with this EXACT structure:
-
+        }
+        
+        // Set default prompts if not provided
+        if (!systemPrompt || !userPrompt) {
+            systemPrompt = 'You are a LinkedIn profile data extraction expert. Extract structured profile information from HTML.';
+            userPrompt = `Extract all available profile information from this LinkedIn HTML and return it as a structured JSON object with these fields:
 {
-  "profile": {
-    "name": "Full Name",
-    "firstName": "First Name", 
-    "lastName": "Last Name",
-    "headline": "Professional Headline",
-    "currentRole": "Current Job Title", 
-    "currentCompany": "Current Company Name",
-    "location": "City, Country",
-    "about": "About section text",
-    "followersCount": "Number of followers",
-    "connectionsCount": "Number of connections",
-    "mutualConnections": "Number of mutual connections"
-  },
-  "experience": [
-    {
-      "title": "Job Title",
-      "company": "Company Name", 
-      "companyUrl": "Company LinkedIn URL if available",
-      "duration": "Start Date - End Date",
-      "startDate": "Start Date",
-      "endDate": "End Date or Present",
-      "location": "Job location",
-      "description": "Job description and achievements - full content"
-    }
-  ],
-  "education": [
-    {
-      "school": "University/School Name",
-      "degree": "Degree Type",
-      "field": "Field of Study", 
-      "startYear": "Start Year",
-      "endYear": "End Year",
-      "duration": "Start Year - End Year",
-      "grade": "GPA or Grade if available",
-      "activities": "Activities & societies if available",
-      "description": "Additional details if available"
-    }
-  ],
-  "awards": [
-    {
-      "title": "Award Title",
-      "issuer": "Issuing Organization",
-      "date": "Award Date",
-      "description": "Award description if available"
-    }
-  ],
-  "certifications": [
-    {
-      "name": "Certification Name",
-      "issuer": "Issuing Organization",
-      "date": "Issue Date",
-      "url": "Certificate URL if available",
-      "description": "Certificate description if available"
-    }
-  ],
-  "volunteer": [
-    {
-      "organization": "Organization Name",
-      "role": "Volunteer Role",
-      "cause": "Cause area if available",
-      "startDate": "Start Date if available",
-      "endDate": "End Date if available", 
-      "description": "Description of volunteer work"
-    }
-  ],
-  "followingCompanies": [
-    "Company Name 1",
-    "Company Name 2"
-  ],
-  "followingPeople": [
-    "Person Name 1", 
-    "Person Name 2"
-  ],
-  "activity": [
-    {
-      "type": "post|article|share|video",
-      "content": "Activity content preview",
-      "date": "Activity date",
-      "likes": "Number of likes",
-      "comments": "Number of comments",
-      "shares": "Number of shares"
-    }
-  ],
-  "skills": ["Skill 1", "Skill 2", "Skill 3"],
-  "engagement": {
-    "totalLikes": "Sum of all likes across posts",
-    "totalComments": "Sum of all comments across posts", 
-    "totalShares": "Sum of all shares across posts",
-    "averageLikes": "Average likes per post"
-  }
-}
-
-The full HTML is provided separately as input_text in this same request.
-Return ONLY valid JSON. No explanations/markdown.`;
-            
-        } else if (inputData.data || inputData.results) {
-            inputType = 'JSON Data';
-            console.log(`📊 Input type: ${inputType}`);
-            
-            const jsonData = inputData.data || inputData.results || inputData;
-            processedData = jsonData;
-            
-            systemPrompt = `You are a LinkedIn profile data extraction expert. Extract and structure comprehensive profile information from the provided JSON data with TIER 1/2 prioritization.
-
-CRITICAL REQUIREMENTS:
-1. TIER 1 data is HIGHEST PRIORITY (profile, experience, education, awards, certifications)
-2. TIER 2 data is SECONDARY (volunteer, following, activity, social metrics)  
-3. Return ONLY valid JSON - no markdown, no explanations
-4. Use the exact structure provided
-5. Extract ALL available data thoroughly from every section`;
-
-            userPrompt = `Extract comprehensive LinkedIn profile data from this JSON with optimization mode ${optimizationMode} and return as structured JSON with the same format as specified above:
-
-${JSON.stringify(jsonData, null, 2)}`;
-            
-        } else {
-            return { 
-                success: false, 
-                status: 400, 
-                userMessage: 'Invalid input data: must contain either "html" or "data" property',
-                transient: false 
-            };
+  "profile": {"name": "", "headline": "", "location": "", "about": "", "profileUrl": ""},
+  "experience": [{"title": "", "company": "", "duration": "", "description": ""}],
+  "education": [{"school": "", "degree": "", "field": "", "dates": ""}],
+  "skills": [],
+  "certifications": [{"name": "", "issuer": "", "date": ""}],
+  "awards": [{"title": "", "issuer": "", "date": "", "description": ""}],
+  "volunteer": [{"role": "", "organization": "", "duration": "", "description": ""}],
+  "followingCompanies": [],
+  "activity": [{"type": "", "content": "", "engagement": "", "date": ""}]
+}`;
         }
         
         console.log(`🎯 Processing ${inputType} with ${optimizationMode} optimization...`);
@@ -598,126 +446,156 @@ ${JSON.stringify(jsonData, null, 2)}`;
         // Enforce rate limiting
         await enforceRateLimit();
         
-        // Send directly to OpenAI GPT-5-nano (no fallback)
-        const apiResult = await sendToNano({
-            systemPrompt,
-            userPrompt,
-            preprocessedHtml
-        });
+        // ============================================
+        // ATTEMPT 1: GPT-5-nano Solo
+        // ============================================
+        console.log('📤 ATTEMPT 1: GPT-5-nano (solo)...');
         
-        if (!apiResult.rawResponse) {
-            return { 
-                success: false, 
-                status: 500, 
-                userMessage: 'Invalid response structure from API',
-                transient: true 
+        try {
+            const nanoResult = await callGPT5NanoWithTimeout(
+                { systemPrompt, userPrompt, preprocessedHtml },
+                FALLBACK_CONFIG.ATTEMPT_1_TIMEOUT
+            );
+            
+            const totalTime = Date.now() - overallStartTime;
+            console.log(`✅ Attempt 1 SUCCESS: Nano completed in ${totalTime}ms`);
+            
+            // Parse and validate the response
+            const { parsedData, isValid } = await parseAndValidateResponse(nanoResult);
+            
+            if (!isValid) {
+                throw new Error('Response validation failed');
+            }
+            
+            return {
+                success: true,
+                data: parsedData,
+                metadata: {
+                    inputType: inputType,
+                    processingTime: nanoResult.processingTime,
+                    totalTime: totalTime,
+                    model: nanoResult.model,
+                    attempt: 1,
+                    fallbackUsed: false,
+                    hasProfile: parsedData.profile && parsedData.profile.name,
+                    hasExperience: parsedData.experience && parsedData.experience.length > 0,
+                    hasEducation: parsedData.education && parsedData.education.length > 0,
+                    dataQuality: (parsedData.profile?.name && parsedData.experience?.length > 0) ? 'high' : 'medium',
+                    optimizationMode: optimizationMode,
+                    tokenUsage: nanoResult.tokenUsage
+                },
+                tokenData: {
+                    rawGptResponse: nanoResult.rawResponse,
+                    inputTokens: nanoResult.tokenUsage.inputTokens,
+                    outputTokens: nanoResult.tokenUsage.outputTokens,
+                    totalTokens: nanoResult.tokenUsage.totalTokens,
+                    processingTimeMs: nanoResult.processingTime,
+                    apiRequestId: nanoResult.apiRequestId,
+                    responseStatus: nanoResult.responseStatus
+                }
+            };
+            
+        } catch (attempt1Error) {
+            const attempt1Time = Date.now() - overallStartTime;
+            console.log(`❌ Attempt 1 FAILED after ${attempt1Time}ms: ${attempt1Error.message}`);
+            
+            if (!FALLBACK_CONFIG.ENABLE_PARALLEL_RETRY) {
+                throw attempt1Error;
+            }
+            
+            // ============================================
+            // ATTEMPT 2: Parallel Race (Nano + Mini)
+            // ============================================
+            console.log('⚡ ATTEMPT 2: Parallel race (Nano retry + Mini fallback)...');
+            console.log('🏁 Racing both models - first to finish wins!');
+            
+            const retryStartTime = Date.now();
+            
+            // Launch BOTH models at the same time
+            const nanoRetryPromise = sendToNano({ systemPrompt, userPrompt, preprocessedHtml })
+                .then(result => ({
+                    ...result,
+                    model: 'gpt-5-nano',
+                    attempt: 2,
+                    retryTime: Date.now() - retryStartTime
+                }))
+                .catch(err => {
+                    console.log(`❌ Nano retry failed: ${err.message}`);
+                    return Promise.reject(err);
+                });
+            
+            const miniPromise = callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml })
+                .then(result => ({
+                    ...result,
+                    model: 'gpt-4o-mini',
+                    attempt: 2,
+                    retryTime: Date.now() - retryStartTime
+                }))
+                .catch(err => {
+                    console.log(`❌ Mini fallback failed: ${err.message}`);
+                    return Promise.reject(err);
+                });
+            
+            // Race them - first to finish wins
+            const winner = await Promise.race([nanoRetryPromise, miniPromise]);
+            
+            const totalTime = Date.now() - overallStartTime;
+            
+            console.log(`🏁 WINNER: ${winner.model}`);
+            console.log(`   Retry time: ${winner.retryTime}ms`);
+            console.log(`   Total time: ${totalTime}ms`);
+            
+            // Parse and validate the winner's response
+            const { parsedData, isValid } = await parseAndValidateResponse(winner);
+            
+            if (!isValid) {
+                throw new Error('Winner response validation failed');
+            }
+            
+            return {
+                success: true,
+                data: parsedData,
+                metadata: {
+                    inputType: inputType,
+                    processingTime: winner.processingTime,
+                    totalTime: totalTime,
+                    retryTime: winner.retryTime,
+                    model: winner.model,
+                    attempt: 2,
+                    fallbackUsed: true,
+                    parallelRace: true,
+                    hasProfile: parsedData.profile && parsedData.profile.name,
+                    hasExperience: parsedData.experience && parsedData.experience.length > 0,
+                    hasEducation: parsedData.education && parsedData.education.length > 0,
+                    dataQuality: (parsedData.profile?.name && parsedData.experience?.length > 0) ? 'high' : 'medium',
+                    optimizationMode: optimizationMode,
+                    tokenUsage: winner.tokenUsage
+                },
+                tokenData: {
+                    rawGptResponse: winner.rawResponse,
+                    inputTokens: winner.tokenUsage.inputTokens,
+                    outputTokens: winner.tokenUsage.outputTokens,
+                    totalTokens: winner.tokenUsage.totalTokens,
+                    processingTimeMs: winner.processingTime,
+                    apiRequestId: winner.apiRequestId,
+                    responseStatus: winner.responseStatus
+                }
             };
         }
         
-        console.log(`🔍 Raw response length: ${apiResult.rawResponse.length} characters`);
-        
-        // ✅ CRITICAL FIX: Robust JSON parsing with detailed error handling
-        let parsedData;
-        try {
-            parsedData = JSON.parse(apiResult.rawResponse);
-            console.log('✅ JSON parsing successful');
-        } catch (parseError) {
-            console.error('❌ JSON parsing failed:', parseError.message);
-            console.log('🔍 Raw response causing error:', apiResult.rawResponse.substring(0, 1000) + '...');
-            
-            // Try to fix common JSON issues
-            let fixedResponse = apiResult.rawResponse;
-            
-            // Fix truncated JSON by adding missing closing braces
-            const openBraces = (fixedResponse.match(/\{/g) || []).length;
-            const closeBraces = (fixedResponse.match(/\}/g) || []).length;
-            if (openBraces > closeBraces) {
-                const missingBraces = openBraces - closeBraces;
-                fixedResponse += '}}'.repeat(missingBraces);
-                console.log(`🔧 Added ${missingBraces} missing closing braces`);
-            }
-            
-            // Try parsing the fixed version
-            try {
-                parsedData = JSON.parse(fixedResponse);
-                console.log('✅ JSON parsing successful after fixing');
-            } catch (secondParseError) {
-                console.error('❌ JSON parsing failed even after fixes:', secondParseError.message);
-                return { 
-                    success: false, 
-                    status: 500, 
-                    userMessage: 'Failed to parse API response as JSON - response may be incomplete',
-                    transient: true,
-                    details: {
-                        originalError: parseError.message,
-                        fixedError: secondParseError.message,
-                        responsePreview: apiResult.rawResponse.substring(0, 500)
-                    }
-                };
-            }
-        }
-        
-        // Validate data
-        const hasProfile = parsedData.profile && parsedData.profile.name;
-        const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
-        const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
-        
-        console.log('✅ === OPENAI GPT-5-NANO WITH TOKEN TRACKING COMPLETED ===');
-        console.log(`📊 Extraction Results:`);
-        console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
-        console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
-        console.log(`   🥇 Education entries: ${parsedData.education?.length || 0}`);
-        console.log(`   🥇 Awards: ${parsedData.awards?.length || 0}`);
-        console.log(`   🥇 Certifications: ${parsedData.certifications?.length || 0}`);
-        console.log(`   🥈 Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
-        console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
-        console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
-        console.log(`   - Optimization mode: ${optimizationMode}`);
-        console.log(`📊 Token Usage:`);
-        console.log(`   - Input tokens: ${apiResult.tokenUsage.inputTokens || 'N/A'}`);
-        console.log(`   - Output tokens: ${apiResult.tokenUsage.outputTokens || 'N/A'}`);
-        console.log(`   - Total tokens: ${apiResult.tokenUsage.totalTokens || 'N/A'}`);
-        console.log(`   - Processing time: ${apiResult.processingTime}ms`);
-        
-        return {
-            success: true,
-            data: parsedData,
-            metadata: {
-                inputType: inputType,
-                processingTime: apiResult.processingTime,
-                hasProfile: hasProfile,
-                hasExperience: hasExperience,
-                hasEducation: hasEducation,
-                dataQuality: (hasProfile && hasExperience) ? 'high' : 'medium',
-                optimizationMode: optimizationMode,
-                tokenUsage: apiResult.tokenUsage
-            },
-            // ✅ NEW: Token tracking data for database storage
-            tokenData: {
-                rawGptResponse: apiResult.rawResponse,
-                inputTokens: apiResult.tokenUsage.inputTokens,
-                outputTokens: apiResult.tokenUsage.outputTokens,
-                totalTokens: apiResult.tokenUsage.totalTokens,
-                processingTimeMs: apiResult.processingTime,
-                apiRequestId: apiResult.apiRequestId,
-                responseStatus: apiResult.responseStatus
-            }
-        };
-        
     } catch (error) {
-        console.error('❌ === OPENAI GPT-5-NANO FAILED ===');
+        console.error('❌ === BOTH ATTEMPTS FAILED ===');
         console.error('📊 Error details:');
         console.error(`   - Message: ${error.message}`);
         console.error(`   - Status: ${error.response?.status || 'N/A'}`);
         console.error(`   - Request ID: ${error.response?.headers?.['x-request-id'] || 'N/A'}`);
         console.error(`   - Type: ${error.name || 'Unknown'}`);
         
-        // Enhanced error logging - print the response body
         if (error.response?.data) {
             console.error('API error body:', JSON.stringify(error.response.data));
         }
         
-        // Handle specific API error types with structured transient response
+        // Handle specific API error types
         let userFriendlyMessage = 'Failed to process profile data';
         let isTransient = false;
         let status = error.response?.status || 500;
@@ -732,7 +610,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             userFriendlyMessage = 'Request timeout. Please try again.';
             isTransient = true;
         } else if (error.message.includes('timeout')) {
-            userFriendlyMessage = 'Processing timeout. Please try again with a smaller profile.';
+            userFriendlyMessage = 'Processing timeout. Both AI models timed out - profile may be too large.';
             isTransient = true;
             status = 503;
         } else if (error.response?.status === 400) {
@@ -752,7 +630,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
             details: {
                 type: error.name,
                 timestamp: new Date().toISOString(),
-                optimizationMode: 'unknown',
+                optimizationMode: optimizationMode,
                 requestId: error.response?.headers?.['x-request-id'] || null
             },
             usage: null,
@@ -767,6 +645,70 @@ ${JSON.stringify(jsonData, null, 2)}`;
             }
         };
     }
+}
+
+// ✅ Helper: Parse and Validate Response
+async function parseAndValidateResponse(apiResult) {
+    if (!apiResult.rawResponse) {
+        return { parsedData: null, isValid: false };
+    }
+    
+    console.log(`🔍 Raw response length: ${apiResult.rawResponse.length} characters`);
+    
+    // Try to parse JSON
+    let parsedData;
+    try {
+        parsedData = JSON.parse(apiResult.rawResponse);
+        console.log('✅ JSON parsing successful');
+    } catch (parseError) {
+        console.error('❌ JSON parsing failed:', parseError.message);
+        console.log('🔍 Raw response causing error:', apiResult.rawResponse.substring(0, 1000) + '...');
+        
+        // Try to fix common JSON issues
+        let fixedResponse = apiResult.rawResponse;
+        
+        // Fix truncated JSON by adding missing closing braces
+        const openBraces = (fixedResponse.match(/\{/g) || []).length;
+        const closeBraces = (fixedResponse.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+            const missingBraces = openBraces - closeBraces;
+            fixedResponse += '}'.repeat(missingBraces);
+            console.log(`🔧 Added ${missingBraces} missing closing braces`);
+        }
+        
+        // Try parsing the fixed version
+        try {
+            parsedData = JSON.parse(fixedResponse);
+            console.log('✅ JSON parsing successful after fixing');
+        } catch (secondParseError) {
+            console.error('❌ JSON parsing failed even after fixes:', secondParseError.message);
+            return { parsedData: null, isValid: false };
+        }
+    }
+    
+    // Validate data
+    const hasProfile = parsedData.profile && parsedData.profile.name;
+    const hasExperience = parsedData.experience && Array.isArray(parsedData.experience) && parsedData.experience.length > 0;
+    const hasEducation = parsedData.education && Array.isArray(parsedData.education) && parsedData.education.length > 0;
+    
+    console.log('✅ === PROCESSING COMPLETED ===');
+    console.log(`📊 Extraction Results:`);
+    console.log(`   🥇 Profile name: ${hasProfile ? 'YES' : 'NO'}`);
+    console.log(`   🥇 Experience entries: ${parsedData.experience?.length || 0}`);
+    console.log(`   🥇 Education entries: ${parsedData.education?.length || 0}`);
+    console.log(`   🥇 Awards: ${parsedData.awards?.length || 0}`);
+    console.log(`   🥇 Certifications: ${parsedData.certifications?.length || 0}`);
+    console.log(`   🥈 Volunteer experiences: ${parsedData.volunteer?.length || 0}`);
+    console.log(`   🥈 Following companies: ${parsedData.followingCompanies?.length || 0}`);
+    console.log(`   🥈 Activity posts: ${parsedData.activity?.length || 0}`);
+    console.log(`📊 Token Usage:`);
+    console.log(`   - Input tokens: ${apiResult.tokenUsage.inputTokens || 'N/A'}`);
+    console.log(`   - Output tokens: ${apiResult.tokenUsage.outputTokens || 'N/A'}`);
+    console.log(`   - Total tokens: ${apiResult.tokenUsage.totalTokens || 'N/A'}`);
+    console.log(`   - Processing time: ${apiResult.processingTime}ms`);
+    console.log(`   - Model used: ${apiResult.model}`);
+    
+    return { parsedData, isValid: true };
 }
 
 module.exports = { sendToGemini };
