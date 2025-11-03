@@ -63,8 +63,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                     ELSE NULL
                 END as email_verified_at
             FROM message_logs ml 
-            LEFT JOIN target_profiles tp ON tp.linkedin_url = ml.target_profile_url
-            LEFT JOIN email_requests er ON er.linkedin_url = ml.target_profile_url AND er.user_id = ml.user_id
+            LEFT JOIN target_profiles tp ON normalize_linkedin_url(tp.linkedin_url) = normalize_linkedin_url(ml.target_profile_url)
+            LEFT JOIN email_requests er ON normalize_linkedin_url(er.linkedin_url) = normalize_linkedin_url(ml.target_profile_url) AND er.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
@@ -429,7 +429,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
             return res.json(finderResult);
         }
         
-        logger.success(`[EMAIL_FINDER] ✅ Email found: ${finderResult.email}`);
+        logger.success(`[EMAIL_FINDER] âœ… Email found: ${finderResult.email}`);
         
         // STEP 2: FIXED - Wait for verification to complete (16 seconds total)
         logger.info('[STEP 2] Waiting for verification to complete...');
@@ -447,7 +447,7 @@ router.post('/api/ask-email', authenticateToken, async (req, res) => {
         
         if (statusResult.rows.length > 0) {
             const row = statusResult.rows[0];
-            logger.success(`[EMAIL_FINDER] ✅ Complete result: email=${row.email_found}, status=${row.email_status}`);
+            logger.success(`[EMAIL_FINDER] âœ… Complete result: email=${row.email_found}, status=${row.email_status}`);
             
             // Return complete result with email + verification status
             return res.json({
