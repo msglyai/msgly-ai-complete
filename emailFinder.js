@@ -106,11 +106,11 @@ class EmailFinder {
             
             // FIXED: Update existing record with flexible URL matching
             // ALWAYS set email_status and email_verified_at
-            // Set email_found only if email is provided (using explicit type casting for PostgreSQL)
+            // Set email_found only if email is provided (COALESCE handles NULL properly)
             const result = await pool.query(`
                 UPDATE target_profiles 
                 SET 
-                    email_found = CASE WHEN $1::TEXT IS NOT NULL THEN $1::TEXT ELSE email_found END,
+                    email_found = COALESCE($1, email_found),
                     email_status = $2,
                     email_verified_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
