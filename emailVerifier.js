@@ -55,6 +55,22 @@ class EmailVerifier {
         }
     }
 
+    // Normalize LinkedIn URL - handle all variations (https, www, trailing slash)
+    normalizeLinkedInUrl(url) {
+        if (!url) return url;
+        
+        // Remove trailing slash
+        let normalized = url.replace(/\/$/, '');
+        
+        // Remove protocol (http:// or https://)
+        normalized = normalized.replace(/^https?:\/\//, '');
+        
+        // Remove www.
+        normalized = normalized.replace(/^www\./, '');
+        
+        return normalized;
+    }
+
     // Main verification function (called by emailFinder)
     async verifyEmail(email, userId, linkedinUrl) {
         logger.custom('EMAIL_VERIFIER', `Starting verification for email: ${email}`);
@@ -80,7 +96,7 @@ class EmailVerifier {
             
             await this.updateVerificationStatus(linkedinUrl, userId, status, reason);
             
-            logger.success(`[EMAIL_VERIFIER] ✅ Verification complete: ${email} -> ${status}`);
+            logger.success(`[EMAIL_VERIFIER] âœ… Verification complete: ${email} -> ${status}`);
             
             return {
                 success: true,
@@ -92,7 +108,7 @@ class EmailVerifier {
             // Verification failed - update with 'unknown' status
             await this.updateVerificationStatus(linkedinUrl, userId, 'unknown', 'verification_failed');
             
-            logger.warn(`[EMAIL_VERIFIER] ⚠️ Verification failed: ${email} -> unknown`);
+            logger.warn(`[EMAIL_VERIFIER] âš ï¸ Verification failed: ${email} -> unknown`);
             
             return {
                 success: false,
@@ -224,23 +240,25 @@ class EmailVerifier {
 
     // FIXED: Update target_profiles by LINKEDIN URL ONLY (updates shared record for all users)
     async updateVerificationStatus(linkedinUrl, userId, status, reason) {
-        logger.info(`[EMAIL_VERIFIER] Updating verification status for ${linkedinUrl} -> ${status}`);
+        // Normalize URL for consistent matching
+        const normalizedUrl = this.normalizeLinkedInUrl(linkedinUrl);
+        logger.info(`[EMAIL_VERIFIER] Updating verification status for ${normalizedUrl} -> ${status}`);
         
         const timestamp = new Date();
         
-        // FIXED: Update by linkedin_url ONLY (updates the ONE shared record)
+        // FIXED: Update by linkedin_url with flexible matching (with or without trailing slash)
         const result = await pool.query(`
             UPDATE target_profiles 
             SET 
                 email_status = $1,
                 email_verified_at = $2,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE linkedin_url = $3
+            WHERE linkedin_url = $3 OR linkedin_url = $4
             RETURNING id, email_found, email_status, email_verified_at, linkedin_url
-        `, [status, timestamp, linkedinUrl]);
+        `, [status, timestamp, normalizedUrl, normalizedUrl + '/']);
 
         if (result.rows.length > 0) {
-            logger.success(`[EMAIL_VERIFIER] ✅ Verification status updated:`, {
+            logger.success(`[EMAIL_VERIFIER] âœ… Verification status updated:`, {
                 email: result.rows[0].email_found,
                 status: status,
                 linkedinUrl: result.rows[0].linkedin_url
@@ -250,7 +268,7 @@ class EmailVerifier {
                 data: result.rows[0]
             };
         } else {
-            logger.warn(`[EMAIL_VERIFIER] ⚠️ No record found for LinkedIn URL: ${linkedinUrl}`);
+            logger.warn(`[EMAIL_VERIFIER] âš ï¸ No record found for LinkedIn URL: ${linkedinUrl}`);
             return {
                 success: false,
                 error: 'no_record_found'
@@ -258,13 +276,16 @@ class EmailVerifier {
         }
     }
 
-    // Get verification status from database (by linkedin_url ONLY)
+    // Get verification status from database (by linkedin_url with flexible matching)
     async getVerificationStatus(linkedinUrl, userId) {
+        // Normalize URL for consistent matching
+        const normalizedUrl = this.normalizeLinkedInUrl(linkedinUrl);
+        
         const result = await pool.query(`
             SELECT email_found, email_status, email_verified_at
             FROM target_profiles 
-            WHERE linkedin_url = $1
-        `, [linkedinUrl]);
+            WHERE linkedin_url = $1 OR linkedin_url = $2
+        `, [normalizedUrl, normalizedUrl + '/']);
 
         if (result.rows.length > 0) {
             const row = result.rows[0];
