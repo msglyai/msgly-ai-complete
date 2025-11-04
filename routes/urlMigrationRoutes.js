@@ -118,28 +118,44 @@ router.get('/api/admin/migrate-urls-dry-run', checkMigrationAuth, async (req, re
 
 // Execute migration - Actually cleans the URLs (MAKES CHANGES!)
 router.post('/api/admin/migrate-urls-execute', checkMigrationAuth, async (req, res) => {
-    const client = await pool.connect();
-    
     try {
         logger.info('Admin URL migration execution');
         
-        // Start transaction
-        await client.query('BEGIN');
+        const results = {};
+        const tables = [
+            { name: 'target_profiles', urlColumn: 'linkedin_url', idColumn: 'id' },
+            { name: 'message_logs', urlColumn: 'target_profile_url', idColumn: 'id' },
+            { name: 'user_profiles', urlColumn: 'linkedin_url', idColumn: 'id' },
+            { name: 'users', urlColumn: 'linkedin_url', idColumn: 'id' },
+            { name: 'email_requests', urlColumn: 'linkedin_url', idColumn: 'id' },
+            { name: 'email_finder_searches', urlColumn: 'linkedin_url', idColumn: 'id' },
+            { name: 'brightdata_profiles', urlColumn: 'linkedin_url', idColumn: 'id' }
+        ];
         
-        const results = {
-            target_profiles: await executeMigration(client, 'target_profiles', 'linkedin_url', 'id'),
-            message_logs: await executeMigration(client, 'message_logs', 'target_profile_url', 'id'),
-            user_profiles: await executeMigration(client, 'user_profiles', 'linkedin_url', 'id'),
-            users: await executeMigration(client, 'users', 'linkedin_url', 'id'),
-            email_requests: await executeMigration(client, 'email_requests', 'linkedin_url', 'id'),
-            email_finder_searches: await executeMigration(client, 'email_finder_searches', 'linkedin_url', 'id'),
-            brightdata_profiles: await executeMigration(client, 'brightdata_profiles', 'linkedin_url', 'id')
-        };
+        // Process each table in its own transaction
+        for (const table of tables) {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                results[table.name] = await executeMigration(client, table.name, table.urlColumn, table.idColumn);
+                await client.query('COMMIT');
+                logger.info(`Successfully migrated ${table.name}`);
+            } catch (error) {
+                await client.query('ROLLBACK');
+                logger.error(`Error migrating ${table.name}:`, error.message);
+                results[table.name] = {
+                    table: table.name,
+                    error: error.message,
+                    updated: 0,
+                    skipped: 0,
+                    errors: 1
+                };
+            } finally {
+                client.release();
+            }
+        }
         
-        // Commit transaction
-        await client.query('COMMIT');
-        
-        logger.info('URL migration completed successfully');
+        logger.info('URL migration completed');
         
         res.json({
             success: true,
@@ -148,15 +164,11 @@ router.post('/api/admin/migrate-urls-execute', checkMigrationAuth, async (req, r
         });
         
     } catch (error) {
-        // Rollback on error
-        await client.query('ROLLBACK');
         logger.error('URL migration error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
-    } finally {
-        client.release();
     }
 });
 
@@ -269,6 +281,7 @@ async function executeMigration(client, tableName, urlColumn, idColumn) {
             const cleanedUrl = cleanLinkedInUrl(row[urlColumn]);
             
             if (!cleanedUrl) {
+                logger.warn(`Skipping ${tableName} id ${row[idColumn]}: cleanLinkedInUrl returned null for: ${row[urlColumn]}`);
                 skipped++;
                 continue;
             }
@@ -282,8 +295,9 @@ async function executeMigration(client, tableName, urlColumn, idColumn) {
                     `, [cleanedUrl, row[idColumn]]);
                     updated++;
                 } catch (err) {
-                    logger.error(`Error updating ${tableName} id ${row[idColumn]}:`, err);
+                    logger.error(`Error updating ${tableName} id ${row[idColumn]}:`, err.message);
                     errors++;
+                    // Continue with next row instead of throwing
                 }
             } else {
                 skipped++;
