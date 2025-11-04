@@ -1,676 +1,929 @@
-// ========================================
-// OWNER DASHBOARD ROUTES - CORRECTED DATA MAPPING
-// ========================================
-// ✅ FIXED: Message types now query message_logs.message_type (not web_generated_messages)
-// ✅ FIXED: Email searches aggregate from 3 sources (email_finder_searches + target_profiles + message_logs)
-// ✅ FIXED: Emails found/verified calculated from all 3 sources
-// ✅ FIXED: Registration Rate → Profile Sync Rate (based on extraction_status = 'completed')
+// routes/ownerDashboardRoutes.js
+// Owner Dashboard - Comprehensive Business Analytics with Simple Auth
+// SECURITY: Email + Password authentication via environment variables
 
-const express = require('express');
-const router = express.Router();
+const router = require('express').Router();
+const path = require('path');
 const { pool } = require('../utils/database');
 const logger = require('../utils/logger');
 
-// ========================================
-// SIMPLE AUTHENTICATION MIDDLEWARE
-// ========================================
+// ==================== SIMPLE AUTH MIDDLEWARE ====================
+
+// Simple owner authentication middleware
 const ownerAuth = (req, res, next) => {
-    // Get credentials from environment variables (trim whitespace)
-    const OWNER_EMAIL = process.env.OWNER_EMAIL?.trim();
-    const OWNER_PASSWORD = process.env.OWNER_PASSWORD?.trim();
-
-    // Check if owner credentials are configured
+    const OWNER_EMAIL = process.env.OWNER_EMAIL;
+    const OWNER_PASSWORD = process.env.OWNER_PASSWORD;
+    
+    // Check if credentials are configured
     if (!OWNER_EMAIL || !OWNER_PASSWORD) {
-        logger.error('❌ Owner credentials not configured in environment variables');
-        return res.status(500).json({ 
-            error: 'Owner credentials not configured',
-            message: 'Please set OWNER_EMAIL and OWNER_PASSWORD in Railway environment variables'
+        logger.error('Owner credentials not configured in environment variables');
+        return res.status(500).json({
+            success: false,
+            error: 'Owner dashboard not configured'
         });
     }
-
-    // Get credentials from request (trim whitespace)
-    const email = req.body.email?.trim() || req.headers['x-owner-email']?.trim();
-    const password = req.body.password?.trim() || req.headers['x-owner-password']?.trim();
-
+    
+    // Get credentials from request
+    let email, password;
+    
+    // Check for credentials in query params (for HTML page access)
+    if (req.query.email && req.query.password) {
+        email = req.query.email;
+        password = req.query.password;
+    }
+    // Check for credentials in body (for API calls)
+    else if (req.body && req.body.email && req.body.password) {
+        email = req.body.email;
+        password = req.body.password;
+    }
+    // Check for Basic Auth header
+    else if (req.headers.authorization) {
+        const auth = req.headers.authorization;
+        if (auth.startsWith('Basic ')) {
+            const credentials = Buffer.from(auth.slice(6), 'base64').toString('utf-8');
+            const [authEmail, authPassword] = credentials.split(':');
+            email = authEmail;
+            password = authPassword;
+        }
+    }
+    
     // Validate credentials
-    const emailMatch = email === OWNER_EMAIL;
-    const passwordMatch = password === OWNER_PASSWORD;
-
-    if (emailMatch && passwordMatch) {
-        logger.info('✅ Owner authenticated successfully:', email);
-        next();
-    } else {
-        logger.warn(`❌ Failed owner login attempt for email: ${email}`);
-        
-        // Debug logging (only in development)
-        if (process.env.NODE_ENV !== 'production') {
-            logger.debug('Auth Debug:', {
-                emailMatch,
-                passwordMatch,
-                providedEmail: email,
-                expectedEmail: OWNER_EMAIL
-            });
-        }
-        
-        return res.status(403).json({ 
-            error: 'Invalid credentials',
-            message: 'Email or password is incorrect'
+    if (!email || !password) {
+        return res.status(401).json({
+            success: false,
+            error: 'Authentication required',
+            message: 'Please provide email and password'
         });
     }
-};
-
-// ========================================
-// HELPER FUNCTIONS FOR ANALYTICS QUERIES
-// ========================================
-
-// Get user metrics (registrations, active users, etc.)
-const getUserMetrics = async (startDate, endDate, prevStartDate, prevEndDate) => {
-    try {
-        // Current period metrics
-        const currentMetrics = await pool.query(`
-            SELECT 
-                -- Total users (all time)
-                (SELECT COUNT(*) FROM users) as total_users,
-                
-                -- New users in current period
-                COUNT(CASE WHEN u.created_at BETWEEN $1 AND $2 THEN 1 END) as new_users,
-                
-                -- New free users
-                COUNT(CASE WHEN u.created_at BETWEEN $1 AND $2 AND (u.package_type = 'free' OR u.plan_code = 'free') THEN 1 END) as new_free_users,
-                
-                -- New paid users (any plan except free)
-                COUNT(CASE WHEN u.created_at BETWEEN $1 AND $2 AND u.package_type != 'free' AND u.plan_code != 'free' THEN 1 END) as new_paid_users,
-                
-                -- Active users (generated messages in period)
-                COUNT(DISTINCT CASE WHEN ml.created_at BETWEEN $1 AND $2 THEN ml.user_id END) as active_users,
-                
-                -- Profile Sync Rate (based on extraction_status = 'completed')
-                (COUNT(CASE WHEN u.extraction_status = 'completed' THEN 1 END)::float / 
-                 NULLIF(COUNT(*)::float, 0) * 100) as profile_sync_rate
-                
-            FROM users u
-            LEFT JOIN message_logs ml ON ml.user_id = u.id
-        `, [startDate, endDate]);
-
-        // Previous period metrics for comparison
-        const previousMetrics = await pool.query(`
-            SELECT 
-                COUNT(CASE WHEN u.created_at BETWEEN $1 AND $2 THEN 1 END) as prev_new_users,
-                COUNT(CASE WHEN u.created_at BETWEEN $1 AND $2 AND (u.package_type = 'free' OR u.plan_code = 'free') THEN 1 END) as prev_new_free_users,
-                COUNT(CASE WHEN u.created_at BETWEEN $1 AND $2 AND u.package_type != 'free' AND u.plan_code != 'free' THEN 1 END) as prev_new_paid_users,
-                COUNT(DISTINCT CASE WHEN ml.created_at BETWEEN $1 AND $2 THEN ml.user_id END) as prev_active_users
-            FROM users u
-            LEFT JOIN message_logs ml ON ml.user_id = u.id
-        `, [prevStartDate, prevEndDate]);
-
-        const current = currentMetrics.rows[0];
-        const previous = previousMetrics.rows[0];
-
-        // Calculate percentage changes
-        const calculateChange = (current, previous) => {
-            if (previous === 0) return current > 0 ? 100 : 0;
-            return ((current - previous) / previous * 100).toFixed(1);
-        };
-
-        return {
-            totalUsers: parseInt(current.total_users),
-            newUsers: parseInt(current.new_users),
-            newUsersChange: calculateChange(current.new_users, previous.prev_new_users),
-            newFreeUsers: parseInt(current.new_free_users),
-            newFreeUsersChange: calculateChange(current.new_free_users, previous.prev_new_free_users),
-            newPaidUsers: parseInt(current.new_paid_users),
-            newPaidUsersChange: calculateChange(current.new_paid_users, previous.prev_new_paid_users),
-            activeUsers: parseInt(current.active_users),
-            activeUsersChange: calculateChange(current.active_users, previous.prev_active_users),
-            profileSyncRate: parseFloat(current.profile_sync_rate || 0).toFixed(1)
-        };
-    } catch (error) {
-        logger.error('Error fetching user metrics:', error);
-        throw error;
+    
+    // Trim whitespace from credentials and env vars
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedOwnerEmail = OWNER_EMAIL.trim();
+    const trimmedOwnerPassword = OWNER_PASSWORD.trim();
+    
+    // Debug logging (only in development)
+    if (process.env.NODE_ENV === 'development') {
+        logger.debug('Auth attempt - Email match:', trimmedEmail === trimmedOwnerEmail);
+        logger.debug('Auth attempt - Password match:', trimmedPassword === trimmedOwnerPassword);
     }
-};
-
-// Get activity metrics (profiles analyzed, messages generated)
-const getActivityMetrics = async (startDate, endDate, prevStartDate, prevEndDate) => {
-    try {
-        // Current period activity
-        const currentActivity = await pool.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM target_profiles WHERE created_at BETWEEN $1 AND $2) as profiles_analyzed,
-                (SELECT COUNT(*) FROM message_logs WHERE created_at BETWEEN $1 AND $2) as messages_generated
-        `, [startDate, endDate]);
-
-        // Previous period activity
-        const previousActivity = await pool.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM target_profiles WHERE created_at BETWEEN $1 AND $2) as prev_profiles,
-                (SELECT COUNT(*) FROM message_logs WHERE created_at BETWEEN $1 AND $2) as prev_messages
-        `, [prevStartDate, prevEndDate]);
-
-        const current = currentActivity.rows[0];
-        const previous = previousActivity.rows[0];
-
-        const calculateChange = (current, previous) => {
-            if (previous === 0) return current > 0 ? 100 : 0;
-            return ((current - previous) / previous * 100).toFixed(1);
-        };
-
-        return {
-            profilesAnalyzed: parseInt(current.profiles_analyzed),
-            profilesAnalyzedChange: calculateChange(current.profiles_analyzed, previous.prev_profiles),
-            messagesGenerated: parseInt(current.messages_generated),
-            messagesGeneratedChange: calculateChange(current.messages_generated, previous.prev_messages)
-        };
-    } catch (error) {
-        logger.error('Error fetching activity metrics:', error);
-        throw error;
-    }
-};
-
-// ✅ FIXED: Get message type metrics from message_logs.message_type
-const getMessageTypeMetrics = async (startDate, endDate) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                COUNT(CASE WHEN message_type = 'linkedin_message' THEN 1 END) as linkedin_messages,
-                COUNT(CASE WHEN message_type = 'connection_request' THEN 1 END) as connection_requests,
-                COUNT(CASE WHEN message_type = 'cold_email' THEN 1 END) as cold_emails
-            FROM message_logs
-            WHERE created_at BETWEEN $1 AND $2
-        `, [startDate, endDate]);
-
-        return {
-            linkedinMessages: parseInt(result.rows[0].linkedin_messages || 0),
-            connectionRequests: parseInt(result.rows[0].connection_requests || 0),
-            coldEmails: parseInt(result.rows[0].cold_emails || 0)
-        };
-    } catch (error) {
-        logger.warn('⚠️  Error fetching message type metrics (message_type column may not exist yet):', error.message);
-        return {
-            linkedinMessages: 0,
-            connectionRequests: 0,
-            coldEmails: 0
-        };
-    }
-};
-
-// ✅ FIXED: Get email metrics from ALL 3 sources
-const getEmailMetrics = async (startDate, endDate) => {
-    try {
-        // Count email searches from all 3 sources
-        const searchesResult = await pool.query(`
-            SELECT 
-                -- Email finder searches (standalone page)
-                (SELECT COUNT(*) FROM email_finder_searches WHERE search_date BETWEEN $1 AND $2) as finder_searches,
-                
-                -- Profile analysis with email
-                (SELECT COUNT(*) FROM target_profiles WHERE email_found IS NOT NULL AND created_at BETWEEN $1 AND $2) as profile_emails,
-                
-                -- Message generation with email
-                (SELECT COUNT(*) FROM message_logs WHERE email_found IS NOT NULL AND created_at BETWEEN $1 AND $2) as message_emails
-        `, [startDate, endDate]);
-
-        // Count emails found from all 3 sources
-        const foundResult = await pool.query(`
-            SELECT 
-                -- Emails from finder
-                (SELECT COUNT(*) FROM email_finder_searches WHERE email IS NOT NULL AND search_date BETWEEN $1 AND $2) as finder_found,
-                
-                -- Emails from profiles
-                (SELECT COUNT(*) FROM target_profiles WHERE email_found IS NOT NULL AND email_found != '' AND created_at BETWEEN $1 AND $2) as profile_found,
-                
-                -- Emails from messages
-                (SELECT COUNT(*) FROM message_logs WHERE email_found IS NOT NULL AND email_found != '' AND created_at BETWEEN $1 AND $2) as message_found
-        `, [startDate, endDate]);
-
-        // Count verified emails from all 3 sources
-        const verifiedResult = await pool.query(`
-            SELECT 
-                -- Verified from finder
-                (SELECT COUNT(*) FROM email_finder_searches WHERE verification_status = 'valid' AND search_date BETWEEN $1 AND $2) as finder_verified,
-                
-                -- Verified from profiles
-                (SELECT COUNT(*) FROM target_profiles WHERE email_status = 'verified' AND created_at BETWEEN $1 AND $2) as profile_verified,
-                
-                -- Verified from messages
-                (SELECT COUNT(*) FROM message_logs WHERE email_status = 'verified' AND created_at BETWEEN $1 AND $2) as message_verified
-        `, [startDate, endDate]);
-
-        const searches = searchesResult.rows[0];
-        const found = foundResult.rows[0];
-        const verified = verifiedResult.rows[0];
-
-        // Aggregate totals from all sources
-        const totalSearches = parseInt(searches.finder_searches || 0) + parseInt(searches.profile_emails || 0) + parseInt(searches.message_emails || 0);
-        const totalFound = parseInt(found.finder_found || 0) + parseInt(found.profile_found || 0) + parseInt(found.message_found || 0);
-        const totalVerified = parseInt(verified.finder_verified || 0) + parseInt(verified.profile_verified || 0) + parseInt(verified.message_verified || 0);
-
-        // Calculate verification rate
-        const verificationRate = totalFound > 0 ? ((totalVerified / totalFound) * 100).toFixed(1) : 0;
-
-        return {
-            emailSearches: totalSearches,
-            emailsFound: totalFound,
-            emailsVerified: totalVerified,
-            verificationRate: parseFloat(verificationRate)
-        };
-    } catch (error) {
-        logger.warn('⚠️  Error fetching email metrics (tables may not exist yet):', error.message);
-        return {
-            emailSearches: 0,
-            emailsFound: 0,
-            emailsVerified: 0,
-            verificationRate: 0
-        };
-    }
-};
-
-// Get subscription/plan metrics
-const getSubscriptionMetrics = async (startDate, endDate) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                -- Plan upgrades (users who changed from free to paid in period)
-                COUNT(CASE WHEN u.plan_code != 'free' AND u.package_type != 'free' AND u.updated_at BETWEEN $1 AND $2 THEN 1 END) as plan_upgrades,
-                
-                -- Cancellations (scheduled in period)
-                COUNT(CASE WHEN u.cancellation_scheduled_at BETWEEN $1 AND $2 THEN 1 END) as cancellations,
-                
-                -- Active subscriptions (all Chargebee subscriptions)
-                COUNT(CASE WHEN u.chargebee_subscription_id IS NOT NULL AND u.subscription_status = 'active' THEN 1 END) as active_subscriptions
-            FROM users u
-        `, [startDate, endDate]);
-
-        return {
-            planUpgrades: parseInt(result.rows[0].plan_upgrades || 0),
-            cancellations: parseInt(result.rows[0].cancellations || 0),
-            activeSubscriptions: parseInt(result.rows[0].active_subscriptions || 0)
-        };
-    } catch (error) {
-        logger.error('Error fetching subscription metrics:', error);
-        throw error;
-    }
-};
-
-// Get credit usage metrics
-const getCreditMetrics = async (startDate, endDate) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                SUM(renewable_credits) as total_renewable,
-                SUM(payasyougo_credits) as total_payasyougo,
-                SUM(renewable_credits + payasyougo_credits) as total_credits,
-                COUNT(*) as user_count
-            FROM users
-        `);
-
-        // Get credits used in period
-        const usedResult = await pool.query(`
-            SELECT 
-                SUM(credits_used) as credits_used
-            FROM message_logs
-            WHERE created_at BETWEEN $1 AND $2
-        `, [startDate, endDate]);
-
-        const credits = result.rows[0];
-        const used = usedResult.rows[0];
-
-        const avgPerUser = credits.user_count > 0 ? (parseFloat(credits.total_credits || 0) / credits.user_count).toFixed(2) : 0;
-
-        return {
-            totalRenewable: parseInt(credits.total_renewable || 0),
-            totalPayAsYouGo: parseInt(credits.total_payasyougo || 0),
-            totalCredits: parseInt(credits.total_credits || 0),
-            creditsUsed: parseInt(used.credits_used || 0),
-            averagePerUser: parseFloat(avgPerUser)
-        };
-    } catch (error) {
-        logger.error('Error fetching credit metrics:', error);
-        throw error;
-    }
-};
-
-// Get context management metrics
-const getContextMetrics = async (startDate, endDate) => {
-    try {
-        // Try to get context metrics (tables may not exist)
-        const contextsResult = await pool.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM saved_contexts WHERE created_at BETWEEN $1 AND $2) as new_contexts
-        `, [startDate, endDate]).catch(() => ({ rows: [{ new_contexts: 0 }] }));
-
-        const addonsResult = await pool.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM user_context_addons WHERE created_at BETWEEN $1 AND $2) as addons_purchased,
-                (SELECT SUM(slots_purchased) FROM user_context_addons WHERE created_at BETWEEN $1 AND $2) as extra_slots
-        `, [startDate, endDate]).catch(() => ({ rows: [{ addons_purchased: 0, extra_slots: 0 }] }));
-
-        const contexts = contextsResult.rows[0];
-        const addons = addonsResult.rows[0];
-
-        return {
-            newContexts: parseInt(contexts.new_contexts || 0),
-            addonsPurchased: parseInt(addons.addons_purchased || 0),
-            extraSlots: parseInt(addons.extra_slots || 0)
-        };
-    } catch (error) {
-        logger.warn('⚠️  Error fetching context metrics (tables may not exist yet):', error.message);
-        return {
-            newContexts: 0,
-            addonsPurchased: 0,
-            extraSlots: 0
-        };
-    }
-};
-
-// Get performance metrics (tokens, latency)
-const getPerformanceMetrics = async (startDate, endDate) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                AVG(input_tokens) as avg_input_tokens,
-                AVG(output_tokens) as avg_output_tokens,
-                AVG(total_tokens) as avg_total_tokens,
-                AVG(latency_ms) as avg_latency
-            FROM message_logs
-            WHERE created_at BETWEEN $1 AND $2
-            AND input_tokens IS NOT NULL
-        `, [startDate, endDate]);
-
-        const metrics = result.rows[0];
-
-        return {
-            avgInputTokens: parseInt(metrics.avg_input_tokens || 0),
-            avgOutputTokens: parseInt(metrics.avg_output_tokens || 0),
-            avgTotalTokens: parseInt(metrics.avg_total_tokens || 0),
-            avgLatency: parseInt(metrics.avg_latency || 0)
-        };
-    } catch (error) {
-        logger.error('Error fetching performance metrics:', error);
-        throw error;
-    }
-};
-
-// Get user breakdown by plan
-const getUserBreakdown = async () => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                COUNT(CASE WHEN plan_code = 'silver-monthly' OR package_type = 'silver-monthly' THEN 1 END) as silver_users,
-                COUNT(CASE WHEN plan_code = 'gold-monthly' OR package_type = 'gold-monthly' THEN 1 END) as gold_users,
-                COUNT(CASE WHEN plan_code = 'platinum-monthly' OR package_type = 'platinum-monthly' THEN 1 END) as platinum_users,
-                COUNT(CASE WHEN (plan_code LIKE '%-monthly' OR package_type LIKE '%-monthly') AND plan_code != 'free' THEN 1 END) as monthly_subscribers,
-                COUNT(CASE WHEN plan_code LIKE '%-payasyougo' OR package_type LIKE '%-payasyougo' THEN 1 END) as payasyougo_users
-            FROM users
-        `);
-
-        return result.rows[0];
-    } catch (error) {
-        logger.error('Error fetching user breakdown:', error);
-        throw error;
-    }
-};
-
-// Get daily trend data for charts
-const getDailyTrends = async (startDate, endDate) => {
-    try {
-        const result = await pool.query(`
-            WITH date_series AS (
-                SELECT generate_series(
-                    DATE($1),
-                    DATE($2),
-                    '1 day'::interval
-                )::date as day
-            )
-            SELECT 
-                ds.day,
-                COUNT(DISTINCT u.id) as new_users,
-                COUNT(DISTINCT ml.id) as messages_generated,
-                COUNT(DISTINCT tp.id) as profiles_analyzed
-            FROM date_series ds
-            LEFT JOIN users u ON DATE(u.created_at) = ds.day
-            LEFT JOIN message_logs ml ON DATE(ml.created_at) = ds.day
-            LEFT JOIN target_profiles tp ON DATE(tp.created_at) = ds.day
-            GROUP BY ds.day
-            ORDER BY ds.day
-        `, [startDate, endDate]);
-
-        return result.rows;
-    } catch (error) {
-        logger.error('Error fetching daily trends:', error);
-        throw error;
-    }
-};
-
-// ========================================
-// ROUTES
-// ========================================
-
-// Health check endpoint (requires auth)
-router.post('/api/owner/health', ownerAuth, (req, res) => {
-    logger.info('✅ Owner health check passed');
-    res.json({ status: 'ok', message: 'Owner authenticated' });
-});
-
-// Main analytics endpoint
-router.post('/api/owner/analytics', ownerAuth, async (req, res) => {
-    try {
-        const { period = '30d' } = req.body;
-
-        // Calculate date ranges based on period
-        const now = new Date();
-        let startDate, endDate, prevStartDate, prevEndDate;
-
-        switch (period) {
-            case '24h':
-                endDate = now;
-                startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                prevEndDate = startDate;
-                prevStartDate = new Date(prevEndDate.getTime() - 24 * 60 * 60 * 1000);
-                break;
-            case '7d':
-                endDate = now;
-                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                prevEndDate = startDate;
-                prevStartDate = new Date(prevEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-                break;
-            case 'this_month':
-                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                endDate = now;
-                prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                break;
-            case 'last_month':
-                startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                prevStartDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-                prevEndDate = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
-                break;
-            default: // 30d
-                endDate = now;
-                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                prevEndDate = startDate;
-                prevStartDate = new Date(prevEndDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-        }
-
-        logger.info(`📊 Fetching owner analytics for period: ${period}`);
-
-        // Fetch all metrics in parallel for better performance
-        const [
-            userMetrics,
-            activityMetrics,
-            messageTypeMetrics,
-            emailMetrics,
-            subscriptionMetrics,
-            creditMetrics,
-            contextMetrics,
-            performanceMetrics,
-            userBreakdown,
-            dailyTrends
-        ] = await Promise.all([
-            getUserMetrics(startDate, endDate, prevStartDate, prevEndDate),
-            getActivityMetrics(startDate, endDate, prevStartDate, prevEndDate),
-            getMessageTypeMetrics(startDate, endDate),
-            getEmailMetrics(startDate, endDate),
-            getSubscriptionMetrics(startDate, endDate),
-            getCreditMetrics(startDate, endDate),
-            getContextMetrics(startDate, endDate),
-            getPerformanceMetrics(startDate, endDate),
-            getUserBreakdown(),
-            getDailyTrends(startDate, endDate)
-        ]);
-
-        // Combine all metrics
-        const analytics = {
-            period,
-            dateRange: {
-                start: startDate,
-                end: endDate
-            },
-            metrics: {
-                ...userMetrics,
-                ...activityMetrics,
-                ...messageTypeMetrics,
-                ...emailMetrics,
-                ...subscriptionMetrics,
-                ...creditMetrics,
-                ...contextMetrics,
-                ...performanceMetrics
-            },
-            breakdown: userBreakdown,
-            trends: dailyTrends
-        };
-
-        logger.info('✅ Owner analytics fetched successfully');
-        res.json(analytics);
-
-    } catch (error) {
-        logger.error('❌ Error fetching owner analytics:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch analytics',
-            message: error.message 
+    
+    if (trimmedEmail !== trimmedOwnerEmail || trimmedPassword !== trimmedOwnerPassword) {
+        logger.warn('Failed owner login attempt:', trimmedEmail);
+        return res.status(403).json({
+            success: false,
+            error: 'Invalid credentials'
         });
     }
-});
+    
+    logger.debug('Owner authenticated successfully:', trimmedEmail);
+    next();
+};
 
-// CSV export endpoint
-router.post('/api/owner/export', ownerAuth, async (req, res) => {
-    try {
-        const { period = '30d' } = req.body;
-
-        // Get all analytics data
-        const now = new Date();
-        let startDate, endDate, prevStartDate, prevEndDate;
-
-        // Same date calculation as analytics endpoint
-        switch (period) {
-            case '24h':
-                endDate = now;
-                startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                prevEndDate = startDate;
-                prevStartDate = new Date(prevEndDate.getTime() - 24 * 60 * 60 * 1000);
-                break;
-            case '7d':
-                endDate = now;
-                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                prevEndDate = startDate;
-                prevStartDate = new Date(prevEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-                break;
-            case 'this_month':
-                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                endDate = now;
-                prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                break;
-            case 'last_month':
-                startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                prevStartDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-                prevEndDate = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
-                break;
-            default: // 30d
-                endDate = now;
-                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                prevEndDate = startDate;
-                prevStartDate = new Date(prevEndDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-        }
-
-        const [
-            userMetrics,
-            activityMetrics,
-            messageTypeMetrics,
-            emailMetrics,
-            subscriptionMetrics,
-            creditMetrics,
-            contextMetrics,
-            performanceMetrics,
-            userBreakdown
-        ] = await Promise.all([
-            getUserMetrics(startDate, endDate, prevStartDate, prevEndDate),
-            getActivityMetrics(startDate, endDate, prevStartDate, prevEndDate),
-            getMessageTypeMetrics(startDate, endDate),
-            getEmailMetrics(startDate, endDate),
-            getSubscriptionMetrics(startDate, endDate),
-            getCreditMetrics(startDate, endDate),
-            getContextMetrics(startDate, endDate),
-            getPerformanceMetrics(startDate, endDate),
-            getUserBreakdown()
-        ]);
-
-        // Create CSV content
-        const csv = [
-            ['Msgly.AI Owner Dashboard Export'],
-            ['Period', period],
-            ['Generated', new Date().toISOString()],
-            [''],
-            ['Metric', 'Value', 'Change %'],
-            ['Total Users', userMetrics.totalUsers, ''],
-            ['New Users', userMetrics.newUsers, userMetrics.newUsersChange],
-            ['New Free Users', userMetrics.newFreeUsers, userMetrics.newFreeUsersChange],
-            ['New Paid Users', userMetrics.newPaidUsers, userMetrics.newPaidUsersChange],
-            ['Active Users', userMetrics.activeUsers, userMetrics.activeUsersChange],
-            ['Profile Sync Rate', `${userMetrics.profileSyncRate}%`, ''],
-            ['Profiles Analyzed', activityMetrics.profilesAnalyzed, activityMetrics.profilesAnalyzedChange],
-            ['Messages Generated', activityMetrics.messagesGenerated, activityMetrics.messagesGeneratedChange],
-            ['LinkedIn Messages', messageTypeMetrics.linkedinMessages, ''],
-            ['Connection Requests', messageTypeMetrics.connectionRequests, ''],
-            ['Cold Emails', messageTypeMetrics.coldEmails, ''],
-            ['Email Searches', emailMetrics.emailSearches, ''],
-            ['Emails Found', emailMetrics.emailsFound, ''],
-            ['Verification Rate', `${emailMetrics.verificationRate}%`, ''],
-            ['Plan Upgrades', subscriptionMetrics.planUpgrades, ''],
-            ['Cancellations', subscriptionMetrics.cancellations, ''],
-            ['Total Credits', creditMetrics.totalCredits, ''],
-            ['Credits Used', creditMetrics.creditsUsed, ''],
-            [''],
-            ['User Breakdown'],
-            ['Silver Users', userBreakdown.silver_users],
-            ['Gold Users', userBreakdown.gold_users],
-            ['Platinum Users', userBreakdown.platinum_users],
-            ['Monthly Subscribers', userBreakdown.monthly_subscribers],
-            ['Pay-as-you-go Users', userBreakdown.payasyougo_users]
-        ];
-
-        const csvContent = csv.map(row => row.join(',')).join('\n');
-
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename="msgly-dashboard-${period}-${Date.now()}.csv"`);
-        res.send(csvContent);
-
-        logger.info('✅ CSV export generated successfully');
-
-    } catch (error) {
-        logger.error('❌ Error generating CSV export:', error);
-        res.status(500).json({ 
-            error: 'Failed to generate CSV',
-            message: error.message 
-        });
-    }
-});
+// ==================== DASHBOARD HTML ROUTE ====================
 
 // Serve owner dashboard HTML
 router.get('/owner-dashboard', (req, res) => {
-    res.sendFile('owner-dashboard.html', { root: '.' });
+    try {
+        res.sendFile(path.join(__dirname, '..', 'owner-dashboard.html'));
+    } catch (error) {
+        logger.error('Error serving owner dashboard:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to serve owner dashboard'
+        });
+    }
 });
+
+// ==================== ANALYTICS API ENDPOINTS ====================
+
+// Main analytics endpoint - comprehensive business metrics
+router.post('/api/owner/analytics', ownerAuth, async (req, res) => {
+    try {
+        const {
+            timeRange = '7days',
+            startDate,
+            endDate
+        } = req.body;
+
+        logger.debug('Owner analytics request - timeRange:', timeRange);
+
+        // Calculate date ranges
+        const dateRange = calculateDateRange(timeRange, startDate, endDate);
+        const previousDateRange = calculatePreviousDateRange(dateRange);
+
+        // Get all metrics in parallel for performance
+        const [
+            userMetrics,
+            previousUserMetrics,
+            planMetrics,
+            activityMetrics,
+            previousActivityMetrics,
+            emailMetrics,
+            creditMetrics,
+            contextMetrics,
+            messageTypeMetrics,
+            chartData
+        ] = await Promise.all([
+            getUserMetrics(dateRange),
+            getUserMetrics(previousDateRange),
+            getPlanMetrics(dateRange),
+            getActivityMetrics(dateRange),
+            getActivityMetrics(previousDateRange),
+            getEmailMetrics(dateRange),
+            getCreditMetrics(dateRange),
+            getContextMetrics(dateRange),
+            getMessageTypeMetrics(dateRange),
+            getChartData(dateRange)
+        ]);
+
+        // Calculate changes from previous period
+        const changes = {
+            newUsers: calculatePercentChange(userMetrics.newUsers, previousUserMetrics.newUsers),
+            newFreeUsers: calculatePercentChange(userMetrics.newFreeUsers, previousUserMetrics.newFreeUsers),
+            newPaidUsers: calculatePercentChange(userMetrics.newPaidUsers, previousUserMetrics.newPaidUsers),
+            profilesAnalyzed: calculatePercentChange(activityMetrics.profilesAnalyzed, previousActivityMetrics.profilesAnalyzed),
+            messagesGenerated: calculatePercentChange(activityMetrics.messagesGenerated, previousActivityMetrics.messagesGenerated)
+        };
+
+        res.json({
+            success: true,
+            data: {
+                timeRange: {
+                    current: {
+                        start: dateRange.start.toISOString(),
+                        end: dateRange.end.toISOString()
+                    },
+                    previous: {
+                        start: previousDateRange.start.toISOString(),
+                        end: previousDateRange.end.toISOString()
+                    }
+                },
+                users: {
+                    ...userMetrics,
+                    changes
+                },
+                plans: planMetrics,
+                activity: activityMetrics,
+                email: emailMetrics,
+                credits: creditMetrics,
+                contexts: contextMetrics,
+                messageTypes: messageTypeMetrics,
+                charts: chartData
+            }
+        });
+
+    } catch (error) {
+        logger.error('Owner analytics error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch analytics data',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// System health endpoint
+router.post('/api/owner/health', ownerAuth, async (req, res) => {
+    try {
+        // Test database connection
+        const dbStart = Date.now();
+        await pool.query('SELECT NOW()');
+        const dbResponseTime = Date.now() - dbStart;
+
+        // Get database stats
+        const dbStats = await pool.query(`
+            SELECT 
+                count(*) as total_connections,
+                count(*) filter (where state = 'active') as active_connections,
+                count(*) filter (where state = 'idle') as idle_connections
+            FROM pg_stat_activity 
+            WHERE datname = current_database()
+        `);
+
+        // Get table sizes
+        const tableSizes = await pool.query(`
+            SELECT 
+                schemaname,
+                tablename,
+                pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size,
+                pg_total_relation_size(schemaname||'.'||tablename) AS size_bytes
+            FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY size_bytes DESC
+            LIMIT 10
+        `);
+
+        res.json({
+            success: true,
+            data: {
+                database: {
+                    status: 'healthy',
+                    responseTime: dbResponseTime,
+                    connections: dbStats.rows[0],
+                    topTables: tableSizes.rows
+                },
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        logger.error('Health check error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Health check failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Export data as CSV
+router.post('/api/owner/export', ownerAuth, async (req, res) => {
+    try {
+        const {
+            timeRange = '7days',
+            startDate,
+            endDate
+        } = req.body;
+
+        const dateRange = calculateDateRange(timeRange, startDate, endDate);
+        
+        // Get all users with their details
+        const usersResult = await pool.query(`
+            SELECT 
+                u.id,
+                u.email,
+                u.display_name,
+                u.package_type,
+                u.plan_code,
+                u.renewable_credits,
+                u.payasyougo_credits,
+                u.credits_remaining,
+                u.total_context_slots,
+                u.contexts_count,
+                u.chargebee_subscription_id,
+                u.registration_completed,
+                u.created_at,
+                COALESCE(ml.message_count, 0) as messages_generated,
+                COALESCE(tp.profiles_analyzed, 0) as profiles_analyzed,
+                COALESCE(ef.email_searches, 0) as email_searches
+            FROM users u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as message_count
+                FROM message_logs
+                GROUP BY user_id
+            ) ml ON u.id = ml.user_id
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as profiles_analyzed
+                FROM target_profiles
+                GROUP BY user_id
+            ) tp ON u.id = tp.user_id
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as email_searches
+                FROM email_finder_searches
+                GROUP BY user_id
+            ) ef ON u.id = ef.user_id
+            WHERE u.created_at BETWEEN $1 AND $2
+            ORDER BY u.created_at DESC
+        `, [dateRange.start, dateRange.end]);
+
+        // Create CSV content
+        const headers = [
+            'ID', 'Email', 'Display Name', 'Package Type', 'Plan Code',
+            'Renewable Credits', 'PAYG Credits', 'Total Credits',
+            'Context Slots', 'Contexts Used', 'Chargebee Sub ID',
+            'Registration Completed', 'Messages Generated', 'Profiles Analyzed',
+            'Email Searches', 'Created Date'
+        ];
+
+        const rows = usersResult.rows.map(user => [
+            user.id,
+            user.email,
+            user.display_name || '',
+            user.package_type || 'free',
+            user.plan_code || 'free',
+            user.renewable_credits || 0,
+            user.payasyougo_credits || 0,
+            user.credits_remaining || 0,
+            user.total_context_slots || 0,
+            user.contexts_count || 0,
+            user.chargebee_subscription_id || '',
+            user.registration_completed ? 'Yes' : 'No',
+            user.messages_generated || 0,
+            user.profiles_analyzed || 0,
+            user.email_searches || 0,
+            new Date(user.created_at).toISOString()
+        ]);
+
+        const csvData = [headers, ...rows];
+        const csvContent = csvData.map(row => 
+            row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=msgly-owner-export-${Date.now()}.csv`);
+        res.send(csvContent);
+
+    } catch (error) {
+        logger.error('Export error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Export failed'
+        });
+    }
+});
+
+// ==================== HELPER FUNCTIONS ====================
+
+// Calculate date range based on time period
+function calculateDateRange(timeRange, startDate, endDate) {
+    const end = new Date();
+    let start = new Date();
+
+    if (startDate && endDate) {
+        return {
+            start: new Date(startDate),
+            end: new Date(endDate)
+        };
+    }
+
+    switch (timeRange) {
+        case '24h':
+            start.setHours(start.getHours() - 24);
+            break;
+        case '7days':
+            start.setDate(start.getDate() - 7);
+            break;
+        case '30days':
+            start.setDate(start.getDate() - 30);
+            break;
+        case 'thisMonth':
+            start = new Date(end.getFullYear(), end.getMonth(), 1);
+            break;
+        case 'lastMonth':
+            start = new Date(end.getFullYear(), end.getMonth() - 1, 1);
+            end = new Date(end.getFullYear(), end.getMonth(), 0);
+            break;
+        default:
+            start.setDate(start.getDate() - 7);
+    }
+
+    return { start, end };
+}
+
+// Calculate previous period for comparison
+function calculatePreviousDateRange(currentRange) {
+    const duration = currentRange.end - currentRange.start;
+    return {
+        start: new Date(currentRange.start - duration),
+        end: new Date(currentRange.start)
+    };
+}
+
+// Calculate percent change
+function calculatePercentChange(current, previous) {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Math.round(((current - previous) / previous) * 100);
+}
+
+// Get user metrics
+async function getUserMetrics(dateRange) {
+    try {
+        // Total users (all time up to end date)
+        const totalUsersResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM users
+            WHERE created_at <= $1
+        `, [dateRange.end]);
+
+        // New users in period
+        const newUsersResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM users
+            WHERE created_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        // New users breakdown by plan
+        const newUsersByPlanResult = await pool.query(`
+            SELECT 
+                COUNT(*) FILTER (WHERE package_type = 'free' OR package_type IS NULL) as free_users,
+                COUNT(*) FILTER (WHERE package_type LIKE '%-monthly' AND package_type != 'free') as paid_monthly,
+                COUNT(*) FILTER (WHERE package_type LIKE '%-payasyougo') as paid_payg,
+                COUNT(*) FILTER (WHERE package_type LIKE 'silver%') as silver_users,
+                COUNT(*) FILTER (WHERE package_type LIKE 'gold%') as gold_users,
+                COUNT(*) FILTER (WHERE package_type LIKE 'platinum%') as platinum_users
+            FROM users
+            WHERE created_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        // Profile Sync Rate (extraction_status = completed)
+        const profileSyncStatsResult = await pool.query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE extraction_status = 'completed') as completed
+            FROM users
+            WHERE created_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        // Active users (generated messages in period)
+        const activeUsersResult = await pool.query(`
+            SELECT COUNT(DISTINCT user_id) as count
+            FROM message_logs
+            WHERE created_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        const breakdown = newUsersByPlanResult.rows[0];
+        const syncStats = profileSyncStatsResult.rows[0];
+
+        return {
+            totalUsers: parseInt(totalUsersResult.rows[0].count),
+            newUsers: parseInt(newUsersResult.rows[0].count),
+            newFreeUsers: parseInt(breakdown.free_users),
+            newPaidMonthly: parseInt(breakdown.paid_monthly),
+            newPaidPAYG: parseInt(breakdown.paid_payg),
+            newSilverUsers: parseInt(breakdown.silver_users),
+            newGoldUsers: parseInt(breakdown.gold_users),
+            newPlatinumUsers: parseInt(breakdown.platinum_users),
+            profileSyncTotal: parseInt(syncStats.total),
+            profileSyncCompleted: parseInt(syncStats.completed),
+            profileSyncRate: syncStats.total > 0 
+                ? Math.round((syncStats.completed / syncStats.total) * 100) 
+                : 0,
+            activeUsers: parseInt(activeUsersResult.rows[0].count)
+        };
+
+    } catch (error) {
+        logger.error('Error getting user metrics:', error);
+        throw error;
+    }
+}
+
+// Get plan change metrics
+async function getPlanMetrics(dateRange) {
+    try {
+        // Current active subscriptions by plan
+        const activePlansResult = await pool.query(`
+            SELECT 
+                package_type,
+                COUNT(*) as count
+            FROM users
+            WHERE package_type IS NOT NULL 
+                AND package_type != 'free'
+                AND subscription_status = 'active'
+            GROUP BY package_type
+            ORDER BY count DESC
+        `);
+
+        // Upgrades (users who changed from free to paid in period)
+        const upgradesResult = await pool.query(`
+            SELECT COUNT(DISTINCT user_id) as count
+            FROM (
+                SELECT user_id, MIN(created_at) as first_payment
+                FROM message_logs
+                WHERE created_at BETWEEN $1 AND $2
+                GROUP BY user_id
+            ) subquery
+            JOIN users u ON u.id = subquery.user_id
+            WHERE u.package_type != 'free' AND u.package_type IS NOT NULL
+        `, [dateRange.start, dateRange.end]);
+
+        // Cancellations scheduled in period
+        const cancellationsResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM users
+            WHERE cancellation_scheduled_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        // Downgrades to free in period
+        const downgradesResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM users
+            WHERE cancellation_effective_date BETWEEN $1 AND $2
+                AND package_type = 'free'
+        `, [dateRange.start, dateRange.end]);
+
+        // Active Chargebee subscriptions
+        const activeChargebeeResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM users
+            WHERE chargebee_subscription_id IS NOT NULL
+                AND subscription_status = 'active'
+        `);
+
+        return {
+            activePlans: activePlansResult.rows,
+            upgrades: parseInt(upgradesResult.rows[0].count),
+            cancellations: parseInt(cancellationsResult.rows[0].count),
+            downgrades: parseInt(downgradesResult.rows[0].count),
+            activeChargebeeSubscriptions: parseInt(activeChargebeeResult.rows[0].count)
+        };
+
+    } catch (error) {
+        logger.error('Error getting plan metrics:', error);
+        throw error;
+    }
+}
+
+// Get activity metrics
+async function getActivityMetrics(dateRange) {
+    try {
+        // Profiles analyzed
+        const profilesResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM target_profiles
+            WHERE created_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        // Messages generated (total)
+        const messagesResult = await pool.query(`
+            SELECT COUNT(*) as count
+            FROM message_logs
+            WHERE created_at BETWEEN $1 AND $2
+        `, [dateRange.start, dateRange.end]);
+
+        // Web generated messages by type (with error handling)
+        let webMessagesResult = { rows: [] };
+        try {
+            webMessagesResult = await pool.query(`
+                SELECT 
+                    message_type,
+                    COUNT(*) as count
+                FROM web_generated_messages
+                WHERE created_at BETWEEN $1 AND $2
+                GROUP BY message_type
+            `, [dateRange.start, dateRange.end]);
+        } catch (error) {
+            // Table might not exist yet, that's okay
+            logger.warn('web_generated_messages table query failed:', error.message);
+        }
+
+        // Average tokens per message
+        const tokenStatsResult = await pool.query(`
+            SELECT 
+                AVG(input_tokens) as avg_input,
+                AVG(output_tokens) as avg_output,
+                AVG(total_tokens) as avg_total,
+                AVG(latency_ms) as avg_latency
+            FROM message_logs
+            WHERE created_at BETWEEN $1 AND $2
+                AND total_tokens IS NOT NULL
+        `, [dateRange.start, dateRange.end]);
+
+        const webMessages = {};
+        webMessagesResult.rows.forEach(row => {
+            webMessages[row.message_type] = parseInt(row.count);
+        });
+
+        const tokenStats = tokenStatsResult.rows[0];
+
+        return {
+            profilesAnalyzed: parseInt(profilesResult.rows[0].count),
+            messagesGenerated: parseInt(messagesResult.rows[0].count),
+            linkedinMessages: webMessages.linkedin_message || 0,
+            connectionRequests: webMessages.connection_request || 0,
+            coldEmails: webMessages.cold_email || 0,
+            avgInputTokens: Math.round(tokenStats.avg_input || 0),
+            avgOutputTokens: Math.round(tokenStats.avg_output || 0),
+            avgTotalTokens: Math.round(tokenStats.avg_total || 0),
+            avgLatency: Math.round(tokenStats.avg_latency || 0)
+        };
+
+    } catch (error) {
+        logger.error('Error getting activity metrics:', error);
+        throw error;
+    }
+}
+
+// Get email finder metrics
+async function getEmailMetrics(dateRange) {
+    try {
+        // Email requests (with error handling)
+        let emailRequestsCount = 0;
+        try {
+            const emailRequestsResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM email_requests
+                WHERE requested_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            emailRequestsCount = parseInt(emailRequestsResult.rows[0].count);
+        } catch (error) {
+            logger.warn('email_requests table query failed:', error.message);
+        }
+
+        // Email searches from all 3 sources
+        let totalSearches = 0;
+        let totalFound = 0;
+        let totalVerified = 0;
+        let totalInvalid = 0;
+
+        // Source 1: email_finder_searches table
+        try {
+            const emailSearchesResult = await pool.query(`
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE verification_status = 'valid') as verified,
+                    COUNT(*) FILTER (WHERE verification_status = 'invalid') as invalid,
+                    COUNT(*) FILTER (WHERE email IS NOT NULL) as found
+                FROM email_finder_searches
+                WHERE search_date BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            const stats = emailSearchesResult.rows[0];
+            totalSearches += parseInt(stats.total || 0);
+            totalFound += parseInt(stats.found || 0);
+            totalVerified += parseInt(stats.verified || 0);
+            totalInvalid += parseInt(stats.invalid || 0);
+        } catch (error) {
+            logger.warn('email_finder_searches table query failed:', error.message);
+        }
+
+        // Source 2: target_profiles with email_found
+        try {
+            const profileEmailsResult = await pool.query(`
+                SELECT 
+                    COUNT(*) FILTER (WHERE email_found IS NOT NULL) as total,
+                    COUNT(*) FILTER (WHERE email_found IS NOT NULL AND email_found != '') as found,
+                    COUNT(*) FILTER (WHERE email_status = 'verified') as verified
+                FROM target_profiles
+                WHERE created_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            const stats = profileEmailsResult.rows[0];
+            totalSearches += parseInt(stats.total || 0);
+            totalFound += parseInt(stats.found || 0);
+            totalVerified += parseInt(stats.verified || 0);
+        } catch (error) {
+            logger.warn('target_profiles email query failed:', error.message);
+        }
+
+        // Source 3: message_logs with email_found
+        try {
+            const messageEmailsResult = await pool.query(`
+                SELECT 
+                    COUNT(*) FILTER (WHERE email_found IS NOT NULL) as total,
+                    COUNT(*) FILTER (WHERE email_found IS NOT NULL AND email_found != '') as found,
+                    COUNT(*) FILTER (WHERE email_status = 'verified') as verified
+                FROM message_logs
+                WHERE created_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            const stats = messageEmailsResult.rows[0];
+            totalSearches += parseInt(stats.total || 0);
+            totalFound += parseInt(stats.found || 0);
+            totalVerified += parseInt(stats.verified || 0);
+        } catch (error) {
+            logger.warn('message_logs email query failed:', error.message);
+        }
+
+        return {
+            emailRequests: emailRequestsCount,
+            emailSearches: totalSearches,
+            emailsFound: totalFound,
+            emailsVerified: totalVerified,
+            emailsInvalid: totalInvalid,
+            verificationRate: totalFound > 0
+                ? Math.round((totalVerified / totalFound) * 100)
+                : 0
+        };
+
+    } catch (error) {
+        logger.error('Error getting email metrics:', error);
+        // Return default values instead of throwing
+        return {
+            emailRequests: 0,
+            emailSearches: 0,
+            emailsFound: 0,
+            emailsVerified: 0,
+            emailsInvalid: 0,
+            verificationRate: 0
+        };
+    }
+}
+
+// Get credit usage metrics
+async function getCreditMetrics(dateRange) {
+    try {
+        // Total credits across all users
+        const totalCreditsResult = await pool.query(`
+            SELECT 
+                SUM(renewable_credits) as total_renewable,
+                SUM(payasyougo_credits) as total_payg,
+                SUM(credits_remaining) as total_remaining
+            FROM users
+        `);
+
+        // Credits used in period (from transactions)
+        const creditsUsedResult = await pool.query(`
+            SELECT 
+                COUNT(*) as transactions,
+                SUM(amount) as total_used
+            FROM credits_transactions
+            WHERE created_at BETWEEN $1 AND $2
+                AND status = 'completed'
+        `, [dateRange.start, dateRange.end]);
+
+        // Average credits per user
+        const avgCreditsResult = await pool.query(`
+            SELECT AVG(credits_remaining) as avg_credits
+            FROM users
+        `);
+
+        const totals = totalCreditsResult.rows[0];
+        const used = creditsUsedResult.rows[0];
+
+        return {
+            totalRenewableCredits: parseInt(totals.total_renewable || 0),
+            totalPAYGCredits: parseInt(totals.total_payg || 0),
+            totalRemainingCredits: parseInt(totals.total_remaining || 0),
+            creditsUsedInPeriod: parseFloat(used.total_used || 0),
+            creditTransactions: parseInt(used.transactions || 0),
+            avgCreditsPerUser: Math.round(avgCreditsResult.rows[0].avg_credits || 0)
+        };
+
+    } catch (error) {
+        logger.error('Error getting credit metrics:', error);
+        throw error;
+    }
+}
+
+// Get context metrics
+async function getContextMetrics(dateRange) {
+    try {
+        // Saved contexts (with error handling)
+        let contextsCount = 0;
+        try {
+            const contextsResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM saved_contexts
+                WHERE created_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            contextsCount = parseInt(contextsResult.rows[0].count);
+        } catch (error) {
+            logger.warn('saved_contexts table query failed:', error.message);
+        }
+
+        // Context addons purchased (with error handling)
+        let addons = { count: 0, total_slots: 0 };
+        try {
+            const addonsResult = await pool.query(`
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(slots_purchased) as total_slots
+                FROM user_context_addons
+                WHERE purchased_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            addons = addonsResult.rows[0];
+        } catch (error) {
+            logger.warn('user_context_addons table query failed:', error.message);
+        }
+
+        // Context usage by plan (with error handling)
+        let contextByPlanRows = [];
+        try {
+            const contextByPlanResult = await pool.query(`
+                SELECT 
+                    package_type,
+                    AVG(contexts_count) as avg_used,
+                    AVG(total_context_slots) as avg_available
+                FROM users
+                WHERE package_type IS NOT NULL
+                GROUP BY package_type
+            `);
+            contextByPlanRows = contextByPlanResult.rows;
+        } catch (error) {
+            logger.warn('Context usage by plan query failed:', error.message);
+        }
+
+        return {
+            newContextsSaved: contextsCount,
+            contextAddonsPurchased: parseInt(addons.count || 0),
+            totalSlotsAdded: parseInt(addons.total_slots || 0),
+            contextUsageByPlan: contextByPlanRows
+        };
+
+    } catch (error) {
+        logger.error('Error getting context metrics:', error);
+        // Return default values instead of throwing
+        return {
+            newContextsSaved: 0,
+            contextAddonsPurchased: 0,
+            totalSlotsAdded: 0,
+            contextUsageByPlan: []
+        };
+    }
+}
+
+// Get message type breakdown
+async function getMessageTypeMetrics(dateRange) {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                message_type,
+                COUNT(*) as count,
+                AVG(CASE WHEN credits_used IS NOT NULL THEN credits_used ELSE 1 END) as avg_credits
+            FROM message_logs
+            WHERE created_at BETWEEN $1 AND $2
+            AND message_type IS NOT NULL
+            GROUP BY message_type
+            ORDER BY count DESC
+        `, [dateRange.start, dateRange.end]);
+
+        return result.rows.map(row => ({
+            type: row.message_type,
+            count: parseInt(row.count),
+            avgCredits: parseFloat(row.avg_credits).toFixed(2)
+        }));
+
+    } catch (error) {
+        logger.warn('Error getting message type metrics:', error.message);
+        // Return empty array if query fails
+        return [];
+    }
+}
+
+// Get chart data for visualization
+async function getChartData(dateRange) {
+    try {
+        // Calculate number of days in range
+        const days = Math.ceil((dateRange.end - dateRange.start) / (1000 * 60 * 60 * 24));
+        const labels = [];
+        const newUsersData = [];
+        const messagesData = [];
+        const profilesData = [];
+        const emailSearchesData = [];
+
+        // Get daily data
+        for (let i = 0; i < days; i++) {
+            const currentDate = new Date(dateRange.start.getTime() + i * 24 * 60 * 60 * 1000);
+            const nextDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+            
+            labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+
+            // New users
+            const usersResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM users
+                WHERE created_at BETWEEN $1 AND $2
+            `, [currentDate, nextDate]);
+
+            // Messages
+            const messagesResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM message_logs
+                WHERE created_at BETWEEN $1 AND $2
+            `, [currentDate, nextDate]);
+
+            // Profiles
+            const profilesResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM target_profiles
+                WHERE created_at BETWEEN $1 AND $2
+            `, [currentDate, nextDate]);
+
+            // Email searches
+            const emailsResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM email_finder_searches
+                WHERE search_date BETWEEN $1 AND $2
+            `, [currentDate, nextDate]);
+
+            newUsersData.push(parseInt(usersResult.rows[0].count));
+            messagesData.push(parseInt(messagesResult.rows[0].count));
+            profilesData.push(parseInt(profilesResult.rows[0].count));
+            emailSearchesData.push(parseInt(emailsResult.rows[0].count));
+        }
+
+        // Plan distribution (pie chart)
+        const planDistributionResult = await pool.query(`
+            SELECT 
+                CASE 
+                    WHEN package_type = 'free' OR package_type IS NULL THEN 'Free'
+                    WHEN package_type LIKE 'silver%' THEN 'Silver'
+                    WHEN package_type LIKE 'gold%' THEN 'Gold'
+                    WHEN package_type LIKE 'platinum%' THEN 'Platinum'
+                    ELSE 'Other'
+                END as plan_category,
+                COUNT(*) as count
+            FROM users
+            GROUP BY plan_category
+            ORDER BY count DESC
+        `);
+
+        return {
+            dailyActivity: {
+                labels,
+                newUsers: newUsersData,
+                messages: messagesData,
+                profiles: profilesData,
+                emailSearches: emailSearchesData
+            },
+            planDistribution: planDistributionResult.rows.map(row => ({
+                label: row.plan_category,
+                value: parseInt(row.count)
+            }))
+        };
+
+    } catch (error) {
+        logger.error('Error getting chart data:', error);
+        throw error;
+    }
+}
 
 module.exports = router;
