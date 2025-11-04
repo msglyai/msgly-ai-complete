@@ -248,6 +248,8 @@ const staticRoutes = require('./routes/static');
 const adminRoutes = require('./routes/adminRoutes');
 // OWNER DASHBOARD: Import owner dashboard routes
 const ownerDashboardRoutes = require('./routes/ownerDashboardRoutes');
+// URL MIGRATION: Import URL migration routes
+const urlMigrationRoutes = require('./routes/urlMigrationRoutes');
 
 // NEW: RACE CONDITION FIX - Track active profile processing to prevent duplicates
 const activeProcessing = new Map();
@@ -1374,6 +1376,9 @@ app.use('/', adminRoutes);
 
 // OWNER DASHBOARD: Mount owner dashboard routes
 app.use('/', ownerDashboardRoutes);
+
+// URL MIGRATION: Mount URL migration routes
+app.use('/', urlMigrationRoutes);
 
 // ==================== CONTEXT ADDON PURCHASE ENDPOINT ====================
 
