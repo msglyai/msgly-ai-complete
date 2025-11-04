@@ -3043,55 +3043,9 @@ app.get('/test-chargebee', async (req, res) => {
 // ==================== MESSAGES DB FIX: ADDED MISSING ENDPOINTS ====================
 
 // FIXED: Messages history endpoint - reads actual database values instead of hardcoded ones
-app.get('/messages/history', authenticateToken, async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                ml.id,
-                ml.target_first_name as "targetProfile.firstName",
-                ml.target_title as "targetProfile.role", 
-                ml.target_company as "targetProfile.company",
-                ml.generated_message as message,
-                ml.created_at,
-                -- FIXED: Read actual database values instead of hardcoded 'pending'
-                COALESCE(ml.sent_status, 'pending') as sent,
-                COALESCE(ml.reply_status, 'pending') as "gotReply",
-                COALESCE(ml.comments, '') as comments,
-                ml.sent_date,
-                ml.reply_date
-            FROM message_logs ml 
-            WHERE ml.user_id = $1 
-            ORDER BY ml.created_at DESC
-        `, [req.user.id]);
 
-        const messages = result.rows.map(row => ({
-            id: row.id,
-            targetProfile: {
-                firstName: row["targetProfile.firstName"] || 'Unknown',
-                role: row["targetProfile.role"] || 'Professional', 
-                company: row["targetProfile.company"] || 'Company'
-            },
-            message: row.message || '',
-            sent: row.sent,
-            gotReply: row.gotReply,
-            comments: row.comments,
-            createdAt: row.created_at,
-            sentDate: row.sent_date,
-            replyDate: row.reply_date
-        }));
+// REMOVED: Duplicate /messages/history endpoint - using messagesRoutes.js version instead
 
-        res.json({
-            success: true,
-            data: messages
-        });
-    } catch (error) {
-        logger.error('Messages history error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to load messages'
-        });
-    }
-});
 
 // NEW: PUT /messages/:id - Update message status and comments (MISSING ENDPOINT ADDED)
 app.put('/messages/:id', authenticateToken, async (req, res) => {
