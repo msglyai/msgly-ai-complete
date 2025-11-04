@@ -541,15 +541,21 @@ async function getActivityMetrics(dateRange) {
             WHERE created_at BETWEEN $1 AND $2
         `, [dateRange.start, dateRange.end]);
 
-        // Web generated messages by type
-        const webMessagesResult = await pool.query(`
-            SELECT 
-                message_type,
-                COUNT(*) as count
-            FROM web_generated_messages
-            WHERE created_at BETWEEN $1 AND $2
-            GROUP BY message_type
-        `, [dateRange.start, dateRange.end]);
+        // Web generated messages by type (with error handling)
+        let webMessagesResult = { rows: [] };
+        try {
+            webMessagesResult = await pool.query(`
+                SELECT 
+                    message_type,
+                    COUNT(*) as count
+                FROM web_generated_messages
+                WHERE created_at BETWEEN $1 AND $2
+                GROUP BY message_type
+            `, [dateRange.start, dateRange.end]);
+        } catch (error) {
+            // Table might not exist yet, that's okay
+            logger.warn('web_generated_messages table query failed:', error.message);
+        }
 
         // Average tokens per message
         const tokenStatsResult = await pool.query(`
@@ -591,40 +597,58 @@ async function getActivityMetrics(dateRange) {
 // Get email finder metrics
 async function getEmailMetrics(dateRange) {
     try {
-        // Email requests
-        const emailRequestsResult = await pool.query(`
-            SELECT COUNT(*) as count
-            FROM email_requests
-            WHERE requested_at BETWEEN $1 AND $2
-        `, [dateRange.start, dateRange.end]);
+        // Email requests (with error handling)
+        let emailRequestsCount = 0;
+        try {
+            const emailRequestsResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM email_requests
+                WHERE requested_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            emailRequestsCount = parseInt(emailRequestsResult.rows[0].count);
+        } catch (error) {
+            logger.warn('email_requests table query failed:', error.message);
+        }
 
-        // Email finder searches
-        const emailSearchesResult = await pool.query(`
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE verification_status = 'valid') as verified,
-                COUNT(*) FILTER (WHERE verification_status = 'invalid') as invalid,
-                COUNT(*) FILTER (WHERE email IS NOT NULL) as found
-            FROM email_finder_searches
-            WHERE search_date BETWEEN $1 AND $2
-        `, [dateRange.start, dateRange.end]);
-
-        const searchStats = emailSearchesResult.rows[0];
+        // Email finder searches (with error handling)
+        let searchStats = { total: 0, verified: 0, invalid: 0, found: 0 };
+        try {
+            const emailSearchesResult = await pool.query(`
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE verification_status = 'valid') as verified,
+                    COUNT(*) FILTER (WHERE verification_status = 'invalid') as invalid,
+                    COUNT(*) FILTER (WHERE email IS NOT NULL) as found
+                FROM email_finder_searches
+                WHERE search_date BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            searchStats = emailSearchesResult.rows[0];
+        } catch (error) {
+            logger.warn('email_finder_searches table query failed:', error.message);
+        }
 
         return {
-            emailRequests: parseInt(emailRequestsResult.rows[0].count),
-            emailSearches: parseInt(searchStats.total),
-            emailsFound: parseInt(searchStats.found),
-            emailsVerified: parseInt(searchStats.verified),
-            emailsInvalid: parseInt(searchStats.invalid),
-            verificationRate: searchStats.found > 0
-                ? Math.round((searchStats.verified / searchStats.found) * 100)
+            emailRequests: emailRequestsCount,
+            emailSearches: parseInt(searchStats.total || 0),
+            emailsFound: parseInt(searchStats.found || 0),
+            emailsVerified: parseInt(searchStats.verified || 0),
+            emailsInvalid: parseInt(searchStats.invalid || 0),
+            verificationRate: (searchStats.found || 0) > 0
+                ? Math.round(((searchStats.verified || 0) / (searchStats.found || 0)) * 100)
                 : 0
         };
 
     } catch (error) {
         logger.error('Error getting email metrics:', error);
-        throw error;
+        // Return default values instead of throwing
+        return {
+            emailRequests: 0,
+            emailSearches: 0,
+            emailsFound: 0,
+            emailsVerified: 0,
+            emailsInvalid: 0,
+            verificationRate: 0
+        };
     }
 }
 
@@ -677,45 +701,69 @@ async function getCreditMetrics(dateRange) {
 // Get context metrics
 async function getContextMetrics(dateRange) {
     try {
-        // Saved contexts
-        const contextsResult = await pool.query(`
-            SELECT COUNT(*) as count
-            FROM saved_contexts
-            WHERE created_at BETWEEN $1 AND $2
-        `, [dateRange.start, dateRange.end]);
+        // Saved contexts (with error handling)
+        let contextsCount = 0;
+        try {
+            const contextsResult = await pool.query(`
+                SELECT COUNT(*) as count
+                FROM saved_contexts
+                WHERE created_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            contextsCount = parseInt(contextsResult.rows[0].count);
+        } catch (error) {
+            logger.warn('saved_contexts table query failed:', error.message);
+        }
 
-        // Context addons purchased
-        const addonsResult = await pool.query(`
-            SELECT 
-                COUNT(*) as count,
-                SUM(slots_purchased) as total_slots
-            FROM user_context_addons
-            WHERE purchased_at BETWEEN $1 AND $2
-        `, [dateRange.start, dateRange.end]);
+        // Context addons purchased (with error handling)
+        let addons = { count: 0, total_slots: 0 };
+        try {
+            const addonsResult = await pool.query(`
+                SELECT 
+                    COUNT(*) as count,
+                    SUM(slots_purchased) as total_slots
+                FROM user_context_addons
+                WHERE purchased_at BETWEEN $1 AND $2
+            `, [dateRange.start, dateRange.end]);
+            addons = addonsResult.rows[0];
+        } catch (error) {
+            logger.warn('user_context_addons table query failed:', error.message);
+        }
 
-        // Context usage by plan
-        const contextByPlanResult = await pool.query(`
-            SELECT 
-                package_type,
-                AVG(contexts_count) as avg_used,
-                AVG(total_context_slots) as avg_available
-            FROM users
-            WHERE package_type IS NOT NULL
-            GROUP BY package_type
-        `);
+        // Context usage by plan (with error handling)
+        let contextByPlanRows = [];
+        try {
+            const contextByPlanResult = await pool.query(`
+                SELECT 
+                    package_type,
+                    AVG(contexts_count) as avg_used,
+                    AVG(total_context_slots) as avg_available
+                FROM users
+                WHERE package_type IS NOT NULL
+                GROUP BY package_type
+            `);
+            contextByPlanRows = contextByPlanResult.rows;
+        } catch (error) {
+            logger.warn('Context usage by plan query failed:', error.message);
+        }
 
         const addons = addonsResult.rows[0];
 
         return {
-            newContextsSaved: parseInt(contextsResult.rows[0].count),
+            newContextsSaved: contextsCount,
             contextAddonsPurchased: parseInt(addons.count || 0),
             totalSlotsAdded: parseInt(addons.total_slots || 0),
-            contextUsageByPlan: contextByPlanResult.rows
+            contextUsageByPlan: contextByPlanRows
         };
 
     } catch (error) {
         logger.error('Error getting context metrics:', error);
-        throw error;
+        // Return default values instead of throwing
+        return {
+            newContextsSaved: 0,
+            contextAddonsPurchased: 0,
+            totalSlotsAdded: 0,
+            contextUsageByPlan: []
+        };
     }
 }
 
@@ -740,8 +788,9 @@ async function getMessageTypeMetrics(dateRange) {
         }));
 
     } catch (error) {
-        logger.error('Error getting message type metrics:', error);
-        throw error;
+        logger.warn('Error getting message type metrics (table may not exist):', error.message);
+        // Return empty array if table doesn't exist
+        return [];
     }
 }
 
