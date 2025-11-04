@@ -27,7 +27,7 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 // âœ… ADDED: Import URL cleaning function for consistent URL normalization
-const { cleanLinkedInUrl } = require('./utils/helpers');
+const { cleanLinkedInUrl } = require('./helpers');
 
 // Database connection pool
 const pool = new Pool({
