@@ -33,7 +33,7 @@ CHANGELOG - server.js:
 26. MESSAGES FIX: Added GET /messages/history endpoint for Messages page (43 lines added)
 27. PAYG FIX: Fixed customer resolution in handleInvoiceGenerated for PAYG purchases
 28. PAYG FIX: Added handlePaymentSucceeded as fallback webhook handler
-29. 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection to handle both plan_item_price and charge_item_price entity types with proper entity_id field usage
+29. ðŸ”§ PAYG CRITICAL FIX: Fixed planLineItem detection to handle both plan_item_price and charge_item_price entity types with proper entity_id field usage
 30. GOLD & PLATINUM: Added Gold-Monthly and Platinum-Monthly to CHARGEBEE_PLAN_MAPPING
 31. CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade to free plan
 32. MINIMAL PAYG ADDITION: Added Gold-PAYG-USD and Platinum-PAYG-USD to CHARGEBEE_PLAN_MAPPING
@@ -56,60 +56,60 @@ CHANGELOG - server.js:
 49. EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to dashboard load timing
 50. DUO ADMIN AUTH: Added Duo Universal SDK authentication for admin dashboard protection
 51. DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()
-52. 🔧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
-53. 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
-54. 🔧 DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility
-55. 🔧 LINKEDIN URL DECOUPLING STAGE 3: Updated OAuth callback, /complete-registration, /store-pending-registration endpoints and traffic light status to remove LinkedIn URL dependency
+52. ðŸ”§ DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
+53. ðŸ”§ RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
+54. ðŸ”§ DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility
+55. ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: Updated OAuth callback, /complete-registration, /store-pending-registration endpoints and traffic light status to remove LinkedIn URL dependency
 56. EMAIL FINDER PAGE: Added email finder page routes registration to enable Snov.io email finding functionality (1 line added)
 57. WEB MESSAGE GENERATOR: Added BrightData-based web LinkedIn message generation routes (1 line added)
 */
 
 // server.js - Enhanced with Real Plan Data & Dual Credit System + AUTO-REGISTRATION + GPT-5 MESSAGE GENERATION + CHARGEBEE INTEGRATION + MAILERSEND + WEBHOOK REGISTRATION FIX + MSGLY PROFILE + PERSONAL INFO + MANUAL EDITING + PAYG FIX + GOLD & PLATINUM PLANS + CANCELLATION HANDLING + GOLD & PLATINUM PAYG + BILLING REFACTOR + PROFESSIONAL LOGGER + MESSAGES DB FIX + PERSONAL INFO SAVE FIX + FILE UPLOAD + PROFILE DATA EXTRACTION FIX + MINIMAL PROFILE FIX + CONTEXTS + UNIFIED GENERATION REAL GPT INTEGRATION + CONTEXT ADDON PURCHASE + CONTEXT SLOT FUNCTIONS + CORS FIX + ADMIN DASHBOARD + EMAIL FIX + ADMIN NOTIFICATIONS + EMAIL TIMING FIX + DUO ADMIN 2FA + DUO ES MODULE FIX + DUO ADMIN FIX + RAILWAY SESSION FIX + DUO RAILWAY COOKIE FIX + LINKEDIN URL DECOUPLING STAGE 3 + EMAIL FINDER PAGE
 // DATABASE-First TARGET PROFILE system with sophisticated credit management
-// ✅ AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
-// ✅ RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
-// ✅ URL MATCHING FIX: Fixed profile deduplication to handle both URL formats
-// ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging
-// ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management
-// ✅ MAILERSEND INTEGRATION: Welcome email automation
-// ✅ WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error
-// ✅ PAYG FIX: Fixed one-time purchase webhook handling
-// ✅ REGISTRATION DEBUG: Enhanced logging to identify registration failures
-// ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion in webhooks after payment
-// ✅ MODULAR REFACTOR: Messages handlers moved to dedicated controller/routes files
-// ✅ MESSAGES ROUTE FIX: Added /messages route to serve messages.html with authentication
-// ✅ AUTHENTICATION FIX: Removed server-side auth middleware, using client-side auth instead
-// ✅ MSGLY PROFILE: Added route to serve msgly-profile.html
-// ✅ PERSONAL INFO: Added endpoints for personal information CRUD operations
-// ✅ MANUAL EDITING: Added endpoints for manual user profile editing
-// ✅ PAYG CUSTOMER FIX: Fixed customer resolution for PAYG webhook processing
-// 🔧 PAYG CRITICAL FIX: Fixed planLineItem detection for both plan_item_price and charge_item_price
-// ✅ GOLD & PLATINUM: Added support for Gold and Platinum monthly plans
-// ✅ CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade
-// ✅ GOLD & PLATINUM PAYG: Added Gold-PAYG-USD and Platinum-PAYG-USD support
-// ✅ BILLING REFACTOR: Clean separation of billing logic into dedicated modules
-// ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment
-// ✅ MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration
-// ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records
-// ✅ FILE UPLOAD: Added file upload functionality for target profile analysis with consent checkbox
-// ✅ PROFILE DATA EXTRACTION FIX: Added profile data extraction from JSON and proper response formatting
-// ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified response handling
-// ✅ CONTEXTS: Added context management system with plan-based limits
-// ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified to existing GPT-5 message generation - NO MORE MOCK DATA
-// ✅ CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality
-// ✅ CONTEXT FIX: Added missing context slot function imports for proper webhook allocation
-// ✅ CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion
-// ✅ ADMIN DASHBOARD: Added admin routes for internal analytics dashboard with JWT authentication
-// ✅ EMAIL FIX: Removed early welcome email sending from OAuth callback - now properly timed
-// ✅ ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new registrations
-// ✅ EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to /send-welcome-email endpoint called by dashboard
-// ✅ DUO ADMIN 2FA: Added Duo Universal SDK authentication for admin dashboard security
-// ✅ DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()
-// 🔧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
-// 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
-// 🔧 DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility
-// 🔧 LINKEDIN URL DECOUPLING STAGE 3: OAuth callback, registration, and traffic light updated for LinkedIn URL independence
-// ✅ EMAIL FINDER PAGE: Registered email finder page routes for Snov.io integration - enables standalone email finding functionality
+// âœ… AUTO-REGISTRATION: Enhanced Chrome extension auth with LinkedIn URL support
+// âœ… RACE CONDITION FIX: Added minimal in-memory tracking to prevent duplicate processing
+// âœ… URL MATCHING FIX: Fixed profile deduplication to handle both URL formats
+// âœ… GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging
+// âœ… CHARGEBEE INTEGRATION: Payment processing and subscription management
+// âœ… MAILERSEND INTEGRATION: Welcome email automation
+// âœ… WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error
+// âœ… PAYG FIX: Fixed one-time purchase webhook handling
+// âœ… REGISTRATION DEBUG: Enhanced logging to identify registration failures
+// âœ… WEBHOOK REGISTRATION FIX: Automatic registration completion in webhooks after payment
+// âœ… MODULAR REFACTOR: Messages handlers moved to dedicated controller/routes files
+// âœ… MESSAGES ROUTE FIX: Added /messages route to serve messages.html with authentication
+// âœ… AUTHENTICATION FIX: Removed server-side auth middleware, using client-side auth instead
+// âœ… MSGLY PROFILE: Added route to serve msgly-profile.html
+// âœ… PERSONAL INFO: Added endpoints for personal information CRUD operations
+// âœ… MANUAL EDITING: Added endpoints for manual user profile editing
+// âœ… PAYG CUSTOMER FIX: Fixed customer resolution for PAYG webhook processing
+// ðŸ”§ PAYG CRITICAL FIX: Fixed planLineItem detection for both plan_item_price and charge_item_price
+// âœ… GOLD & PLATINUM: Added support for Gold and Platinum monthly plans
+// âœ… CANCELLATION FIX: Added subscription cancellation webhook handlers for automatic downgrade
+// âœ… GOLD & PLATINUM PAYG: Added Gold-PAYG-USD and Platinum-PAYG-USD support
+// âœ… BILLING REFACTOR: Clean separation of billing logic into dedicated modules
+// âœ… PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment
+// âœ… MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration
+// âœ… PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records
+// âœ… FILE UPLOAD: Added file upload functionality for target profile analysis with consent checkbox
+// âœ… PROFILE DATA EXTRACTION FIX: Added profile data extraction from JSON and proper response formatting
+// âœ… MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified response handling
+// âœ… CONTEXTS: Added context management system with plan-based limits
+// âœ… UNIFIED GENERATION REAL GPT: Connected /generate-unified to existing GPT-5 message generation - NO MORE MOCK DATA
+// âœ… CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality
+// âœ… CONTEXT FIX: Added missing context slot function imports for proper webhook allocation
+// âœ… CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion
+// âœ… ADMIN DASHBOARD: Added admin routes for internal analytics dashboard with JWT authentication
+// âœ… EMAIL FIX: Removed early welcome email sending from OAuth callback - now properly timed
+// âœ… ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new registrations
+// âœ… EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to /send-welcome-email endpoint called by dashboard
+// âœ… DUO ADMIN 2FA: Added Duo Universal SDK authentication for admin dashboard security
+// âœ… DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()
+// ðŸ”§ DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue
+// ðŸ”§ RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence
+// ðŸ”§ DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility
+// ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: OAuth callback, registration, and traffic light updated for LinkedIn URL independence
+// âœ… EMAIL FINDER PAGE: Registered email finder page routes for Snov.io integration - enables standalone email finding functionality
 
 const express = require('express');
 const cors = require('cors');
@@ -122,7 +122,7 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const axios = require('axios');
-const cookieParser = require('cookie-parser'); // 🔧 DUO RAILWAY COOKIE FIX: 1. Add cookie parser
+const cookieParser = require('cookie-parser'); // ðŸ”§ DUO RAILWAY COOKIE FIX: 1. Add cookie parser
 
 // NEW: File upload dependencies
 const multer = require('multer');
@@ -131,7 +131,7 @@ const multer = require('multer');
 const logger = require('./utils/logger');
 
 // FIXED: Removed require() import for Duo Universal SDK - will use dynamic import() instead
-const crypto = require('node:crypto'); // 🔧 DUO ADMIN FIX: Use explicit node: prefix for Node.js 18+ compatibility
+const crypto = require('node:crypto'); // ðŸ”§ DUO ADMIN FIX: Use explicit node: prefix for Node.js 18+ compatibility
 
 // FIXED: Import sendToGemini from correct path (project root)
 const { sendToGemini } = require('./sendToGemini');
@@ -149,7 +149,7 @@ const {
 // NEW: Import Chargebee service
 const { chargebeeService } = require('./services/chargebeeService');
 
-// ✅ EMAIL TIMING FIX: Import both email functions for new endpoint
+// âœ… EMAIL TIMING FIX: Import both email functions for new endpoint
 const { sendWelcomeEmail, sendAdminNotification } = require('./mailer/mailer');
 
 // NEW: Import billing configuration
@@ -180,16 +180,16 @@ const {
     updateUserCredits,
     spendUserCredits,
     resetRenewableCredits,
-    // ✅ CANCELLATION FIX: Import cancellation management function
+    // âœ… CANCELLATION FIX: Import cancellation management function
     downgradeUserToFree,
     // NEW: Pending Registration Functions - UPDATED FOR LINKEDIN URL DECOUPLING
     storePendingRegistration,
     getPendingRegistration,
     completePendingRegistration,
-    // 🔧 LINKEDIN URL DECOUPLING STAGE 3: Import new functions
+    // ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: Import new functions
     completeRegistrationAfterPayment,
     autoStoreLinkedInUrl,
-    // 🔧 CONTEXT FIX: ADD MISSING CONTEXT SLOT FUNCTIONS
+    // ðŸ”§ CONTEXT FIX: ADD MISSING CONTEXT SLOT FUNCTIONS
     getContextAddonUsage,
     createContextAddon,
     updateUserContextSlots,
@@ -246,6 +246,8 @@ const healthRoutes = require('./routes/health')(pool);
 const staticRoutes = require('./routes/static');
 // ADMIN DASHBOARD: Import admin routes
 const adminRoutes = require('./routes/adminRoutes');
+// OWNER DASHBOARD: Import owner dashboard routes
+const ownerDashboardRoutes = require('./routes/ownerDashboardRoutes');
 
 // NEW: RACE CONDITION FIX - Track active profile processing to prevent duplicates
 const activeProcessing = new Map();
@@ -323,7 +325,7 @@ function validateDuoConfig() {
 }
 
 function generateState() {
-    return require('node:crypto').randomBytes(32).toString('hex'); // 🔧 DUO ADMIN FIX: Direct require in function scope
+    return require('node:crypto').randomBytes(32).toString('hex'); // ðŸ”§ DUO ADMIN FIX: Direct require in function scope
 }
 
 function validateState(sessionState, returnedState) {
@@ -351,7 +353,7 @@ function generateAdminSession(email) {
         isAuthenticated: true,
         adminEmail: email,
         loginTime: new Date().toISOString(),
-        sessionId: require('node:crypto').randomUUID() // 🔧 DUO ADMIN FIX: Direct require in function scope
+        sessionId: require('node:crypto').randomUUID() // ðŸ”§ DUO ADMIN FIX: Direct require in function scope
     };
 }
 
@@ -573,7 +575,7 @@ async function saveProfileToDB(linkedinUrl, rawJsonData, userId, tokenData = {})
     }
 }
 
-// ✅ FIXED: DATABASE-First TARGET PROFILE handler with dual credit system (NO DOUBLE SPENDING)
+// âœ… FIXED: DATABASE-First TARGET PROFILE handler with dual credit system (NO DOUBLE SPENDING)
 async function handleTargetProfileJSON(req, res) {
     logger.debug('handleTargetProfileJSON FUNCTION CALLED - START OF FUNCTION');
     logger.custom('TARGET', '=== DATABASE-FIRST TARGET PROFILE PROCESSING ===');
@@ -635,7 +637,7 @@ async function handleTargetProfileJSON(req, res) {
             return res.status(200).json({
                 success: true,
                 alreadyAnalyzed: true,
-                message: "💥 Boom! We're ahead of you! Profile locked and loaded. Step 2 awaits - **no cost to you!** 🔥",
+                message: "ðŸ’¥ Boom! We're ahead of you! Profile locked and loaded. Step 2 awaits - **no cost to you!** ðŸ”¥",
                 data: {
                     profileUrl: cleanProfileUrl,
                     analyzedAt: new Date(),
@@ -733,7 +735,7 @@ async function handleTargetProfileJSON(req, res) {
             });
         }
         
-        // ✅ FIXED: STEP 4 - Complete operation (SINGLE credit deduction)
+        // âœ… FIXED: STEP 4 - Complete operation (SINGLE credit deduction)
         logger.custom('CREDIT', 'Completing operation with credit deduction...');
         const completionResult = await completeOperation(userId, holdId, {
             profileUrl: cleanProfileUrl,
@@ -1035,7 +1037,7 @@ const corsOptions = {
         
         return callback(null, true);
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // 🔧 CORS FIX: Added PUT and DELETE methods
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // ðŸ”§ CORS FIX: Added PUT and DELETE methods
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
@@ -1046,13 +1048,13 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 🔧 DUO RAILWAY COOKIE FIX: 2. Add cookie parser middleware
+// ðŸ”§ DUO RAILWAY COOKIE FIX: 2. Add cookie parser middleware
 app.use(cookieParser(process.env.SESSION_SECRET || 'msgly-session-secret-2024'));
 
-// 🔧 DUO RAILWAY COOKIE FIX: 3. Add proxy trust for Railway
+// ðŸ”§ DUO RAILWAY COOKIE FIX: 3. Add proxy trust for Railway
 app.set('trust proxy', true);
 
-// 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility
+// ðŸ”§ RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility
 app.use(session({
     secret: process.env.SESSION_SECRET || 'msgly-session-secret-2024',
     resave: false,
@@ -1061,15 +1063,15 @@ app.use(session({
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // 🔧 RAILWAY FIX: Allow cross-site cookies for Duo redirects
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // ðŸ”§ RAILWAY FIX: Allow cross-site cookies for Duo redirects
     },
-    // 🔧 RAILWAY SESSION FIX: Additional configuration for Railway compatibility
+    // ðŸ”§ RAILWAY SESSION FIX: Additional configuration for Railway compatibility
     name: 'connect.sid',
-    rolling: true, // 🔧 RAILWAY FIX: Extend session on each request
-    proxy: process.env.NODE_ENV === 'production', // 🔧 RAILWAY FIX: Trust proxy in production
-    // 🔧 RAILWAY SESSION FIX: Force session save to ensure persistence
+    rolling: true, // ðŸ”§ RAILWAY FIX: Extend session on each request
+    proxy: process.env.NODE_ENV === 'production', // ðŸ”§ RAILWAY FIX: Trust proxy in production
+    // ðŸ”§ RAILWAY SESSION FIX: Force session save to ensure persistence
     saveUninitialized: false,
-    resave: true // 🔧 RAILWAY FIX: Force session resave to ensure persistence
+    resave: true // ðŸ”§ RAILWAY FIX: Force session resave to ensure persistence
 }));
 
 // Passport initialization
@@ -1211,7 +1213,7 @@ app.post('/admin-initiate-duo', async (req, res) => {
         // Generate state for CSRF protection
         const state = generateState();
         
-        // 🔧 DUO RAILWAY COOKIE FIX: 4. Replace session storage with signed cookies
+        // ðŸ”§ DUO RAILWAY COOKIE FIX: 4. Replace session storage with signed cookies
         res.cookie('duoState', state, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -1228,7 +1230,7 @@ app.post('/admin-initiate-duo', async (req, res) => {
             signed: true
         });
         
-        // 🔧 DUO ADMIN FIX: Create auth URL with await
+        // ðŸ”§ DUO ADMIN FIX: Create auth URL with await
         const authUrl = await duoClient.createAuthUrl(email, state);
         
         logger.info(`Admin Duo auth initiated for: ${email}`);
@@ -1263,7 +1265,7 @@ app.get('/admin-duo-callback', async (req, res) => {
         
         const { code, state: returnedState } = req.query;
         
-        // 🔧 DUO RAILWAY COOKIE FIX: 5. Replace session reading with signed cookie reading
+        // ðŸ”§ DUO RAILWAY COOKIE FIX: 5. Replace session reading with signed cookie reading
         const sessionState = req.signedCookies.duoState;
         const adminEmail = req.signedCookies.adminEmail;
         
@@ -1322,7 +1324,7 @@ app.get('/admin-duo-callback', async (req, res) => {
         // Create admin session
         req.session.adminAuth = generateAdminSession(adminEmail);
         
-        // 🔧 DUO RAILWAY COOKIE FIX: 6. Clear Duo cookies instead of session variables
+        // ðŸ”§ DUO RAILWAY COOKIE FIX: 6. Clear Duo cookies instead of session variables
         res.clearCookie('duoState');
         res.clearCookie('adminEmail');
         
@@ -1369,6 +1371,9 @@ app.use('/api/web-message-generator', require('./routes/webMessageGenerator'));
 
 // ADMIN DASHBOARD: Mount admin routes
 app.use('/', adminRoutes);
+
+// OWNER DASHBOARD: Mount owner dashboard routes
+app.use('/', ownerDashboardRoutes);
 
 // ==================== CONTEXT ADDON PURCHASE ENDPOINT ====================
 
@@ -1595,7 +1600,7 @@ app.get('/profile/personal-info', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ PERSONAL INFO SAVE FIX: Update personal information - FIXED to handle missing user_profiles records
+// âœ… PERSONAL INFO SAVE FIX: Update personal information - FIXED to handle missing user_profiles records
 app.put('/profile/personal-info', authenticateToken, async (req, res) => {
     try {
         const personalInfo = req.body;
@@ -1745,7 +1750,7 @@ app.put('/profile/certifications', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== 🔧 LINKEDIN URL DECOUPLING STAGE 3: EXTENSION AUTO-STORAGE ENDPOINT ====================
+// ==================== ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: EXTENSION AUTO-STORAGE ENDPOINT ====================
 
 // NEW: Extension LinkedIn URL auto-storage endpoint
 app.post('/extension/auto-store-linkedin-url', authenticateToken, async (req, res) => {
@@ -1808,9 +1813,9 @@ app.post('/extension/auto-store-linkedin-url', authenticateToken, async (req, re
     }
 });
 
-// ==================== 🔧 LINKEDIN URL DECOUPLING STAGE 3: UPDATED PENDING REGISTRATION ENDPOINT ====================
+// ==================== ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: UPDATED PENDING REGISTRATION ENDPOINT ====================
 
-// 🔧 LINKEDIN URL DECOUPLING: Updated /store-pending-registration endpoint - LinkedIn URL now optional
+// ðŸ”§ LINKEDIN URL DECOUPLING: Updated /store-pending-registration endpoint - LinkedIn URL now optional
 app.post('/store-pending-registration', authenticateToken, async (req, res) => {
     try {
         logger.debug('Storing pending registration data (LinkedIn URL optional)');
@@ -1868,7 +1873,7 @@ app.post('/store-pending-registration', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== CHROME EXTENSION AUTH ENDPOINT - ✅ FIXED AUTO-REGISTRATION ====================
+// ==================== CHROME EXTENSION AUTH ENDPOINT - âœ… FIXED AUTO-REGISTRATION ====================
 
 app.post('/auth/chrome-extension', async (req, res) => {
     logger.debug('Chrome Extension OAuth request received');
@@ -1878,13 +1883,13 @@ app.post('/auth/chrome-extension', async (req, res) => {
         extensionId: req.body.extensionId,
         hasToken: !!req.body.googleAccessToken,
         tokenLength: req.body.googleAccessToken?.length,
-        hasLinkedInUrl: !!req.body.linkedinUrl // ✅ AUTO-REGISTRATION: Log LinkedIn URL presence
+        hasLinkedInUrl: !!req.body.linkedinUrl // âœ… AUTO-REGISTRATION: Log LinkedIn URL presence
     });
     
     try {
-        const { googleAccessToken, clientType, extensionId, linkedinUrl } = req.body; // ✅ AUTO-REGISTRATION: Extract LinkedIn URL
+        const { googleAccessToken, clientType, extensionId, linkedinUrl } = req.body; // âœ… AUTO-REGISTRATION: Extract LinkedIn URL
         
-        // ✅ AUTO-REGISTRATION: Log auto-registration detection
+        // âœ… AUTO-REGISTRATION: Log auto-registration detection
         if (linkedinUrl) {
             logger.info('AUTO-REGISTRATION: LinkedIn URL detected, will auto-register user');
             logger.debug('LinkedIn URL:', linkedinUrl);
@@ -1900,7 +1905,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     clientType,
                     extensionId,
                     hasToken: false,
-                    hasLinkedInUrl: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include in error response
+                    hasLinkedInUrl: !!linkedinUrl // âœ… AUTO-REGISTRATION: Include in error response
                 }
             });
         }
@@ -1912,7 +1917,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                 received: {
                     clientType,
                     hasToken: !!googleAccessToken,
-                    hasLinkedInUrl: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include in error response
+                    hasLinkedInUrl: !!linkedinUrl // âœ… AUTO-REGISTRATION: Include in error response
                 }
             });
         }
@@ -1937,12 +1942,12 @@ app.post('/auth/chrome-extension', async (req, res) => {
             verified: googleUser.verified_email
         });
         
-        // ✅ FIXED: Find existing user or handle auto-registration/redirect
+        // âœ… FIXED: Find existing user or handle auto-registration/redirect
         let user = await getUserByEmail(googleUser.email);
         let isNewUser = false;
 
         if (!user) {
-            // ✅ FIXED: Check if LinkedIn URL provided for auto-registration
+            // âœ… FIXED: Check if LinkedIn URL provided for auto-registration
             if (linkedinUrl) {
                 logger.info('AUTO-REGISTRATION: Creating new user with LinkedIn URL');
                 logger.debug('AUTO-REGISTRATION: LinkedIn URL:', linkedinUrl);
@@ -1955,14 +1960,14 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     googleUser.picture,
                     'free',
                     'monthly',
-                    linkedinUrl // ✅ AUTO-REGISTRATION: Pass LinkedIn URL for auto-registration
+                    linkedinUrl // âœ… AUTO-REGISTRATION: Pass LinkedIn URL for auto-registration
                 );
                 isNewUser = true;
                 
                 logger.success('AUTO-REGISTRATION: User auto-registered successfully');
                 logger.debug('AUTO-REGISTRATION: registration_completed set to:', user.registration_completed);
 
-                // ✅ ADMIN NOTIFICATIONS: Send admin notification for auto-registration
+                // âœ… ADMIN NOTIFICATIONS: Send admin notification for auto-registration
                 try {
                     logger.info(`[ADMIN] Sending admin notification for auto-registered user: ${user.email}`);
                     
@@ -1986,7 +1991,7 @@ app.post('/auth/chrome-extension', async (req, res) => {
                 }
                 
             } else {
-                // ✅ FIXED: No LinkedIn URL - return SUCCESS with redirect instruction
+                // âœ… FIXED: No LinkedIn URL - return SUCCESS with redirect instruction
                 logger.debug('REGULAR AUTH: No LinkedIn URL, returning redirect instruction');
                 return res.json({
                     success: true,
@@ -2027,11 +2032,11 @@ app.post('/auth/chrome-extension', async (req, res) => {
         logger.info(`User ID: ${user.id}`);
         logger.info(`Extension ID: ${extensionId}`);
         logger.info(`Is new user: ${isNewUser}`);
-        logger.info(`Auto-registered: ${!!linkedinUrl}`); // ✅ AUTO-REGISTRATION: Log auto-registration status
+        logger.info(`Auto-registered: ${!!linkedinUrl}`); // âœ… AUTO-REGISTRATION: Log auto-registration status
         
         res.json({
             success: true,
-            message: linkedinUrl ? 'Chrome extension auto-registration successful' : 'Chrome extension authentication successful', // ✅ AUTO-REGISTRATION: Dynamic message
+            message: linkedinUrl ? 'Chrome extension auto-registration successful' : 'Chrome extension authentication successful', // âœ… AUTO-REGISTRATION: Dynamic message
             data: {
                 token: token,
                 user: {
@@ -2043,14 +2048,14 @@ app.post('/auth/chrome-extension', async (req, res) => {
                     // Calculate total credits from dual system
                     credits: (user.renewable_credits || 0) + (user.payasyougo_credits || 0),
                     linkedinUrl: user.linkedin_url,
-                    registrationCompleted: user.registration_completed, // ✅ AUTO-REGISTRATION: Include registration status
-                    autoRegistered: !!linkedinUrl // ✅ AUTO-REGISTRATION: Include auto-registration flag
+                    registrationCompleted: user.registration_completed, // âœ… AUTO-REGISTRATION: Include registration status
+                    autoRegistered: !!linkedinUrl // âœ… AUTO-REGISTRATION: Include auto-registration flag
                 },
                 isNewUser: isNewUser,
                 metadata: {
                     extensionId: extensionId,
                     authMethod: 'chrome_extension',
-                    autoRegistration: !!linkedinUrl, // ✅ AUTO-REGISTRATION: Include in metadata
+                    autoRegistration: !!linkedinUrl, // âœ… AUTO-REGISTRATION: Include in metadata
                     timestamp: new Date().toISOString()
                 }
             }
@@ -2212,7 +2217,7 @@ app.get('/auth/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// 🔧 LINKEDIN URL DECOUPLING STAGE 3: Updated OAuth callback - removed LinkedIn URL dependency
+// ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: Updated OAuth callback - removed LinkedIn URL dependency
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/login?error=auth_failed' }),
     async (req, res) => {
@@ -2226,7 +2231,7 @@ app.get('/auth/google/callback',
             req.session.selectedPackage = null;
             req.session.billingModel = null;
             
-            // 🔧 LINKEDIN URL DECOUPLING: Updated needsOnboarding logic - removed LinkedIn URL dependency
+            // ðŸ”§ LINKEDIN URL DECOUPLING: Updated needsOnboarding logic - removed LinkedIn URL dependency
             const needsOnboarding = req.user.isNewUser || 
                                    !req.user.registration_completed ||
                                    req.user.extraction_status === 'not_started';
@@ -2237,7 +2242,7 @@ app.get('/auth/google/callback',
             logger.debug(`   - Extraction status: ${req.user.extraction_status || 'not_started'}`);
             logger.debug(`   - Needs onboarding: ${needsOnboarding} (LinkedIn URL no longer required)`);
             
-            // ✅ EMAIL FIX: Removed early welcome email sending - now properly timed in registration completion
+            // âœ… EMAIL FIX: Removed early welcome email sending - now properly timed in registration completion
             
             if (needsOnboarding) {
                 logger.debug(`Redirecting to sign-up for onboarding`);
@@ -2258,7 +2263,7 @@ app.get('/auth/failed', (req, res) => {
     res.redirect(`/login?error=auth_failed`);
 });
 
-// 🔧 LINKEDIN URL DECOUPLING STAGE 3: Updated TRAFFIC LIGHT STATUS ENDPOINT - removed LinkedIn URL dependency
+// ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: Updated TRAFFIC LIGHT STATUS ENDPOINT - removed LinkedIn URL dependency
 app.get('/traffic-light-status', authenticateDual, async (req, res) => {
     try {
         logger.custom('LIGHT', `Traffic light status request from user ${req.user.id} using ${req.authMethod} auth`);
@@ -2290,7 +2295,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
             });
         }
 
-        // 🔧 LINKEDIN URL DECOUPLING: Updated TRAFFIC LIGHT STATUS - LinkedIn URL no longer required for GREEN
+        // ðŸ”§ LINKEDIN URL DECOUPLING: Updated TRAFFIC LIGHT STATUS - LinkedIn URL no longer required for GREEN
         const isRegistrationComplete = data.registration_completed || false;
         const isInitialScrapingDone = data.initial_scraping_done || false;
         const extractionStatus = data.data_extraction_status || 'pending';
@@ -2340,7 +2345,7 @@ app.get('/traffic-light-status', authenticateDual, async (req, res) => {
                     profileAnalyzed: data.profile_analyzed || false,
                     extractionCompletedAt: data.extraction_completed_at,
                     hasLinkedInUrl: !!data.linkedin_url,
-                    linkedInUrlRequired: false, // 🔧 LINKEDIN URL DECOUPLING: No longer required
+                    linkedInUrlRequired: false, // ðŸ”§ LINKEDIN URL DECOUPLING: No longer required
                     hasBasicProfile: !!(data.full_name && data.headline),
                     hasCompanyInfo: !!(data.current_company || data.current_company_name)
                 },
@@ -2453,7 +2458,7 @@ app.get('/profile', authenticateDual, async (req, res) => {
                     hasGoogleAccount: !!req.user.google_id,
                     createdAt: req.user.created_at,
                     registrationCompleted: req.user.registration_completed,
-                    // ✅ EMAIL TIMING FIX: Include welcome email status for dashboard logic
+                    // âœ… EMAIL TIMING FIX: Include welcome email status for dashboard logic
                     welcomeEmailSent: profile?.welcome_email_sent || false,
                     authMethod: req.authMethod
                 },
@@ -2593,7 +2598,7 @@ app.get('/profile-status', authenticateDual, async (req, res) => {
 
 // ==================== EMAIL TIMING FIX: NEW WELCOME EMAIL ENDPOINT ====================
 
-// ✅ EMAIL TIMING FIX: New endpoint for sending welcome email from dashboard
+// âœ… EMAIL TIMING FIX: New endpoint for sending welcome email from dashboard
 app.post('/send-welcome-email', authenticateToken, async (req, res) => {
     try {
         logger.custom('EMAIL', '=== DASHBOARD WELCOME EMAIL REQUEST ===');
@@ -2676,7 +2681,7 @@ app.post('/send-welcome-email', authenticateToken, async (req, res) => {
             logger.debug('EMAIL: Skipping welcome email for paid users (sent via webhook)');
         }
 
-        // ✅ EMAIL TIMING FIX: Send admin notification for dashboard registration completion
+        // âœ… EMAIL TIMING FIX: Send admin notification for dashboard registration completion
         try {
             logger.info(`[ADMIN] Sending admin notification for dashboard user: ${user.email}`);
             
@@ -2722,9 +2727,9 @@ app.post('/send-welcome-email', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== 🔧 LINKEDIN URL DECOUPLING STAGE 3: UPDATED COMPLETE REGISTRATION ENDPOINT ====================
+// ==================== ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: UPDATED COMPLETE REGISTRATION ENDPOINT ====================
 
-// 🔧 LINKEDIN URL DECOUPLING: Updated /complete-registration endpoint - LinkedIn URL no longer required
+// ðŸ”§ LINKEDIN URL DECOUPLING: Updated /complete-registration endpoint - LinkedIn URL no longer required
 app.post('/complete-registration', authenticateToken, async (req, res) => {
     try {
         logger.custom('REG', '========================================');
@@ -2748,7 +2753,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
             linkedinUrl: req.user.linkedin_url
         }, null, 2));
         
-        // 🔧 LINKEDIN URL DECOUPLING: LinkedIn URL no longer required, only packageType and termsAccepted
+        // ðŸ”§ LINKEDIN URL DECOUPLING: LinkedIn URL no longer required, only packageType and termsAccepted
         const { packageType, termsAccepted } = req.body;
         
         logger.debug('Extracted values from request body:', {
@@ -2761,7 +2766,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         logger.custom('REG', 'VALIDATION STEP 1: Checking required fields (LinkedIn URL no longer required)...');
         
-        // 🔧 LINKEDIN URL DECOUPLING: Updated validation - only packageType and termsAccepted required
+        // ðŸ”§ LINKEDIN URL DECOUPLING: Updated validation - only packageType and termsAccepted required
         if (!packageType) {
             logger.error('VALIDATION FAILED: packageType is missing');
             return res.status(400).json({
@@ -2807,7 +2812,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         logger.custom('REG', 'DATABASE STEP 2: Updating user registration (LinkedIn URL not required)...');
         
-        // 🔧 LINKEDIN URL DECOUPLING: Updated registration - LinkedIn URL not updated here
+        // ðŸ”§ LINKEDIN URL DECOUPLING: Updated registration - LinkedIn URL not updated here
         const updateQuery = `
             UPDATE users 
             SET 
@@ -2887,7 +2892,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
         
         logger.success('VALIDATION STEP 2: registration_completed successfully set to true');
         
-        // ✅ EMAIL TIMING FIX: NO EMAIL SENDING HERE - moved to dashboard
+        // âœ… EMAIL TIMING FIX: NO EMAIL SENDING HERE - moved to dashboard
         logger.info('EMAIL TIMING FIX: Emails will be sent when user reaches dashboard');
         logger.debug('welcome_email_sent set to false - dashboard will detect and send emails');
         
@@ -2903,7 +2908,7 @@ app.post('/complete-registration', authenticateToken, async (req, res) => {
                 packageType: packageType,
                 registrationCompleted: true,
                 welcomeEmailSent: false, // Will be sent by dashboard
-                linkedinUrlRequired: !updatedUser.linkedin_url, // 🔧 LINKEDIN URL DECOUPLING: Extension will collect if missing
+                linkedinUrlRequired: !updatedUser.linkedin_url, // ðŸ”§ LINKEDIN URL DECOUPLING: Extension will collect if missing
                 nextStep: updatedUser.linkedin_url 
                     ? 'Visit your LinkedIn profile with the Chrome extension to sync your data'
                     : 'Install the Chrome extension and visit your LinkedIn profile to complete setup'
@@ -3007,7 +3012,7 @@ app.get('/test-chargebee', async (req, res) => {
         if (result.success) {
             res.json({
                 success: true,
-                message: '✅ Chargebee connection successful!',
+                message: 'âœ… Chargebee connection successful!',
                 data: result.data || {
                     siteName: 'Connected',
                     isConfigured: chargebeeService.isConfigured
@@ -3016,7 +3021,7 @@ app.get('/test-chargebee', async (req, res) => {
         } else {
             res.status(500).json({
                 success: false,
-                message: '❌ Chargebee connection failed',
+                message: 'âŒ Chargebee connection failed',
                 error: result.error
             });
         }
@@ -3390,18 +3395,18 @@ app.use((req, res, next) => {
             'POST /register',
             'POST /login',
             'GET /auth/google',
-            'GET /auth/google/callback (🔧 LINKEDIN URL DECOUPLING STAGE 3: No LinkedIn URL dependency)',
-            'POST /auth/chrome-extension (✅ AUTO-REGISTRATION enabled + ADMIN NOTIFICATIONS)',
-            'POST /complete-registration (🔧 LINKEDIN URL DECOUPLING STAGE 3: LinkedIn URL no longer required)',
-            'POST /send-welcome-email (✅ NEW: Dashboard endpoint for welcome email sending)',
-            'POST /store-pending-registration (🔧 LINKEDIN URL DECOUPLING STAGE 3: LinkedIn URL now optional)',
-            'POST /extension/auto-store-linkedin-url (🔧 NEW: Extension auto-storage endpoint)',
+            'GET /auth/google/callback (ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: No LinkedIn URL dependency)',
+            'POST /auth/chrome-extension (âœ… AUTO-REGISTRATION enabled + ADMIN NOTIFICATIONS)',
+            'POST /complete-registration (ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: LinkedIn URL no longer required)',
+            'POST /send-welcome-email (âœ… NEW: Dashboard endpoint for welcome email sending)',
+            'POST /store-pending-registration (ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: LinkedIn URL now optional)',
+            'POST /extension/auto-store-linkedin-url (ðŸ”§ NEW: Extension auto-storage endpoint)',
             'POST /update-profile',
             'GET /profile',
             'GET /profile-status',
-            'GET /traffic-light-status (🔧 LINKEDIN URL DECOUPLING STAGE 3: LinkedIn URL no longer required for GREEN status)',
+            'GET /traffic-light-status (ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: LinkedIn URL no longer required for GREEN status)',
             'GET /profile/personal-info (NEW: Get personal information)',
-            'PUT /profile/personal-info (✅ PERSONAL INFO SAVE FIX: Now handles missing user_profiles records)',
+            'PUT /profile/personal-info (âœ… PERSONAL INFO SAVE FIX: Now handles missing user_profiles records)',
             'PUT /profile/basic-info (NEW: Update basic information)',
             'PUT /profile/about (NEW: Update about section)',
             'PUT /profile/experience (NEW: Update experience)',
@@ -3410,11 +3415,11 @@ app.use((req, res, next) => {
             'PUT /profile/certifications (NEW: Update certifications)',
             'POST /scrape-html (Enhanced routing: USER + TARGET)',
             'POST /target-profile/analyze-json (NEW: DATABASE-first system with RACE PROTECTION + URL FIX)',
-            'POST /api/analyze-profile-file (✅ MINIMAL FIX: File upload analysis with simplified response handling and correct profile data extraction)',
+            'POST /api/analyze-profile-file (âœ… MINIMAL FIX: File upload analysis with simplified response handling and correct profile data extraction)',
             'POST /generate-message (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-connection (REFACTORED: Now in routes/messagesRoutes.js)',
             'POST /generate-intro (REFACTORED: Now in routes/messagesRoutes.js)',
-            'POST /generate-unified (✅ FIXED: Real GPT-5 integration - NO MORE MOCK DATA)',
+            'POST /generate-unified (âœ… FIXED: Real GPT-5 integration - NO MORE MOCK DATA)',
             'GET /user/setup-status',
             'GET /user/initial-scraping-status',
             'GET /user/stats',
@@ -3434,9 +3439,9 @@ app.use((req, res, next) => {
             'GET /contexts/limits (NEW: Context management - Get plan limits)',
             'GET /admin-dashboard (NEW: Admin dashboard for internal analytics)',
             'GET /api/admin/analytics (NEW: Admin analytics API endpoints)',
-            'GET /admin-login (🔧 FIXED: Duo 2FA admin login page with ES Module fix + Railway Session Fix + Duo Railway Cookie Fix)',
-            'POST /admin-initiate-duo (🔧 FIXED: Duo 2FA initiation with ES Module fix and crypto scope fix + Railway Session Fix + Duo Railway Cookie Fix)',
-            'GET /admin-duo-callback (🔧 FIXED: Duo 2FA callback handler with ES Module fix + Railway Session Fix + Duo Railway Cookie Fix)',
+            'GET /admin-login (ðŸ”§ FIXED: Duo 2FA admin login page with ES Module fix + Railway Session Fix + Duo Railway Cookie Fix)',
+            'POST /admin-initiate-duo (ðŸ”§ FIXED: Duo 2FA initiation with ES Module fix and crypto scope fix + Railway Session Fix + Duo Railway Cookie Fix)',
+            'GET /admin-duo-callback (ðŸ”§ FIXED: Duo 2FA callback handler with ES Module fix + Railway Session Fix + Duo Railway Cookie Fix)',
             'GET /admin-logout (NEW: Admin logout)'
         ]
     });
@@ -3454,7 +3459,7 @@ const startServer = async () => {
             process.exit(1);
         }
         
-        // 🔧 DUO ES MODULE FIX: Initialize Duo Universal SDK with dynamic import
+        // ðŸ”§ DUO ES MODULE FIX: Initialize Duo Universal SDK with dynamic import
         await initializeDuo();
         
         // NEW: Auto-create welcome_email_sent column if it doesn't exist
@@ -3514,89 +3519,89 @@ const startServer = async () => {
             console.log(`[FILE] Target Storage: DATABASE (target_profiles table + files_target_profiles table)`);
             console.log(`[CHECK] Auth: DUAL AUTHENTICATION - Session (Web) + JWT (Extension/API) + DUO 2FA (Admin) + RAILWAY SESSION PERSISTENCE + DUO RAILWAY COOKIE PERSISTENCE`);
             console.log(`[LIGHT] TRAFFIC LIGHT SYSTEM ACTIVE`);
-            console.log(`[SUCCESS] ✅ AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
-            console.log(`[SUCCESS] ✅ RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
-            console.log(`[SUCCESS] ✅ URL MATCHING FIX: Profile deduplication handles both URL formats`);
-            console.log(`[SUCCESS] ✅ GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
-            console.log(`[SUCCESS] ✅ CHARGEBEE INTEGRATION: Payment processing and subscription management`);
-            console.log(`[SUCCESS] ✅ MAILERSEND INTEGRATION: Welcome email automation`);
-            console.log(`[SUCCESS] ✅ WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error`);
-            console.log(`[SUCCESS] ✅ PAYG FIX: Fixed one-time purchase webhook handling`);
-            console.log(`[SUCCESS] ✅ REGISTRATION DEBUG: Enhanced logging to identify registration failures`);
-            console.log(`[SUCCESS] ✅ WEBHOOK REGISTRATION FIX: Automatic registration completion in webhooks after payment`);
-            console.log(`[SUCCESS] ✅ PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
-            console.log(`[SUCCESS] ✅ CLEAN WEBHOOK LOGGING: Removed excessive debug output`);
-            console.log(`[SUCCESS] ✅ MODULAR REFACTOR: Messages handlers moved to dedicated files`);
-            console.log(`[SUCCESS] ✅ MESSAGES ROUTE FIX: /messages page served with authentication`);
-            console.log(`[SUCCESS] ✅ AUTHENTICATION FIX: Removed server-side auth middleware, using client-side auth instead`);
-            console.log(`[SUCCESS] ✅ MSGLY PROFILE: Standalone profile page with full editing capabilities`);
-            console.log(`[SUCCESS] ✅ PERSONAL INFO: Complete personal information CRUD system`);
-            console.log(`[SUCCESS] ✅ MANUAL EDITING: Manual profile editing endpoints for all sections`);
-            console.log(`[SUCCESS] ✅ MESSAGES HISTORY ENDPOINT: GET /messages/history for Messages page functionality`);
-            console.log(`[SUCCESS] 🔧 PAYG CRITICAL FIX: Enhanced planLineItem detection for both plan_item_price and charge_item_price entity types`);
-            console.log(`[SUCCESS] ✅ GOLD & PLATINUM PLANS: Added Gold-Monthly (100 credits) and Platinum-Monthly (250 credits) plan support`);
-            console.log(`[SUCCESS] ✅ CANCELLATION HANDLING: Automatic subscription cancellation processing and downgrade to free plan`);
-            console.log(`[SUCCESS] ✅ GOLD & PLATINUM PAYG: Added Gold-PAYG-USD (100 credits) and Platinum-PAYG-USD (250 credits) one-time purchase support`);
-            console.log(`[SUCCESS] ✅ BILLING REFACTOR: Clean separation of billing logic into dedicated modules`);
-            console.log(`[SUCCESS] ✅ PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment`);
-            console.log(`[SUCCESS] ✅ MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration`);
-            console.log(`[SUCCESS] ✅ PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records`);
-            console.log(`[SUCCESS] ✅ FILE UPLOAD: Added file upload functionality with consent checkbox and 7-day storage`);
-            console.log(`[SUCCESS] ✅ PROFILE DATA EXTRACTION FIX: Added extractProfileFromJson function and response modification for real profile data display`);
-            console.log(`[SUCCESS] ✅ MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified file upload response handling`);
-            console.log(`[SUCCESS] ✅ CONTEXTS: Context management system with plan-based limits (Free: 1, Silver: 3, Gold: 6, Platinum: 10)`);
-            console.log(`[SUCCESS] ✅ UNIFIED GENERATION REAL GPT: Connected /generate-unified endpoint to existing GPT-5 message generation system - NO MORE MOCK DATA`);
-            console.log(`[SUCCESS] ✅ CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality`);
-            console.log(`[SUCCESS] ✅ CONTEXT SLOT FUNCTIONS: Added missing context slot function imports for proper webhook allocation`);
-            console.log(`[SUCCESS] ✅ CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion`);
-            console.log(`[SUCCESS] ✅ ADMIN DASHBOARD: Added internal analytics dashboard with JWT authentication and comprehensive metrics`);
-            console.log(`[SUCCESS] ✅ EMAIL FIX: Removed early welcome email sending from OAuth callback - now properly timed at registration completion`);
-            console.log(`[SUCCESS] ✅ ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new user registrations`);
-            console.log(`[SUCCESS] ✅ EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to /send-welcome-email endpoint called by dashboard`);
-            console.log(`[SUCCESS] ✅ DUO ADMIN 2FA: Enterprise-grade Duo Universal SDK authentication for admin dashboard protection`);
-            console.log(`[SUCCESS] ✅ DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()`);
-            console.log(`[SUCCESS] 🔧 DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue`);
-            console.log(`[SUCCESS] 🔧 RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence`);
-            console.log(`[SUCCESS] 🔧 DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility`);
-            console.log(`[SUCCESS] 🔧 LINKEDIN URL DECOUPLING STAGE 3: Backend API Endpoints Updated - OAuth callback, registration, and traffic light logic updated for LinkedIn URL independence`);
+            console.log(`[SUCCESS] âœ… AUTO-REGISTRATION ENABLED: Extension users can auto-register with LinkedIn URL`);
+            console.log(`[SUCCESS] âœ… RACE CONDITION FIX: In-memory tracking prevents duplicate processing`);
+            console.log(`[SUCCESS] âœ… URL MATCHING FIX: Profile deduplication handles both URL formats`);
+            console.log(`[SUCCESS] âœ… GPT-5 INTEGRATION: Real LinkedIn message generation with comprehensive logging`);
+            console.log(`[SUCCESS] âœ… CHARGEBEE INTEGRATION: Payment processing and subscription management`);
+            console.log(`[SUCCESS] âœ… MAILERSEND INTEGRATION: Welcome email automation`);
+            console.log(`[SUCCESS] âœ… WEBHOOK FIX: Fixed Chargebee webhook JSON parsing error`);
+            console.log(`[SUCCESS] âœ… PAYG FIX: Fixed one-time purchase webhook handling`);
+            console.log(`[SUCCESS] âœ… REGISTRATION DEBUG: Enhanced logging to identify registration failures`);
+            console.log(`[SUCCESS] âœ… WEBHOOK REGISTRATION FIX: Automatic registration completion in webhooks after payment`);
+            console.log(`[SUCCESS] âœ… PENDING REGISTRATIONS: LinkedIn URL stored in database before payment`);
+            console.log(`[SUCCESS] âœ… CLEAN WEBHOOK LOGGING: Removed excessive debug output`);
+            console.log(`[SUCCESS] âœ… MODULAR REFACTOR: Messages handlers moved to dedicated files`);
+            console.log(`[SUCCESS] âœ… MESSAGES ROUTE FIX: /messages page served with authentication`);
+            console.log(`[SUCCESS] âœ… AUTHENTICATION FIX: Removed server-side auth middleware, using client-side auth instead`);
+            console.log(`[SUCCESS] âœ… MSGLY PROFILE: Standalone profile page with full editing capabilities`);
+            console.log(`[SUCCESS] âœ… PERSONAL INFO: Complete personal information CRUD system`);
+            console.log(`[SUCCESS] âœ… MANUAL EDITING: Manual profile editing endpoints for all sections`);
+            console.log(`[SUCCESS] âœ… MESSAGES HISTORY ENDPOINT: GET /messages/history for Messages page functionality`);
+            console.log(`[SUCCESS] ðŸ”§ PAYG CRITICAL FIX: Enhanced planLineItem detection for both plan_item_price and charge_item_price entity types`);
+            console.log(`[SUCCESS] âœ… GOLD & PLATINUM PLANS: Added Gold-Monthly (100 credits) and Platinum-Monthly (250 credits) plan support`);
+            console.log(`[SUCCESS] âœ… CANCELLATION HANDLING: Automatic subscription cancellation processing and downgrade to free plan`);
+            console.log(`[SUCCESS] âœ… GOLD & PLATINUM PAYG: Added Gold-PAYG-USD (100 credits) and Platinum-PAYG-USD (250 credits) one-time purchase support`);
+            console.log(`[SUCCESS] âœ… BILLING REFACTOR: Clean separation of billing logic into dedicated modules`);
+            console.log(`[SUCCESS] âœ… PROFESSIONAL LOGGER: Environment-based professional logging for clean production deployment`);
+            console.log(`[SUCCESS] âœ… MESSAGES DB FIX: Fixed Messages page save functionality with proper database integration`);
+            console.log(`[SUCCESS] âœ… PERSONAL INFO SAVE FIX: Fixed personal information save to handle missing user_profiles records`);
+            console.log(`[SUCCESS] âœ… FILE UPLOAD: Added file upload functionality with consent checkbox and 7-day storage`);
+            console.log(`[SUCCESS] âœ… PROFILE DATA EXTRACTION FIX: Added extractProfileFromJson function and response modification for real profile data display`);
+            console.log(`[SUCCESS] âœ… MINIMAL PROFILE FIX: Fixed extractProfileFromJson to use correct database JSON structure and simplified file upload response handling`);
+            console.log(`[SUCCESS] âœ… CONTEXTS: Context management system with plan-based limits (Free: 1, Silver: 3, Gold: 6, Platinum: 10)`);
+            console.log(`[SUCCESS] âœ… UNIFIED GENERATION REAL GPT: Connected /generate-unified endpoint to existing GPT-5 message generation system - NO MORE MOCK DATA`);
+            console.log(`[SUCCESS] âœ… CONTEXT ADDON PURCHASE: Added /context-addons/purchase endpoint for extension Buy Extra slot functionality`);
+            console.log(`[SUCCESS] âœ… CONTEXT SLOT FUNCTIONS: Added missing context slot function imports for proper webhook allocation`);
+            console.log(`[SUCCESS] âœ… CORS FIX: Added PUT and DELETE methods to CORS configuration for context deletion`);
+            console.log(`[SUCCESS] âœ… ADMIN DASHBOARD: Added internal analytics dashboard with JWT authentication and comprehensive metrics`);
+            console.log(`[SUCCESS] âœ… EMAIL FIX: Removed early welcome email sending from OAuth callback - now properly timed at registration completion`);
+            console.log(`[SUCCESS] âœ… ADMIN NOTIFICATIONS: Added admin notification emails to ziv@msgly.ai for new user registrations`);
+            console.log(`[SUCCESS] âœ… EMAIL TIMING FIX: Moved welcome email sending from /complete-registration to /send-welcome-email endpoint called by dashboard`);
+            console.log(`[SUCCESS] âœ… DUO ADMIN 2FA: Enterprise-grade Duo Universal SDK authentication for admin dashboard protection`);
+            console.log(`[SUCCESS] âœ… DUO ES MODULE FIX: Fixed Duo Universal SDK import to use dynamic import() instead of require()`);
+            console.log(`[SUCCESS] ðŸ”§ DUO ADMIN FIX: Fixed createAuthUrl to be awaited and fixed crypto scope issue`);
+            console.log(`[SUCCESS] ðŸ”§ RAILWAY SESSION FIX: Enhanced session configuration for Railway deployment compatibility and Duo state persistence`);
+            console.log(`[SUCCESS] ðŸ”§ DUO RAILWAY COOKIE FIX: Replaced session-based Duo state storage with signed cookies for Railway compatibility`);
+            console.log(`[SUCCESS] ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: Backend API Endpoints Updated - OAuth callback, registration, and traffic light logic updated for LinkedIn URL independence`);
             
-            // 🔧 LINKEDIN URL DECOUPLING STAGE 3: New logging section
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 OAuth Callback: LinkedIn URL no longer required for needsOnboarding logic`);
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 Complete Registration: LinkedIn URL optional - registration completes without it`);
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 Store Pending Registration: LinkedIn URL now optional parameter`);
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 Traffic Light Status: LinkedIn URL no longer required for GREEN status`);
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 Extension Auto-Storage: New /extension/auto-store-linkedin-url endpoint added`);
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 Database Functions: Using completeRegistrationAfterPayment() and autoStoreLinkedInUrl()`);
-            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] 🔧 User Flow: Registration → Package Selection → Terms → Complete (LinkedIn URL collected later by extension)`);
+            // ðŸ”§ LINKEDIN URL DECOUPLING STAGE 3: New logging section
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ OAuth Callback: LinkedIn URL no longer required for needsOnboarding logic`);
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ Complete Registration: LinkedIn URL optional - registration completes without it`);
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ Store Pending Registration: LinkedIn URL now optional parameter`);
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ Traffic Light Status: LinkedIn URL no longer required for GREEN status`);
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ Extension Auto-Storage: New /extension/auto-store-linkedin-url endpoint added`);
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ Database Functions: Using completeRegistrationAfterPayment() and autoStoreLinkedInUrl()`);
+            console.log(`[LINKEDIN URL DECOUPLING STAGE 3] ðŸ”§ User Flow: Registration â†’ Package Selection â†’ Terms â†’ Complete (LinkedIn URL collected later by extension)`);
             
-            console.log(`[LOGGER] ✅ CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
-            console.log(`[LOGGER] ✅ ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
-            console.log(`[LOGGER] ✅ PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
-            console.log(`[DUO 2FA] ✅ OIDC-BASED AUTHENTICATION: Modern OAuth2/OIDC flow with state validation`);
-            console.log(`[DUO 2FA] ✅ EMAIL ALLOWLIST: Only authorized emails can access admin dashboard`);
-            console.log(`[DUO 2FA] ✅ SESSION MANAGEMENT: 2-hour secure admin sessions with automatic expiry`);
-            console.log(`[DUO 2FA] ✅ EMERGENCY BYPASS: ADMIN_AUTH_DISABLED=true for emergency access`);
-            console.log(`[DUO 2FA] ✅ CSRF PROTECTION: State parameter validation prevents cross-site attacks`);
-            console.log(`[DUO 2FA] ✅ PRODUCTION READY: Automatic URL switching for dev/prod environments`);
-            console.log(`[DUO ES MODULE FIX] ✅ DYNAMIC IMPORT: Uses import() instead of require() for ES Module compatibility`);
-            console.log(`[DUO ES MODULE FIX] ✅ ASYNC INITIALIZATION: Duo SDK initialized in startServer() function`);
-            console.log(`[DUO ES MODULE FIX] ✅ ERROR HANDLING: Graceful fallback if Duo initialization fails`);
-            console.log(`[DUO ES MODULE FIX] ✅ EMERGENCY BYPASS: Still works with ADMIN_AUTH_DISABLED=true`);
-            console.log(`[DUO ADMIN FIX] 🔧 AWAIT CREATEAUTHURL: Fixed createAuthUrl to be awaited properly`);
-            console.log(`[DUO ADMIN FIX] 🔧 CRYPTO SCOPE: Fixed crypto imports to use node: prefix and function-level requires`);
-            console.log(`[DUO ADMIN FIX] 🔧 500 ERROR RESOLVED: Admin login now works without server crashes`);
-            console.log(`[RAILWAY SESSION FIX] 🔧 ENHANCED SESSION CONFIG: Additional Railway compatibility settings for session persistence`);
-            console.log(`[RAILWAY SESSION FIX] 🔧 CROSS-SITE COOKIES: sameSite 'none' in production for Duo redirects`);
-            console.log(`[RAILWAY SESSION FIX] 🔧 SESSION ROLLING: Extend session on each request for better persistence`);
-            console.log(`[RAILWAY SESSION FIX] 🔧 PROXY TRUST: Trust proxy in production Railway environment`);
-            console.log(`[RAILWAY SESSION FIX] 🔧 FORCED SAVE: Force session save/resave to ensure state persistence between Duo auth flows`);
-            console.log(`[RAILWAY SESSION FIX] 🔧 DEBUG LOGGING: Enhanced session state validation and error logging in Duo callback`);
-            console.log(`[DUO RAILWAY COOKIE FIX] 🔧 SIGNED COOKIES: Replaced session-based Duo state storage with signed cookies`);
-            console.log(`[DUO RAILWAY COOKIE FIX] 🔧 COOKIE PARSER: Added cookie-parser middleware with signed cookie support`);
-            console.log(`[DUO RAILWAY COOKIE FIX] 🔧 PROXY TRUST: Added app.set('trust proxy', true) for Railway compatibility`);
-            console.log(`[DUO RAILWAY COOKIE FIX] 🔧 SECURE COOKIES: Environment-aware cookie security settings`);
-            console.log(`[DUO RAILWAY COOKIE FIX] 🔧 5-MINUTE EXPIRY: Short-lived cookies for CSRF protection`);
-            console.log(`[DUO RAILWAY COOKIE FIX] 🔧 AUTOMATIC CLEANUP: Cookies cleared after successful authentication`);
+            console.log(`[LOGGER] âœ… CLEAN PRODUCTION LOGS: Debug logs only show in development (NODE_ENV !== 'production')`);
+            console.log(`[LOGGER] âœ… ERROR LOGS ALWAYS VISIBLE: Critical errors and warnings always shown in production`);
+            console.log(`[LOGGER] âœ… PERFORMANCE OPTIMIZED: Zero debug overhead in production environment`);
+            console.log(`[DUO 2FA] âœ… OIDC-BASED AUTHENTICATION: Modern OAuth2/OIDC flow with state validation`);
+            console.log(`[DUO 2FA] âœ… EMAIL ALLOWLIST: Only authorized emails can access admin dashboard`);
+            console.log(`[DUO 2FA] âœ… SESSION MANAGEMENT: 2-hour secure admin sessions with automatic expiry`);
+            console.log(`[DUO 2FA] âœ… EMERGENCY BYPASS: ADMIN_AUTH_DISABLED=true for emergency access`);
+            console.log(`[DUO 2FA] âœ… CSRF PROTECTION: State parameter validation prevents cross-site attacks`);
+            console.log(`[DUO 2FA] âœ… PRODUCTION READY: Automatic URL switching for dev/prod environments`);
+            console.log(`[DUO ES MODULE FIX] âœ… DYNAMIC IMPORT: Uses import() instead of require() for ES Module compatibility`);
+            console.log(`[DUO ES MODULE FIX] âœ… ASYNC INITIALIZATION: Duo SDK initialized in startServer() function`);
+            console.log(`[DUO ES MODULE FIX] âœ… ERROR HANDLING: Graceful fallback if Duo initialization fails`);
+            console.log(`[DUO ES MODULE FIX] âœ… EMERGENCY BYPASS: Still works with ADMIN_AUTH_DISABLED=true`);
+            console.log(`[DUO ADMIN FIX] ðŸ”§ AWAIT CREATEAUTHURL: Fixed createAuthUrl to be awaited properly`);
+            console.log(`[DUO ADMIN FIX] ðŸ”§ CRYPTO SCOPE: Fixed crypto imports to use node: prefix and function-level requires`);
+            console.log(`[DUO ADMIN FIX] ðŸ”§ 500 ERROR RESOLVED: Admin login now works without server crashes`);
+            console.log(`[RAILWAY SESSION FIX] ðŸ”§ ENHANCED SESSION CONFIG: Additional Railway compatibility settings for session persistence`);
+            console.log(`[RAILWAY SESSION FIX] ðŸ”§ CROSS-SITE COOKIES: sameSite 'none' in production for Duo redirects`);
+            console.log(`[RAILWAY SESSION FIX] ðŸ”§ SESSION ROLLING: Extend session on each request for better persistence`);
+            console.log(`[RAILWAY SESSION FIX] ðŸ”§ PROXY TRUST: Trust proxy in production Railway environment`);
+            console.log(`[RAILWAY SESSION FIX] ðŸ”§ FORCED SAVE: Force session save/resave to ensure state persistence between Duo auth flows`);
+            console.log(`[RAILWAY SESSION FIX] ðŸ”§ DEBUG LOGGING: Enhanced session state validation and error logging in Duo callback`);
+            console.log(`[DUO RAILWAY COOKIE FIX] ðŸ”§ SIGNED COOKIES: Replaced session-based Duo state storage with signed cookies`);
+            console.log(`[DUO RAILWAY COOKIE FIX] ðŸ”§ COOKIE PARSER: Added cookie-parser middleware with signed cookie support`);
+            console.log(`[DUO RAILWAY COOKIE FIX] ðŸ”§ PROXY TRUST: Added app.set('trust proxy', true) for Railway compatibility`);
+            console.log(`[DUO RAILWAY COOKIE FIX] ðŸ”§ SECURE COOKIES: Environment-aware cookie security settings`);
+            console.log(`[DUO RAILWAY COOKIE FIX] ðŸ”§ 5-MINUTE EXPIRY: Short-lived cookies for CSRF protection`);
+            console.log(`[DUO RAILWAY COOKIE FIX] ðŸ”§ AUTOMATIC CLEANUP: Cookies cleared after successful authentication`);
             console.log(`[SUCCESS] LINKEDIN URL DECOUPLING STAGE 3: Backend API Endpoints Successfully Updated - Registration and payment processes now independent of LinkedIn URL collection`);
         });
         
