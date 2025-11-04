@@ -8,8 +8,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../database');
-const logger = require('../logger');
+const { pool } = require('../utils/database');
+const logger = require('../utils/logger');
 
 // ========================================
 // SIMPLE AUTHENTICATION MIDDLEWARE
