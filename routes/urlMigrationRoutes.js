@@ -1,6 +1,5 @@
-// routes/urlMigrationRoutes.js
-// URL Migration Routes - Clean LinkedIn URLs in Database
-// SECURITY: Simple password authentication (CHANGE THE PASSWORD!)
+// routes/urlMigrationRoutes.js - IMPROVED VERSION
+// Handles duplicates BEFORE cleaning URLs
 
 const router = require('express').Router();
 const path = require('path');
@@ -8,51 +7,32 @@ const { pool } = require('../utils/database');
 const { cleanLinkedInUrl } = require('../utils/helpers');
 const logger = require('../utils/logger');
 
-// ==================== SIMPLE AUTH MIDDLEWARE ====================
-
-const MIGRATION_PASSWORD = process.env.MIGRATION_PASSWORD || 'ChangeMe123!'; // ⚠️ SET IN RAILWAY ENV VARS!
+// Simple password auth
+const MIGRATION_PASSWORD = process.env.MIGRATION_PASSWORD || 'ChangeMe123!';
 
 function checkMigrationAuth(req, res, next) {
     const authHeader = req.headers['authorization'];
-    
     if (!authHeader) {
-        return res.status(401).json({
-            success: false,
-            error: 'Authorization required',
-            needsAuth: true
-        });
+        return res.status(401).json({ success: false, error: 'Authorization required', needsAuth: true });
     }
-    
     const password = authHeader.replace('Bearer ', '');
-    
     if (password !== MIGRATION_PASSWORD) {
-        return res.status(403).json({
-            success: false,
-            error: 'Invalid password'
-        });
+        return res.status(403).json({ success: false, error: 'Invalid password' });
     }
-    
     next();
 }
 
-// ==================== URL MIGRATION PAGE ====================
-
-// Serve migration dashboard HTML (no auth needed to view page)
+// Serve migration page
 router.get('/admin/migrate-urls', (req, res) => {
     try {
         res.sendFile(path.join(__dirname, '..', 'url-migration.html'));
     } catch (error) {
         logger.error('Error serving URL migration page:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to serve migration page'
-        });
+        res.status(500).json({ success: false, error: 'Failed to serve migration page' });
     }
 });
 
-// ==================== VERIFICATION ENDPOINT ====================
-
-// Verify current state - Shows what needs to be cleaned (READ-ONLY)
+// Verify endpoint
 router.get('/api/admin/verify-urls', checkMigrationAuth, async (req, res) => {
     try {
         logger.info('Admin URL verification request');
@@ -67,77 +47,63 @@ router.get('/api/admin/verify-urls', checkMigrationAuth, async (req, res) => {
             brightdata_profiles: await verifyTableUrls('brightdata_profiles', 'linkedin_url')
         };
 
-        res.json({
-            success: true,
-            verification,
-            timestamp: new Date().toISOString()
-        });
-        
+        res.json({ success: true, verification, timestamp: new Date().toISOString() });
     } catch (error) {
         logger.error('URL verification error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// ==================== DRY RUN ENDPOINT ====================
-
-// Dry run - Shows what WOULD be changed (READ-ONLY, no changes made)
+// Dry run endpoint
 router.get('/api/admin/migrate-urls-dry-run', checkMigrationAuth, async (req, res) => {
     try {
         logger.info('Admin URL migration dry-run');
         
         const dryRun = {
-            target_profiles: await dryRunTableMigration('target_profiles', 'linkedin_url'),
-            message_logs: await dryRunTableMigration('message_logs', 'target_profile_url'),
-            user_profiles: await dryRunTableMigration('user_profiles', 'linkedin_url'),
-            users: await dryRunTableMigration('users', 'linkedin_url'),
-            email_requests: await dryRunTableMigration('email_requests', 'linkedin_url'),
-            email_finder_searches: await dryRunTableMigration('email_finder_searches', 'linkedin_url'),
-            brightdata_profiles: await dryRunTableMigration('brightdata_profiles', 'linkedin_url')
+            target_profiles: await dryRunTableMigration('target_profiles', 'linkedin_url', 'user_id'),
+            message_logs: await dryRunTableMigration('message_logs', 'target_profile_url', null),
+            user_profiles: await dryRunTableMigration('user_profiles', 'linkedin_url', null),
+            users: await dryRunTableMigration('users', 'linkedin_url', null),
+            email_requests: await dryRunTableMigration('email_requests', 'linkedin_url', 'user_id'),
+            email_finder_searches: await dryRunTableMigration('email_finder_searches', 'linkedin_url', 'user_id'),
+            brightdata_profiles: await dryRunTableMigration('brightdata_profiles', 'linkedin_url', null)
         };
 
-        res.json({
-            success: true,
-            dryRun,
-            timestamp: new Date().toISOString()
-        });
-        
+        res.json({ success: true, dryRun, timestamp: new Date().toISOString() });
     } catch (error) {
         logger.error('URL dry-run error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// ==================== EXECUTE MIGRATION ENDPOINT ====================
-
-// Execute migration - Actually cleans the URLs (MAKES CHANGES!)
+// Execute migration - IMPROVED VERSION
 router.post('/api/admin/migrate-urls-execute', checkMigrationAuth, async (req, res) => {
     try {
-        logger.info('Admin URL migration execution');
+        logger.info('Admin URL migration execution - IMPROVED VERSION');
         
         const results = {};
         const tables = [
-            { name: 'target_profiles', urlColumn: 'linkedin_url', idColumn: 'id' },
-            { name: 'message_logs', urlColumn: 'target_profile_url', idColumn: 'id' },
-            { name: 'user_profiles', urlColumn: 'linkedin_url', idColumn: 'id' },
-            { name: 'users', urlColumn: 'linkedin_url', idColumn: 'id' },
-            { name: 'email_requests', urlColumn: 'linkedin_url', idColumn: 'id' },
-            { name: 'email_finder_searches', urlColumn: 'linkedin_url', idColumn: 'id' },
-            { name: 'brightdata_profiles', urlColumn: 'linkedin_url', idColumn: 'id' }
+            { name: 'target_profiles', urlColumn: 'linkedin_url', idColumn: 'id', userIdColumn: 'user_id' },
+            { name: 'message_logs', urlColumn: 'target_profile_url', idColumn: 'id', userIdColumn: null },
+            { name: 'user_profiles', urlColumn: 'linkedin_url', idColumn: 'id', userIdColumn: null },
+            { name: 'users', urlColumn: 'linkedin_url', idColumn: 'id', userIdColumn: null },
+            { name: 'email_requests', urlColumn: 'linkedin_url', idColumn: 'id', userIdColumn: 'user_id' },
+            { name: 'email_finder_searches', urlColumn: 'linkedin_url', idColumn: 'id', userIdColumn: 'user_id' },
+            { name: 'brightdata_profiles', urlColumn: 'linkedin_url', idColumn: 'id', userIdColumn: null }
         ];
         
-        // Process each table in its own transaction
+        // Process each table
         for (const table of tables) {
             const client = await pool.connect();
             try {
                 await client.query('BEGIN');
-                results[table.name] = await executeMigration(client, table.name, table.urlColumn, table.idColumn);
+                results[table.name] = await executeMigrationWithDuplicateHandling(
+                    client, 
+                    table.name, 
+                    table.urlColumn, 
+                    table.idColumn,
+                    table.userIdColumn
+                );
                 await client.query('COMMIT');
                 logger.info(`Successfully migrated ${table.name}`);
             } catch (error) {
@@ -147,6 +113,7 @@ router.post('/api/admin/migrate-urls-execute', checkMigrationAuth, async (req, r
                     table: table.name,
                     error: error.message,
                     updated: 0,
+                    duplicatesRemoved: 0,
                     skipped: 0,
                     errors: 1
                 };
@@ -156,24 +123,14 @@ router.post('/api/admin/migrate-urls-execute', checkMigrationAuth, async (req, r
         }
         
         logger.info('URL migration completed');
-        
-        res.json({
-            success: true,
-            results,
-            timestamp: new Date().toISOString()
-        });
-        
+        res.json({ success: true, results, timestamp: new Date().toISOString() });
     } catch (error) {
         logger.error('URL migration error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// ==================== HELPER FUNCTIONS ====================
-
+// Helper functions
 async function verifyTableUrls(tableName, urlColumn) {
     try {
         const result = await pool.query(`
@@ -203,15 +160,23 @@ async function verifyTableUrls(tableName, urlColumn) {
         };
     } catch (error) {
         logger.error(`Error verifying ${tableName}:`, error);
-        return {
-            table: tableName,
-            error: error.message
-        };
+        return { table: tableName, error: error.message };
     }
 }
 
-async function dryRunTableMigration(tableName, urlColumn) {
+async function dryRunTableMigration(tableName, urlColumn, userIdColumn) {
     try {
+        // Find potential duplicates
+        const groupBy = userIdColumn ? `${urlColumn}, ${userIdColumn}` : urlColumn;
+        const duplicatesQuery = `
+            SELECT ${urlColumn}, COUNT(*) as count
+            FROM ${tableName}
+            WHERE ${urlColumn} IS NOT NULL
+            GROUP BY ${groupBy}
+            HAVING COUNT(*) > 1
+        `;
+        const duplicatesResult = await pool.query(duplicatesQuery);
+        
         const result = await pool.query(`
             SELECT id, ${urlColumn} as original_url
             FROM ${tableName}
@@ -252,20 +217,38 @@ async function dryRunTableMigration(tableName, urlColumn) {
         return {
             table: tableName,
             willUpdate: parseInt(countResult.rows[0].count),
+            currentDuplicates: duplicatesResult.rows.length,
             examples: examples
         };
     } catch (error) {
         logger.error(`Error in dry-run for ${tableName}:`, error);
-        return {
-            table: tableName,
-            error: error.message
-        };
+        return { table: tableName, error: error.message };
     }
 }
 
-async function executeMigration(client, tableName, urlColumn, idColumn) {
+async function executeMigrationWithDuplicateHandling(client, tableName, urlColumn, idColumn, userIdColumn) {
     try {
-        // Get all rows that need cleaning
+        logger.info(`Processing ${tableName} - Step 1: Remove duplicates`);
+        
+        // Step 1: Remove duplicates (keep oldest)
+        let duplicatesRemoved = 0;
+        if (userIdColumn) {
+            const deleteQuery = `
+                DELETE FROM ${tableName}
+                WHERE ${idColumn} NOT IN (
+                    SELECT MIN(${idColumn})
+                    FROM ${tableName}
+                    GROUP BY ${urlColumn}, ${userIdColumn}
+                )
+            `;
+            const deleteResult = await client.query(deleteQuery);
+            duplicatesRemoved = deleteResult.rowCount || 0;
+            logger.info(`${tableName}: Removed ${duplicatesRemoved} duplicates`);
+        }
+        
+        logger.info(`Processing ${tableName} - Step 2: Clean URLs`);
+        
+        // Step 2: Get all rows
         const selectResult = await client.query(`
             SELECT ${idColumn}, ${urlColumn}
             FROM ${tableName}
@@ -276,12 +259,12 @@ async function executeMigration(client, tableName, urlColumn, idColumn) {
         let skipped = 0;
         let errors = 0;
         
-        // Update each row
+        // Step 3: Update each row
         for (const row of selectResult.rows) {
             const cleanedUrl = cleanLinkedInUrl(row[urlColumn]);
             
             if (!cleanedUrl) {
-                logger.warn(`Skipping ${tableName} id ${row[idColumn]}: cleanLinkedInUrl returned null for: ${row[urlColumn]}`);
+                logger.warn(`Skipping ${tableName} id ${row[idColumn]}: cleanLinkedInUrl returned null`);
                 skipped++;
                 continue;
             }
@@ -295,9 +278,8 @@ async function executeMigration(client, tableName, urlColumn, idColumn) {
                     `, [cleanedUrl, row[idColumn]]);
                     updated++;
                 } catch (err) {
-                    logger.error(`Error updating ${tableName} id ${row[idColumn]}:`, err.message);
+                    logger.error(`Error updating ${tableName} id ${row[idColumn]}: ${err.message}`);
                     errors++;
-                    // Continue with next row instead of throwing
                 }
             } else {
                 skipped++;
@@ -307,6 +289,7 @@ async function executeMigration(client, tableName, urlColumn, idColumn) {
         return {
             table: tableName,
             totalRows: selectResult.rows.length,
+            duplicatesRemoved: duplicatesRemoved,
             updated: updated,
             skipped: skipped,
             errors: errors
