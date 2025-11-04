@@ -49,6 +49,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                 ml.sent_date,
                 ml.reply_date,
                 ml.target_profile_url as linkedinUrl,
+                -- Get full profile data from target_profiles to extract lastName
+                tp.data_json,
                 -- FIXED: Only show email if THIS user requested it
                 CASE 
                     WHEN er.user_id IS NOT NULL THEN tp.email_found
@@ -69,31 +71,45 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
 
-        const messages = result.rows.map(row => ({
-            id: row.id,
-            targetProfile: {
-                firstName: row["targetProfile.firstName"] || 'Unknown',
-                role: row["targetProfile.role"] || 'Professional', 
-                company: row["targetProfile.company"] || 'Company',
-                linkedinUrl: row.linkedinUrl
-            },
-            message: row.message || '',
-            editedMessage: row.edited_message,
-            editedAt: row.edited_at,
-            editCount: row.edit_count || 0,
-            message_type: row.message_type,
-            context: row.context || 'No context available',
-            sent: row.sent,
-            gotReply: row.gotReply,
-            comments: row.comments,
-            createdAt: row.created_at,
-            sentDate: row.sent_date,
-            replyDate: row.reply_date,
-            // FIXED: Include email data from target_profiles
-            emailFound: row.email_found,
-            emailStatus: row.email_status,
-            emailVerifiedAt: row.email_verified_at
-        }));
+        const messages = result.rows.map(row => {
+            // Parse data_json to extract lastName if available
+            let lastName = '';
+            if (row.data_json) {
+                try {
+                    const profileData = typeof row.data_json === 'string' ? JSON.parse(row.data_json) : row.data_json;
+                    lastName = profileData.lastName || profileData.last_name || '';
+                } catch (e) {
+                    // If parsing fails, lastName stays empty
+                }
+            }
+            
+            return {
+                id: row.id,
+                targetProfile: {
+                    firstName: row["targetProfile.firstName"] || 'Unknown',
+                    lastName: lastName,
+                    role: row["targetProfile.role"] || 'Professional', 
+                    company: row["targetProfile.company"] || 'Company',
+                    linkedinUrl: row.linkedinUrl
+                },
+                message: row.message || '',
+                editedMessage: row.edited_message,
+                editedAt: row.edited_at,
+                editCount: row.edit_count || 0,
+                message_type: row.message_type,
+                context: row.context || 'No context available',
+                sent: row.sent,
+                gotReply: row.gotReply,
+                comments: row.comments,
+                createdAt: row.created_at,
+                sentDate: row.sent_date,
+                replyDate: row.reply_date,
+                // FIXED: Include email data from target_profiles
+                emailFound: row.email_found,
+                emailStatus: row.email_status,
+                emailVerifiedAt: row.email_verified_at
+            };
+        });
 
         res.json({
             success: true,
