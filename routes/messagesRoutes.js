@@ -72,24 +72,54 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
         `, [req.user.id]);
 
         const messages = result.rows.map(row => {
-            // Parse data_json to extract lastName if available
+            // Start with data from message_logs as fallback
+            let firstName = row["targetProfile.firstName"] || 'Unknown';
             let lastName = '';
+            let role = row["targetProfile.role"] || 'Professional';
+            let company = row["targetProfile.company"] || 'Company';
+            
+            // Override with complete data from target_profiles.data_json if available
             if (row.data_json) {
                 try {
                     const profileData = typeof row.data_json === 'string' ? JSON.parse(row.data_json) : row.data_json;
-                    lastName = profileData.lastName || profileData.last_name || '';
+                    
+                    // Extract data from the correct structure: data.profile and data.experience
+                    if (profileData.data && profileData.data.profile) {
+                        const profile = profileData.data.profile;
+                        
+                        // Split full name into first and last name
+                        if (profile.name) {
+                            const nameParts = profile.name.trim().split(' ');
+                            firstName = nameParts[0] || firstName;
+                            lastName = nameParts.slice(1).join(' ') || '';
+                        }
+                        
+                        // Get headline/title
+                        if (profile.headline) {
+                            role = profile.headline;
+                        }
+                    }
+                    
+                    // Get current company from experience[0]
+                    if (profileData.data && profileData.data.experience && profileData.data.experience.length > 0) {
+                        const currentJob = profileData.data.experience[0];
+                        if (currentJob.company) {
+                            company = currentJob.company;
+                        }
+                    }
+                    
                 } catch (e) {
-                    // If parsing fails, lastName stays empty
+                    // If JSON parsing fails, use message_logs data as fallback
                 }
             }
             
             return {
                 id: row.id,
                 targetProfile: {
-                    firstName: row["targetProfile.firstName"] || 'Unknown',
+                    firstName: firstName,
                     lastName: lastName,
-                    role: row["targetProfile.role"] || 'Professional', 
-                    company: row["targetProfile.company"] || 'Company',
+                    role: role, 
+                    company: company,
                     linkedinUrl: row.linkedinUrl
                 },
                 message: row.message || '',
