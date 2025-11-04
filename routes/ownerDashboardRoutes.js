@@ -746,8 +746,6 @@ async function getContextMetrics(dateRange) {
             logger.warn('Context usage by plan query failed:', error.message);
         }
 
-        const addons = addonsResult.rows[0];
-
         return {
             newContextsSaved: contextsCount,
             contextAddonsPurchased: parseInt(addons.count || 0),
