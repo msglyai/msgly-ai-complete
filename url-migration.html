@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Migration Dashboard - Msgly.AI Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-verify {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-dry-run {
+            background: #ed8936;
+            color: white;
+        }
+
+        .btn-execute {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-execute:hover {
+            background: #38a169;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .results h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .table-result {
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            background: #f7fafc;
+            padding: 15px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-body {
+            padding: 15px;
+        }
+
+        .stat-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #666;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-clean {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-needs-cleaning {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .example {
+            background: #f7fafc;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .example-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .url-text {
+            color: #666;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 5px;
+            border-radius: 4px;
+            margin-top: 3px;
+        }
+
+        .warning {
+            background: #fff5f5;
+            border: 2px solid #fc8181;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .warning h3 {
+            color: #c53030;
+            margin-bottom: 10px;
+        }
+
+        .success {
+            background: #f0fff4;
+            border: 2px solid #48bb78;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .success h3 {
+            color: #22543d;
+            margin-bottom: 10px;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .summary-card {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .summary-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 LinkedIn URL Migration Dashboard</h1>
+            <p class="subtitle">Clean and normalize all LinkedIn URLs across the entire database</p>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-verify" onclick="verifyUrls()">
+                📊 Step 1: Verify Current State
+            </button>
+            <button class="btn btn-dry-run" onclick="dryRun()">
+                🔍 Step 2: Preview Changes (Dry Run)
+            </button>
+            <button class="btn btn-execute" onclick="executeConfirm()">
+                ✅ Step 3: Execute Migration
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">Loading...</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let authPassword = null;
+
+        // Prompt for password on first action
+        function getPassword() {
+            if (!authPassword) {
+                authPassword = prompt('Enter migration password:');
+                if (!authPassword) {
+                    alert('Password required to proceed');
+                    return null;
+                }
+            }
+            return authPassword;
+        }
+
+        async function verifyUrls() {
+            const password = getPassword();
+            if (!password) return;
+
+            showLoading('Analyzing database...');
+            
+            try {
+                const response = await fetch('/api/admin/verify-urls', {
+                    headers: {
+                        'Authorization': `Bearer ${password}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.needsAuth || response.status === 401) {
+                    authPassword = null;
+                    alert('Password required. Please try again.');
+                    return verifyUrls();
+                }
+                
+                if (response.status === 403) {
+                    authPassword = null;
+                    alert('Invalid password. Please try again.');
+                    return verifyUrls();
+                }
+                
+                if (data.success) {
+                    displayVerification(data.verification);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function dryRun() {
+            const password = getPassword();
+            if (!password) return;
+
+            showLoading('Calculating changes (no changes will be made)...');
+            
+            try {
+                const response = await fetch('/api/admin/migrate-urls-dry-run', {
+                    headers: {
+                        'Authorization': `Bearer ${password}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.needsAuth || response.status === 401) {
+                    authPassword = null;
+                    alert('Password required. Please try again.');
+                    return dryRun();
+                }
+                
+                if (response.status === 403) {
+                    authPassword = null;
+                    alert('Invalid password. Please try again.');
+                    return dryRun();
+                }
+                
+                if (data.success) {
+                    displayDryRun(data.dryRun);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function executeConfirm() {
+            const confirmed = confirm(
+                '⚠️ WARNING: This will modify your database!\n\n' +
+                'This action will:\n' +
+                '• Clean all LinkedIn URLs to standard format\n' +
+                '• Update multiple tables\n' +
+                '• Cannot be undone\n\n' +
+                'Make sure you have run "Preview Changes" first!\n\n' +
+                'Do you want to proceed?'
+            );
+            
+            if (confirmed) {
+                executeMigration();
+            }
+        }
+
+        async function executeMigration() {
+            const password = getPassword();
+            if (!password) return;
+
+            showLoading('Executing migration... Please wait...');
+            
+            try {
+                const response = await fetch('/api/admin/migrate-urls-execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${password}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.needsAuth || response.status === 401) {
+                    authPassword = null;
+                    alert('Password required. Please try again.');
+                    return executeMigration();
+                }
+                
+                if (response.status === 403) {
+                    authPassword = null;
+                    alert('Invalid password. Please try again.');
+                    return executeMigration();
+                }
+                
+                if (data.success) {
+                    displayResults(data.results);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('active');
+        }
+
+        function displayVerification(verification) {
+            let html = '<h2>📊 Current Database State</h2>';
+            
+            let totalNeedsCleaning = 0;
+            let totalRows = 0;
+            
+            for (const [table, data] of Object.entries(verification)) {
+                if (data.error) {
+                    continue;
+                }
+                
+                totalNeedsCleaning += data.needsCleaning;
+                totalRows += data.totalRows;
+                
+                const statusClass = data.status === 'clean' ? 'status-clean' : 'status-needs-cleaning';
+                const statusText = data.status === 'clean' ? '✅ Clean' : '⚠️ Needs Cleaning';
+                
+                html += `
+                    <div class="table-result">
+                        <div class="table-header">
+                            <span>${table}</span>
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="table-body">
+                            <div class="stat-row">
+                                <span class="stat-label">Total Rows:</span>
+                                <span class="stat-value">${data.totalRows}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Needs Cleaning:</span>
+                                <span class="stat-value">${data.needsCleaning}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">With Protocol (https://):</span>
+                                <span class="stat-value">${data.withProtocol}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">With www.:</span>
+                                <span class="stat-value">${data.withWww}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">With Query Params (?trk=...):</span>
+                                <span class="stat-value">${data.withQueryParams}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">With Trailing Slash (/):</span>
+                                <span class="stat-value">${data.withTrailingSlash}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="summary">
+                    <div class="summary-card">
+                        <div class="summary-value">${totalRows}</div>
+                        <div class="summary-label">Total Rows</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value">${totalNeedsCleaning}</div>
+                        <div class="summary-label">Need Cleaning</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value">${Math.round((totalNeedsCleaning / totalRows) * 100)}%</div>
+                        <div class="summary-label">Affected</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('results').innerHTML = html;
+            document.getElementById('results').classList.add('active');
+        }
+
+        function displayDryRun(dryRun) {
+            let html = '<h2>🔍 Preview of Changes (Dry Run)</h2>';
+            html += '<div class="warning"><h3>⚠️ No Changes Made Yet</h3><p>This is a preview only. Click "Execute Migration" to apply these changes.</p></div>';
+            
+            let totalWillUpdate = 0;
+            
+            for (const [table, data] of Object.entries(dryRun)) {
+                if (data.error) {
+                    continue;
+                }
+                
+                totalWillUpdate += data.willUpdate;
+                
+                html += `
+                    <div class="table-result">
+                        <div class="table-header">
+                            <span>${table}</span>
+                            <span class="status-badge status-needs-cleaning">${data.willUpdate} rows will be updated</span>
+                        </div>
+                        <div class="table-body">
+                `;
+                
+                if (data.examples && data.examples.length > 0) {
+                    html += '<p style="margin-bottom: 10px; font-weight: 600;">Example Changes:</p>';
+                    data.examples.forEach((example, index) => {
+                        html += `
+                            <div class="example">
+                                <div class="example-label">Example ${index + 1} (ID: ${example.id})</div>
+                                <div style="margin-left: 10px;">
+                                    <div><strong>Before:</strong><div class="url-text">${example.before}</div></div>
+                                    <div style="margin-top: 5px;"><strong>After:</strong><div class="url-text">${example.after}</div></div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="summary">
+                    <div class="summary-card">
+                        <div class="summary-value">${totalWillUpdate}</div>
+                        <div class="summary-label">Total Rows Will Update</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('results').innerHTML = html;
+            document.getElementById('results').classList.add('active');
+        }
+
+        function displayResults(results) {
+            let html = '<h2>✅ Migration Completed!</h2>';
+            html += '<div class="success"><h3>✅ Database Updated Successfully</h3><p>All LinkedIn URLs have been cleaned and normalized.</p></div>';
+            
+            let totalUpdated = 0;
+            let totalErrors = 0;
+            
+            for (const [table, data] of Object.entries(results)) {
+                totalUpdated += data.updated;
+                totalErrors += data.errors;
+                
+                html += `
+                    <div class="table-result">
+                        <div class="table-header">
+                            <span>${table}</span>
+                            <span class="status-badge status-clean">✅ Complete</span>
+                        </div>
+                        <div class="table-body">
+                            <div class="stat-row">
+                                <span class="stat-label">Total Rows:</span>
+                                <span class="stat-value">${data.totalRows}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Updated:</span>
+                                <span class="stat-value" style="color: #48bb78;">${data.updated}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Skipped (Already Clean):</span>
+                                <span class="stat-value">${data.skipped}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Errors:</span>
+                                <span class="stat-value" style="color: ${data.errors > 0 ? '#c53030' : '#666'};">${data.errors}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="summary">
+                    <div class="summary-card">
+                        <div class="summary-value">${totalUpdated}</div>
+                        <div class="summary-label">Total Updated</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value">${totalErrors}</div>
+                        <div class="summary-label">Errors</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('results').innerHTML = html;
+            document.getElementById('results').classList.add('active');
+        }
+    </script>
+</body>
+</html>
