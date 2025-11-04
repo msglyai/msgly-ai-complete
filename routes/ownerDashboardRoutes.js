@@ -540,20 +540,30 @@ async function getActivityMetrics(dateRange) {
             WHERE created_at BETWEEN $1 AND $2
         `, [dateRange.start, dateRange.end]);
 
-        // Web generated messages by type (with error handling)
+        // Messages by type from message_logs (with proper type mapping)
         let webMessagesResult = { rows: [] };
         try {
             webMessagesResult = await pool.query(`
                 SELECT 
-                    message_type,
+                    CASE 
+                        WHEN message_type IS NULL OR message_type = 'message' OR message_type = 'linkedin_message' THEN 'linkedin_message'
+                        WHEN message_type = 'connection_request' OR LOWER(message_type) LIKE '%connection%' THEN 'connection_request'
+                        WHEN message_type = 'cold_email' OR LOWER(message_type) LIKE '%email%' THEN 'cold_email'
+                        ELSE 'linkedin_message'
+                    END as message_type,
                     COUNT(*) as count
-                FROM web_generated_messages
+                FROM message_logs
                 WHERE created_at BETWEEN $1 AND $2
-                GROUP BY message_type
+                    AND message_type IS NOT NULL
+                GROUP BY CASE 
+                    WHEN message_type IS NULL OR message_type = 'message' OR message_type = 'linkedin_message' THEN 'linkedin_message'
+                    WHEN message_type = 'connection_request' OR LOWER(message_type) LIKE '%connection%' THEN 'connection_request'
+                    WHEN message_type = 'cold_email' OR LOWER(message_type) LIKE '%email%' THEN 'cold_email'
+                    ELSE 'linkedin_message'
+                END
             `, [dateRange.start, dateRange.end]);
         } catch (error) {
-            // Table might not exist yet, that's okay
-            logger.warn('web_generated_messages table query failed:', error.message);
+            logger.warn('message_logs type query failed:', error.message);
         }
 
         // Average tokens per message
