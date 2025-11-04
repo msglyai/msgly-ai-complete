@@ -56,15 +56,27 @@ const ownerAuth = (req, res, next) => {
         });
     }
     
-    if (email !== OWNER_EMAIL || password !== OWNER_PASSWORD) {
-        logger.warn('Failed owner login attempt:', email);
+    // Trim whitespace from credentials and env vars
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedOwnerEmail = OWNER_EMAIL.trim();
+    const trimmedOwnerPassword = OWNER_PASSWORD.trim();
+    
+    // Debug logging (only in development)
+    if (process.env.NODE_ENV === 'development') {
+        logger.debug('Auth attempt - Email match:', trimmedEmail === trimmedOwnerEmail);
+        logger.debug('Auth attempt - Password match:', trimmedPassword === trimmedOwnerPassword);
+    }
+    
+    if (trimmedEmail !== trimmedOwnerEmail || trimmedPassword !== trimmedOwnerPassword) {
+        logger.warn('Failed owner login attempt:', trimmedEmail);
         return res.status(403).json({
             success: false,
             error: 'Invalid credentials'
         });
     }
     
-    logger.debug('Owner authenticated successfully:', email);
+    logger.debug('Owner authenticated successfully:', trimmedEmail);
     next();
 };
 
