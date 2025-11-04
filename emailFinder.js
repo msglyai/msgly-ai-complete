@@ -4,12 +4,13 @@
 // Enhanced with target_profiles persistence - ONE email per profile
 // SEPARATED: Verification moved to emailVerifier.js (but awaited before returning)
 // NEW: email_requests table tracks which users requested email
-// Version: 1.3.1 - FIXED: URL normalization + ALWAYS update DB regardless of Snov.io result
+// Version: 1.3.0 - Per-user visibility + charge for not_found + await verification
 
 const { pool } = require('./utils/database');
 const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits } = require('./credits');
 const logger = require('./utils/logger');
 const axios = require('axios');
+const { cleanLinkedInUrl } = require('./utils/helpers'); // âœ… ADDED: Import URL cleaning function
 
 class EmailFinder {
     constructor() {
@@ -64,39 +65,20 @@ class EmailFinder {
         }
     }
 
-    // NEW: Normalize LinkedIn URL - handle all variations (https, www, trailing slash)
-    normalizeLinkedInUrl(url) {
-        if (!url) return url;
-        
-        // Remove trailing slash
-        let normalized = url.replace(/\/$/, '');
-        
-        // Remove protocol (http:// or https://)
-        normalized = normalized.replace(/^https?:\/\//, '');
-        
-        // Remove www.
-        normalized = normalized.replace(/^www\./, '');
-        
-        return normalized;
-    }
-
-    // NEW: UNIFIED function to save email results to target_profiles (handles ALL cases)
-    // This function ALWAYS updates the database regardless of whether email was found or not
-    async saveEmailResultToTargetProfiles(linkedinUrl, email, status, userId) {
+    // FIXED: Save ONLY email to target_profiles (ONLY UPDATE existing records by linkedin_url)
+    async saveEmailToTargetProfiles(linkedinUrl, email, userId) {
         try {
-            // Normalize URL for consistent matching
-            const normalizedUrl = this.normalizeLinkedInUrl(linkedinUrl);
-            logger.info(`[EMAIL_FINDER] Saving result to target_profiles - URL: ${normalizedUrl}, Email: ${email || 'N/A'}, Status: ${status}`);
+            logger.info(`[EMAIL_FINDER] Saving email to target_profiles - URL: ${linkedinUrl}, Email: ${email}`);
             
-            // FIXED: Check if record exists with flexible URL matching (with or without trailing slash)
+            // FIXED: Check if record exists (by linkedin_url ONLY - shared across all users)
             const existingProfile = await pool.query(`
                 SELECT id FROM target_profiles 
-                WHERE linkedin_url = $1 OR linkedin_url = $2
-            `, [normalizedUrl, normalizedUrl + '/']);
+                WHERE linkedin_url = $1
+            `, [linkedinUrl]);
 
             if (existingProfile.rows.length === 0) {
                 // Record doesn't exist - should have been created by Chrome extension
-                logger.error(`[EMAIL_FINDER] ❌ No target_profile found for ${normalizedUrl}`);
+                logger.error(`[EMAIL_FINDER] ❌ No target_profile found for ${linkedinUrl}`);
                 return {
                     success: false,
                     error: 'profile_not_found',
@@ -104,26 +86,22 @@ class EmailFinder {
                 };
             }
             
-            // FIXED: Update existing record with flexible URL matching
-            // ALWAYS set email_status and email_verified_at
-            // Set email_found only if email is provided (COALESCE handles NULL properly)
+            // FIXED: Update existing record - ONLY by linkedin_url (updates shared record for ALL users)
             const result = await pool.query(`
                 UPDATE target_profiles 
                 SET 
-                    email_found = COALESCE($1, email_found),
-                    email_status = $2,
-                    email_verified_at = CURRENT_TIMESTAMP,
+                    email_found = $1,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE linkedin_url = $3 OR linkedin_url = $4
-                RETURNING id, email_found, email_status
-            `, [email, status, normalizedUrl, normalizedUrl + '/']);
+                WHERE linkedin_url = $2
+                RETURNING id, email_found
+            `, [email, linkedinUrl]);
             
-            logger.success(`[EMAIL_FINDER] ✅ Updated target_profile:`, result.rows[0]);
+            logger.success(`[EMAIL_FINDER] ✅ Updated target_profile (email only):`, result.rows[0]);
 
             return {
                 success: true,
                 data: result.rows[0],
-                message: 'Email result saved to target_profiles successfully'
+                message: 'Email saved to target_profiles successfully'
             };
 
         } catch (error) {
@@ -131,7 +109,7 @@ class EmailFinder {
             return {
                 success: false,
                 error: error.message,
-                message: 'Failed to save email result to target_profiles'
+                message: 'Failed to save email to target_profiles'
             };
         }
     }
@@ -139,7 +117,8 @@ class EmailFinder {
     // NEW: Mark user as requested (add to email_requests table)
     async markUserRequested(userId, linkedinUrl) {
         try {
-            logger.info(`[EMAIL_FINDER] 🔍 Marking user ${userId} as requested for ${linkedinUrl}`);
+            const cleanUrl = cleanLinkedInUrl(linkedinUrl); // âœ… ADDED: Clean URL before saving
+            logger.info(`[EMAIL_FINDER] 📝 Marking user ${userId} as requested for ${cleanUrl}`);
             
             // Insert or update email_requests (UPSERT)
             await pool.query(`
@@ -147,7 +126,7 @@ class EmailFinder {
                 VALUES ($1, $2, CURRENT_TIMESTAMP)
                 ON CONFLICT (user_id, linkedin_url) 
                 DO UPDATE SET requested_at = CURRENT_TIMESTAMP
-            `, [userId, linkedinUrl]);
+            `, [userId, cleanUrl]); // âœ… FIXED: Use cleanUrl instead of linkedinUrl
             
             logger.success(`[EMAIL_FINDER] ✅ User ${userId} marked as requested`);
             return { success: true };
@@ -222,11 +201,10 @@ class EmailFinder {
                 const emailResult = await this.findEmailWithSnovV1(linkedinUrl);
 
                 if (emailResult.success && emailResult.email) {
-                    // FIXED: Save email with status using unified function
-                    const saveResult = await this.saveEmailResultToTargetProfiles(
+                    // FIXED: Save ONLY email (no status)
+                    const saveResult = await this.saveEmailToTargetProfiles(
                         linkedinUrl, 
-                        emailResult.email,
-                        'found', // Status when email is found
+                        emailResult.email, 
                         userId
                     );
                     logger.debug(`[EMAIL_FINDER] Save result:`, saveResult);
@@ -268,23 +246,13 @@ class EmailFinder {
                     };
 
                 } else {
-                    // FIXED: Not found = Save not_found status + Charge 2 credits + mark user as requested
-                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found - saving not_found status and charging credits`);
-                    
-                    // NEW: Save not_found status to target_profiles using unified function
-                    const saveResult = await this.saveEmailResultToTargetProfiles(
-                        linkedinUrl,
-                        null, // No email
-                        'not_found', // Status
-                        userId
-                    );
-                    logger.debug(`[EMAIL_FINDER] Save not_found result:`, saveResult);
+                    // FIXED: Not found = Charge 2 credits + mark user as requested (no status save)
+                    logger.info(`[EMAIL_FINDER] ⚠️ Email not found - charging credits and marking user as requested`);
                     
                     // Charge credits (user paid for search even if not found)
                     const paymentResult = await completeOperation(userId, holdId, {
                         status: 'not_found',
-                        message: 'Search completed - no email found',
-                        saved: saveResult.success
+                        message: 'Search completed - no email found'
                     });
                     
                     // NEW: Mark user as requested (user paid, user can see "not found")
@@ -298,8 +266,7 @@ class EmailFinder {
                         status: 'not_found',
                         creditsCharged: this.costPerSuccess,
                         newBalance: paymentResult.newBalance,
-                        message: 'Search completed - no email found for this LinkedIn profile',
-                        saved: saveResult.success
+                        message: 'Search completed - no email found for this LinkedIn profile'
                     };
                 }
 
@@ -314,7 +281,7 @@ class EmailFinder {
                 return {
                     success: false,
                     error: 'processing_error',
-                    message: 'Failed to process email search. Please try again.',
+                    message: 'Temporary issue finding email. Please try again.',
                     creditsCharged: 0,
                     errorDetails: processingError.message
                 };
@@ -337,7 +304,7 @@ class EmailFinder {
         logger.info(`[EMAIL_FINDER] LinkedIn URL: ${linkedinUrl}`);
         
         // Get access token (will throw if fails)
-        logger.info('[EMAIL_FINDER] 🔑 Step 0: Getting Snov.io access token...');
+        logger.info('[EMAIL_FINDER] 📝 Step 0: Getting Snov.io access token...');
         const accessToken = await this.getSnovAccessToken();
         logger.success('[EMAIL_FINDER] ✅ Access token retrieved');
         
