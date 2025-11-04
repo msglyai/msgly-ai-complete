@@ -6,6 +6,7 @@ const router = express.Router();
 const { pool, spendUserCredits } = require('../utils/database');
 const brightDataService = require('../services/brightDataService');
 const webMessageGPTService = require('../services/webMessageGPTService');
+const { cleanLinkedInUrl } = require('../utils/helpers'); // âœ… ADDED: Import URL cleaning function
 
 /**
  * POST /api/web-message-generator/analyze-profile
@@ -59,6 +60,8 @@ router.post('/analyze-profile', async (req, res) => {
         // Get profile from BrightData
         const { snapshotId, profileData } = await brightDataService.getLinkedInProfile(linkedinUrl);
         
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl); // âœ… ADDED: Clean URL before saving
+        
         // Store in database
         const insertResult = await pool.query(
             `INSERT INTO brightdata_profiles (user_id, linkedin_url, profile_data, snapshot_id)
@@ -69,7 +72,7 @@ router.post('/analyze-profile', async (req, res) => {
                 snapshot_id = EXCLUDED.snapshot_id,
                 updated_at = CURRENT_TIMESTAMP
              RETURNING *`,
-            [userId, linkedinUrl, JSON.stringify(profileData), snapshotId]
+            [userId, cleanUrl, JSON.stringify(profileData), snapshotId] // âœ… FIXED: Use cleanUrl
         );
         
         const savedProfile = insertResult.rows[0];
