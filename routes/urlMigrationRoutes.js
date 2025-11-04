@@ -130,6 +130,119 @@ router.post('/api/admin/migrate-urls-execute', checkMigrationAuth, async (req, r
     }
 });
 
+// NEW: Force cleanup endpoint - Uses SQL directly for bulletproof cleaning
+router.post('/api/admin/force-cleanup-target-profiles', checkMigrationAuth, async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        logger.info('FORCE CLEANUP: Starting target_profiles cleanup');
+        
+        await client.query('BEGIN');
+        
+        // Step 1: Find duplicates
+        const duplicatesQuery = `
+            SELECT 
+                tp1.id as keep_id,
+                tp2.id as delete_id,
+                tp1.user_id,
+                tp1.linkedin_url as keep_url,
+                tp2.linkedin_url as delete_url
+            FROM target_profiles tp1
+            JOIN target_profiles tp2 ON (
+                tp1.user_id = tp2.user_id 
+                AND tp1.id < tp2.id
+                AND (
+                    tp1.linkedin_url = tp2.linkedin_url
+                    OR
+                    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+                        tp1.linkedin_url, '^https?://(www\\.)?', ''), '\\?.*$', ''), '#.*$', ''), '/$', '')) 
+                    = 
+                    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+                        tp2.linkedin_url, '^https?://(www\\.)?', ''), '\\?.*$', ''), '#.*$', ''), '/$', ''))
+                )
+            )
+        `;
+        
+        const duplicatesResult = await client.query(duplicatesQuery);
+        logger.info(`Found ${duplicatesResult.rows.length} duplicates`);
+        
+        // Step 2: Delete duplicates
+        let deletedCount = 0;
+        if (duplicatesResult.rows.length > 0) {
+            const deleteIds = duplicatesResult.rows.map(row => row.delete_id);
+            const deleteQuery = `DELETE FROM target_profiles WHERE id = ANY($1)`;
+            const deleteResult = await client.query(deleteQuery, [deleteIds]);
+            deletedCount = deleteResult.rowCount;
+            logger.info(`Deleted ${deletedCount} duplicate rows`);
+        }
+        
+        // Step 3: Clean URLs using SQL directly
+        const cleanQuery = `
+            UPDATE target_profiles
+            SET linkedin_url = LOWER(
+                REGEXP_REPLACE(
+                    REGEXP_REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(
+                                linkedin_url, '^https?://(www\\.)?', ''
+                            ), '\\?.*$', ''
+                        ), '#.*$', ''
+                    ), '/$', ''
+                )
+            )
+            WHERE linkedin_url IS NOT NULL
+            AND (
+                linkedin_url LIKE 'https://%' 
+                OR linkedin_url LIKE 'http://%'
+                OR linkedin_url LIKE '%www.%'
+                OR linkedin_url LIKE '%?%'
+                OR linkedin_url LIKE '%/'
+            )
+        `;
+        
+        const cleanResult = await client.query(cleanQuery);
+        logger.info(`Cleaned ${cleanResult.rowCount} URLs`);
+        
+        // Step 4: Verify
+        const verifyQuery = `
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN linkedin_url LIKE 'https://%' OR linkedin_url LIKE 'http://%' THEN 1 END) as with_protocol,
+                COUNT(CASE WHEN linkedin_url LIKE '%www.%' THEN 1 END) as with_www
+            FROM target_profiles
+            WHERE linkedin_url IS NOT NULL
+        `;
+        
+        const verifyResult = await client.query(verifyQuery);
+        const verification = verifyResult.rows[0];
+        
+        await client.query('COMMIT');
+        
+        logger.info('FORCE CLEANUP: Completed successfully');
+        
+        res.json({
+            success: true,
+            duplicatesRemoved: deletedCount,
+            urlsCleaned: cleanResult.rowCount,
+            verification: {
+                total: parseInt(verification.total),
+                stillNeedsCleaning: parseInt(verification.with_protocol) + parseInt(verification.with_www)
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logger.error('FORCE CLEANUP error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    } finally {
+        client.release();
+    }
+});
+
 // Helper functions
 async function verifyTableUrls(tableName, urlColumn) {
     try {
