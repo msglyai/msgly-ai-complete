@@ -10,6 +10,7 @@ const { createCreditHold, completeOperation, releaseCreditHold, checkUserCredits
 const logger = require('./utils/logger');
 const axios = require('axios');
 const { verifyEmailForUrlFinder } = require('./urlEmailVerifier');
+const { cleanLinkedInUrl } = require('./utils/helpers'); // âœ… ADDED: Import URL cleaning function
 
 class EmailFinderForPage {
     constructor() {
@@ -66,7 +67,8 @@ class EmailFinderForPage {
     // Save complete profile data to email_finder_searches table
     async saveToEmailFinderSearches(userId, linkedinUrl, profileData) {
         try {
-            logger.info(`[EMAIL_FINDER_PAGE] Saving to email_finder_searches - URL: ${linkedinUrl}`);
+            const cleanUrl = cleanLinkedInUrl(linkedinUrl); // âœ… ADDED: Clean URL before saving
+            logger.info(`[EMAIL_FINDER_PAGE] Saving to email_finder_searches - URL: ${cleanUrl}`);
             
             const result = await pool.query(`
                 INSERT INTO email_finder_searches (
@@ -85,7 +87,7 @@ class EmailFinderForPage {
                 RETURNING id, full_name, job_title, company, email, verification_status
             `, [
                 userId,
-                linkedinUrl,
+                cleanUrl, // âœ… FIXED: Use cleanUrl instead of linkedinUrl
                 profileData.fullName || null,
                 profileData.firstName || null,
                 profileData.lastName || null,
