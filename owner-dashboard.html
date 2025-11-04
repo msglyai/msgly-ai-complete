@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Msgly.AI - Owner Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .login-container h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .dashboard-container {
+            display: none;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 32px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .filters {
+            background: white;
+            border-radius: 16px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .filter-btn:hover {
+            border-color: #667eea;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .stat-title {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .stat-icon {
+            font-size: 24px;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-change.positive {
+            color: #10b981;
+        }
+
+        .stat-change.negative {
+            color: #ef4444;
+        }
+
+        .stat-change.neutral {
+            color: #6b7280;
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .details-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .detail-group h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .detail-value {
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .logout-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        @media (max-width: 1200px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div class="login-container" id="loginContainer">
+        <h1>🎯 Msgly.AI Owner Dashboard</h1>
+        <div class="error-message" id="loginError"></div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required placeholder="owner@msgly.ai">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="Enter your password">
+            </div>
+            <button type="submit" class="login-btn">Access Dashboard</button>
+        </form>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="dashboard-container" id="dashboardContainer">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>📊 Owner Dashboard</h1>
+                <p style="color: #666; margin-top: 5px;">Real-time business analytics</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+                <button class="btn btn-primary" onclick="exportData()">📥 Export CSV</button>
+                <button class="btn logout-btn" onclick="logout()">🚪 Logout</button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <div class="filter-group">
+                <button class="filter-btn" onclick="setTimeRange('24h')">24 Hours</button>
+                <button class="filter-btn active" onclick="setTimeRange('7days')">7 Days</button>
+                <button class="filter-btn" onclick="setTimeRange('30days')">30 Days</button>
+                <button class="filter-btn" onclick="setTimeRange('thisMonth')">This Month</button>
+                <button class="filter-btn" onclick="setTimeRange('lastMonth')">Last Month</button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading" id="loadingState">
+            <div class="loading-spinner"></div>
+            <div>Loading dashboard data...</div>
+        </div>
+
+        <!-- Main Stats -->
+        <div class="stats-grid" id="statsGrid" style="display: none;"></div>
+
+        <!-- Charts -->
+        <div class="charts-section" id="chartsSection" style="display: none;">
+            <div class="chart-card">
+                <h3 class="chart-title">📈 Daily Activity Trend</h3>
+                <canvas id="activityChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">🥧 Plan Distribution</h3>
+                <canvas id="planChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Detailed Metrics -->
+        <div class="details-section" id="detailsSection" style="display: none;">
+            <div class="details-grid" id="detailsGrid"></div>
+        </div>
+    </div>
+
+    <script>
+        let credentials = null;
+        let currentTimeRange = '7days';
+        let activityChart = null;
+        let planChart = null;
+
+        // Login handling
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                // Test credentials with health check
+                const response = await fetch('/api/owner/health', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (response.ok) {
+                    credentials = { email, password };
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('dashboardContainer').style.display = 'block';
+                    loadDashboard();
+                } else {
+                    showLoginError('Invalid credentials. Please try again.');
+                }
+            } catch (error) {
+                showLoginError('Connection error. Please try again.');
+            }
+        });
+
+        function showLoginError(message) {
+            const errorEl = document.getElementById('loginError');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => {
+                errorEl.style.display = 'none';
+            }, 5000);
+        }
+
+        function logout() {
+            credentials = null;
+            document.getElementById('loginContainer').style.display = 'block';
+            document.getElementById('dashboardContainer').style.display = 'none';
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function setTimeRange(range) {
+            currentTimeRange = range;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            loadDashboard();
+        }
+
+        async function loadDashboard() {
+            document.getElementById('loadingState').style.display = 'block';
+            document.getElementById('statsGrid').style.display = 'none';
+            document.getElementById('chartsSection').style.display = 'none';
+            document.getElementById('detailsSection').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/owner/analytics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...credentials,
+                        timeRange: currentTimeRange
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch analytics');
+                }
+
+                const result = await response.json();
+                renderDashboard(result.data);
+            } catch (error) {
+                alert('Error loading dashboard: ' + error.message);
+            }
+        }
+
+        function renderDashboard(data) {
+            document.getElementById('loadingState').style.display = 'none';
+            
+            renderStats(data);
+            renderCharts(data.charts);
+            renderDetails(data);
+            
+            document.getElementById('statsGrid').style.display = 'grid';
+            document.getElementById('chartsSection').style.display = 'grid';
+            document.getElementById('detailsSection').style.display = 'block';
+        }
+
+        function renderStats(data) {
+            const stats = [
+                {
+                    title: 'Total Users',
+                    value: data.users.totalUsers.toLocaleString(),
+                    change: null,
+                    icon: '👥'
+                },
+                {
+                    title: 'New Users',
+                    value: data.users.newUsers.toLocaleString(),
+                    change: data.users.changes.newUsers,
+                    icon: '🆕'
+                },
+                {
+                    title: 'New Free Users',
+                    value: data.users.newFreeUsers.toLocaleString(),
+                    change: data.users.changes.newFreeUsers,
+                    icon: '🆓'
+                },
+                {
+                    title: 'New Paid Users',
+                    value: (data.users.newPaidMonthly + data.users.newPaidPAYG).toLocaleString(),
+                    change: data.users.changes.newPaidUsers,
+                    icon: '💰'
+                },
+                {
+                    title: 'Active Users',
+                    value: data.users.activeUsers.toLocaleString(),
+                    change: null,
+                    icon: '⚡'
+                },
+                {
+                    title: 'Registration Rate',
+                    value: data.users.registrationRate + '%',
+                    change: null,
+                    icon: '✅'
+                },
+                {
+                    title: 'Profiles Analyzed',
+                    value: data.activity.profilesAnalyzed.toLocaleString(),
+                    change: data.users.changes.profilesAnalyzed,
+                    icon: '🔍'
+                },
+                {
+                    title: 'Messages Generated',
+                    value: data.activity.messagesGenerated.toLocaleString(),
+                    change: data.users.changes.messagesGenerated,
+                    icon: '💬'
+                },
+                {
+                    title: 'LinkedIn Messages',
+                    value: data.activity.linkedinMessages.toLocaleString(),
+                    change: null,
+                    icon: '📨'
+                },
+                {
+                    title: 'Connection Requests',
+                    value: data.activity.connectionRequests.toLocaleString(),
+                    change: null,
+                    icon: '🤝'
+                },
+                {
+                    title: 'Cold Emails',
+                    value: data.activity.coldEmails.toLocaleString(),
+                    change: null,
+                    icon: '📧'
+                },
+                {
+                    title: 'Email Searches',
+                    value: data.email.emailSearches.toLocaleString(),
+                    change: null,
+                    icon: '🔎'
+                },
+                {
+                    title: 'Emails Found',
+                    value: data.email.emailsFound.toLocaleString(),
+                    change: null,
+                    icon: '✉️'
+                },
+                {
+                    title: 'Email Verification Rate',
+                    value: data.email.verificationRate + '%',
+                    change: null,
+                    icon: '✔️'
+                },
+                {
+                    title: 'Plan Upgrades',
+                    value: data.plans.upgrades.toLocaleString(),
+                    change: null,
+                    icon: '📈'
+                },
+                {
+                    title: 'Cancellations',
+                    value: data.plans.cancellations.toLocaleString(),
+                    change: null,
+                    icon: '📉'
+                }
+            ];
+
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = stats.map(stat => createStatCard(stat)).join('');
+        }
+
+        function createStatCard(stat) {
+            let changeHTML = '';
+            if (stat.change !== null) {
+                const changeClass = stat.change > 0 ? 'positive' : stat.change < 0 ? 'negative' : 'neutral';
+                const changeIcon = stat.change > 0 ? '↑' : stat.change < 0 ? '↓' : '→';
+                changeHTML = `<div class="stat-change ${changeClass}">${changeIcon} ${Math.abs(stat.change)}% vs previous period</div>`;
+            }
+
+            return `
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">${stat.title}</div>
+                        <div class="stat-icon">${stat.icon}</div>
+                    </div>
+                    <div class="stat-value">${stat.value}</div>
+                    ${changeHTML}
+                </div>
+            `;
+        }
+
+        function renderCharts(chartData) {
+            // Activity Chart
+            const activityCtx = document.getElementById('activityChart').getContext('2d');
+            if (activityChart) activityChart.destroy();
+            
+            activityChart = new Chart(activityCtx, {
+                type: 'line',
+                data: {
+                    labels: chartData.dailyActivity.labels,
+                    datasets: [
+                        {
+                            label: 'New Users',
+                            data: chartData.dailyActivity.newUsers,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Messages',
+                            data: chartData.dailyActivity.messages,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Profiles',
+                            data: chartData.dailyActivity.profiles,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Plan Distribution Chart
+            const planCtx = document.getElementById('planChart').getContext('2d');
+            if (planChart) planChart.destroy();
+            
+            const planColors = {
+                'Free': '#94a3b8',
+                'Silver': '#c0c0c0',
+                'Gold': '#fbbf24',
+                'Platinum': '#818cf8'
+            };
+
+            planChart = new Chart(planCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: chartData.planDistribution.map(p => p.label),
+                    datasets: [{
+                        data: chartData.planDistribution.map(p => p.value),
+                        backgroundColor: chartData.planDistribution.map(p => planColors[p.label] || '#667eea'),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDetails(data) {
+            const detailsHTML = `
+                <div class="detail-group">
+                    <h3>💳 Subscription Details</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Active Chargebee Subs</span>
+                        <span class="detail-value">${data.plans.activeChargebeeSubscriptions}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Plan Upgrades</span>
+                        <span class="detail-value">${data.plans.upgrades}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cancellations</span>
+                        <span class="detail-value">${data.plans.cancellations}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Downgrades</span>
+                        <span class="detail-value">${data.plans.downgrades}</span>
+                    </div>
+                </div>
+
+                <div class="detail-group">
+                    <h3>🎯 User Breakdown</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Silver Users</span>
+                        <span class="detail-value">${data.users.newSilverUsers}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Gold Users</span>
+                        <span class="detail-value">${data.users.newGoldUsers}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Platinum Users</span>
+                        <span class="detail-value">${data.users.newPlatinumUsers}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Monthly Subscribers</span>
+                        <span class="detail-value">${data.users.newPaidMonthly}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">PAYG Purchases</span>
+                        <span class="detail-value">${data.users.newPaidPAYG}</span>
+                    </div>
+                </div>
+
+                <div class="detail-group">
+                    <h3>💳 Credit System</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Total Renewable</span>
+                        <span class="detail-value">${data.credits.totalRenewableCredits.toLocaleString()}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Total PAYG</span>
+                        <span class="detail-value">${data.credits.totalPAYGCredits.toLocaleString()}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Total Remaining</span>
+                        <span class="detail-value">${data.credits.totalRemainingCredits.toLocaleString()}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Credits Used (Period)</span>
+                        <span class="detail-value">${data.credits.creditsUsedInPeriod.toFixed(1)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Avg per User</span>
+                        <span class="detail-value">${data.credits.avgCreditsPerUser}</span>
+                    </div>
+                </div>
+
+                <div class="detail-group">
+                    <h3>📝 Context Management</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">New Contexts Saved</span>
+                        <span class="detail-value">${data.contexts.newContextsSaved}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Addons Purchased</span>
+                        <span class="detail-value">${data.contexts.contextAddonsPurchased}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Extra Slots Added</span>
+                        <span class="detail-value">${data.contexts.totalSlotsAdded}</span>
+                    </div>
+                </div>
+
+                <div class="detail-group">
+                    <h3>⚡ Performance</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Avg Input Tokens</span>
+                        <span class="detail-value">${data.activity.avgInputTokens}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Avg Output Tokens</span>
+                        <span class="detail-value">${data.activity.avgOutputTokens}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Avg Total Tokens</span>
+                        <span class="detail-value">${data.activity.avgTotalTokens}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Avg Latency</span>
+                        <span class="detail-value">${data.activity.avgLatency}ms</span>
+                    </div>
+                </div>
+
+                <div class="detail-group">
+                    <h3>📧 Email Finder</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Email Requests</span>
+                        <span class="detail-value">${data.email.emailRequests}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Email Searches</span>
+                        <span class="detail-value">${data.email.emailSearches}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Emails Found</span>
+                        <span class="detail-value">${data.email.emailsFound}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Emails Verified</span>
+                        <span class="detail-value">${data.email.emailsVerified}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Verification Rate</span>
+                        <span class="detail-value">${data.email.verificationRate}%</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detailsGrid').innerHTML = detailsHTML;
+        }
+
+        function refreshData() {
+            loadDashboard();
+        }
+
+        async function exportData() {
+            try {
+                const response = await fetch('/api/owner/export', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...credentials,
+                        timeRange: currentTimeRange
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Export failed');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `msgly-export-${Date.now()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                alert('Error exporting data: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
