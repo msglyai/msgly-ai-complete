@@ -65,8 +65,8 @@ router.get('/messages/history', authenticateToken, async (req, res) => {
                     ELSE NULL
                 END as email_verified_at
             FROM message_logs ml 
-            LEFT JOIN target_profiles tp ON normalize_linkedin_url(tp.linkedin_url) = normalize_linkedin_url(ml.target_profile_url)
-            LEFT JOIN email_requests er ON normalize_linkedin_url(er.linkedin_url) = normalize_linkedin_url(ml.target_profile_url) AND er.user_id = ml.user_id
+            LEFT JOIN target_profiles tp ON tp.linkedin_url = ml.target_profile_url
+            LEFT JOIN email_requests er ON er.linkedin_url = ml.target_profile_url AND er.user_id = ml.user_id
             WHERE ml.user_id = $1 
             ORDER BY ml.created_at DESC
         `, [req.user.id]);
