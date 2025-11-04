@@ -233,7 +233,7 @@ async function handleGenerateMessage(req, res, skipCredits = false) {
             RETURNING id
         `, [
             userId,
-            targetProfileUrl,
+            cleanTargetUrl, // âœ… FIXED: Use cleaned URL instead of raw URL
             generatedMessage,
             outreachContext,
             safeFirstName,
@@ -502,7 +502,7 @@ async function handleGenerateConnection(req, res, skipCredits = false) {
             RETURNING id
         `, [
             userId,
-            targetProfileUrl,
+            cleanTargetUrl, // âœ… FIXED: Use cleaned URL instead of raw URL
             generatedConnection,
             outreachContext,
             'connection_request',
@@ -780,7 +780,7 @@ async function handleGenerateIntro(req, res, skipCredits = false) {
             RETURNING id
         `, [
             userId,
-            targetProfileUrl,
+            cleanTargetUrl, // âœ… FIXED: Use cleaned URL instead of raw URL
             combinedMessage,
             outreachContext,
             'intro_request',
@@ -1054,7 +1054,7 @@ async function handleGenerateColdEmail(req, res, skipCredits = false) {
             RETURNING id
         `, [
             userId,
-            targetProfileUrl,
+            cleanTargetUrl, // âœ… FIXED: Use cleaned URL instead of raw URL
             generatedColdEmail,
             outreachContext,
             'cold_email',
