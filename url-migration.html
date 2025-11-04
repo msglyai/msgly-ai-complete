@@ -284,6 +284,13 @@
             </button>
         </div>
 
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button class="btn" style="background: #e53e3e; color: white; max-width: 400px;" onclick="forceCleanup()">
+                🔥 Force Cleanup target_profiles (Merge Duplicates)
+            </button>
+            <p style="color: #666; font-size: 12px; margin-top: 5px;">Use this if normal migration has errors</p>
+        </div>
+
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p id="loadingText">Loading...</p>
@@ -397,6 +404,97 @@
             if (confirmed) {
                 executeMigration();
             }
+        }
+
+        function forceCleanup() {
+            const confirmed = confirm(
+                '🔥 FORCE CLEANUP - target_profiles\n\n' +
+                'This will:\n' +
+                '• Find and DELETE duplicate profiles (keeps oldest)\n' +
+                '• Clean ALL URLs using SQL directly\n' +
+                '• More aggressive than normal migration\n' +
+                '• Cannot be undone\n\n' +
+                'Use this if normal migration shows errors.\n\n' +
+                'Proceed with FORCE cleanup?'
+            );
+            
+            if (!confirmed) return;
+            
+            const password = getPassword();
+            if (!password) return;
+
+            showLoading('Force cleaning target_profiles... This may take a minute...');
+            
+            fetch('/api/admin/force-cleanup-target-profiles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${password}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                
+                if (data.needsAuth || data.error === 'Authorization required') {
+                    authPassword = null;
+                    alert('Password required. Please try again.');
+                    return forceCleanup();
+                }
+                
+                if (data.error === 'Invalid password') {
+                    authPassword = null;
+                    alert('Invalid password. Please try again.');
+                    return forceCleanup();
+                }
+                
+                if (data.success) {
+                    displayForceCleanupResults(data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                alert('Error: ' + error.message);
+            });
+        }
+
+        function displayForceCleanupResults(data) {
+            let html = '<h2>🔥 Force Cleanup Completed!</h2>';
+            html += '<div class="success"><h3>✅ target_profiles Cleaned Successfully</h3><p>Duplicates merged and URLs normalized using SQL.</p></div>';
+            
+            html += `
+                <div class="table-result">
+                    <div class="table-header">
+                        <span>target_profiles - Force Cleanup Results</span>
+                        <span class="status-badge status-clean">✅ Complete</span>
+                    </div>
+                    <div class="table-body">
+                        <div class="stat-row">
+                            <span class="stat-label">Duplicates Removed:</span>
+                            <span class="stat-value" style="color: #e53e3e;">${data.duplicatesRemoved}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">URLs Cleaned:</span>
+                            <span class="stat-value" style="color: #48bb78;">${data.urlsCleaned}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Total Rows Now:</span>
+                            <span class="stat-value">${data.verification.total}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Still Need Cleaning:</span>
+                            <span class="stat-value">${data.verification.stillNeedsCleaning}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            html += '<p style="margin-top: 20px; padding: 15px; background: #f0fff4; border-radius: 8px;">✅ Run "Verify Current State" again to confirm all URLs are clean!</p>';
+            
+            document.getElementById('results').innerHTML = html;
+            document.getElementById('results').classList.add('active');
         }
 
         async function executeMigration() {
