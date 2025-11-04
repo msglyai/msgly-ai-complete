@@ -416,14 +416,13 @@ async function getUserMetrics(dateRange) {
             WHERE created_at BETWEEN $1 AND $2
         `, [dateRange.start, dateRange.end]);
 
-        // Profile Sync Rate (extraction_status = completed)
+        // Profile Sync Rate (extraction_status = completed) - COUNT ALL USERS
         const profileSyncStatsResult = await pool.query(`
             SELECT 
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE extraction_status = 'completed') as completed
             FROM users
-            WHERE created_at BETWEEN $1 AND $2
-        `, [dateRange.start, dateRange.end]);
+        `);
 
         // Active users (generated messages in period)
         const activeUsersResult = await pool.query(`
@@ -813,15 +812,25 @@ async function getContextMetrics(dateRange) {
 // Get message type breakdown
 async function getMessageTypeMetrics(dateRange) {
     try {
+        // Query with proper type mapping matching target-profiles.html logic
         const result = await pool.query(`
             SELECT 
-                message_type,
+                CASE 
+                    WHEN message_type IS NULL OR message_type = 'message' OR message_type = 'linkedin_message' THEN 'linkedin_message'
+                    WHEN message_type = 'connection_request' OR LOWER(message_type) LIKE '%connection%' THEN 'connection_request'
+                    WHEN message_type = 'cold_email' OR LOWER(message_type) LIKE '%email%' THEN 'cold_email'
+                    ELSE 'linkedin_message'
+                END as message_type,
                 COUNT(*) as count,
                 AVG(CASE WHEN credits_used IS NOT NULL THEN credits_used ELSE 1 END) as avg_credits
             FROM message_logs
             WHERE created_at BETWEEN $1 AND $2
-            AND message_type IS NOT NULL
-            GROUP BY message_type
+            GROUP BY CASE 
+                WHEN message_type IS NULL OR message_type = 'message' OR message_type = 'linkedin_message' THEN 'linkedin_message'
+                WHEN message_type = 'connection_request' OR LOWER(message_type) LIKE '%connection%' THEN 'connection_request'
+                WHEN message_type = 'cold_email' OR LOWER(message_type) LIKE '%email%' THEN 'cold_email'
+                ELSE 'linkedin_message'
+            END
             ORDER BY count DESC
         `, [dateRange.start, dateRange.end]);
 
