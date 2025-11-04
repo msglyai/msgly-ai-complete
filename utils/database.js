@@ -2,29 +2,32 @@
 // Sophisticated credit management with renewable + pay-as-you-go credits
 // FIXED: Resolved SQL arithmetic issues causing "operator is not unique" errors
 // FIXED: Changed VARCHAR(500) to TEXT for URL fields to fix authentication errors
-// âœ… AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
-// âœ… URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
-// âœ… GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
-// âœ… FIXED: Added message_type column for connection/intro message differentiation
-// âœ… CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
-// âœ… REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
-// âœ… MESSAGES FIX: Added campaign tracking fields to message_logs table
-// âœ… PROMPT VERSION FIX: Increased prompt_version column size from VARCHAR(50) to VARCHAR(255)
-// âœ… CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
-// âœ… CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
-// âœ… CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
-// ðŸ†• CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
-// ðŸ”§ INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
-// ðŸ”’ SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
-// âœ… EMAIL FINDER: Added email finder columns to target_profiles table
-// ðŸ”§ CREDIT FIX: Fixed getUserPlan to properly calculate total credits from renewable + payasyougo
-// ðŸ”§ PLAN NAME FIX: Added automatic plan name correction in initDB function
-// ðŸ“§ EMAIL FINDER v2: Added email finder columns to message_logs table for easy persistence
-// ðŸ†• EMAIL REQUESTS: Added email_requests table for per-user email visibility control
-// âœï¸ EDIT MESSAGE: Added edited_message, edited_at, edit_count columns for message editing with original preservation
+// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser to support auto-registration with LinkedIn URL
+// ✅ URL DEDUPLICATION FIX: Fixed UNIQUE constraint creation and added duplicate cleanup
+// ✅ GPT-5 INTEGRATION: Enhanced message_logs table with comprehensive logging columns
+// ✅ FIXED: Added message_type column for connection/intro message differentiation
+// ✅ CHARGEBEE FIX: Added chargebee_subscription_id and chargebee_customer_id columns
+// ✅ REGISTRATION FIX: Added pending_registrations table for webhook-based registration completion
+// ✅ MESSAGES FIX: Added campaign tracking fields to message_logs table
+// ✅ PROMPT VERSION FIX: Increased prompt_version column size from VARCHAR(50) to VARCHAR(255)
+// ✅ CANCELLATION FIX: Added cancellation tracking columns for subscription cancellations
+// ✅ CONTEXTS FIX: Added saved_contexts table for context management with plan-based limits
+// ✅ CONTEXT ADDONS: Added user_context_addons and context_slot_events tables for extra slot subscriptions
+// 🆕 CONTEXT SLOT SYSTEM: Simplified context slots with direct database fields (like credit system)
+// 🔧 INITIALIZATION FIX: Fixed initializeContextSlots to handle both plan_code AND package_type fields
+// 🔒 SECURE ADMIN MANAGEMENT: Environment-based, authorized, audited admin management
+// ✅ EMAIL FINDER: Added email finder columns to target_profiles table
+// 🔧 CREDIT FIX: Fixed getUserPlan to properly calculate total credits from renewable + payasyougo
+// 🔧 PLAN NAME FIX: Added automatic plan name correction in initDB function
+// 📧 EMAIL FINDER v2: Added email finder columns to message_logs table for easy persistence
+// 🆕 EMAIL REQUESTS: Added email_requests table for per-user email visibility control
+// ✏️ EDIT MESSAGE: Added edited_message, edited_at, edit_count columns for message editing with original preservation
 
 const { Pool } = require('pg');
 require('dotenv').config();
+
+// âœ… ADDED: Import URL cleaning function for consistent URL normalization
+const { cleanLinkedInUrl } = require('./utils/helpers');
 
 // Database connection pool
 const pool = new Pool({
@@ -116,7 +119,7 @@ const ensureTargetProfilesTable = async () => {
     }
 };
 
-// âœ… NEW: Ensure saved_contexts table exists
+// ✅ NEW: Ensure saved_contexts table exists
 const ensureSavedContextsTable = async () => {
     try {
         console.log('[INIT] Creating saved_contexts table...');
@@ -154,7 +157,7 @@ const ensureSavedContextsTable = async () => {
     }
 };
 
-// ðŸ†• NEW: Ensure email_requests table exists (per-user email visibility)
+// 🆕 NEW: Ensure email_requests table exists (per-user email visibility)
 const ensureEmailRequestsTable = async () => {
     try {
         console.log('[INIT] Creating email_requests table...');
@@ -192,7 +195,7 @@ const ensureEmailRequestsTable = async () => {
     }
 };
 
-// ðŸ†• NEW: Ensure email_finder_searches table exists (standalone email finder page)
+// 🆕 NEW: Ensure email_finder_searches table exists (standalone email finder page)
 const ensureEmailFinderSearchesTable = async () => {
     try {
         console.log('[INIT] Creating email_finder_searches table...');
@@ -247,7 +250,7 @@ const ensureEmailFinderSearchesTable = async () => {
     }
 };
 
-// ðŸ†• NEW: Ensure brightdata_profiles table exists (web-based LinkedIn profile analysis)
+// 🆕 NEW: Ensure brightdata_profiles table exists (web-based LinkedIn profile analysis)
 const ensureBrightDataProfilesTable = async () => {
     try {
         console.log('[INIT] Creating brightdata_profiles table...');
@@ -288,7 +291,7 @@ const ensureBrightDataProfilesTable = async () => {
     }
 };
 
-// ðŸ†• NEW: Ensure web_generated_messages table exists (messages generated via web interface)
+// 🆕 NEW: Ensure web_generated_messages table exists (messages generated via web interface)
 const ensureWebGeneratedMessagesTable = async () => {
     try {
         console.log('[INIT] Creating web_generated_messages table...');
@@ -333,7 +336,7 @@ const ensureWebGeneratedMessagesTable = async () => {
     }
 };
 
-// âœ… NEW: Ensure context addon tables exist
+// ✅ NEW: Ensure context addon tables exist
 const ensureContextAddonTables = async () => {
     try {
         console.log('[INIT] Creating context addon system tables...');
@@ -424,33 +427,6 @@ const ensureContextAddonTables = async () => {
                 FOR EACH ROW EXECUTE FUNCTION update_contexts_count();
         `);
 
-        // 🔧 NEW: URL Normalization Function for LinkedIn URLs
-        // This function handles URL variations (https://, www., trailing slash)
-        // Used in JOINs to match URLs regardless of format differences
-        await pool.query(`
-            CREATE OR REPLACE FUNCTION normalize_linkedin_url(url TEXT) 
-            RETURNS TEXT AS $$
-            BEGIN
-                IF url IS NULL THEN 
-                    RETURN NULL; 
-                END IF;
-                
-                -- Remove trailing slash
-                url := regexp_replace(url, '/$', '');
-                
-                -- Remove protocol (http:// or https://)
-                url := regexp_replace(url, '^https?://', '', 'i');
-                
-                -- Remove www.
-                url := regexp_replace(url, '^www\.', '', 'i');
-                
-                RETURN url;
-            END;
-            $$ LANGUAGE plpgsql IMMUTABLE;
-        `);
-        
-        console.log('[SUCCESS] ✅ LinkedIn URL normalization function created');
-
         // 7. Initialize contexts_count for existing users
         await pool.query(`
             UPDATE users SET contexts_count = (
@@ -466,7 +442,7 @@ const ensureContextAddonTables = async () => {
     }
 };
 
-// âœ… NEW: Ensure pending_registrations table exists
+// ✅ NEW: Ensure pending_registrations table exists
 const ensurePendingRegistrationsTable = async () => {
     try {
         console.log('[INIT] Creating pending_registrations table...');
@@ -505,7 +481,7 @@ const ensurePendingRegistrationsTable = async () => {
     }
 };
 
-// ðŸ”’ NEW: Ensure admin_audit_log table exists for security tracking
+// 🔒 NEW: Ensure admin_audit_log table exists for security tracking
 const ensureAdminAuditTable = async () => {
     try {
         console.log('[INIT] Creating admin_audit_log table...');
@@ -540,7 +516,7 @@ const ensureAdminAuditTable = async () => {
     }
 };
 
-// âœ… NEW: Fix prompt_version column size to accommodate longer prompt versions
+// ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
 const fixPromptVersionColumn = async () => {
     try {
         console.log('[INIT] Updating prompt_version column size...');
@@ -548,18 +524,18 @@ const fixPromptVersionColumn = async () => {
             ALTER TABLE message_logs 
             ALTER COLUMN prompt_version TYPE VARCHAR(255);
         `);
-        console.log('[SUCCESS] âœ… prompt_version column updated to VARCHAR(255)');
+        console.log('[SUCCESS] ✅ prompt_version column updated to VARCHAR(255)');
     } catch (error) {
         console.log('[INFO] Column update may have failed:', error.message);
     }
 };
 
-// ðŸ†• NEW: Initialize existing users with proper context slots based on their plans - FIXED: Handle both plan_code AND package_type
+// 🆕 NEW: Initialize existing users with proper context slots based on their plans - FIXED: Handle both plan_code AND package_type
 const initializeContextSlots = async () => {
     try {
         console.log('[INIT] Initializing context slots for existing users...');
         
-        // ðŸ”§ FIXED: Use comprehensive CTE approach to handle both field names
+        // 🔧 FIXED: Use comprehensive CTE approach to handle both field names
         const result = await pool.query(`
             WITH plan_mapping AS (
                 SELECT id, 
@@ -584,9 +560,9 @@ const initializeContextSlots = async () => {
                  OR users.plan_context_slots = 1) -- Force update even existing 1s to ensure correct values
         `);
         
-        console.log(`[INIT] âœ… Updated ${result.rowCount} users with correct context slots`);
+        console.log(`[INIT] ✅ Updated ${result.rowCount} users with correct context slots`);
         
-        // ðŸ”§ VERIFICATION: Log the results for verification
+        // 🔧 VERIFICATION: Log the results for verification
         const verification = await pool.query(`
             SELECT 
                 COALESCE(plan_code, package_type, 'unknown') as effective_plan,
@@ -602,16 +578,16 @@ const initializeContextSlots = async () => {
             console.log(`  ${row.effective_plan}: ${row.plan_context_slots} slots (${row.user_count} users)`);
         });
         
-        console.log('[SUCCESS] âœ… Context slots initialization completed successfully');
+        console.log('[SUCCESS] ✅ Context slots initialization completed successfully');
         
     } catch (error) {
         console.error('[ERROR] Failed to initialize context slots:', error);
     }
 };
 
-// ðŸ”’ SECURE ADMIN MANAGEMENT FUNCTIONS
+// 🔒 SECURE ADMIN MANAGEMENT FUNCTIONS
 
-// ðŸ”’ Security: Audit logging function
+// 🔒 Security: Audit logging function
 const logAdminAction = async (action, performedByUserId, targetUserId, targetEmail, details = {}, success = true, errorMessage = null, ipAddress = null, userAgent = null) => {
     try {
         await pool.query(`
@@ -625,7 +601,7 @@ const logAdminAction = async (action, performedByUserId, targetUserId, targetEma
     }
 };
 
-// ðŸ”’ Security: Authorization middleware
+// 🔒 Security: Authorization middleware
 const requireAdminAuthorization = async (performingUserId) => {
     try {
         if (!performingUserId) {
@@ -653,7 +629,7 @@ const requireAdminAuthorization = async (performingUserId) => {
     }
 };
 
-// ðŸ”’ Security: Input sanitization
+// 🔒 Security: Input sanitization
 const sanitizeEmail = (email) => {
     if (!email || typeof email !== 'string') {
         throw new Error('Invalid email format');
@@ -666,7 +642,7 @@ const sanitizeEmail = (email) => {
     return sanitized;
 };
 
-// ðŸ”’ SECURE: Create admin user (requires authorization)
+// 🔒 SECURE: Create admin user (requires authorization)
 const createAdminUser = async (email, performingUserId, password = null, displayName = null, auditInfo = {}) => {
     let sanitizedEmail;
     try {
@@ -740,7 +716,7 @@ const createAdminUser = async (email, performingUserId, password = null, display
         // Security: Log the action
         await logAdminAction('create_admin_user', performingUserId, newUser.id, sanitizedEmail, { created: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
         
-        console.log(`[ADMIN] âœ… Admin ${performingUser.email} created new admin user: ${sanitizedEmail} (ID: ${newUser.id})`);
+        console.log(`[ADMIN] ✅ Admin ${performingUser.email} created new admin user: ${sanitizedEmail} (ID: ${newUser.id})`);
         
         return {
             success: true,
@@ -761,7 +737,7 @@ const createAdminUser = async (email, performingUserId, password = null, display
     }
 };
 
-// ðŸ”’ SECURE: Promote user to admin (requires authorization)
+// 🔒 SECURE: Promote user to admin (requires authorization)
 const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
     let sanitizedEmail;
     try {
@@ -793,7 +769,7 @@ const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
         // Security: Log the action
         await logAdminAction('promote_user_to_admin', performingUserId, user.id, sanitizedEmail, { promoted: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
         
-        console.log(`[ADMIN] âœ… Admin ${performingUser.email} promoted user to admin: ${sanitizedEmail} (ID: ${user.id})`);
+        console.log(`[ADMIN] ✅ Admin ${performingUser.email} promoted user to admin: ${sanitizedEmail} (ID: ${user.id})`);
         
         return {
             success: true,
@@ -814,7 +790,7 @@ const promoteUserToAdmin = async (email, performingUserId, auditInfo = {}) => {
     }
 };
 
-// ðŸ”’ SECURE: Remove admin rights (requires authorization)
+// 🔒 SECURE: Remove admin rights (requires authorization)
 const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
     let sanitizedEmail;
     try {
@@ -855,7 +831,7 @@ const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
         // Security: Log the action
         await logAdminAction('remove_admin_rights', performingUserId, user.id, sanitizedEmail, { demoted: true }, true, null, auditInfo.ipAddress, auditInfo.userAgent);
         
-        console.log(`[ADMIN] âœ… Admin ${performingUser.email} removed admin rights from: ${sanitizedEmail} (ID: ${user.id})`);
+        console.log(`[ADMIN] ✅ Admin ${performingUser.email} removed admin rights from: ${sanitizedEmail} (ID: ${user.id})`);
         
         return {
             success: true,
@@ -876,7 +852,7 @@ const removeAdminRights = async (email, performingUserId, auditInfo = {}) => {
     }
 };
 
-// ðŸ”’ SECURE: List admin users (requires authorization)
+// 🔒 SECURE: List admin users (requires authorization)
 const listAdminUsers = async (performingUserId, auditInfo = {}) => {
     try {
         // Security: Authorize the request
@@ -917,7 +893,7 @@ const listAdminUsers = async (performingUserId, auditInfo = {}) => {
     }
 };
 
-// ðŸ”’ SECURE: Manual admin setup function (requires environment variable)
+// 🔒 SECURE: Manual admin setup function (requires environment variable)
 const setupInitialAdmin = async (requireConfirmation = true) => {
     try {
         const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
@@ -953,7 +929,7 @@ const setupInitialAdmin = async (requireConfirmation = true) => {
         if (existingUser.rows.length > 0) {
             const user = existingUser.rows[0];
             if (user.is_admin) {
-                console.log(`[ADMIN] âœ… ${adminEmail} is already admin`);
+                console.log(`[ADMIN] ✅ ${adminEmail} is already admin`);
                 return { success: true, message: 'User is already admin', user: user };
             } else {
                 // Promote existing user (without authorization check for initial setup)
@@ -966,7 +942,7 @@ const setupInitialAdmin = async (requireConfirmation = true) => {
                 
                 const updatedUser = result.rows[0];
                 await logAdminAction('initial_admin_promotion', null, updatedUser.id, adminEmail, { initial_setup: true }, true);
-                console.log(`[ADMIN] âœ… Promoted existing user to admin: ${adminEmail}`);
+                console.log(`[ADMIN] ✅ Promoted existing user to admin: ${adminEmail}`);
                 return { success: true, message: 'User promoted to admin', user: updatedUser };
             }
         } else {
@@ -991,7 +967,7 @@ const setupInitialAdmin = async (requireConfirmation = true) => {
             
             const newUser = result.rows[0];
             await logAdminAction('initial_admin_creation', null, newUser.id, adminEmail, { initial_setup: true }, true);
-            console.log(`[ADMIN] âœ… Created initial admin user: ${adminEmail} (ID: ${newUser.id})`);
+            console.log(`[ADMIN] ✅ Created initial admin user: ${adminEmail} (ID: ${newUser.id})`);
             return { success: true, message: 'Initial admin user created', user: newUser };
         }
         
@@ -1046,7 +1022,7 @@ const initDB = async () => {
                 updated_at = CURRENT_TIMESTAMP;
         `);
 
-        // ðŸ”§ PLAN NAME FIX: Ensure all plan names are correct (especially platinum-monthly)
+        // 🔧 PLAN NAME FIX: Ensure all plan names are correct (especially platinum-monthly)
         console.log('[PLAN_FIX] Ensuring plan names are correct...');
         await pool.query(`
             UPDATE plans SET plan_name = 'Platinum Monthly' WHERE plan_code = 'platinum-monthly';
@@ -1054,9 +1030,9 @@ const initDB = async () => {
             UPDATE plans SET plan_name = 'Silver Monthly' WHERE plan_code = 'silver-monthly';
             UPDATE plans SET plan_name = 'Free' WHERE plan_code = 'free';
         `);
-        console.log('[PLAN_FIX] âœ… Plan names corrected');
+        console.log('[PLAN_FIX] ✅ Plan names corrected');
 
-        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + ðŸ†• CONTEXT SLOT FIELDS + ðŸ”’ ADMIN COLUMN
+        // ENHANCED USERS TABLE - FIXED: Changed profile_picture VARCHAR(500) to TEXT + ADDED CHARGEBEE COLUMNS + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -1075,20 +1051,20 @@ const initDB = async () => {
                 renewable_credits INTEGER DEFAULT 7,
                 payasyougo_credits INTEGER DEFAULT 0,
                 
-                -- ðŸ†• NEW: Direct Context Slot Fields (like credit system)
+                -- 🆕 NEW: Direct Context Slot Fields (like credit system)
                 plan_context_slots INTEGER DEFAULT 1,
                 extra_context_slots INTEGER DEFAULT 0,
                 total_context_slots INTEGER DEFAULT 1,
                 contexts_count INTEGER DEFAULT 0,
                 
-                -- ðŸ”’ NEW: Admin Management
+                -- 🔒 NEW: Admin Management
                 is_admin BOOLEAN DEFAULT FALSE,
                 
                 -- NEW: Billing Cycle Management
                 subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 next_billing_date TIMESTAMP,
                 
-                -- âœ… CHARGEBEE FIX: Add missing Chargebee columns
+                -- ✅ CHARGEBEE FIX: Add missing Chargebee columns
                 chargebee_subscription_id VARCHAR(100) UNIQUE,
                 chargebee_customer_id VARCHAR(100),
                 
@@ -1235,7 +1211,7 @@ const initDB = async () => {
             );
         `);
 
-        // ENHANCED MESSAGE_LOGS TABLE - âœ… GPT-5 INTEGRATION: Added comprehensive logging columns + CAMPAIGN TRACKING + ðŸ“§ EMAIL FINDER COLUMNS
+        // ENHANCED MESSAGE_LOGS TABLE - ✅ GPT-5 INTEGRATION: Added comprehensive logging columns + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS
         await pool.query(`
             CREATE TABLE IF NOT EXISTS message_logs (
                 id SERIAL PRIMARY KEY,
@@ -1249,7 +1225,7 @@ const initDB = async () => {
                 message_context TEXT,
                 credits_used INTEGER DEFAULT 1,
                 
-                -- âœ… NEW: GPT-5 Integration columns
+                -- ✅ NEW: GPT-5 Integration columns
                 context_text TEXT,
                 target_first_name VARCHAR(255),
                 target_title VARCHAR(500),
@@ -1262,14 +1238,14 @@ const initDB = async () => {
                 latency_ms INTEGER,
                 data_json JSONB,
                 
-                -- âœ… NEW: Campaign tracking fields for Messages page
+                -- ✅ NEW: Campaign tracking fields for Messages page
                 sent_status VARCHAR(20) DEFAULT 'pending',
                 reply_status VARCHAR(20) DEFAULT 'pending',
                 comments TEXT,
                 sent_date TIMESTAMP,
                 reply_date TIMESTAMP,
                 
-                -- ðŸ“§ NEW: Email finder columns (same field names as target_profiles for easy mapping)
+                -- 📧 NEW: Email finder columns (same field names as target_profiles for easy mapping)
                 email_found TEXT,
                 email_status TEXT CHECK (email_status IN ('verified', 'not_found', NULL)),
                 email_verified_at TIMESTAMPTZ,
@@ -1300,34 +1276,34 @@ const initDB = async () => {
         // NEW: TARGET_PROFILES TABLE with proper UNIQUE constraint
         await ensureTargetProfilesTable();
         
-        // âœ… NEW: SAVED_CONTEXTS TABLE for context management
+        // ✅ NEW: SAVED_CONTEXTS TABLE for context management
         await ensureSavedContextsTable();
         
-        // ðŸ†• NEW: EMAIL_REQUESTS TABLE for per-user email visibility
+        // 🆕 NEW: EMAIL_REQUESTS TABLE for per-user email visibility
         await ensureEmailRequestsTable();
         
-        // âœ… NEW: Ensure email_finder_searches table exists (standalone email finder page)
+        // ✅ NEW: Ensure email_finder_searches table exists (standalone email finder page)
         await ensureEmailFinderSearchesTable();
         
-        // ðŸ†• NEW: BRIGHTDATA_PROFILES TABLE for web-based LinkedIn profile analysis
+        // 🆕 NEW: BRIGHTDATA_PROFILES TABLE for web-based LinkedIn profile analysis
         await ensureBrightDataProfilesTable();
         
-        // ðŸ†• NEW: WEB_GENERATED_MESSAGES TABLE for web-based message generation
+        // 🆕 NEW: WEB_GENERATED_MESSAGES TABLE for web-based message generation
         await ensureWebGeneratedMessagesTable();
         
-        // âœ… NEW: CONTEXT ADDON TABLES for extra slot subscriptions
+        // ✅ NEW: CONTEXT ADDON TABLES for extra slot subscriptions
         await ensureContextAddonTables();
         
-        // âœ… NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
+        // ✅ NEW: PENDING_REGISTRATIONS TABLE for webhook-based registration
         await ensurePendingRegistrationsTable();
         
-        // ðŸ”’ NEW: ADMIN_AUDIT_LOG TABLE for security tracking
+        // 🔒 NEW: ADMIN_AUDIT_LOG TABLE for security tracking
         await ensureAdminAuditTable();
 
-        // âœ… NEW: Fix prompt_version column size to accommodate longer prompt versions
+        // ✅ NEW: Fix prompt_version column size to accommodate longer prompt versions
         await fixPromptVersionColumn();
 
-        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + ðŸ†• CONTEXT SLOT FIELDS + ðŸ”’ ADMIN COLUMN + ðŸ“§ EMAIL FINDER COLUMNS
+        // Add missing columns (safe operation) + CHARGEBEE COLUMNS + MESSAGES CAMPAIGN TRACKING + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN + 📧 EMAIL FINDER COLUMNS
         try {
             const enhancedUserColumns = [
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE',
@@ -1348,60 +1324,60 @@ const initDB = async () => {
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP',
                 
-                // ðŸ†• NEW: Context Slot System columns (like credit system)
+                // 🆕 NEW: Context Slot System columns (like credit system)
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_context_slots INTEGER DEFAULT 1',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_context_slots INTEGER DEFAULT 0',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_context_slots INTEGER DEFAULT 1',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS contexts_count INTEGER DEFAULT 0',
                 
-                // ðŸ”’ NEW: Admin Management column
+                // 🔒 NEW: Admin Management column
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE',
                 
-                // âœ… CHARGEBEE FIX: Add missing Chargebee columns
+                // ✅ CHARGEBEE FIX: Add missing Chargebee columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_subscription_id VARCHAR(100) UNIQUE',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS chargebee_customer_id VARCHAR(100)',
                 
-                // âœ… CANCELLATION FIX: Add cancellation tracking columns
+                // ✅ CANCELLATION FIX: Add cancellation tracking columns
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_scheduled_at TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_effective_date TIMESTAMP',
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_plan_code VARCHAR(50)'
             ];
             
-            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + ðŸ†• CONTEXT SLOT FIELDS + ðŸ”’ ADMIN COLUMN');
+            console.log('-- NEW: Dual Credit System columns + CHARGEBEE COLUMNS + CANCELLATION TRACKING + 🆕 CONTEXT SLOT FIELDS + 🔒 ADMIN COLUMN');
             
             for (const columnQuery of enhancedUserColumns) {
                 try {
                     await pool.query(columnQuery);
                     // Log context slot column additions
                     if (columnQuery.includes('plan_context_slots')) {
-                        console.log('ðŸ†• CONTEXT SLOTS: Added plan_context_slots column');
+                        console.log('🆕 CONTEXT SLOTS: Added plan_context_slots column');
                     }
                     if (columnQuery.includes('extra_context_slots')) {
-                        console.log('ðŸ†• CONTEXT SLOTS: Added extra_context_slots column');
+                        console.log('🆕 CONTEXT SLOTS: Added extra_context_slots column');
                     }
                     if (columnQuery.includes('total_context_slots')) {
-                        console.log('ðŸ†• CONTEXT SLOTS: Added total_context_slots column');
+                        console.log('🆕 CONTEXT SLOTS: Added total_context_slots column');
                     }
                     // Log admin column addition
                     if (columnQuery.includes('is_admin')) {
-                        console.log('ðŸ”’ ADMIN: Added is_admin column');
+                        console.log('🔒 ADMIN: Added is_admin column');
                     }
                     // Log Chargebee column additions
                     if (columnQuery.includes('chargebee_subscription_id')) {
-                        console.log('âœ… CHARGEBEE FIX: Added chargebee_subscription_id column');
+                        console.log('✅ CHARGEBEE FIX: Added chargebee_subscription_id column');
                     }
                     if (columnQuery.includes('chargebee_customer_id')) {
-                        console.log('âœ… CHARGEBEE FIX: Added chargebee_customer_id column');
+                        console.log('✅ CHARGEBEE FIX: Added chargebee_customer_id column');
                     }
                     // Log cancellation column additions
                     if (columnQuery.includes('cancellation_scheduled_at')) {
-                        console.log('âœ… CANCELLATION FIX: Added cancellation_scheduled_at column');
+                        console.log('✅ CANCELLATION FIX: Added cancellation_scheduled_at column');
                     }
                     if (columnQuery.includes('cancellation_effective_date')) {
-                        console.log('âœ… CANCELLATION FIX: Added cancellation_effective_date column');
+                        console.log('✅ CANCELLATION FIX: Added cancellation_effective_date column');
                     }
                     if (columnQuery.includes('previous_plan_code')) {
-                        console.log('âœ… CANCELLATION FIX: Added previous_plan_code column');
+                        console.log('✅ CANCELLATION FIX: Added previous_plan_code column');
                     }
                 } catch (err) {
                     console.log(`Column might already exist: ${err.message}`);
@@ -1458,7 +1434,7 @@ const initDB = async () => {
                 }
             }
 
-            // âœ… NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + ðŸ“§ EMAIL FINDER COLUMNS + âœï¸ EDIT MESSAGE COLUMNS
+            // ✅ NEW: Add GPT-5 message logging columns to existing message_logs table + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS + ✏️ EDIT MESSAGE COLUMNS
             const gpt5MessageColumns = [
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS target_profile_url TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS context_text TEXT',
@@ -1473,91 +1449,91 @@ const initDB = async () => {
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS latency_ms INTEGER',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS data_json JSONB',
                 
-                // âœ… CRITICAL FIX: Add missing message_type column for connection/intro message differentiation
+                // ✅ CRITICAL FIX: Add missing message_type column for connection/intro message differentiation
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS message_type VARCHAR(50) DEFAULT \'message\'',
                 
-                // âœ… NEW: Campaign tracking fields for Messages page
+                // ✅ NEW: Campaign tracking fields for Messages page
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sent_status VARCHAR(20) DEFAULT \'pending\'',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS reply_status VARCHAR(20) DEFAULT \'pending\'',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS comments TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sent_date TIMESTAMP',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS reply_date TIMESTAMP',
                 
-                // ðŸ“§ NEW: Email finder columns (same field names as target_profiles for easy mapping)
+                // 📧 NEW: Email finder columns (same field names as target_profiles for easy mapping)
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_found TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_status TEXT CHECK (email_status IN (\'verified\', \'not_found\', NULL))',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ',
                 
-                // âœï¸ NEW: Edit message columns (stores user edits while preserving original)
+                // ✏️ NEW: Edit message columns (stores user edits while preserving original)
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS edited_message TEXT',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP',
                 'ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS edit_count INTEGER DEFAULT 0'
             ];
 
-            console.log('-- âœ… NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + ðŸ“§ EMAIL FINDER COLUMNS + âœï¸ EDIT MESSAGE COLUMNS');
+            console.log('-- ✅ NEW: GPT-5 Message Logging columns + MESSAGE_TYPE FIX + CAMPAIGN TRACKING + 📧 EMAIL FINDER COLUMNS + ✏️ EDIT MESSAGE COLUMNS');
             
             for (const columnQuery of gpt5MessageColumns) {
                 try {
                     await pool.query(columnQuery);
                     // Log successful addition of message_type column
                     if (columnQuery.includes('message_type')) {
-                        console.log('âœ… FIXED: Added message_type column to message_logs table');
+                        console.log('✅ FIXED: Added message_type column to message_logs table');
                     }
                     // Log successful addition of campaign tracking columns
                     if (columnQuery.includes('sent_status')) {
-                        console.log('âœ… MESSAGES FIX: Added sent_status column for campaign tracking');
+                        console.log('✅ MESSAGES FIX: Added sent_status column for campaign tracking');
                     }
                     if (columnQuery.includes('reply_status')) {
-                        console.log('âœ… MESSAGES FIX: Added reply_status column for campaign tracking');
+                        console.log('✅ MESSAGES FIX: Added reply_status column for campaign tracking');
                     }
                     if (columnQuery.includes('comments')) {
-                        console.log('âœ… MESSAGES FIX: Added comments column for campaign tracking');
+                        console.log('✅ MESSAGES FIX: Added comments column for campaign tracking');
                     }
                     // Log successful addition of email finder columns
                     if (columnQuery.includes('email_found')) {
-                        console.log('ðŸ“§ EMAIL FINDER: Added email_found column to message_logs');
+                        console.log('📧 EMAIL FINDER: Added email_found column to message_logs');
                     }
                     if (columnQuery.includes('email_status')) {
-                        console.log('ðŸ“§ EMAIL FINDER: Added email_status column to message_logs');
+                        console.log('📧 EMAIL FINDER: Added email_status column to message_logs');
                     }
                     if (columnQuery.includes('email_verified_at')) {
-                        console.log('ðŸ“§ EMAIL FINDER: Added email_verified_at column to message_logs');
+                        console.log('📧 EMAIL FINDER: Added email_verified_at column to message_logs');
                     }
                     // Log successful addition of edit message columns
                     if (columnQuery.includes('edited_message')) {
-                        console.log('âœï¸ EDIT MESSAGE: Added edited_message column to message_logs');
+                        console.log('✏️ EDIT MESSAGE: Added edited_message column to message_logs');
                     }
                     if (columnQuery.includes('edited_at')) {
-                        console.log('âœï¸ EDIT MESSAGE: Added edited_at column to message_logs');
+                        console.log('✏️ EDIT MESSAGE: Added edited_at column to message_logs');
                     }
                     if (columnQuery.includes('edit_count')) {
-                        console.log('âœï¸ EDIT MESSAGE: Added edit_count column to message_logs');
+                        console.log('✏️ EDIT MESSAGE: Added edit_count column to message_logs');
                     }
                 } catch (err) {
                     console.log(`GPT-5 column might already exist: ${err.message}`);
                 }
             }
 
-            // âœ… EMAIL FINDER: Add email finder columns to target_profiles table (for future migration)
+            // ✅ EMAIL FINDER: Add email finder columns to target_profiles table (for future migration)
             const emailFinderColumns = [
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS email_found TEXT',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS email_status TEXT CHECK (email_status IN (\'verified\', \'not_found\', NULL))',
                 'ALTER TABLE target_profiles ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ'
             ];
 
-            console.log('-- âœ… EMAIL FINDER: Adding email finder columns to target_profiles (for future migration)');
+            console.log('-- ✅ EMAIL FINDER: Adding email finder columns to target_profiles (for future migration)');
 
             for (const columnQuery of emailFinderColumns) {
                 try {
                     await pool.query(columnQuery);
                     if (columnQuery.includes('email_found')) {
-                        console.log('âœ… EMAIL FINDER: Added email_found column to target_profiles');
+                        console.log('✅ EMAIL FINDER: Added email_found column to target_profiles');
                     }
                     if (columnQuery.includes('email_status')) {
-                        console.log('âœ… EMAIL FINDER: Added email_status column to target_profiles');
+                        console.log('✅ EMAIL FINDER: Added email_status column to target_profiles');
                     }
                     if (columnQuery.includes('email_verified_at')) {
-                        console.log('âœ… EMAIL FINDER: Added email_verified_at column to target_profiles');
+                        console.log('✅ EMAIL FINDER: Added email_verified_at column to target_profiles');
                     }
                 } catch (err) {
                     console.log(`Email finder column might already exist: ${err.message}`);
@@ -1569,13 +1545,13 @@ const initDB = async () => {
             console.log('Some enhanced columns might already exist:', err.message);
         }
 
-        // ðŸ†• NEW: Initialize context slots for existing users - FIXED VERSION
+        // 🆕 NEW: Initialize context slots for existing users - FIXED VERSION
         await initializeContextSlots();
 
-        // ðŸ”’ SECURE: Manual admin setup (requires environment variables)
+        // 🔒 SECURE: Manual admin setup (requires environment variables)
         await setupInitialAdmin();
 
-        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + ðŸ†• CONTEXT SLOT INDEXES + ðŸ”’ ADMIN INDEXES + âœ… EMAIL FINDER INDEXES + ðŸ“§ MESSAGE_LOGS EMAIL INDEXES
+        // Create indexes + CHARGEBEE INDEXES + CAMPAIGN TRACKING INDEXES + CANCELLATION INDEXES + SAVED CONTEXTS INDEXES + CONTEXT ADDON INDEXES + 🆕 CONTEXT SLOT INDEXES + 🔒 ADMIN INDEXES + ✅ EMAIL FINDER INDEXES + 📧 MESSAGE_LOGS EMAIL INDEXES
         try {
             await pool.query(`
                 -- User profiles indexes
@@ -1590,19 +1566,19 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_users_extraction_status ON users(extraction_status);
                 CREATE INDEX IF NOT EXISTS idx_users_plan_code ON users(plan_code);
                 
-                -- ðŸ†• CONTEXT SLOTS: Add context slot indexes for fast usage calculation
+                -- 🆕 CONTEXT SLOTS: Add context slot indexes for fast usage calculation
                 CREATE INDEX IF NOT EXISTS idx_users_context_usage ON users(plan_context_slots, extra_context_slots, total_context_slots);
                 CREATE INDEX IF NOT EXISTS idx_users_contexts_count ON users(contexts_count);
                 
-                -- ðŸ”’ ADMIN: Add admin index for fast admin lookups
+                -- 🔒 ADMIN: Add admin index for fast admin lookups
                 CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
                 CREATE INDEX IF NOT EXISTS idx_users_admin_email ON users(email, is_admin);
                 
-                -- âœ… CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
+                -- ✅ CHARGEBEE FIX: Add Chargebee indexes for fast webhook processing
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_subscription_id ON users(chargebee_subscription_id);
                 CREATE INDEX IF NOT EXISTS idx_users_chargebee_customer_id ON users(chargebee_customer_id);
                 
-                -- âœ… CANCELLATION FIX: Add cancellation indexes for fast processing
+                -- ✅ CANCELLATION FIX: Add cancellation indexes for fast processing
                 CREATE INDEX IF NOT EXISTS idx_users_cancellation_effective_date ON users(cancellation_effective_date);
                 CREATE INDEX IF NOT EXISTS idx_users_cancellation_scheduled_at ON users(cancellation_scheduled_at);
                 
@@ -1619,27 +1595,27 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_user_id ON target_profiles(user_id);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_created_at ON target_profiles(created_at);
                 
-                -- âœ… EMAIL FINDER: Add email finder indexes for fast lookups on target_profiles
+                -- ✅ EMAIL FINDER: Add email finder indexes for fast lookups on target_profiles
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_email_status ON target_profiles(email_status);
                 CREATE INDEX IF NOT EXISTS idx_target_profiles_email_verified_at ON target_profiles(email_verified_at);
                 
-                -- ðŸ“§ EMAIL FINDER: Add email finder indexes for fast lookups on message_logs
+                -- 📧 EMAIL FINDER: Add email finder indexes for fast lookups on message_logs
                 CREATE INDEX IF NOT EXISTS idx_message_logs_email_status ON message_logs(email_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_email_verified_at ON message_logs(email_verified_at);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_target_profile_url_email ON message_logs(target_profile_url, email_found);
                 
-                -- âœ… NEW: Saved contexts indexes for fast user context lookups
+                -- ✅ NEW: Saved contexts indexes for fast user context lookups
                 CREATE INDEX IF NOT EXISTS idx_saved_contexts_user_id ON saved_contexts(user_id);
                 CREATE INDEX IF NOT EXISTS idx_saved_contexts_created_at ON saved_contexts(created_at);
                 
-                -- âœ… NEW: Context addon indexes for fast addon processing
+                -- ✅ NEW: Context addon indexes for fast addon processing
                 CREATE INDEX IF NOT EXISTS idx_user_active_addons ON user_context_addons(user_id, status, next_billing_date);
                 CREATE INDEX IF NOT EXISTS idx_billing_due ON user_context_addons(next_billing_date, status);
                 CREATE INDEX IF NOT EXISTS idx_chargebee_subscription ON user_context_addons(chargebee_subscription_id);
                 CREATE INDEX IF NOT EXISTS idx_user_events ON context_slot_events(user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_event_type ON context_slot_events(event_type, created_at);
                 
-                -- âœ… NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE + CAMPAIGN TRACKING + âœï¸ EDIT MESSAGE
+                -- ✅ NEW: Message logs indexes for GPT-5 integration + MESSAGE_TYPE + CAMPAIGN TRACKING + ✏️ EDIT MESSAGE
                 CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_model_name ON message_logs(model_name);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at);
@@ -1649,12 +1625,12 @@ const initDB = async () => {
                 CREATE INDEX IF NOT EXISTS idx_message_logs_reply_status ON message_logs(reply_status);
                 CREATE INDEX IF NOT EXISTS idx_message_logs_edited_at ON message_logs(edited_at) WHERE edited_at IS NOT NULL;
                 
-                -- ðŸ”’ ADMIN: Admin audit indexes for security tracking
+                -- 🔒 ADMIN: Admin audit indexes for security tracking
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log(action, created_at);
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_user ON admin_audit_log(performed_by_user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at);
             `);
-            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + ðŸ†• Context slot indexes + ðŸ”’ Admin security indexes + âœ… Email finder indexes + ðŸ“§ Message logs email indexes + âœï¸ Edit message indexes)');
+            console.log('Database indexes created successfully (including Chargebee indexes + Campaign tracking indexes + Cancellation indexes + Saved contexts indexes + Context addon indexes + 🆕 Context slot indexes + 🔒 Admin security indexes + ✅ Email finder indexes + 📧 Message logs email indexes + ✏️ Edit message indexes)');
         } catch (err) {
             console.log('Indexes might already exist:', err.message);
         }
@@ -1670,7 +1646,7 @@ const initDB = async () => {
             console.log('Billing date update error:', err.message);
         }
 
-        console.log('âœ… Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, ðŸ†• EMAIL_REQUESTS (per-user visibility), CONTEXT ADDONS, ðŸ†• SIMPLIFIED CONTEXT SLOTS, ðŸ”’ SECURE ADMIN MANAGEMENT, EMAIL FINDER, PLAN NAME FIX, ðŸ“§ EMAIL FINDER IN MESSAGE_LOGS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
+        console.log('✅ Enhanced database with dual credit system, URL deduplication fix, GPT-5 message logging, MESSAGE_TYPE column, CHARGEBEE COLUMNS, PENDING REGISTRATIONS, MESSAGES CAMPAIGN TRACKING, PROMPT_VERSION FIX, CANCELLATION TRACKING, SAVED CONTEXTS, 🆕 EMAIL_REQUESTS (per-user visibility), CONTEXT ADDONS, 🆕 SIMPLIFIED CONTEXT SLOTS, 🔒 SECURE ADMIN MANAGEMENT, EMAIL FINDER, PLAN NAME FIX, 📧 EMAIL FINDER IN MESSAGE_LOGS, and REMOVED ALL VARCHAR LIMITATIONS created successfully!');
     } catch (error) {
         console.error('Database setup error:', error);
         throw error;
@@ -1989,7 +1965,7 @@ const resetRenewableCredits = async (userId) => {
     }
 };
 
-// âœ… CANCELLATION FIX: New function to downgrade user to free plan
+// ✅ CANCELLATION FIX: New function to downgrade user to free plan
 const downgradeUserToFree = async (userId) => {
     try {
         const client = await pool.connect();
@@ -2052,9 +2028,9 @@ const downgradeUserToFree = async (userId) => {
     }
 };
 
-// ==================== ðŸ†• SIMPLIFIED CONTEXT SLOT MANAGEMENT FUNCTIONS ====================
+// ==================== 🆕 SIMPLIFIED CONTEXT SLOT MANAGEMENT FUNCTIONS ====================
 
-// ðŸ†• Get user's context addon slots and usage - SIMPLIFIED: Direct field access
+// 🆕 Get user's context addon slots and usage - SIMPLIFIED: Direct field access
 const getContextAddonUsage = async (userId) => {
     try {
         const result = await pool.query(`
@@ -2094,7 +2070,7 @@ const getContextAddonUsage = async (userId) => {
     }
 };
 
-// ðŸ†• Create context addon subscription - SIMPLIFIED: Direct field increment
+// 🆕 Create context addon subscription - SIMPLIFIED: Direct field increment
 const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails = {}) => {
     try {
         const client = await pool.connect();
@@ -2128,7 +2104,7 @@ const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails 
                 addonDetails.chargebeeStatus || 'active'
             ]);
             
-            // ðŸ†• SIMPLIFIED: Increment extra_context_slots directly
+            // 🆕 SIMPLIFIED: Increment extra_context_slots directly
             await client.query(`
                 UPDATE users 
                 SET extra_context_slots = extra_context_slots + $1,
@@ -2161,7 +2137,7 @@ const createContextAddon = async (userId, chargebeeSubscriptionId, addonDetails 
     }
 };
 
-// ðŸ†• Get user's active context addons
+// 🆕 Get user's active context addons
 const getUserContextAddons = async (userId) => {
     try {
         const result = await pool.query(`
@@ -2191,7 +2167,7 @@ const getUserContextAddons = async (userId) => {
     }
 };
 
-// ðŸ†• Update user context slots when plan changes (like credit functions)
+// 🆕 Update user context slots when plan changes (like credit functions)
 const updateUserContextSlots = async (userId, newPlanCode) => {
     try {
         // Plan to context slots mapping
@@ -2237,7 +2213,7 @@ const updateUserContextSlots = async (userId, newPlanCode) => {
     }
 };
 
-// ðŸ†• Remove context addon (decrement slots)
+// 🆕 Remove context addon (decrement slots)
 const removeContextAddon = async (userId, addonId) => {
     try {
         const client = await pool.connect();
@@ -2264,7 +2240,7 @@ const removeContextAddon = async (userId, addonId) => {
                 WHERE id = $1
             `, [addonId]);
             
-            // ðŸ†• SIMPLIFIED: Decrement extra_context_slots directly
+            // 🆕 SIMPLIFIED: Decrement extra_context_slots directly
             await client.query(`
                 UPDATE users 
                 SET extra_context_slots = GREATEST(0, extra_context_slots - $1),
@@ -2297,7 +2273,7 @@ const removeContextAddon = async (userId, addonId) => {
 
 // ==================== PENDING REGISTRATIONS FUNCTIONS ====================
 
-// âœ… NEW: Store pending registration before payment
+// ✅ NEW: Store pending registration before payment
 const storePendingRegistration = async (userId, linkedinUrl, packageType) => {
     try {
         // Remove any existing pending registrations for this user
@@ -2329,7 +2305,7 @@ const storePendingRegistration = async (userId, linkedinUrl, packageType) => {
     }
 };
 
-// âœ… NEW: Get pending registration for user
+// ✅ NEW: Get pending registration for user
 const getPendingRegistration = async (userId) => {
     try {
         const result = await pool.query(`
@@ -2359,7 +2335,7 @@ const getPendingRegistration = async (userId) => {
     }
 };
 
-// âœ… NEW: Complete pending registration (called by webhook)
+// ✅ NEW: Complete pending registration (called by webhook)
 const completePendingRegistration = async (userId) => {
     try {
         const client = await pool.connect();
@@ -2616,7 +2592,7 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     
     const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
     
-    // ðŸ†• Get context slots for plan
+    // 🆕 Get context slots for plan
     const planContextSlots = {
         'free': 1,
         'silver-monthly': 3,
@@ -2647,7 +2623,7 @@ const createUser = async (email, passwordHash, packageType = 'free', billingMode
     return result.rows[0];
 };
 
-// âœ… AUTO-REGISTRATION: Enhanced createGoogleUser with LinkedIn URL support
+// ✅ AUTO-REGISTRATION: Enhanced createGoogleUser with LinkedIn URL support
 const createGoogleUser = async (email, displayName, googleId, profilePicture, packageType = 'free', billingModel = 'monthly', linkedinUrl = null) => {
     // Get credits from plans table
     const planResult = await pool.query(
@@ -2657,7 +2633,7 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     const renewableCredits = planResult.rows[0]?.renewable_credits || 7;
     
-    // ðŸ†• Get context slots for plan
+    // 🆕 Get context slots for plan
     const planContextSlots = {
         'free': 1,
         'silver-monthly': 3,
@@ -2670,7 +2646,7 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
     
     const contextSlots = planContextSlots[packageType] || 1;
     
-    // âœ… AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
+    // ✅ AUTO-REGISTRATION: Set registration_completed = true when LinkedIn URL is provided
     const registrationCompleted = !!linkedinUrl;
     
     const result = await pool.query(`
@@ -2688,7 +2664,7 @@ const createGoogleUser = async (email, displayName, googleId, profilePicture, pa
         renewableCredits, 0, renewableCredits,
         contextSlots, 0, contextSlots,
         new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next month
-        linkedinUrl, registrationCompleted, // âœ… AUTO-REGISTRATION: Add LinkedIn URL and registration status
+        linkedinUrl, registrationCompleted, // ✅ AUTO-REGISTRATION: Add LinkedIn URL and registration status
         false // is_admin defaults to false
     ]);
     
@@ -2718,9 +2694,11 @@ const getUserById = async (userId) => {
 // USER PROFILE: Create user profile (UNCHANGED - still working)
 const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null) => {
     try {
+        const cleanUrl = cleanLinkedInUrl(linkedinUrl); // âœ… ADDED: Clean URL before saving
+        
         await pool.query(
             'UPDATE users SET linkedin_url = $1, extraction_status = $2, error_message = NULL WHERE id = $3',
-            [linkedinUrl, 'not_started', userId]
+            [cleanUrl, 'not_started', userId] // âœ… FIXED: Use cleanUrl
         );
         
         const existingProfile = await pool.query(
@@ -2732,13 +2710,13 @@ const createOrUpdateUserProfile = async (userId, linkedinUrl, displayName = null
         if (existingProfile.rows.length > 0) {
             const result = await pool.query(
                 'UPDATE user_profiles SET linkedin_url = $1, full_name = $2, data_extraction_status = $3, extraction_retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4 RETURNING *',
-                [linkedinUrl, displayName, 'pending', userId]
+                [cleanUrl, displayName, 'pending', userId] // âœ… FIXED: Use cleanUrl
             );
             profile = result.rows[0];
         } else {
             const result = await pool.query(
                 'INSERT INTO user_profiles (user_id, linkedin_url, full_name, data_extraction_status, extraction_retry_count, initial_scraping_done) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-                [userId, linkedinUrl, displayName, 'pending', 0, false]
+                [userId, cleanUrl, displayName, 'pending', 0, false] // âœ… FIXED: Use cleanUrl
             );
             profile = result.rows[0];
         }
@@ -2779,7 +2757,7 @@ const testDatabase = async () => {
     }
 };
 
-// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + ðŸ†• SIMPLIFIED CONTEXT SLOT SYSTEM + ðŸ”’ SECURE ADMIN MANAGEMENT + âœ… EMAIL FINDER + ðŸ”§ PLAN NAME FIX + ðŸ“§ EMAIL FINDER IN MESSAGE_LOGS + âœï¸ EDIT MESSAGE FEATURE
+// Enhanced export with dual credit system + AUTO-REGISTRATION + URL DEDUPLICATION FIX + GPT-5 INTEGRATION + MESSAGE_TYPE FIX + CHARGEBEE COLUMNS + PENDING REGISTRATIONS + MESSAGES CAMPAIGN TRACKING + PROMPT_VERSION FIX + CANCELLATION TRACKING + SAVED CONTEXTS + CONTEXT ADDONS + 🆕 SIMPLIFIED CONTEXT SLOT SYSTEM + 🔒 SECURE ADMIN MANAGEMENT + ✅ EMAIL FINDER + 🔧 PLAN NAME FIX + 📧 EMAIL FINDER IN MESSAGE_LOGS + ✏️ EDIT MESSAGE FEATURE
 module.exports = {
     // Database connection
     pool,
@@ -2792,20 +2770,20 @@ module.exports = {
     cleanupDuplicateTargetProfiles,
     ensureTargetProfilesTable,
     ensureSavedContextsTable,
-    ensureContextAddonTables, // âœ… NEW: Context addon tables function
+    ensureContextAddonTables, // ✅ NEW: Context addon tables function
     ensurePendingRegistrationsTable,
-    ensureAdminAuditTable, // ðŸ”’ NEW: Admin audit table function
-    ensureEmailRequestsTable, // ðŸ“§ NEW: Email requests table function
-    ensureEmailFinderSearchesTable, // ðŸ” NEW: Email finder searches table function
-    ensureBrightDataProfilesTable, // ðŸ†• NEW: BrightData profiles table function
-    ensureWebGeneratedMessagesTable, // ðŸ†• NEW: Web generated messages table function
+    ensureAdminAuditTable, // 🔒 NEW: Admin audit table function
+    ensureEmailRequestsTable, // 📧 NEW: Email requests table function
+    ensureEmailFinderSearchesTable, // 🔍 NEW: Email finder searches table function
+    ensureBrightDataProfilesTable, // 🆕 NEW: BrightData profiles table function
+    ensureWebGeneratedMessagesTable, // 🆕 NEW: Web generated messages table function
     fixPromptVersionColumn,
-    initializeContextSlots, // ðŸ†• NEW: Initialize context slots function
-    setupInitialAdmin, // ðŸ”’ NEW: Secure initial admin setup function
+    initializeContextSlots, // 🆕 NEW: Initialize context slots function
+    setupInitialAdmin, // 🔒 NEW: Secure initial admin setup function
     
-    // âœ… AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
+    // ✅ AUTO-REGISTRATION: Enhanced user management with LinkedIn URL support
     createUser,
-    createGoogleUser, // âœ… AUTO-REGISTRATION: Now supports linkedinUrl parameter
+    createGoogleUser, // ✅ AUTO-REGISTRATION: Now supports linkedinUrl parameter
     linkGoogleAccount,
     getUserByEmail,
     getUserById,
@@ -2820,23 +2798,23 @@ module.exports = {
     spendUserCredits,
     resetRenewableCredits,
     
-    // âœ… CANCELLATION FIX: New cancellation management function
+    // ✅ CANCELLATION FIX: New cancellation management function
     downgradeUserToFree,
     
-    // ðŸ”’ NEW: SECURE Admin Management Functions
+    // 🔒 NEW: SECURE Admin Management Functions
     createAdminUser,
     promoteUserToAdmin,
     removeAdminRights,
     listAdminUsers,
-    requireAdminAuthorization, // ðŸ”’ NEW: Authorization middleware
-    logAdminAction, // ðŸ”’ NEW: Audit logging function
+    requireAdminAuthorization, // 🔒 NEW: Authorization middleware
+    logAdminAction, // 🔒 NEW: Audit logging function
     
-    // âœ… NEW: Pending Registration Management
+    // ✅ NEW: Pending Registration Management
     storePendingRegistration,
     getPendingRegistration,
     completePendingRegistration,
     
-    // ðŸ†• NEW: Context Slot Management (like credit functions)
+    // 🆕 NEW: Context Slot Management (like credit functions)
     getContextAddonUsage,
     createContextAddon,
     getUserContextAddons,
