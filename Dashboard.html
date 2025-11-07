@@ -1298,26 +1298,58 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 display: block;
             }
 
+            /* Main Content - Fix width issues */
             .main-wrapper {
-                margin-left: 0;
+                margin-left: 0 !important;
+                width: 100% !important;
             }
 
             .main-content {
                 padding: 1rem;
-                margin-top: 4rem;
+                padding-top: 5rem; /* Space for mobile toggle button */
             }
 
+            /* Dashboard Grid - Mobile */
             .dashboard-grid {
                 grid-template-columns: 1fr;
-                gap: 1rem;
+                gap: 1.5rem;
             }
 
+            /* Cards - Mobile Best Practices */
             .card {
-                padding: 1rem;
+                border: 1px solid #E5E7EB;
+                border-radius: 12px;
+                padding: 1.25rem;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                margin-bottom: 1.5rem;
             }
 
+            .card:hover {
+                transform: none; /* Disable hover transform on mobile */
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            }
+
+            /* Touch Target Sizes - WCAG AAA Compliant */
+            .card button,
+            .card .btn,
+            .download-extension-btn,
+            .upgrade-btn,
+            .view-all-btn {
+                min-height: 48px;
+                padding: 0.75rem 1.25rem;
+                font-size: 0.9rem;
+            }
+
+            /* Input fields - iOS optimization */
+            input, select, textarea {
+                font-size: 16px; /* Prevents iOS zoom */
+                min-height: 48px;
+            }
+
+            /* Recent Messages Grid */
             .recent-messages-grid {
                 grid-template-columns: 1fr;
+                gap: 1.5rem;
             }
 
             .recent-messages-header {
@@ -1326,10 +1358,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 gap: 1rem;
             }
 
+            /* Profile Summary - Mobile */
             .profile-summary {
                 flex-direction: column;
                 align-items: center;
                 text-align: center;
+                gap: 1rem;
             }
 
             .profile-avatar {
@@ -1338,26 +1372,34 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 font-size: 1.5rem;
             }
 
+            /* Subscription Details */
             .subscription-details {
                 grid-template-columns: 1fr;
+                gap: 1rem;
             }
 
+            /* Credits Display */
             .credits-display {
                 flex-direction: column;
                 text-align: center;
                 gap: 0.8rem;
             }
 
+            /* Context Usage Display */
             .context-usage-display {
                 flex-direction: column;
                 text-align: center;
                 gap: 0.8rem;
             }
 
+            /* Recent Message Items */
             .recent-message-item {
                 flex-direction: column;
                 text-align: center;
                 gap: 0.5rem;
+                padding: 1.25rem;
+                border: 1px solid #E5E7EB;
+                border-radius: 12px;
             }
 
             .recent-msg-avatar {
@@ -1372,6 +1414,28 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             .recent-msg-status {
                 justify-content: center;
                 flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            /* Stats Cards - Better spacing */
+            .stat-card {
+                padding: 1.25rem;
+                margin-bottom: 1rem;
+            }
+
+            /* Page Header - Mobile */
+            .page-header {
+                margin-bottom: 1.5rem;
+            }
+
+            .page-title {
+                font-size: 1.75rem;
+            }
+
+            /* Notification Banner - Mobile */
+            .notification-banner {
+                padding: 1rem;
+                border-radius: 12px;
             }
         }
     </style>
