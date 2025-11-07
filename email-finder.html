@@ -2501,7 +2501,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             }
 
             .sidebar-toggle {
+                display: flex;
+            }
+
+            .sidebar-backdrop {
                 display: block;
+            }
+
+            /* Prevent body scroll when sidebar is open */
+            body.sidebar-open {
+                overflow: hidden;
             }
 
             /* Main Content - Fix width issues */
@@ -2556,6 +2565,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
             .search-input {
                 font-size: 16px; /* Prevents iOS zoom */
+                min-height: 48px;
             }
 
             .messages-stats {
@@ -2566,6 +2576,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
             .stat-item {
                 padding: 1rem;
+                min-width: calc(50% - 0.5rem);
             }
 
             .messages-cards-grid {
@@ -2585,6 +2596,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
             .filter-buttons {
                 justify-content: center;
+                flex-wrap: wrap;
+                gap: 0.5rem;
             }
 
             .page-header {
