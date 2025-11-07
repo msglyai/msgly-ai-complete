@@ -1295,10 +1295,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             }
 
             .sidebar-toggle {
+                display: flex;
+            }
+
+            .sidebar-backdrop {
                 display: block;
             }
 
-            /* Main Content - Fix width issues */
+            /* Prevent body scroll when sidebar is open */
+            body.sidebar-open {
+                overflow: hidden;
+            }
+
+            /* Main Content - Fix width issues and add top padding */
             .main-wrapper {
                 margin-left: 0 !important;
                 width: 100% !important;
@@ -1329,6 +1338,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             }
 
+            /* Recent Messages Card - Mobile Best Practices */
+            .recent-messages-card {
+                border: 1px solid #E5E7EB;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            }
+
+            .recent-messages-card:hover {
+                transform: none;
+            }
+
             /* Touch Target Sizes - WCAG AAA Compliant */
             .card button,
             .card .btn,
@@ -1338,6 +1357,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 min-height: 48px;
                 padding: 0.75rem 1.25rem;
                 font-size: 0.9rem;
+            }
+
+            /* View All Button - Full Width on Mobile */
+            .view-all-btn {
+                width: 100%;
+                justify-content: center;
             }
 
             /* Input fields - iOS optimization */
@@ -1354,8 +1379,65 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
             .recent-messages-header {
                 flex-direction: column;
-                align-items: flex-start;
+                align-items: stretch;
                 gap: 1rem;
+            }
+
+            /* Recent Message Items - Improved Mobile Layout */
+            .recent-message-item {
+                display: flex;
+                flex-direction: row; /* Keep horizontal layout like messaging apps */
+                align-items: flex-start;
+                text-align: left; /* Left-align for better readability */
+                gap: 0.8rem;
+                padding: 1.25rem;
+                border: 1px solid #E5E7EB; /* Add visible border */
+                border-left: 4px solid var(--primary-purple); /* Keep accent */
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Add depth */
+                margin-bottom: 1rem;
+            }
+
+            .recent-msg-avatar {
+                flex-shrink: 0;
+                align-self: flex-start; /* Top-align avatar */
+            }
+
+            .recent-msg-content {
+                flex: 1;
+                min-width: 0;
+                text-align: left; /* Left-align content */
+            }
+
+            .recent-msg-header {
+                display: flex;
+                flex-direction: row; /* Keep name and date on same line */
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .recent-msg-name {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .recent-msg-date {
+                flex-shrink: 0;
+                white-space: nowrap;
+            }
+
+            .recent-msg-role,
+            .recent-msg-preview {
+                text-align: left; /* Left-align text */
+            }
+
+            .recent-msg-status {
+                display: flex;
+                justify-content: flex-start; /* Left-align badges */
+                flex-wrap: wrap;
+                gap: 0.5rem;
             }
 
             /* Profile Summary - Mobile */
@@ -1390,31 +1472,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 flex-direction: column;
                 text-align: center;
                 gap: 0.8rem;
-            }
-
-            /* Recent Message Items */
-            .recent-message-item {
-                flex-direction: column;
-                text-align: center;
-                gap: 0.5rem;
-                padding: 1.25rem;
-                border: 1px solid #E5E7EB;
-                border-radius: 12px;
-            }
-
-            .recent-msg-avatar {
-                align-self: center;
-            }
-
-            .recent-msg-header {
-                flex-direction: column;
-                gap: 0.2rem;
-            }
-
-            .recent-msg-status {
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 0.5rem;
             }
 
             /* Stats Cards - Better spacing */
