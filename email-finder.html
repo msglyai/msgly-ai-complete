@@ -2135,7 +2135,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         }
 
         .toggle-switch-compact input:checked + .toggle-slider-compact::before {
-            content: "✓";
+            content: "âœ“";
             transform: translateX(20px);
             color: var(--success-green);
         }
@@ -2504,26 +2504,68 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 display: block;
             }
 
+            /* Main Content - Fix width issues */
             .main-wrapper {
-                margin-left: 0;
+                margin-left: 0 !important;
+                width: 100% !important;
             }
 
             .main-content {
                 padding: 1rem;
-                margin-top: 4rem;
+                padding-top: 5rem; /* Space for mobile toggle button */
+            }
+
+            /* Email Result Cards - Mobile Best Practices */
+            .email-result-card {
+                border: 1px solid #E5E7EB;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                margin-bottom: 1.5rem;
+            }
+
+            .email-result-card:hover {
+                transform: none; /* Disable hover transform on mobile */
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            }
+
+            .result-card-header {
+                padding: 1.25rem;
+            }
+
+            .result-card-body {
+                padding: 1.25rem;
+            }
+
+            /* Touch Target Sizes - WCAG AAA Compliant */
+            .email-result-card button,
+            .email-result-card .btn,
+            .email-result-card .action-btn {
+                min-height: 48px;
+                padding: 0.75rem 1.25rem;
+                font-size: 0.9rem;
             }
 
             .messages-controls {
                 flex-direction: column;
+                gap: 1rem;
             }
 
             .search-box {
-                min-width: auto;
+                min-width: 100%;
+            }
+
+            .search-input {
+                font-size: 16px; /* Prevents iOS zoom */
             }
 
             .messages-stats {
                 justify-content: center;
                 flex-wrap: wrap;
+                gap: 0.75rem;
+            }
+
+            .stat-item {
+                padding: 1rem;
             }
 
             .messages-cards-grid {
@@ -2537,7 +2579,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             }
 
             .modal {
-                max-width: 350px;
+                max-width: 90%;
                 padding: 1.5rem;
             }
 
@@ -2548,6 +2590,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             .page-header {
                 flex-direction: column;
                 align-items: flex-start;
+                gap: 1rem;
             }
 
             .page-header-credits {
@@ -2971,11 +3014,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         @media (max-width: 768px) {
             .search-input-group {
                 flex-direction: column;
+                gap: 0.75rem;
             }
 
             .find-email-btn {
                 width: 100%;
                 justify-content: center;
+                min-height: 48px;
+                font-size: 0.95rem;
             }
 
             .search-info {
@@ -2995,6 +3041,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
             .sort-dropdown select {
                 flex: 1;
+                min-height: 48px;
+                font-size: 16px; /* Prevents iOS zoom */
+            }
+
+            /* Email Finder Search Section - Mobile */
+            .email-finder-search-section {
+                padding: 1.25rem;
+                border-radius: 12px;
+            }
+
+            /* Input Fields - Mobile Optimized */
+            .email-finder-search-section input {
+                font-size: 16px; /* Prevents iOS zoom */
+                min-height: 48px;
             }
         }
     </style>
@@ -3017,7 +3077,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="modal-overlay" id="upgradeModal">
         <div class="modal">
             <div class="modal-header">
-                <div class="modal-title">🚀 Upgrade Required</div>
+                <div class="modal-title">ðŸš€ Upgrade Required</div>
             </div>
             <div class="modal-body">
                 <strong>Email finder is available for Silver, Gold, and Platinum subscribers.</strong><br><br>
@@ -3035,7 +3095,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="modal-overlay" id="insufficientCreditsModal">
         <div class="modal">
             <div class="modal-header">
-                <div class="modal-title">💳 Not Enough Credits</div>
+                <div class="modal-title">ðŸ’³ Not Enough Credits</div>
             </div>
             <div class="modal-body">
                 <strong>You need at least 2 credits to use the email finder.</strong><br><br>
@@ -3053,7 +3113,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="modal-overlay" id="emailFinderModal">
         <div class="modal">
             <div class="modal-header">
-                <div class="modal-title">🔍 Find & Verify Email</div>
+                <div class="modal-title">ðŸ” Find & Verify Email</div>
             </div>
             <div class="modal-body">
                 We'll search for this contact's email address using Snov.io. <strong>You'll only be charged 2 credits if we successfully find and verify an email.</strong><br><br>
@@ -3393,7 +3453,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             modal.innerHTML = `
                 <div class="modal">
                     <div class="modal-header">
-                        <div class="modal-title">⚠️ Credit Confirmation</div>
+                        <div class="modal-title">âš ï¸ Credit Confirmation</div>
                     </div>
                     <div class="modal-body">
                         <p><strong>This will use 2 credits</strong></p>
