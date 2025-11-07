@@ -95,7 +95,7 @@
             }
 
             // Insert elements into body in correct order: backdrop → sidebar → toggle
-            // FIXED: Backdrop is now inserted first
+            // Order matters for CSS sibling selectors (.sidebar.active ~ .sidebar-toggle)
             if (backdrop) {
                 document.body.insertBefore(backdrop, document.body.firstChild);
                 console.log('[SIDEBAR] Backdrop element inserted');
@@ -105,7 +105,12 @@
                 console.log('[SIDEBAR] Sidebar element inserted');
             }
             if (toggle) {
-                document.body.insertBefore(toggle, document.body.firstChild);
+                // Insert toggle AFTER sidebar so CSS sibling selector works
+                if (sidebar.nextSibling) {
+                    document.body.insertBefore(toggle, sidebar.nextSibling);
+                } else {
+                    document.body.appendChild(toggle);
+                }
                 console.log('[SIDEBAR] Toggle button inserted');
             }
 
