@@ -873,11 +873,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
+            /* Main Content - Fix width issues */
             .main-wrapper {
-                margin-left: 0;
-                width: 100%;
+                margin-left: 0 !important;
+                width: 100% !important;
             }
 
+            .main-content {
+                padding: 1rem;
+                padding-top: 5rem; /* Space for mobile toggle button */
+            }
+
+            /* Hide desktop table, show mobile cards */
             .messages-table-container {
                 display: none;
             }
@@ -886,12 +893,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 display: block !important;
             }
 
+            /* Mobile Message Cards - Best Practices */
             .mobile-message-card {
                 background: var(--white);
+                border: 1px solid #E5E7EB;
                 border-radius: 12px;
-                padding: 1rem;
-                margin-bottom: 1rem;
-                box-shadow: var(--shadow);
+                padding: 1.25rem;
+                margin-bottom: 1.5rem;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             }
 
             .mobile-card-header {
@@ -916,12 +925,56 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 margin-bottom: 0.5rem;
             }
 
+            /* Touch Target Sizes - WCAG AAA Compliant */
+            .mobile-message-card button,
+            .mobile-message-card .btn,
+            .mobile-message-card .status-toggle {
+                min-height: 48px;
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .mobile-message-card .action-btn {
+                min-height: 48px;
+                padding: 0.75rem 1.25rem;
+            }
+
+            /* Stats - Mobile Layout */
             .messages-stats {
                 flex-wrap: wrap;
+                gap: 0.75rem;
             }
 
             .stat-item {
                 min-width: calc(50% - 0.5rem);
+                padding: 1rem;
+            }
+
+            /* Page Header - Mobile */
+            .page-header {
+                flex-direction: column;
+                gap: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .page-header-credits {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Search Box - Mobile */
+            .search-box {
+                min-width: 100%;
+            }
+
+            .search-input {
+                font-size: 16px; /* Prevents iOS zoom */
+            }
+
+            /* Messages Controls */
+            .messages-controls {
+                flex-direction: column;
+                gap: 1rem;
             }
         }
 
@@ -1068,9 +1121,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <div class="modal-body">
                 <p style="color: var(--gray); font-size: 0.9rem;">
                     <strong>What's included:</strong><br>
-                    • Email address discovery<br>
-                    • Email verification status<br>
-                    • Deliverability score
+                    â€¢ Email address discovery<br>
+                    â€¢ Email verification status<br>
+                    â€¢ Deliverability score
                 </p>
             </div>
             <div class="modal-footer">
@@ -1554,13 +1607,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             // If email found
             if (msg.emailFound && msg.emailVerificationStatus !== 'not_found') {
                 const statusLabels = {
-                    valid: { text: '✓ Valid', class: 'valid' },
-                    risky: { text: '⚠ Risky', class: 'risky' },
+                    valid: { text: 'âœ“ Valid', class: 'valid' },
+                    risky: { text: 'âš  Risky', class: 'risky' },
                     unknown: { text: '? Unknown', class: 'unknown' },
                     catch_all: { text: '? Catch-All', class: 'unknown' },
-                    invalid: { text: '✗ Invalid', class: 'invalid' },
-                    not_valid: { text: '✗ Invalid', class: 'invalid' },
-                    found: { text: '⏳ Verifying', class: 'unknown' }
+                    invalid: { text: 'âœ— Invalid', class: 'invalid' },
+                    not_valid: { text: 'âœ— Invalid', class: 'invalid' },
+                    found: { text: 'â³ Verifying', class: 'unknown' }
                 };
                 const status = statusLabels[msg.emailVerificationStatus] || statusLabels.unknown;
                 
