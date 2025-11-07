@@ -41,11 +41,14 @@
             overflow-y: auto;
             transition: transform 0.3s ease;
             box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
         }
 
         .sidebar-header {
             padding: 2rem 1.5rem 1.5rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
         }
 
         .sidebar-logo {
@@ -172,8 +175,10 @@
         }
 
         .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
             padding: 1.5rem 0;
-            padding-bottom: 90px; /* Space for logout button */
+            padding-bottom: 0;
         }
 
         .nav-section {
@@ -244,43 +249,45 @@
             color: rgba(255, 255, 255, 0.8);
         }
 
-        /* Upgrade Button */
+        /* Upgrade Section Styling */
+        .upgrade-section {
+            display: none;
+        }
+
         .sidebar-upgrade-btn {
-            background: linear-gradient(135deg, var(--accent-pink) 0%, #FF6B9D 100%);
-            margin: 0.75rem 1.5rem;
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3);
+            background: linear-gradient(135deg, var(--glow-purple) 0%, var(--neon-purple) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            margin: 0 1rem;
+            padding: 1rem 1.5rem !important;
+            box-shadow: var(--glow-shadow);
+            transition: all 0.3s ease;
         }
 
         .sidebar-upgrade-btn:hover {
-            background: linear-gradient(135deg, #FF2370 0%, #FF5A8F 100%);
-            box-shadow: 0 6px 20px rgba(255, 35, 112, 0.4);
+            background: linear-gradient(135deg, var(--neon-purple) 0%, var(--electric-purple) 100%);
+            box-shadow: var(--intense-glow);
             transform: translateY(-2px);
         }
 
-        .sidebar-upgrade-btn .nav-badge {
-            background: rgba(255, 255, 255, 0.3);
-            color: var(--white);
+        .sidebar-upgrade-btn i {
+            font-size: 1.2rem;
         }
 
-        /* Upgrade Button Animation */
-        @keyframes glow {
-            0%, 100% {
-                box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3);
-            }
-            50% {
-                box-shadow: 0 4px 15px rgba(255, 35, 112, 0.6);
-            }
+        .sidebar-upgrade-btn .nav-item-text {
+            font-weight: 600;
+            font-size: 0.95rem;
         }
 
+        /* Sidebar Footer - FIXED: Now properly positioned at bottom */
         .sidebar-footer {
-            position: absolute;
+            position: sticky;
             bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 1.5rem;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(180deg, transparent 0%, var(--dark-purple) 20%);
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+            z-index: 10;
         }
 
         .logout-btn {
@@ -322,6 +329,7 @@
             transition: all 0.3s ease;
             cursor: pointer;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
         }
 
         .extension-download-btn:hover {
@@ -335,7 +343,7 @@
             font-size: 0.9rem;
         }
 
-        /* Mobile Sidebar Toggle - FIXED: Removed duplicate display property */
+        /* Mobile Sidebar Toggle - FIXED: Completely hidden on desktop */
         .sidebar-toggle {
             display: none;
             position: fixed;
@@ -349,8 +357,8 @@
             padding: 0.75rem;
             cursor: pointer;
             box-shadow: var(--shadow);
-            min-width: 48px;
-            min-height: 48px;
+            width: 48px;
+            height: 48px;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
@@ -360,6 +368,10 @@
             background: var(--dark-purple);
             transform: translateY(-2px);
             box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar-toggle i {
+            font-size: 1.25rem;
         }
 
         /* Mobile Sidebar Backdrop */
@@ -382,7 +394,7 @@
             visibility: visible;
         }
 
-        /* Mobile Responsive Styles */
+        /* Mobile Responsive Styles - ONLY applies below 768px */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -403,6 +415,17 @@
             /* Prevent body scroll when sidebar is open */
             body.sidebar-open {
                 overflow: hidden;
+            }
+        }
+
+        /* Desktop styles - Ensures toggle is NEVER shown on desktop */
+        @media (min-width: 769px) {
+            .sidebar-toggle {
+                display: none !important;
+            }
+            
+            .sidebar-backdrop {
+                display: none !important;
             }
         }
     </style>
