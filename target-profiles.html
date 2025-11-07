@@ -65,7 +65,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .main-content {
             padding: 1.5rem;
-            max-width: 1400px;
+            max-width: 1600px;
             width: 100%;
             margin: 0 auto;
             box-sizing: border-box;
@@ -339,7 +339,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         .messages-cards-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
             gap: 1.25rem;
             margin-top: 1rem;
             align-items: stretch;
@@ -347,13 +347,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             min-width: 0;
         }
         
-        @media (max-width: 1600px) {
+        /* Adjust for larger screens to ensure 3 columns fit properly */
+        @media (min-width: 1400px) {
+            .messages-cards-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (min-width: 900px) and (max-width: 1399px) {
             .messages-cards-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
         
-        @media (max-width: 900px) {
+        @media (max-width: 899px) {
             .messages-cards-grid {
                 grid-template-columns: 1fr;
             }
@@ -1323,6 +1330,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .meta-dot {
             margin: 0 0.5rem;
             color: var(--gray);
+        }
+
+        .meta-dot::before {
+            content: '•';
         }
 
         .meta-company {
@@ -2655,7 +2666,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <div class="showing-info" id="showingInfo">Showing 21 of X newest messages</div>
                 <button class="load-more-btn" id="loadMoreBtn" onclick="toggleShowAll()">
                     <i class="fas fa-eye"></i>
-                    Show All Messages
+                    Show All Target Profiles
                 </button>
             </div>
 
@@ -2675,7 +2686,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <div class="bottom-pagination" id="bottomPagination" style="display: none;">
                 <button class="load-more-btn" id="bottomLoadMoreBtn" onclick="toggleShowAll()">
                     <i class="fas fa-eye"></i>
-                    Show All Messages
+                    Show All Target Profiles
                 </button>
             </div>
         </div>
@@ -3135,8 +3146,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 
                 if (showingLimited) {
                     showingInfo.textContent = `Showing ${CARDS_LIMIT} of ${filteredMessages.length} newest messages`;
-                    loadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Messages';
-                    bottomLoadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Messages';
+                    loadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Target Profiles';
+                    bottomLoadMoreBtn.innerHTML = '<i class="fas fa-eye"></i> Show All Target Profiles';
                 } else {
                     showingInfo.textContent = `Showing all ${filteredMessages.length} messages`;
                     loadMoreBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Show Recent Only';
