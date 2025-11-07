@@ -65,6 +65,7 @@
 
     /**
      * Load sidebar HTML from server
+     * FIXED: Now extracts and inserts backdrop element
      */
     async function loadSidebarHTML() {
         try {
@@ -79,7 +80,8 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            // Get the toggle button and sidebar
+            // Get all required elements: backdrop, toggle, and sidebar
+            const backdrop = doc.querySelector('.sidebar-backdrop');
             const toggle = doc.querySelector('.sidebar-toggle');
             const sidebar = doc.querySelector('.sidebar');
             const styles = doc.querySelector('style');
@@ -92,12 +94,19 @@
                 document.head.appendChild(styleEl);
             }
 
-            // Insert sidebar and toggle into body at the beginning
-            if (toggle) {
-                document.body.insertBefore(toggle, document.body.firstChild);
+            // Insert elements into body in correct order: backdrop → sidebar → toggle
+            // FIXED: Backdrop is now inserted first
+            if (backdrop) {
+                document.body.insertBefore(backdrop, document.body.firstChild);
+                console.log('[SIDEBAR] Backdrop element inserted');
             }
             if (sidebar) {
                 document.body.insertBefore(sidebar, document.body.firstChild);
+                console.log('[SIDEBAR] Sidebar element inserted');
+            }
+            if (toggle) {
+                document.body.insertBefore(toggle, document.body.firstChild);
+                console.log('[SIDEBAR] Toggle button inserted');
             }
 
             console.log('[SIDEBAR] HTML loaded successfully');
@@ -344,6 +353,7 @@
 
     /**
      * Setup event listeners
+     * FIXED: Now properly handles backdrop element
      */
     function setupEventListeners() {
         // Logout button
@@ -355,12 +365,14 @@
             });
         }
 
-        // Mobile toggle button
+        // Mobile toggle button, sidebar, and backdrop
         const toggleBtn = document.getElementById('sidebarToggle');
         const sidebar = document.getElementById('sidebar');
         const backdrop = document.getElementById('sidebarBackdrop');
         
         if (toggleBtn && sidebar && backdrop) {
+            console.log('[SIDEBAR] All mobile elements found successfully');
+            
             // Toggle button click
             toggleBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -388,9 +400,15 @@
                     closeSidebarMobile();
                 }
             });
+            
+            console.log('[SIDEBAR] Event listeners attached successfully');
+        } else {
+            console.error('[SIDEBAR] Missing mobile elements:', {
+                toggleBtn: !!toggleBtn,
+                sidebar: !!sidebar,
+                backdrop: !!backdrop
+            });
         }
-        
-        console.log('[SIDEBAR] Event listeners attached');
     }
 
     /**
