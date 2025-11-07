@@ -244,37 +244,32 @@
             color: rgba(255, 255, 255, 0.8);
         }
 
-        /* Sidebar Upgrade Section */
-        .upgrade-section {
-            display: none; /* Hidden by default, shown only for free users */
-        }
-
-        /* Sidebar Upgrade Button Special Styling */
+        /* Upgrade Button */
         .sidebar-upgrade-btn {
-            background: linear-gradient(135deg, var(--accent-pink) 0%, var(--warning-orange) 100%) !important;
-            color: var(--white) !important;
-            margin: 0 1rem !important;
-            border-radius: 12px !important;
-            box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3) !important;
-            animation: upgradePulse 2s infinite;
-            font-weight: 600 !important;
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #FF6B9D 100%);
+            margin: 0.75rem 1.5rem;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3);
         }
 
         .sidebar-upgrade-btn:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 6px 20px rgba(255, 35, 112, 0.5) !important;
-            background: linear-gradient(135deg, var(--warning-orange) 0%, var(--accent-pink) 100%) !important;
+            background: linear-gradient(135deg, #FF2370 0%, #FF5A8F 100%);
+            box-shadow: 0 6px 20px rgba(255, 35, 112, 0.4);
+            transform: translateY(-2px);
         }
 
-        .sidebar-upgrade-btn i {
-            font-size: 1.2rem !important;
+        .sidebar-upgrade-btn .nav-badge {
+            background: rgba(255, 255, 255, 0.3);
+            color: var(--white);
         }
 
-        @keyframes upgradePulse {
-            0%, 100% { 
+        /* Upgrade Button Animation */
+        @keyframes glow {
+            0%, 100% {
                 box-shadow: 0 4px 15px rgba(255, 35, 112, 0.3);
             }
-            50% { 
+            50% {
                 box-shadow: 0 4px 15px rgba(255, 35, 112, 0.6);
             }
         }
@@ -340,7 +335,7 @@
             font-size: 0.9rem;
         }
 
-        /* Mobile Sidebar Toggle */
+        /* Mobile Sidebar Toggle - FIXED: Removed duplicate display property */
         .sidebar-toggle {
             display: none;
             position: fixed;
@@ -356,9 +351,15 @@
             box-shadow: var(--shadow);
             min-width: 48px;
             min-height: 48px;
-            display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-toggle:hover {
+            background: var(--dark-purple);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
         }
 
         /* Mobile Sidebar Backdrop */
@@ -381,6 +382,7 @@
             visibility: visible;
         }
 
+        /* Mobile Responsive Styles */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
