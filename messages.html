@@ -873,22 +873,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
-            /* Main Content - Fix width issues */
+            /* Main Content - Fix width and add top padding for hamburger */
             .main-wrapper {
                 margin-left: 0 !important;
                 width: 100% !important;
             }
 
             .main-content {
-                padding: 1rem;
                 padding-top: 5rem; /* Space for mobile toggle button */
             }
 
-            /* Hide desktop table, show mobile cards */
-            .messages-table-container {
-                display: none;
+            /* Hide desktop table view on mobile */
+            .messages-table-container,
+            .messages-table,
+            .messages-table thead,
+            .messages-table th,
+            .desktop-header {
+                display: none !important;
             }
 
+            /* Show mobile cards on mobile */
             .mobile-cards-container {
                 display: block !important;
             }
@@ -896,11 +900,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             /* Mobile Message Cards - Best Practices */
             .mobile-message-card {
                 background: var(--white);
-                border: 1px solid #E5E7EB;
+                border: 1px solid #E5E7EB; /* Add visible border */
                 border-radius: 12px;
                 padding: 1.25rem;
                 margin-bottom: 1.5rem;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Enhanced shadow */
             }
 
             .mobile-card-header {
@@ -925,29 +929,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 margin-bottom: 0.5rem;
             }
 
-            /* Touch Target Sizes - WCAG AAA Compliant */
+            /* Touch Targets - WCAG AAA */
             .mobile-message-card button,
-            .mobile-message-card .btn,
-            .mobile-message-card .status-toggle {
-                min-height: 48px;
-                padding: 0.75rem 1rem;
-                font-size: 0.9rem;
-            }
-
-            .mobile-message-card .action-btn {
+            .mobile-message-card .btn {
                 min-height: 48px;
                 padding: 0.75rem 1.25rem;
             }
 
-            /* Stats - Mobile Layout */
+            /* Messages Stats - Mobile */
             .messages-stats {
                 flex-wrap: wrap;
-                gap: 0.75rem;
+                gap: 1rem;
             }
 
             .stat-item {
                 min-width: calc(50% - 0.5rem);
-                padding: 1rem;
             }
 
             /* Page Header - Mobile */
@@ -957,24 +953,24 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 margin-bottom: 1.5rem;
             }
 
-            .page-header-credits {
-                width: 100%;
-                justify-content: center;
+            /* Filter Buttons - Mobile */
+            .upper-filter-menu {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            .upper-filter-btn {
+                min-height: 48px;
             }
 
             /* Search Box - Mobile */
             .search-box {
-                min-width: 100%;
+                width: 100%;
             }
 
             .search-input {
                 font-size: 16px; /* Prevents iOS zoom */
-            }
-
-            /* Messages Controls */
-            .messages-controls {
-                flex-direction: column;
-                gap: 1rem;
             }
         }
 
