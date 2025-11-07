@@ -358,24 +358,87 @@
         // Mobile toggle button
         const toggleBtn = document.getElementById('sidebarToggle');
         const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
         
-        if (toggleBtn && sidebar) {
-            toggleBtn.addEventListener('click', function() {
-                sidebar.classList.toggle('active');
+        if (toggleBtn && sidebar && backdrop) {
+            // Toggle button click
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                toggleSidebarMobile();
             });
 
-            // Close sidebar when clicking outside on mobile
-            document.addEventListener('click', function(event) {
-                if (window.innerWidth <= 768 && 
-                    !sidebar.contains(event.target) && 
-                    !toggleBtn.contains(event.target) && 
-                    sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
+            // Backdrop click - close sidebar
+            backdrop.addEventListener('click', function() {
+                closeSidebarMobile();
+            });
+
+            // Close sidebar when clicking nav items on mobile
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    if (window.innerWidth <= 768) {
+                        closeSidebarMobile();
+                    }
+                });
+            });
+
+            // Close sidebar on ESC key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                    closeSidebarMobile();
                 }
             });
         }
         
         console.log('[SIDEBAR] Event listeners attached');
+    }
+
+    /**
+     * Toggle sidebar on mobile
+     */
+    function toggleSidebarMobile() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        
+        if (sidebar && backdrop) {
+            const isActive = sidebar.classList.contains('active');
+            
+            if (isActive) {
+                closeSidebarMobile();
+            } else {
+                openSidebarMobile();
+            }
+        }
+    }
+
+    /**
+     * Open sidebar on mobile
+     */
+    function openSidebarMobile() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        
+        if (sidebar && backdrop) {
+            sidebar.classList.add('active');
+            backdrop.classList.add('active');
+            document.body.classList.add('sidebar-open');
+            console.log('[SIDEBAR] Sidebar opened on mobile');
+        }
+    }
+
+    /**
+     * Close sidebar on mobile
+     */
+    function closeSidebarMobile() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        
+        if (sidebar && backdrop) {
+            sidebar.classList.remove('active');
+            backdrop.classList.remove('active');
+            document.body.classList.remove('sidebar-open');
+            console.log('[SIDEBAR] Sidebar closed on mobile');
+        }
     }
 
     /**
@@ -412,10 +475,7 @@
      * GLOBAL FUNCTION: Toggle sidebar (for custom triggers)
      */
     window.toggleSidebar = function() {
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) {
-            sidebar.classList.toggle('active');
-        }
+        toggleSidebarMobile();
     };
 
     // Initialize sidebar when DOM is ready
