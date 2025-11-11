@@ -2044,7 +2044,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </li>
             </ul>
         </div>
-        <button class="blocking-logout-btn" onclick="window.location.href='/login'">
+        <button class="blocking-logout-btn" onclick="handleBlockingLogout()">
             <i class="fas fa-sign-out-alt"></i>
             Logout
         </button>
@@ -3011,6 +3011,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         function downloadChromeExtension() {
             const extensionUrl = 'https://chromewebstore.google.com/detail/msglyai-linkedin-message/gbnbbcbiimefgolddbfgplhedbijkgod';
             window.open(extensionUrl, '_blank');
+        }
+
+        function handleBlockingLogout() {
+            // Clear authentication token
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('auth_token');
+            
+            // Clear any session storage
+            sessionStorage.clear();
+            
+            // Redirect to login page
+            window.location.href = '/login';
         }
 
         // logout() now handled by sidebar-loader.js
