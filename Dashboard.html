@@ -50,7 +50,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             min-height: 100vh;
             display: flex;
         }
+        /* BLOCKING MODE - Applied when RED traffic light status */
+        body.dashboard-blocked {
+            overflow: hidden;
+        }
 
+        body.dashboard-blocked .sidebar {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        body.dashboard-blocked #dashboardContent {
+            filter: blur(3px);
+            pointer-events: none;
+        }
+
+        body.dashboard-blocked .main-content {
+            pointer-events: none;
+        }
+
+        /* Side Navigation */
         /* Side Navigation */
 
         /* Main Content */
@@ -175,18 +194,186 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             color: var(--black);
         }
 
-        /* TRAFFIC LIGHT SYSTEM */
+        /* BLOCKING OVERLAY BACKDROP - Full screen dark overlay for RED status */
+        .blocking-overlay-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9998;
+            display: none;
+            backdrop-filter: blur(2px);
+        }
+
+        /* BLOCKING WARNING CONTAINER - Centered large warning for RED status */
+        .blocking-warning-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 650px;
+            max-width: 90vw;
+            background: var(--white);
+            border-radius: 20px;
+            padding: 3rem;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 4px solid var(--error-red);
+            animation: pulseWarning 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseWarning {
+            0%, 100% {
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            50% {
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 15px rgba(239, 68, 68, 0);
+            }
+        }
+
+        .blocking-warning-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            color: var(--error-red);
+            animation: shake 0.5s ease-in-out infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .blocking-warning-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--error-red);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .blocking-warning-message {
+            color: var(--dark-gray);
+            line-height: 1.8;
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .blocking-warning-highlight {
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .blocking-download-btn {
+            width: 100%;
+            padding: 1.5rem 2rem;
+            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
+            color: var(--white);
+            border: none;
+            border-radius: 14px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: var(--glow-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .blocking-download-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .blocking-download-btn:hover {
+            background: linear-gradient(135deg, var(--electric-purple) 0%, var(--primary-purple) 100%);
+            transform: translateY(-3px);
+            box-shadow: var(--intense-glow);
+        }
+
+        .blocking-download-btn:hover::before {
+            left: 100%;
+        }
+
+        .blocking-download-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .blocking-download-btn i {
+            font-size: 1.5rem;
+        }
+
+        .blocking-steps {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid var(--light-gray);
+        }
+
+        .blocking-steps-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .blocking-steps-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .blocking-steps-list li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 0.8rem;
+            font-size: 0.95rem;
+            color: var(--dark-gray);
+        }
+
+        .blocking-steps-list li .step-number {
+            width: 28px;
+            height: 28px;
+            background: var(--primary-purple);
+            color: var(--white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        /* TRAFFIC LIGHT SYSTEM - Keep only ORANGE (non-blocking) styles */
         .traffic-light-warning {
             border-radius: 14px;
             padding: 1.2rem;
             margin-bottom: 1.5rem;
             display: none;
             animation: slideInDown 0.5s ease-out;
-        }
-
-        .traffic-light-warning.red {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
-            border: 2px solid var(--error-red);
         }
 
         .traffic-light-warning.orange {
@@ -207,10 +394,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-size: 1.1rem;
         }
 
-        .traffic-light-warning.red .traffic-light-icon {
-            color: var(--error-red);
-        }
-
         .traffic-light-warning.orange .traffic-light-icon {
             color: var(--warning-orange);
         }
@@ -218,10 +401,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         .traffic-light-title {
             font-size: 1rem;
             font-weight: 600;
-        }
-
-        .traffic-light-warning.red .traffic-light-title {
-            color: var(--error-red);
         }
 
         .traffic-light-warning.orange .traffic-light-title {
@@ -234,34 +413,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             font-size: 0.9rem;
         }
 
-        .traffic-light-highlight {
-            font-weight: 600;
-            color: var(--black);
+        .orange-progress {
+            margin-top: 1rem;
         }
 
-        .download-extension-btn {
-            margin-top: 1.2rem;
+        .progress-bar {
             width: 100%;
-            padding: 1rem 1.5rem;
-            background: linear-gradient(135deg, var(--primary-purple) 0%, var(--dark-purple) 100%);
-            color: var(--white);
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: var(--glow-shadow);
-            position: relative;
+            height: 8px;
+            background: rgba(245, 158, 11, 0.2);
+            border-radius: 10px;
             overflow: hidden;
+            margin-bottom: 0.5rem;
         }
 
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--warning-orange) 0%, var(--accent-pink) 100%);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            color: var(--gray);
+            text-align: center;
+        }
         .download-extension-btn::before {
             content: '';
             position: absolute;
@@ -1553,20 +1729,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
 
             <!-- TRAFFIC LIGHT WARNING SYSTEM -->
-            <div class="traffic-light-warning red" id="redWarning">
-                <div class="traffic-light-header">
-                    <i class="fas fa-exclamation-triangle traffic-light-icon"></i>
-                    <div class="traffic-light-title">Your profile is not fully synced yet.</div>
-                </div>
-                <div class="traffic-light-message">
-                    To personalize your outreach messages at the highest level, we first need a complete view of your LinkedIn profile. Please visit <span class="traffic-light-highlight">your own LinkedIn profile</span> with the Msgly.AI Chrome extension installed and active â€" this will automatically sync your data. Once completed, you'll unlock the full power of our AI-generated messages.
-                </div>
-                <button class="download-extension-btn" onclick="downloadChromeExtension()">
-                    <i class="fab fa-chrome"></i>
-                    Download Chrome Extension
-                </button>
-            </div>
-
             <div class="traffic-light-warning orange" id="orangeWarning">
                 <div class="traffic-light-header">
                     <i class="fas fa-cog fa-spin traffic-light-icon"></i>
@@ -1815,6 +1977,46 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </div>
             </div>
         </main>
+    <!-- BLOCKING OVERLAY BACKDROP - For RED traffic light status -->
+    <div class="blocking-overlay-backdrop" id="blockingBackdrop"></div>
+
+    <!-- BLOCKING WARNING CONTAINER - Centered large warning for RED status -->
+    <div class="blocking-warning-container" id="blockingWarningContainer">
+        <div class="blocking-warning-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="blocking-warning-title">
+            Setup Required to Access Platform
+        </div>
+        <div class="blocking-warning-message">
+            To personalize your outreach messages and unlock the full power of Msgly.AI, you need to complete the setup process. Please <span class="blocking-warning-highlight">download the Chrome extension</span> and visit <span class="blocking-warning-highlight">your own LinkedIn profile</span> with the extension active. This will automatically sync your profile data and unlock all features.
+        </div>
+        <button class="blocking-download-btn" onclick="downloadChromeExtension()">
+            <i class="fab fa-chrome"></i>
+            Download Chrome Extension Now
+        </button>
+        <div class="blocking-steps">
+            <div class="blocking-steps-title">Quick Setup (2 minutes):</div>
+            <ul class="blocking-steps-list">
+                <li>
+                    <span class="step-number">1</span>
+                    Click the button above to install the Chrome extension
+                </li>
+                <li>
+                    <span class="step-number">2</span>
+                    Navigate to your own LinkedIn profile page
+                </li>
+                <li>
+                    <span class="step-number">3</span>
+                    The extension will automatically sync your data
+                </li>
+                <li>
+                    <span class="step-number">4</span>
+                    Return here and start generating personalized messages!
+                </li>
+            </ul>
+        </div>
+    </div>
     </div>
 
     <script>
@@ -2675,18 +2877,42 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         }
 
         // TRAFFIC LIGHT FUNCTIONS
+        // TRAFFIC LIGHT FUNCTIONS - UPDATED FOR BLOCKING MODE
         function hideAllWarnings() {
-            document.getElementById('redWarning').style.display = 'none';
+            // Remove blocking class from body
+            document.body.classList.remove('dashboard-blocked');
+            
+            // Hide blocking overlay
+            document.getElementById('blockingBackdrop').style.display = 'none';
+            document.getElementById('blockingWarningContainer').style.display = 'none';
+            
+            // Hide orange warning
             document.getElementById('orangeWarning').style.display = 'none';
         }
 
         function showRedWarning() {
-            hideAllWarnings();
-            document.getElementById('redWarning').style.display = 'block';
+            console.log('[TRAFFIC] Showing RED warning - BLOCKING MODE');
+            
+            // Hide other warnings first
+            document.getElementById('orangeWarning').style.display = 'none';
+            
+            // Add blocking class to body
+            document.body.classList.add('dashboard-blocked');
+            
+            // Show blocking overlay backdrop
+            document.getElementById('blockingBackdrop').style.display = 'block';
+            
+            // Show centered blocking warning
+            document.getElementById('blockingWarningContainer').style.display = 'block';
         }
 
         function showOrangeWarning() {
-            hideAllWarnings();
+            // Hide blocking mode
+            document.body.classList.remove('dashboard-blocked');
+            document.getElementById('blockingBackdrop').style.display = 'none';
+            document.getElementById('blockingWarningContainer').style.display = 'none';
+            
+            // Show orange warning banner
             document.getElementById('orangeWarning').style.display = 'block';
             startAnalysisProgress();
         }
