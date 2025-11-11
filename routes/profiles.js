@@ -1,10 +1,10 @@
 // What changed in Stage G
-// ✅ FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
+// âœ… FIXED: Profile & API Routes - LLM Orchestrator + Numeric Sanitization
 // routes/profiles.js - Chrome extension and API routes (JWT authentication only)
 
 const express = require('express');
 
-// What changed in Stage G – numeric sanitizers
+// What changed in Stage G â€“ numeric sanitizers
 function toIntSafe(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -38,11 +38,11 @@ function toFloatSafe(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// ✅ Export initialization function with dependency injection
+// âœ… Export initialization function with dependency injection
 function initProfileRoutes(dependencies) {
     const router = express.Router();
     
-    // ✅ Extract dependencies with LLM orchestrator
+    // âœ… Extract dependencies with LLM orchestrator
     const {
         pool,
         authenticateToken,
@@ -57,12 +57,12 @@ function initProfileRoutes(dependencies) {
 
     // ==================== CHROME EXTENSION ROUTES (JWT-ONLY) ====================
 
-    // ✅ User profile scraping with LLM orchestrator and numeric sanitization
+    // âœ… User profile scraping with LLM orchestrator and numeric sanitization
     router.post('/profile/user', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`🔒 User profile scraping request from user ${req.user.id} (Stage G)`);
+            console.log(`ðŸ”’ User profile scraping request from user ${req.user.id} (Stage G)`);
             
             const { html, profileUrl, isUserProfile } = req.body;
             
@@ -95,7 +95,7 @@ function initProfileRoutes(dependencies) {
                 }
             }
             
-            console.log('🤖 Using LLM orchestrator for user profile extraction...');
+            console.log('ðŸ¤– Using LLM orchestrator for user profile extraction...');
             
             // Use LLM orchestrator instead of direct sendToGemini
             const result = await processProfileWithLLM({ 
@@ -121,7 +121,9 @@ function initProfileRoutes(dependencies) {
 
             // Process the AI result
             const aiResult = result;
-            const p = aiResult.data;
+            // âœ… FIXED: Handle nested data structure from LLM (aiResult.data contains another 'data' property)
+            // LLM returns: { success: true, data: { data: { profile, awards, ... } } }
+            const p = aiResult.data?.data || aiResult.data; // Support both nested and flat structures
             
             // Apply numeric sanitization before DB insert
             const numeric = {
@@ -184,8 +186,8 @@ function initProfileRoutes(dependencies) {
                     cleanProfileUrl,
                     p?.profile?.name || '',
                     p?.profile?.headline || '',
-                    p?.profile?.currentRole || '',
-                    p?.profile?.currentCompany || '',
+                    p?.experience?.[0]?.title || '',  // âœ… FIXED: Get from first experience entry
+                    p?.experience?.[0]?.company || '',  // âœ… FIXED: Get from first experience entry
                     p?.profile?.location || '',
                     p?.profile?.about || '',
                     numeric.connections_count,
@@ -225,7 +227,7 @@ function initProfileRoutes(dependencies) {
                     ) RETURNING *
                 `, [
                     req.user.id, cleanProfileUrl, p?.profile?.name || '', p?.profile?.headline || '', 
-                    p?.profile?.currentRole || '', p?.profile?.currentCompany || '', p?.profile?.location || '', 
+                    p?.experience?.[0]?.title || '', p?.experience?.[0]?.company || '', p?.profile?.location || '',  // âœ… FIXED: Get from experience
                     p?.profile?.about || '', numeric.connections_count, numeric.followers_count,
                     numeric.total_likes, numeric.total_comments, numeric.total_shares, numeric.average_likes,
                     JSON.stringify(p?.experience || []), JSON.stringify(p?.education || []), 
@@ -247,7 +249,7 @@ function initProfileRoutes(dependencies) {
             // Commit transaction
             await client.query('COMMIT');
             
-            console.log(`🎉 User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
+            console.log(`ðŸŽ‰ User profile successfully saved for user ${req.user.id} with LLM orchestrator and numeric sanitization!`);
             
             res.json({
                 success: true,
@@ -279,7 +281,7 @@ function initProfileRoutes(dependencies) {
             
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('❌ User profile scraping error:', error);
+            console.error('âŒ User profile scraping error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to save user profile',
@@ -290,7 +292,7 @@ function initProfileRoutes(dependencies) {
         }
     });
 
-    // ⛔ DISABLED: Target profile scraping - Use server.js simple system instead
+    // â›” DISABLED: Target profile scraping - Use server.js simple system instead
     /*
     router.post('/profile/target', authenticateToken, async (req, res) => {
         // DISABLED: This complex route with individual field processing
@@ -307,12 +309,12 @@ function initProfileRoutes(dependencies) {
 
     // ==================== API ROUTES (JWT-ONLY) ====================
 
-    // ✅ Generate message endpoint with proper credit deduction and transaction management
+    // âœ… Generate message endpoint with proper credit deduction and transaction management
     router.post('/generate-message', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         
         try {
-            console.log(`🤖 Message generation request from user ${req.user.id}`);
+            console.log(`ðŸ¤– Message generation request from user ${req.user.id}`);
             
             const { targetProfile, context, messageType } = req.body;
             
@@ -373,7 +375,7 @@ function initProfileRoutes(dependencies) {
             // Commit credit deduction before potentially long API call
             await client.query('COMMIT');
             
-            console.log(`💳 Credit deducted for user ${req.user.id}: ${currentCredits} → ${newCredits}`);
+            console.log(`ðŸ’³ Credit deducted for user ${req.user.id}: ${currentCredits} â†’ ${newCredits}`);
             
             // Generate message (placeholder for now - integrate with GPT-4.1 later)
             const simulatedMessage = `Hi ${targetProfile.firstName || targetProfile.fullName?.split(' ')[0] || 'there'},
@@ -392,7 +394,7 @@ Best regards`;
                 [req.user.id, targetProfile.fullName, targetProfile.linkedinUrl, simulatedMessage, context, 1]
             );
             
-            console.log(`✅ Message generated successfully for user ${req.user.id}`);
+            console.log(`âœ… Message generated successfully for user ${req.user.id}`);
             
             res.json({
                 success: true,
@@ -415,10 +417,10 @@ Best regards`;
             try {
                 await client.query('ROLLBACK');
             } catch (rollbackError) {
-                console.error('❌ Rollback error:', rollbackError);
+                console.error('âŒ Rollback error:', rollbackError);
             }
             
-            console.error('❌ Message generation error:', error);
+            console.error('âŒ Message generation error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to generate message',
@@ -429,7 +431,7 @@ Best regards`;
         }
     });
 
-    // ⛔ DISABLED: Get target profiles - This tries to read individual columns that cause "43,863" error
+    // â›” DISABLED: Get target profiles - This tries to read individual columns that cause "43,863" error
     /*
     router.get('/target-profiles', authenticateToken, async (req, res) => {
         // DISABLED: This route tries to SELECT individual columns like:
@@ -445,7 +447,7 @@ Best regards`;
     });
     */
 
-    // ⛔ DISABLED: Delete target profile - This accesses target_profiles table that may cause issues
+    // â›” DISABLED: Delete target profile - This accesses target_profiles table that may cause issues
     /*
     router.delete('/target-profiles/:id', authenticateToken, async (req, res) => {
         // DISABLED: This route accesses target_profiles table
@@ -459,9 +461,9 @@ Best regards`;
     });
     */
 
-    // ✅ Return the configured router
+    // âœ… Return the configured router
     return router;
 }
 
-// ✅ Export the initialization function
+// âœ… Export the initialization function
 module.exports = { initProfileRoutes };
