@@ -1,13 +1,13 @@
-// Enhanced sendToGemini.js - OpenAI GPT-5-nano with GPT-5-mini Parallel Racing Fallback
+// Enhanced sendToGemini.js - OpenAI GPT-4o-mini PRIMARY with GPT-5-nano Parallel Racing Fallback
 const axios = require('axios');
 const https = require('https');
 
 // ⚡ FALLBACK CONFIGURATION
 const FALLBACK_CONFIG = {
-    ATTEMPT_1_TIMEOUT: 150000,       // 150 seconds (2.5 minutes) for first attempt
+    ATTEMPT_1_TIMEOUT: 90000,        // 90 seconds (1.5 minutes) for first attempt (mini is faster)
     ENABLE_PARALLEL_RETRY: true,     // Enable parallel racing on retry
-    MINI_MODEL: 'gpt-4o-mini',       // Fallback model (faster, cheaper)
-    MINI_TIMEOUT: 60000              // 60 seconds timeout for mini
+    NANO_MODEL: 'gpt-5-nano',        // Fallback model (better quality, slower)
+    NANO_TIMEOUT: 150000             // 150 seconds timeout for nano
 };
 
 // ✅ Rate limiting configuration (OpenAI GPT-5-nano)
@@ -225,18 +225,18 @@ function estimateTokenCount(text) {
     return Math.ceil(text.length / charsPerToken);
 }
 
-// ⚡ NEW: GPT-5-mini Fallback Function (FASTER MODEL)
+// ⚡ GPT-4o-mini Function (PRIMARY MODEL - Fast & Efficient)
 async function callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml }) {
     const apiKey = process.env.OPENAI_API_KEY;
     const startTime = Date.now();
     
-    console.log('⚡ Sending request to GPT-5-mini (FALLBACK)...');
+    console.log('⚡ Sending request to GPT-4o-mini (PRIMARY)...');
     
     try {
         const response = await axios.post(
             'https://api.openai.com/v1/chat/completions',
             {
-                model: FALLBACK_CONFIG.MINI_MODEL,
+                model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt || '' },
                     { role: 'user', content: userPrompt || '' },
@@ -251,14 +251,14 @@ async function callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml }) {
                     'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: FALLBACK_CONFIG.MINI_TIMEOUT,
+                timeout: 90000, // 90 seconds for mini
                 httpAgent: keepAliveAgent,
                 httpsAgent: keepAliveAgent
             }
         );
         
         const processingTime = Date.now() - startTime;
-        console.log(`⚡ GPT-5-mini response received in ${processingTime}ms`);
+        console.log(`⚡ GPT-4o-mini response received in ${processingTime}ms`);
         console.log(`📊 Response status: ${response.status}`);
         
         // Extract response
@@ -289,7 +289,25 @@ async function callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml }) {
     }
 }
 
-// ⚡ NEW: GPT-5-nano with Timeout Wrapper
+// ⚡ GPT-4o-mini with Timeout Wrapper (PRIMARY)
+async function callGPT5MiniWithTimeout({ systemPrompt, userPrompt, preprocessedHtml }, timeoutMs) {
+    return new Promise(async (resolve, reject) => {
+        const timeoutHandle = setTimeout(() => {
+            reject(new Error(`GPT-4o-mini timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+        
+        try {
+            const result = await callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml });
+            clearTimeout(timeoutHandle);
+            resolve(result);
+        } catch (error) {
+            clearTimeout(timeoutHandle);
+            reject(error);
+        }
+    });
+}
+
+// ⚡ GPT-5-nano with Timeout Wrapper (FALLBACK)
 async function callGPT5NanoWithTimeout({ systemPrompt, userPrompt, preprocessedHtml }, timeoutMs) {
     return new Promise(async (resolve, reject) => {
         const timeoutHandle = setTimeout(() => {
@@ -405,7 +423,7 @@ async function sendToGemini({
     try {
         const overallStartTime = Date.now();
         
-        console.log('🔥 === STARTING OPENAI GPT-5-NANO PROCESSING WITH PARALLEL FALLBACK ===');
+        console.log('🔥 === STARTING OPENAI GPT-4O-MINI PROCESSING WITH GPT-5-NANO FALLBACK ===');
         console.log(`📊 Input type: ${inputType}`);
         console.log(`📊 Optimization mode: ${optimizationMode}`);
         console.log(`📊 HTML size: ${(html.length / 1024).toFixed(2)} KB`);
@@ -447,21 +465,21 @@ async function sendToGemini({
         await enforceRateLimit();
         
         // ============================================
-        // ATTEMPT 1: GPT-5-nano Solo
+        // ATTEMPT 1: GPT-4o-mini Primary
         // ============================================
-        console.log('📤 ATTEMPT 1: GPT-5-nano (solo)...');
+        console.log('📤 ATTEMPT 1: GPT-4o-mini (primary - faster, cheaper)...');
         
         try {
-            const nanoResult = await callGPT5NanoWithTimeout(
+            const miniResult = await callGPT5MiniWithTimeout(
                 { systemPrompt, userPrompt, preprocessedHtml },
                 FALLBACK_CONFIG.ATTEMPT_1_TIMEOUT
             );
             
             const totalTime = Date.now() - overallStartTime;
-            console.log(`✅ Attempt 1 SUCCESS: Nano completed in ${totalTime}ms`);
+            console.log(`✅ Attempt 1 SUCCESS: Mini completed in ${totalTime}ms`);
             
             // Parse and validate the response
-            const { parsedData, isValid } = await parseAndValidateResponse(nanoResult);
+            const { parsedData, isValid } = await parseAndValidateResponse(miniResult);
             
             if (!isValid) {
                 throw new Error('Response validation failed');
@@ -472,9 +490,9 @@ async function sendToGemini({
                 data: parsedData,
                 metadata: {
                     inputType: inputType,
-                    processingTime: nanoResult.processingTime,
+                    processingTime: miniResult.processingTime,
                     totalTime: totalTime,
-                    model: nanoResult.model,
+                    model: miniResult.model,
                     attempt: 1,
                     fallbackUsed: false,
                     hasProfile: parsedData.profile && parsedData.profile.name,
@@ -482,16 +500,16 @@ async function sendToGemini({
                     hasEducation: parsedData.education && parsedData.education.length > 0,
                     dataQuality: (parsedData.profile?.name && parsedData.experience?.length > 0) ? 'high' : 'medium',
                     optimizationMode: optimizationMode,
-                    tokenUsage: nanoResult.tokenUsage
+                    tokenUsage: miniResult.tokenUsage
                 },
                 tokenData: {
-                    rawGptResponse: nanoResult.rawResponse,
-                    inputTokens: nanoResult.tokenUsage.inputTokens,
-                    outputTokens: nanoResult.tokenUsage.outputTokens,
-                    totalTokens: nanoResult.tokenUsage.totalTokens,
-                    processingTimeMs: nanoResult.processingTime,
-                    apiRequestId: nanoResult.apiRequestId,
-                    responseStatus: nanoResult.responseStatus
+                    rawGptResponse: miniResult.rawResponse,
+                    inputTokens: miniResult.tokenUsage.inputTokens,
+                    outputTokens: miniResult.tokenUsage.outputTokens,
+                    totalTokens: miniResult.tokenUsage.totalTokens,
+                    processingTimeMs: miniResult.processingTime,
+                    apiRequestId: miniResult.apiRequestId,
+                    responseStatus: miniResult.responseStatus
                 }
             };
             
@@ -504,27 +522,15 @@ async function sendToGemini({
             }
             
             // ============================================
-            // ATTEMPT 2: Parallel Race (Nano + Mini)
+            // ATTEMPT 2: Parallel Race (Mini Retry + Nano Fallback)
             // ============================================
-            console.log('⚡ ATTEMPT 2: Parallel race (Nano retry + Mini fallback)...');
+            console.log('⚡ ATTEMPT 2: Parallel race (Mini retry + Nano fallback)...');
             console.log('🏁 Racing both models - first to finish wins!');
             
             const retryStartTime = Date.now();
             
             // Launch BOTH models at the same time
-            const nanoRetryPromise = sendToNano({ systemPrompt, userPrompt, preprocessedHtml })
-                .then(result => ({
-                    ...result,
-                    model: 'gpt-5-nano',
-                    attempt: 2,
-                    retryTime: Date.now() - retryStartTime
-                }))
-                .catch(err => {
-                    console.log(`❌ Nano retry failed: ${err.message}`);
-                    return Promise.reject(err);
-                });
-            
-            const miniPromise = callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml })
+            const miniRetryPromise = callGPT5Mini({ systemPrompt, userPrompt, preprocessedHtml })
                 .then(result => ({
                     ...result,
                     model: 'gpt-4o-mini',
@@ -532,12 +538,24 @@ async function sendToGemini({
                     retryTime: Date.now() - retryStartTime
                 }))
                 .catch(err => {
-                    console.log(`❌ Mini fallback failed: ${err.message}`);
+                    console.log(`❌ Mini retry failed: ${err.message}`);
+                    return Promise.reject(err);
+                });
+            
+            const nanoPromise = sendToNano({ systemPrompt, userPrompt, preprocessedHtml })
+                .then(result => ({
+                    ...result,
+                    model: 'gpt-5-nano',
+                    attempt: 2,
+                    retryTime: Date.now() - retryStartTime
+                }))
+                .catch(err => {
+                    console.log(`❌ Nano fallback failed: ${err.message}`);
                     return Promise.reject(err);
                 });
             
             // Race them - first to finish wins
-            const winner = await Promise.race([nanoRetryPromise, miniPromise]);
+            const winner = await Promise.race([miniRetryPromise, nanoPromise]);
             
             const totalTime = Date.now() - overallStartTime;
             
