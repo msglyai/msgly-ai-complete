@@ -41,7 +41,7 @@ class GPTService {
         // Primary: OpenAI GPT-5 config
         this.apiKey = process.env.OPENAI_API_KEY;
         this.baseURL = 'https://api.openai.com/v1';
-        this.model = process.env.OPENAI_MODEL || 'gpt-5';
+        this.model = process.env.OPENAI_MODEL || 'gpt-5.1';
         
         // Insurance: Gemini fallback config
         this.geminiApiKey = process.env.GOOGLE_AI_API_KEY;
